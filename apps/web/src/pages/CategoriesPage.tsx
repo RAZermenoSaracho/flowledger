@@ -111,7 +111,7 @@ export function CategoriesPage() {
           {(categoriesQuery.data ?? []).map((category) => (
             <div
               key={category.id}
-              className="flex items-center gap-3 rounded-md border border-slate-200 p-3"
+              className="flex items-center gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
             >
               <span
                 className="h-4 w-4 rounded-full"
@@ -119,7 +119,7 @@ export function CategoriesPage() {
               />
               <div>
                 <p className="font-semibold">{category.name}</p>
-                <p className="text-sm text-slate-500">{category.type}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{category.type}</p>
               </div>
             </div>
           ))}

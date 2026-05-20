@@ -196,12 +196,12 @@ export function SharedExpensesPage() {
           {(sharedExpensesQuery.data ?? []).map((sharedExpense) => (
             <div
               key={sharedExpense.id}
-              className="rounded-md border border-slate-200 p-3"
+              className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
             >
               <div className="flex flex-col justify-between gap-2 sm:flex-row">
                 <div>
                   <p className="font-semibold">{sharedExpense.title}</p>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {sharedExpense.status}
                   </p>
                 </div>
@@ -213,7 +213,7 @@ export function SharedExpensesPage() {
                 {sharedExpense.participants.map((participant) => (
                   <div
                     key={participant.id}
-                    className="rounded-md bg-slate-50 p-2 text-sm"
+                    className="rounded-md bg-slate-50 p-2 text-sm dark:bg-slate-950"
                   >
                     {participant.participantName}:{" "}
                     {money.format(participant.paidAmount)} paid of{" "}

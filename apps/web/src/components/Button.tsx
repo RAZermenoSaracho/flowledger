@@ -5,9 +5,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants = {
-  primary: "bg-pine text-white hover:bg-ink",
-  secondary: "bg-white text-ink ring-1 ring-slate-200 hover:bg-slate-50",
-  danger: "bg-coral text-white hover:bg-red-600"
+  primary: "bg-pine text-white hover:bg-ink dark:hover:bg-emerald-700",
+  secondary: "bg-white text-ink ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800",
+  danger: "bg-coral text-white hover:bg-red-600 dark:hover:bg-red-500"
 };
 
 export function Button({ className = "", variant = "primary", ...props }: ButtonProps) {

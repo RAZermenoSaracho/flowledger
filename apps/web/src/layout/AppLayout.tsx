@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../hooks/useTheme";
+import type { ThemePreference } from "../hooks/useTheme";
 import { apiRequest, tokenStore } from "../services/api";
 import type { User } from "../types/api";
 import { Button } from "../components/Button";
@@ -20,6 +22,7 @@ const mobileNavItems = [...navItems, ["Profile", routes.profile]] as const;
 
 export function AppLayout() {
   const auth = useAuth();
+  const { preference, setPreference } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,17 +49,17 @@ export function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold text-ink">FlowLedger</h1>
-              <p className="text-sm text-slate-500">{auth.user ? auth.user.email : "Personal finance workspace"}</p>
+              <h1 className="text-xl font-bold text-ink dark:text-slate-100">FlowLedger</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{auth.user ? auth.user.email : "Personal finance workspace"}</p>
             </div>
             <button
               type="button"
-              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 lg:hidden"
+              className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950 lg:hidden"
               aria-controls="mobile-navigation"
               aria-expanded={isMobileMenuOpen}
               aria-label="Toggle navigation menu"
@@ -77,7 +80,9 @@ export function AppLayout() {
                     to={href}
                     className={({ isActive }) =>
                       `whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium ${
-                        isActive ? "bg-mint text-pine" : "text-slate-600 hover:bg-slate-100"
+                        isActive
+                          ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                       }`
                     }
                   >
@@ -85,6 +90,7 @@ export function AppLayout() {
                   </NavLink>
                 ))}
               </nav>
+              <ThemeSelector preference={preference} setPreference={setPreference} />
               <Button variant="secondary" onClick={logout}>
                 Sign out
               </Button>
@@ -93,7 +99,7 @@ export function AppLayout() {
 
           <nav
             id="mobile-navigation"
-            className={`${isMobileMenuOpen ? "grid" : "hidden"} mt-4 gap-2 border-t border-slate-200 pt-4 lg:hidden`}
+            className={`${isMobileMenuOpen ? "grid" : "hidden"} mt-4 gap-2 border-t border-slate-200 pt-4 dark:border-slate-800 lg:hidden`}
             aria-label="Mobile navigation"
           >
             {mobileNavItems.map(([label, href]) => (
@@ -103,13 +109,16 @@ export function AppLayout() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={({ isActive }) =>
                   `rounded-md px-3 py-2 text-sm font-medium ${
-                    isActive ? "bg-mint text-pine" : "text-slate-600 hover:bg-slate-100"
+                    isActive
+                      ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                   }`
                 }
               >
                 {label}
               </NavLink>
             ))}
+            <ThemeSelector preference={preference} setPreference={setPreference} />
             <Button variant="secondary" onClick={logout} className="justify-self-start">
               Sign out
             </Button>
@@ -120,5 +129,28 @@ export function AppLayout() {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function ThemeSelector({
+  preference,
+  setPreference
+}: {
+  preference: ThemePreference;
+  setPreference: (preference: ThemePreference) => void;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+      Theme
+      <select
+        className="min-h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case text-ink outline-none transition focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
+        value={preference}
+        onChange={(event) => setPreference(event.target.value as ThemePreference)}
+      >
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="system">System</option>
+      </select>
+    </label>
   );
 }

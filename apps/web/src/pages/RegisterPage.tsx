@@ -26,7 +26,7 @@ export function RegisterPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
+    <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-slate-950">
       <Card className="w-full max-w-md">
         <h1 className="text-2xl font-bold">Create account</h1>
         <form className="mt-6 grid gap-4" onSubmit={submit}>
@@ -40,12 +40,12 @@ export function RegisterPage() {
             onChange={(event) => setPassword(event.target.value)}
             required
           />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
           <Button type="submit">Create account</Button>
         </form>
-        <p className="mt-4 text-sm text-slate-600">
+        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
           Already registered?{" "}
-          <Link className="font-semibold text-pine" to={routes.login}>
+          <Link className="font-semibold text-pine dark:text-emerald-300" to={routes.login}>
             Sign in
           </Link>
         </p>

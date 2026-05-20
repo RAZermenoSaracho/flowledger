@@ -72,19 +72,19 @@ export function ReportsPage() {
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
         <Card>
-          <p className="text-sm text-slate-500">Income</p>
-          <p className="mt-2 text-2xl font-bold text-pine">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Income</p>
+          <p className="mt-2 text-2xl font-bold text-pine dark:text-emerald-300">
             {money.format(summaryQuery.data?.totalIncome ?? 0)}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-slate-500">Expenses</p>
-          <p className="mt-2 text-2xl font-bold text-coral">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Expenses</p>
+          <p className="mt-2 text-2xl font-bold text-coral dark:text-orange-300">
             {money.format(summaryQuery.data?.totalExpenses ?? 0)}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-slate-500">Balance</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Balance</p>
           <p className="mt-2 text-2xl font-bold">
             {money.format(summaryQuery.data?.currentBalance ?? 0)}
           </p>
@@ -154,7 +154,7 @@ function CategoryBreakdown({
     <Card>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="shrink-0 text-sm font-semibold text-slate-600">
+        <span className="shrink-0 text-sm font-semibold text-slate-600 dark:text-slate-300">
           {money.format(total)}
         </span>
       </div>
@@ -196,12 +196,12 @@ function CategoryBreakdown({
                   style={{ backgroundColor: row.fill }}
                 />
                 <span
-                  className="truncate text-slate-700"
+                  className="truncate text-slate-700 dark:text-slate-300"
                   title={row.displayName}
                 >
                   {row.displayName}
                 </span>
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
                   {money.format(row.total)}
                 </span>
               </div>
@@ -209,7 +209,7 @@ function CategoryBreakdown({
           </div>
         </div>
       ) : (
-        <div className="mt-4 flex h-48 items-center justify-center rounded-md bg-slate-50 text-sm text-slate-500">
+        <div className="mt-4 flex h-48 items-center justify-center rounded-md bg-slate-50 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400">
           {emptyText}
         </div>
       )}

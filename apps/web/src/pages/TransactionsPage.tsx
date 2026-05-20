@@ -316,16 +316,16 @@ export function TransactionsPage() {
             {(transactionsQuery.data ?? []).map((transaction) => (
               <div
                 key={transaction.id}
-                className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_auto_auto] md:items-center"
+                className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[1fr_auto_auto] md:items-center"
               >
                 <div>
                   <Link
-                    className="font-semibold text-pine"
+                    className="font-semibold text-pine dark:text-emerald-300"
                     to={`/transactions/${transaction.id}`}
                   >
                     {transaction.name}
                   </Link>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {new Date(transaction.date).toLocaleDateString()} ·{" "}
                     {transaction.category?.name ?? "Uncategorized"} ·{" "}
                     {transaction.account?.name ?? "No account"}
@@ -334,8 +334,8 @@ export function TransactionsPage() {
                 <span
                   className={
                     transaction.type === "income"
-                      ? "font-semibold text-pine"
-                      : "font-semibold text-coral"
+                      ? "font-semibold text-pine dark:text-emerald-300"
+                      : "font-semibold text-coral dark:text-orange-300"
                   }
                 >
                   {money.format(transaction.amount)}

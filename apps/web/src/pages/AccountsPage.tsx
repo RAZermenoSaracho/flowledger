@@ -109,14 +109,14 @@ export function AccountsPage() {
           {(accountsQuery.data ?? []).map((account) => (
             <div
               key={account.id}
-              className="rounded-md border border-slate-200 p-3"
+              className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
             >
               <p className="font-semibold">{account.name}</p>
-              <p className="text-sm capitalize text-slate-500">
+              <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
                 {account.type.replace("_", " ")}
               </p>
               {account.identifier ? (
-                <p className="text-sm text-slate-500">{account.identifier}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{account.identifier}</p>
               ) : null}
             </div>
           ))}

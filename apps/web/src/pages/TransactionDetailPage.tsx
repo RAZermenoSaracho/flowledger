@@ -23,7 +23,7 @@ export function TransactionDetailPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <Card>
-        <Link className="text-sm font-semibold text-pine" to="/transactions">
+        <Link className="text-sm font-semibold text-pine dark:text-emerald-300" to="/transactions">
           Back to transactions
         </Link>
         <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
@@ -41,9 +41,9 @@ export function TransactionDetailPage() {
         {transaction.sharedExpense ? (
           <div className="mt-4 grid gap-3">
             <p className="font-semibold">{transaction.sharedExpense.title}</p>
-            <p className="text-sm text-slate-500">{transaction.sharedExpense.status}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{transaction.sharedExpense.status}</p>
             {transaction.sharedExpense.participants.map((participant) => (
-              <div key={participant.id} className="rounded-md bg-slate-50 p-3 text-sm">
+              <div key={participant.id} className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950">
                 <p className="font-medium">{participant.participantName}</p>
                 <p>
                   {money.format(participant.paidAmount)} paid of {money.format(participant.shareAmount)}
@@ -52,7 +52,7 @@ export function TransactionDetailPage() {
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-500">No shared expense is attached.</p>
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No shared expense is attached.</p>
         )}
       </Card>
     </div>
@@ -62,7 +62,7 @@ export function TransactionDetailPage() {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-sm font-medium text-slate-500">{label}</dt>
+      <dt className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</dt>
       <dd className="mt-1 font-semibold">{value}</dd>
     </div>
   );

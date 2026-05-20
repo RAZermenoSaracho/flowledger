@@ -49,9 +49,15 @@ export function DashboardPage() {
           <h2 className="text-lg font-semibold">Recent activity</h2>
           <div className="mt-4 grid gap-3">
             {(transactionsQuery.data ?? []).map((transaction) => (
-              <div key={transaction.id} className="flex items-center justify-between rounded-md bg-slate-50 p-3 text-sm">
+              <div key={transaction.id} className="flex items-center justify-between rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950">
                 <span>{transaction.name}</span>
-                <span className={transaction.type === "income" ? "font-semibold text-pine" : "font-semibold text-coral"}>
+                <span
+                  className={
+                    transaction.type === "income"
+                      ? "font-semibold text-pine dark:text-emerald-300"
+                      : "font-semibold text-coral dark:text-orange-300"
+                  }
+                >
                   {money.format(transaction.amount)}
                 </span>
               </div>
@@ -66,7 +72,7 @@ export function DashboardPage() {
 function Metric({ title, value }: { title: string; value: string }) {
   return (
     <Card>
-      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{title}</p>
       <p className="mt-2 text-2xl font-bold">{value}</p>
     </Card>
   );
