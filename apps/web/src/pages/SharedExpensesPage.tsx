@@ -8,7 +8,10 @@ import { SelectField, TextInput } from "../components/FormField";
 import { apiRequest } from "../services/api";
 import type { SharedExpense, Transaction } from "../types/api";
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const money = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD"
+});
 
 export function SharedExpensesPage() {
   const queryClient = useQueryClient();
@@ -19,14 +22,22 @@ export function SharedExpensesPage() {
   const [participantName, setParticipantName] = useState("");
   const [shareAmount, setShareAmount] = useState("");
   const [paidAmount, setPaidAmount] = useState("0");
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const transactionsQuery = useQuery({
     queryKey: ["transactions", "shared-options"],
-    queryFn: async () => (await apiRequest<{ transactions: Transaction[] }>("/transactions")).transactions
+    queryFn: async () =>
+      (await apiRequest<{ transactions: Transaction[] }>("/transactions"))
+        .transactions
   });
   const sharedExpensesQuery = useQuery({
     queryKey: ["shared-expenses"],
-    queryFn: async () => (await apiRequest<{ sharedExpenses: SharedExpense[] }>("/shared-expenses")).sharedExpenses
+    queryFn: async () =>
+      (
+        await apiRequest<{ sharedExpenses: SharedExpense[] }>(
+          "/shared-expenses"
+        )
+      ).sharedExpenses
   });
 
   const createSharedExpense = useMutation({
@@ -43,7 +54,12 @@ export function SharedExpensesPage() {
               participantName,
               shareAmount: Number(shareAmount),
               paidAmount: Number(paidAmount),
-              status: Number(paidAmount) >= Number(shareAmount) ? "paid" : Number(paidAmount) > 0 ? "partial" : "pending"
+              status:
+                Number(paidAmount) >= Number(shareAmount)
+                  ? "paid"
+                  : Number(paidAmount) > 0
+                    ? "partial"
+                    : "pending"
             }
           ]
         }
@@ -54,6 +70,7 @@ export function SharedExpensesPage() {
       setParticipantName("");
       setShareAmount("");
       setPaidAmount("0");
+      setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
@@ -64,77 +81,143 @@ export function SharedExpensesPage() {
     await createSharedExpense.mutateAsync();
   }
 
+  function closeForm() {
+    setTransactionId("");
+    setTitle("");
+    setTotalAmount("");
+    setStatus("open");
+    setParticipantName("");
+    setShareAmount("");
+    setPaidAmount("0");
+    setIsFormOpen(false);
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+    <div className="grid gap-6">
       <Card>
-        <h2 className="text-lg font-semibold">New shared expense</h2>
-        <form className="mt-4 grid gap-4" onSubmit={submit}>
-          <SelectField label="Transaction" value={transactionId} onChange={(event) => setTransactionId(event.target.value)} required>
-            <option value="">Select transaction</option>
-            {(transactionsQuery.data ?? []).map((transaction) => (
-              <option key={transaction.id} value={transaction.id}>
-                {transaction.name} · {money.format(transaction.amount)}
-              </option>
-            ))}
-          </SelectField>
-          <TextInput label="Title" value={title} onChange={(event) => setTitle(event.target.value)} required />
-          <TextInput
-            label="Total amount"
-            type="number"
-            step="0.01"
-            value={totalAmount}
-            onChange={(event) => setTotalAmount(event.target.value)}
-            required
-          />
-          <SelectField label="Status" value={status} onChange={(event) => setStatus(event.target.value as SharedExpenseStatus)}>
-            {SHARED_EXPENSE_STATUSES.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </SelectField>
-          <TextInput
-            label="Participant"
-            value={participantName}
-            onChange={(event) => setParticipantName(event.target.value)}
-            required
-          />
-          <TextInput
-            label="Share amount"
-            type="number"
-            step="0.01"
-            value={shareAmount}
-            onChange={(event) => setShareAmount(event.target.value)}
-            required
-          />
-          <TextInput
-            label="Paid amount"
-            type="number"
-            step="0.01"
-            value={paidAmount}
-            onChange={(event) => setPaidAmount(event.target.value)}
-          />
-          <Button type="submit" disabled={createSharedExpense.isPending}>
-            Save split
+        {isFormOpen ? (
+          <>
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <h2 className="text-lg font-semibold">New shared expense</h2>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={closeForm}
+              >
+                Cancel
+              </Button>
+            </div>
+            <form
+              className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+              onSubmit={submit}
+            >
+              <SelectField
+                label="Transaction"
+                value={transactionId}
+                onChange={(event) => setTransactionId(event.target.value)}
+                required
+              >
+                <option value="">Select transaction</option>
+                {(transactionsQuery.data ?? []).map((transaction) => (
+                  <option key={transaction.id} value={transaction.id}>
+                    {transaction.name} · {money.format(transaction.amount)}
+                  </option>
+                ))}
+              </SelectField>
+              <TextInput
+                label="Title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
+              />
+              <TextInput
+                label="Total amount"
+                type="number"
+                step="0.01"
+                value={totalAmount}
+                onChange={(event) => setTotalAmount(event.target.value)}
+                required
+              />
+              <SelectField
+                label="Status"
+                value={status}
+                onChange={(event) =>
+                  setStatus(event.target.value as SharedExpenseStatus)
+                }
+              >
+                {SHARED_EXPENSE_STATUSES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </SelectField>
+              <TextInput
+                label="Participant"
+                value={participantName}
+                onChange={(event) => setParticipantName(event.target.value)}
+                required
+              />
+              <TextInput
+                label="Share amount"
+                type="number"
+                step="0.01"
+                value={shareAmount}
+                onChange={(event) => setShareAmount(event.target.value)}
+                required
+              />
+              <TextInput
+                label="Paid amount"
+                type="number"
+                step="0.01"
+                value={paidAmount}
+                onChange={(event) => setPaidAmount(event.target.value)}
+              />
+              <div className="md:col-span-2 xl:col-span-3">
+                <Button type="submit" disabled={createSharedExpense.isPending}>
+                  Save split
+                </Button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            onClick={() => setIsFormOpen(true)}
+          >
+            Add shared expense
           </Button>
-        </form>
+        )}
       </Card>
       <Card>
         <h2 className="text-lg font-semibold">Shared expenses</h2>
         <div className="mt-4 grid gap-3">
           {(sharedExpensesQuery.data ?? []).map((sharedExpense) => (
-            <div key={sharedExpense.id} className="rounded-md border border-slate-200 p-3">
+            <div
+              key={sharedExpense.id}
+              className="rounded-md border border-slate-200 p-3"
+            >
               <div className="flex flex-col justify-between gap-2 sm:flex-row">
                 <div>
                   <p className="font-semibold">{sharedExpense.title}</p>
-                  <p className="text-sm text-slate-500">{sharedExpense.status}</p>
+                  <p className="text-sm text-slate-500">
+                    {sharedExpense.status}
+                  </p>
                 </div>
-                <p className="font-semibold">{money.format(sharedExpense.totalAmount)}</p>
+                <p className="font-semibold">
+                  {money.format(sharedExpense.totalAmount)}
+                </p>
               </div>
               <div className="mt-3 grid gap-2">
                 {sharedExpense.participants.map((participant) => (
-                  <div key={participant.id} className="rounded-md bg-slate-50 p-2 text-sm">
-                    {participant.participantName}: {money.format(participant.paidAmount)} paid of {money.format(participant.shareAmount)}
+                  <div
+                    key={participant.id}
+                    className="rounded-md bg-slate-50 p-2 text-sm"
+                  >
+                    {participant.participantName}:{" "}
+                    {money.format(participant.paidAmount)} paid of{" "}
+                    {money.format(participant.shareAmount)}
                   </div>
                 ))}
               </div>
