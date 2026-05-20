@@ -41,16 +41,30 @@ reportsRouter.get(
       _sum: { amount: true }
     });
 
-    const categories = await prisma.category.findMany({ where: { userId: req.user!.id } });
-    const categoryById = new Map(categories.map((category) => [category.id, category]));
+    const categories = await prisma.category.findMany({
+      where: { userId: req.user!.id }
+    });
+    const categoryById = new Map(
+      categories.map((category) => [category.id, category])
+    );
 
     res.json({
-      categories: rows.map((row) => ({
-        categoryId: row.categoryId,
-        categoryName: row.categoryId ? categoryById.get(row.categoryId)?.name ?? "Uncategorized" : "Uncategorized",
-        type: row.type,
-        total: row._sum.amount?.toNumber() ?? 0
-      }))
+      categories: rows
+        .map((row) => {
+          const category = row.categoryId
+            ? categoryById.get(row.categoryId)
+            : null;
+
+          return {
+            categoryId: row.categoryId,
+            categoryName: category?.name ?? "Uncategorized",
+            categoryType: category?.type ?? null,
+            categoryColor: category?.color ?? null,
+            type: row.type,
+            total: row._sum.amount?.toNumber() ?? 0
+          };
+        })
+        .sort((a, b) => b.total - a.total)
     });
   })
 );
@@ -64,11 +78,19 @@ reportsRouter.get(
       orderBy: { date: "asc" }
     });
 
-    const monthly = new Map<string, { month: string; income: number; expenses: number; balance: number }>();
+    const monthly = new Map<
+      string,
+      { month: string; income: number; expenses: number; balance: number }
+    >();
 
     for (const transaction of transactions) {
       const month = transaction.date.toISOString().slice(0, 7);
-      const row = monthly.get(month) ?? { month, income: 0, expenses: 0, balance: 0 };
+      const row = monthly.get(month) ?? {
+        month,
+        income: 0,
+        expenses: 0,
+        balance: 0
+      };
       const amount = transaction.amount.toNumber();
 
       if (transaction.type === "income") row.income += amount;

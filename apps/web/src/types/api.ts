@@ -1,4 +1,10 @@
-import type { AccountType, CategoryType, ParticipantStatus, SharedExpenseStatus, TransactionType } from "@flowledger/shared";
+import type {
+  AccountType,
+  CategoryType,
+  ParticipantStatus,
+  SharedExpenseStatus,
+  TransactionType
+} from "@flowledger/shared";
 
 export type User = {
   id: string;
@@ -73,6 +79,8 @@ export type Summary = {
 export type CategoryReportRow = {
   categoryId: string | null;
   categoryName: string;
+  categoryType: CategoryType | null;
+  categoryColor?: string | null;
   type: TransactionType;
   total: number;
 };
