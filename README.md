@@ -36,6 +36,11 @@ Copy `.env.example` to `.env` for local development and adjust values:
 cp .env.example .env
 ```
 
+The API loads the repository root `.env` file when started from either the
+monorepo root or `apps/api`, so do not duplicate environment files inside
+workspace packages. This also keeps PM2-style process working directories
+compatible with the same root `.env`.
+
 Required variables:
 
 - `DATABASE_URL`: PostgreSQL connection string.
