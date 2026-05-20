@@ -15,10 +15,11 @@ const navItems = [
   ["Accounts", routes.accounts],
   ["Categories", routes.categories],
   ["Reports", routes.reports],
-  ["Shared", routes.sharedExpenses]
+  ["Shared", routes.sharedExpenses],
+  ["Profile", routes.profile]
 ] as const;
 
-const mobileNavItems = [...navItems, ["Profile", routes.profile]] as const;
+const mobileNavItems = navItems;
 
 export function AppLayout() {
   const auth = useAuth();

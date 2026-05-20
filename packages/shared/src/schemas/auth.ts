@@ -11,5 +11,11 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(128)
 });
 
+export const updateUserProfileSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(255)
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
