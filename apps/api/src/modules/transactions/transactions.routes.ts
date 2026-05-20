@@ -1,0 +1,139 @@
+import { transactionFiltersSchema, transactionSchema, updateTransactionSchema } from "@flowledger/shared";
+import type { Prisma } from "@prisma/client";
+import { Router } from "express";
+import { prisma } from "../../db/prisma.js";
+import { validate } from "../../middleware/validate.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import { HttpError, notFound } from "../../utils/httpError.js";
+import { serialize } from "../../utils/serialize.js";
+
+export const transactionsRouter = Router();
+
+async function assertOwnedRelations(userId: string, input: { accountId?: string | null; categoryId?: string | null }) {
+  if (input.accountId) {
+    const account = await prisma.account.findFirst({ where: { id: input.accountId, userId } });
+    if (!account) throw new HttpError(400, "Account does not exist for this user");
+  }
+
+  if (input.categoryId) {
+    const category = await prisma.category.findFirst({ where: { id: input.categoryId, userId } });
+    if (!category) throw new HttpError(400, "Category does not exist for this user");
+  }
+}
+
+transactionsRouter.get(
+  "/",
+  validate(transactionFiltersSchema, "query"),
+  asyncHandler(async (req, res) => {
+    const filters = req.query as {
+      dateFrom?: string;
+      dateTo?: string;
+      categoryId?: string;
+      accountId?: string;
+      type?: "income" | "expense" | "transfer";
+      search?: string;
+    };
+
+    const where: Prisma.TransactionWhereInput = {
+      userId: req.user!.id,
+      ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+      ...(filters.accountId ? { accountId: filters.accountId } : {}),
+      ...(filters.type ? { type: filters.type } : {}),
+      ...(filters.search
+        ? {
+            OR: [
+              { name: { contains: filters.search, mode: "insensitive" } },
+              { notes: { contains: filters.search, mode: "insensitive" } }
+            ]
+          }
+        : {}),
+      ...(filters.dateFrom || filters.dateTo
+        ? {
+            date: {
+              ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+              ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {})
+            }
+          }
+        : {})
+    };
+
+    const transactions = await prisma.transaction.findMany({
+      where,
+      include: { account: true, category: true },
+      orderBy: { date: "desc" }
+    });
+
+    res.json({ transactions: serialize(transactions) });
+  })
+);
+
+transactionsRouter.post(
+  "/",
+  validate(transactionSchema),
+  asyncHandler(async (req, res) => {
+    await assertOwnedRelations(req.user!.id, req.body);
+
+    const transaction = await prisma.transaction.create({
+      data: { ...req.body, userId: req.user!.id, date: new Date(req.body.date) },
+      include: { account: true, category: true }
+    });
+
+    res.status(201).json({ transaction: serialize(transaction) });
+  })
+);
+
+transactionsRouter.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const transaction = await prisma.transaction.findFirst({
+      where: { id: req.params.id, userId: req.user!.id },
+      include: {
+        account: true,
+        category: true,
+        relations: { include: { relatedTransaction: true } },
+        relatedBy: { include: { transaction: true } },
+        sharedExpense: { include: { participants: true } }
+      }
+    });
+
+    if (!transaction) throw notFound("Transaction");
+    res.json({ transaction: serialize(transaction) });
+  })
+);
+
+transactionsRouter.put(
+  "/:id",
+  validate(updateTransactionSchema),
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.transaction.findFirst({
+      where: { id: req.params.id, userId: req.user!.id }
+    });
+    if (!existing) throw notFound("Transaction");
+
+    await assertOwnedRelations(req.user!.id, req.body);
+
+    const transaction = await prisma.transaction.update({
+      where: { id: existing.id },
+      data: {
+        ...req.body,
+        ...(req.body.date ? { date: new Date(req.body.date) } : {})
+      },
+      include: { account: true, category: true }
+    });
+
+    res.json({ transaction: serialize(transaction) });
+  })
+);
+
+transactionsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.transaction.findFirst({
+      where: { id: req.params.id, userId: req.user!.id }
+    });
+    if (!existing) throw notFound("Transaction");
+
+    await prisma.transaction.delete({ where: { id: existing.id } });
+    res.status(204).send();
+  })
+);

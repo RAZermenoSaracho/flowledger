@@ -9,7 +9,12 @@ Agents working in this repository must read these guide files before coding:
 
 ## Project
 
-flowledger
+FlowLedger is an npm workspaces monorepo with:
+
+- `apps/api`: Express, TypeScript, Prisma, PostgreSQL, JWT auth.
+- `apps/web`: React, Vite, TypeScript, Tailwind CSS, TanStack Query, Recharts.
+- `packages/shared`: shared TypeScript types, constants, and Zod schemas.
+- `database`: Prisma schema and optional seed script.
 
 ## Required Behavior
 
@@ -21,6 +26,13 @@ flowledger
   changes without explicit human approval.
 - Work on the AI branch `razs_ai` unless a human operator instructs otherwise.
 - Preserve existing user work and avoid unrelated changes.
+- Do not edit `.env` or other environment files containing real local values.
+- Do not use Docker for the MVP unless a human operator changes that direction.
+- Assume PostgreSQL is installed locally for development.
+- Validate API inputs with shared Zod schemas and keep user data scoped by the
+  authenticated user.
+- Never return `passwordHash` or other credential material from API responses.
+- Keep frontend UI responsive, minimal, and web-first.
 
 ## Guide File Hierarchy
 
