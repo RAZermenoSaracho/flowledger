@@ -1,4 +1,5 @@
 import { sharedExpenseSchema, updateSharedExpenseSchema } from "@flowledger/shared";
+import type { SharedExpenseInput } from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -20,6 +21,43 @@ async function assertOwnedTransaction(userId: string, transactionId?: string) {
   }
 }
 
+async function normalizeParticipants(
+  ownerUserId: string,
+  participants: SharedExpenseInput["participants"] = []
+) {
+  const participantUserIds = Array.from(
+    new Set(participants.map((participant) => participant.userId).filter(Boolean))
+  ) as string[];
+
+  if (participantUserIds.includes(ownerUserId)) {
+    throw new HttpError(400, "Shared expense participants cannot include the owner");
+  }
+
+  if (participantUserIds.length === 0) {
+    return participants;
+  }
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: participantUserIds } },
+    select: { id: true, name: true }
+  });
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  if (users.length !== participantUserIds.length) {
+    throw new HttpError(400, "One or more participants do not exist");
+  }
+
+  return participants.map((participant) => {
+    if (!participant.userId) return participant;
+
+    const user = usersById.get(participant.userId);
+    return {
+      ...participant,
+      participantName: user?.name ?? participant.participantName
+    };
+  });
+}
+
 sharedExpensesRouter.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -39,11 +77,12 @@ sharedExpensesRouter.post(
     await assertOwnedTransaction(req.user!.id, req.body.transactionId);
 
     const { participants = [], ...input } = req.body;
+    const normalizedParticipants = await normalizeParticipants(req.user!.id, participants);
     const sharedExpense = await prisma.sharedExpense.create({
       data: {
         ...input,
         ownerUserId: req.user!.id,
-        participants: { create: participants }
+        participants: { create: normalizedParticipants }
       },
       include: { transaction: true, participants: true }
     });
@@ -77,15 +116,18 @@ sharedExpensesRouter.put(
     await assertOwnedTransaction(req.user!.id, req.body.transactionId);
 
     const { participants, ...input } = req.body;
+    const normalizedParticipants = participants
+      ? await normalizeParticipants(req.user!.id, participants)
+      : undefined;
     const sharedExpense = await prisma.sharedExpense.update({
       where: { id: existing.id },
       data: {
         ...input,
-        ...(participants
+        ...(normalizedParticipants
           ? {
               participants: {
                 deleteMany: {},
-                create: participants
+                create: normalizedParticipants
               }
             }
           : {})

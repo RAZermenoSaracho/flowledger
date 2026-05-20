@@ -1,4 +1,5 @@
-import { updateUserProfileSchema } from "@flowledger/shared";
+import type { UserSearchQuery } from "@flowledger/shared";
+import { updateUserProfileSchema, userSearchQuerySchema } from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -7,6 +8,32 @@ import { HttpError } from "../../utils/httpError.js";
 import { publicUser } from "../../utils/serialize.js";
 
 export const usersRouter = Router();
+
+usersRouter.get(
+  "/search",
+  validate(userSearchQuerySchema, "query"),
+  asyncHandler(async (req, res) => {
+    const { q, limit } = req.query as unknown as UserSearchQuery;
+    const users = await prisma.user.findMany({
+      where: {
+        id: { not: req.user!.id },
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true
+      },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      take: limit
+    });
+
+    res.json({ users });
+  })
+);
 
 usersRouter.get(
   "/me",

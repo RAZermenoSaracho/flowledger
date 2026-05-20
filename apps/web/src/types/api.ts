@@ -14,6 +14,8 @@ export type User = {
   updatedAt: string;
 };
 
+export type PublicUser = Pick<User, "id" | "name" | "email">;
+
 export type Account = {
   id: string;
   name: string;

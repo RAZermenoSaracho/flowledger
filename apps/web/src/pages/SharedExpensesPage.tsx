@@ -6,12 +6,31 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { apiRequest } from "../services/api";
-import type { SharedExpense, Transaction } from "../types/api";
+import type { PublicUser, SharedExpense, Transaction } from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD"
 });
+
+type ParticipantDraft = {
+  draftId: string;
+  userId?: string | null;
+  participantName: string;
+  email?: string;
+  source: "app" | "manual";
+  shareAmount: string;
+  paidAmount: string;
+};
+
+function participantStatus(shareAmount: string, paidAmount: string) {
+  const share = Number(shareAmount);
+  const paid = Number(paidAmount);
+
+  if (paid >= share) return "paid";
+  if (paid > 0) return "partial";
+  return "pending";
+}
 
 export function SharedExpensesPage() {
   const queryClient = useQueryClient();
@@ -19,10 +38,12 @@ export function SharedExpensesPage() {
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [status, setStatus] = useState<SharedExpenseStatus>("open");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [participantName, setParticipantName] = useState("");
-  const [shareAmount, setShareAmount] = useState("");
-  const [paidAmount, setPaidAmount] = useState("0");
+  const [userSearch, setUserSearch] = useState("");
+  const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const trimmedUserSearch = userSearch.trim();
 
   const transactionsQuery = useQuery({
     queryKey: ["transactions", "shared-options"],
@@ -39,6 +60,16 @@ export function SharedExpensesPage() {
         )
       ).sharedExpenses
   });
+  const userSearchQuery = useQuery({
+    queryKey: ["users", "search", trimmedUserSearch],
+    enabled: trimmedUserSearch.length > 1,
+    queryFn: async () =>
+      (
+        await apiRequest<{ users: PublicUser[] }>("/users/search", {
+          query: { q: trimmedUserSearch, limit: "8" }
+        })
+      ).users
+  });
 
   const createSharedExpense = useMutation({
     mutationFn: () =>
@@ -49,36 +80,58 @@ export function SharedExpensesPage() {
           title,
           totalAmount: Number(totalAmount),
           status,
-          participants: [
-            {
-              participantName,
-              shareAmount: Number(shareAmount),
-              paidAmount: Number(paidAmount),
-              status:
-                Number(paidAmount) >= Number(shareAmount)
-                  ? "paid"
-                  : Number(paidAmount) > 0
-                    ? "partial"
-                    : "pending"
-            }
-          ]
+          participants: participants.map((participant) => ({
+            userId: participant.userId ?? null,
+            participantName: participant.participantName,
+            shareAmount: Number(participant.shareAmount),
+            paidAmount: Number(participant.paidAmount),
+            status: participantStatus(
+              participant.shareAmount,
+              participant.paidAmount
+            )
+          }))
         }
       }),
-    onSuccess: async () => {
-      setTitle("");
-      setTotalAmount("");
-      setParticipantName("");
-      setShareAmount("");
-      setPaidAmount("0");
-      setIsFormOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    }
+    onSuccess: refreshAfterSave
+  });
+  const updateSharedExpense = useMutation({
+    mutationFn: () =>
+      apiRequest(`/shared-expenses/${editingId}`, {
+        method: "PUT",
+        body: {
+          transactionId,
+          title,
+          totalAmount: Number(totalAmount),
+          status,
+          participants: participants.map((participant) => ({
+            userId: participant.userId ?? null,
+            participantName: participant.participantName,
+            shareAmount: Number(participant.shareAmount),
+            paidAmount: Number(participant.paidAmount),
+            status: participantStatus(
+              participant.shareAmount,
+              participant.paidAmount
+            )
+          }))
+        }
+      }),
+    onSuccess: refreshAfterSave
   });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (editingId) {
+      await updateSharedExpense.mutateAsync();
+      return;
+    }
+
     await createSharedExpense.mutateAsync();
+  }
+
+  async function refreshAfterSave() {
+    closeForm();
+    await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
+    await queryClient.invalidateQueries({ queryKey: ["transactions"] });
   }
 
   function closeForm() {
@@ -86,11 +139,94 @@ export function SharedExpensesPage() {
     setTitle("");
     setTotalAmount("");
     setStatus("open");
+    setEditingId(null);
     setParticipantName("");
-    setShareAmount("");
-    setPaidAmount("0");
+    setUserSearch("");
+    setParticipants([]);
     setIsFormOpen(false);
   }
+
+  function addManualParticipant() {
+    const name = participantName.trim();
+    if (!name) return;
+
+    setParticipants((current) => [
+      ...current,
+      {
+        draftId: crypto.randomUUID(),
+        participantName: name,
+        source: "manual",
+        shareAmount: "",
+        paidAmount: "0"
+      }
+    ]);
+    setParticipantName("");
+  }
+
+  function addUserParticipant(user: PublicUser) {
+    setParticipants((current) => {
+      if (current.some((participant) => participant.userId === user.id)) {
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          draftId: crypto.randomUUID(),
+          userId: user.id,
+          participantName: user.name,
+          email: user.email,
+          source: "app",
+          shareAmount: "",
+          paidAmount: "0"
+        }
+      ];
+    });
+    setUserSearch("");
+  }
+
+  function updateParticipant(
+    draftId: string,
+    field: "shareAmount" | "paidAmount",
+    value: string
+  ) {
+    setParticipants((current) =>
+      current.map((participant) =>
+        participant.draftId === draftId
+          ? { ...participant, [field]: value }
+          : participant
+      )
+    );
+  }
+
+  function removeParticipant(draftId: string) {
+    setParticipants((current) =>
+      current.filter((participant) => participant.draftId !== draftId)
+    );
+  }
+
+  function editSharedExpense(sharedExpense: SharedExpense) {
+    setTransactionId(sharedExpense.transactionId);
+    setTitle(sharedExpense.title);
+    setTotalAmount(String(sharedExpense.totalAmount));
+    setStatus(sharedExpense.status);
+    setEditingId(sharedExpense.id);
+    setParticipantName("");
+    setUserSearch("");
+    setParticipants(
+      sharedExpense.participants.map((participant) => ({
+        draftId: participant.id,
+        userId: participant.userId,
+        participantName: participant.participantName,
+        source: participant.userId ? "app" : "manual",
+        shareAmount: String(participant.shareAmount),
+        paidAmount: String(participant.paidAmount)
+      }))
+    );
+    setIsFormOpen(true);
+  }
+
+  const isSaving = createSharedExpense.isPending || updateSharedExpense.isPending;
 
   return (
     <div className="grid gap-6">
@@ -98,7 +234,9 @@ export function SharedExpensesPage() {
         {isFormOpen ? (
           <>
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <h2 className="text-lg font-semibold">New shared expense</h2>
+              <h2 className="text-lg font-semibold">
+                {editingId ? "Edit shared expense" : "New shared expense"}
+              </h2>
               <Button
                 type="button"
                 variant="secondary"
@@ -153,28 +291,129 @@ export function SharedExpensesPage() {
                 ))}
               </SelectField>
               <TextInput
-                label="Participant"
-                value={participantName}
-                onChange={(event) => setParticipantName(event.target.value)}
-                required
+                label="Find app user"
+                value={userSearch}
+                onChange={(event) => setUserSearch(event.target.value)}
+                placeholder="Search by name or email"
               />
-              <TextInput
-                label="Share amount"
-                type="number"
-                step="0.01"
-                value={shareAmount}
-                onChange={(event) => setShareAmount(event.target.value)}
-                required
-              />
-              <TextInput
-                label="Paid amount"
-                type="number"
-                step="0.01"
-                value={paidAmount}
-                onChange={(event) => setPaidAmount(event.target.value)}
-              />
+              <div className="grid gap-2 md:col-span-2">
+                {trimmedUserSearch.length > 1 ? (
+                  userSearchQuery.isFetching ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Searching app users...
+                    </p>
+                  ) : (userSearchQuery.data ?? []).length > 0 ? (
+                    (userSearchQuery.data ?? []).map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
+                      >
+                        <div>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-slate-500 dark:text-slate-400">
+                            {user.email}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="w-full sm:w-auto"
+                          onClick={() => addUserParticipant(user)}
+                        >
+                          Add app user
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No app users found.
+                    </p>
+                  )
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2 md:col-span-2 xl:col-span-3 sm:flex-row sm:items-end">
+                <TextInput
+                  label="Manual participant"
+                  value={participantName}
+                  onChange={(event) => setParticipantName(event.target.value)}
+                  className="sm:min-w-80"
+                  placeholder="Name for someone without an account"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={addManualParticipant}
+                >
+                  Add manual participant
+                </Button>
+              </div>
+              <div className="grid gap-3 md:col-span-2 xl:col-span-3">
+                {participants.map((participant) => (
+                  <div
+                    key={participant.draftId}
+                    className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-2 xl:grid-cols-4"
+                  >
+                    <div className="text-sm">
+                      <p className="font-semibold">{participant.participantName}</p>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        {participant.source === "app"
+                          ? `App user${participant.email ? ` · ${participant.email}` : ""}`
+                          : "Manual participant"}
+                      </p>
+                    </div>
+                    <TextInput
+                      label="Share amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={participant.shareAmount}
+                      onChange={(event) =>
+                        updateParticipant(
+                          participant.draftId,
+                          "shareAmount",
+                          event.target.value
+                        )
+                      }
+                      required
+                    />
+                    <TextInput
+                      label="Paid amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={participant.paidAmount}
+                      onChange={(event) =>
+                        updateParticipant(
+                          participant.draftId,
+                          "paidAmount",
+                          event.target.value
+                        )
+                      }
+                    />
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="danger"
+                        className="w-full"
+                        onClick={() => removeParticipant(participant.draftId)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {participants.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Add an app user or a manual participant to save the split.
+                  </p>
+                ) : null}
+              </div>
               <div className="md:col-span-2 xl:col-span-3">
-                <Button type="submit" disabled={createSharedExpense.isPending}>
+                <Button
+                  type="submit"
+                  disabled={isSaving || participants.length === 0}
+                >
                   Save split
                 </Button>
               </div>
@@ -209,13 +448,26 @@ export function SharedExpensesPage() {
                   {money.format(sharedExpense.totalAmount)}
                 </p>
               </div>
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={() => editSharedExpense(sharedExpense)}
+                >
+                  Edit
+                </Button>
+              </div>
               <div className="mt-3 grid gap-2">
                 {sharedExpense.participants.map((participant) => (
                   <div
                     key={participant.id}
                     className="rounded-md bg-slate-50 p-2 text-sm dark:bg-slate-950"
                   >
-                    {participant.participantName}:{" "}
+                    <span className="font-medium">
+                      {participant.userId ? "App user" : "Manual"}
+                    </span>{" "}
+                    · {participant.participantName}:{" "}
                     {money.format(participant.paidAmount)} paid of{" "}
                     {money.format(participant.shareAmount)}
                   </div>

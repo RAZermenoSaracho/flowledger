@@ -16,6 +16,12 @@ export const updateUserProfileSchema = z.object({
   email: z.string().trim().email().max(255)
 });
 
+export const userSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(120),
+  limit: z.coerce.number().int().positive().max(25).default(10)
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;
