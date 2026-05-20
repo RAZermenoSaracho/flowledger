@@ -16,6 +16,7 @@ const navItems = [
   ["Categories", routes.categories],
   ["Reports", routes.reports],
   ["Shared", routes.sharedExpenses],
+  ["Debts", routes.debts],
   ["Profile", routes.profile]
 ] as const;
 

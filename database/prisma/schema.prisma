@@ -39,6 +39,12 @@ enum ParticipantStatus {
   paid
 }
 
+enum SettlementStatus {
+  pending
+  approved
+  rejected
+}
+
 model User {
   id                            String                     @id @default(cuid())
   name                          String
@@ -51,6 +57,8 @@ model User {
   transactions                  Transaction[]
   ownedSharedExpenses           SharedExpense[]            @relation("OwnedSharedExpenses")
   sharedExpenseParticipations   SharedExpenseParticipant[]
+  settlementRequestsMade        SettlementRequest[]        @relation("SettlementDebtor")
+  settlementRequestsReceived    SettlementRequest[]        @relation("SettlementCreditor")
 }
 
 model Account {
@@ -146,7 +154,29 @@ model SharedExpenseParticipant {
   updatedAt       DateTime          @updatedAt
   sharedExpense   SharedExpense     @relation(fields: [sharedExpenseId], references: [id], onDelete: Cascade)
   user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  settlementRequests SettlementRequest[]
 
   @@index([sharedExpenseId])
   @@index([userId])
+}
+
+model SettlementRequest {
+  id                         String                   @id @default(cuid())
+  sharedExpenseParticipantId String
+  debtorUserId               String
+  creditorUserId             String
+  amount                     Decimal                  @db.Decimal(12, 2)
+  status                     SettlementStatus         @default(pending)
+  note                       String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  approvedAt                 DateTime?
+  sharedExpenseParticipant   SharedExpenseParticipant @relation(fields: [sharedExpenseParticipantId], references: [id], onDelete: Cascade)
+  debtor                     User                     @relation("SettlementDebtor", fields: [debtorUserId], references: [id], onDelete: Cascade)
+  creditor                   User                     @relation("SettlementCreditor", fields: [creditorUserId], references: [id], onDelete: Cascade)
+
+  @@index([sharedExpenseParticipantId])
+  @@index([debtorUserId])
+  @@index([creditorUserId])
+  @@index([status])
 }

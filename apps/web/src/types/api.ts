@@ -2,6 +2,7 @@ import type {
   AccountType,
   CategoryType,
   ParticipantStatus,
+  SettlementStatus,
   SharedExpenseStatus,
   TransactionType
 } from "@flowledger/shared";
@@ -57,6 +58,33 @@ export type SharedExpenseParticipant = {
   shareAmount: number;
   paidAmount: number;
   status: ParticipantStatus;
+};
+
+export type SettlementRequest = {
+  id: string;
+  sharedExpenseParticipantId: string;
+  debtorUserId: string;
+  creditorUserId: string;
+  amount: number;
+  status: SettlementStatus;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string | null;
+  debtor?: PublicUser;
+  creditor?: PublicUser;
+  sharedExpenseParticipant?: Debt;
+};
+
+export type Debt = SharedExpenseParticipant & {
+  sharedExpenseId: string;
+  outstandingAmount: number;
+  pendingSettlementAmount: number;
+  sharedExpense: SharedExpense & {
+    owner?: PublicUser;
+  };
+  user?: PublicUser | null;
+  settlementRequests: SettlementRequest[];
 };
 
 export type SharedExpense = {

@@ -10,6 +10,7 @@ import { ProtectedRoute } from "./layout/ProtectedRoute";
 import { AccountsPage } from "./pages/AccountsPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DebtsPage } from "./pages/DebtsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -44,6 +45,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/shared-expenses" element={<SharedExpensesPage />} />
+                <Route path="/debts" element={<DebtsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/profile/edit" element={<EditProfilePage />} />
               </Route>
