@@ -6,7 +6,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
 import { apiRequest } from "../services/api";
-import type { Account, Category, Transaction } from "../types/api";
+import type { Account, Category, PublicUser, Transaction } from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -22,6 +22,17 @@ type TransactionForm = {
   accountId: string;
   categoryId: string;
   notes: string;
+  isShared: boolean;
+  sharedTitle: string;
+};
+
+type ParticipantDraft = {
+  draftId: string;
+  userId?: string | null;
+  participantName: string;
+  email?: string;
+  source: "app" | "manual";
+  shareAmount: string;
 };
 
 const emptyForm: TransactionForm = {
@@ -31,7 +42,9 @@ const emptyForm: TransactionForm = {
   date: new Date().toISOString().slice(0, 10),
   accountId: "",
   categoryId: "",
-  notes: ""
+  notes: "",
+  isShared: false,
+  sharedTitle: ""
 };
 
 export function TransactionsPage() {
@@ -47,6 +60,11 @@ export function TransactionsPage() {
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [areAdvancedFiltersOpen, setAreAdvancedFiltersOpen] = useState(false);
+  const [areSharedFieldsOpen, setAreSharedFieldsOpen] = useState(true);
+  const [participantName, setParticipantName] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
+  const trimmedUserSearch = userSearch.trim();
 
   const accountsQuery = useQuery({
     queryKey: ["accounts"],
@@ -67,6 +85,25 @@ export function TransactionsPage() {
         })
       ).transactions
   });
+  const userSearchQuery = useQuery({
+    queryKey: ["users", "search", trimmedUserSearch],
+    enabled: isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
+    queryFn: async () =>
+      (
+        await apiRequest<{ users: PublicUser[] }>("/users/search", {
+          query: { q: trimmedUserSearch, limit: "8" }
+        })
+      ).users
+  });
+
+  const transactionAmount = Number(form.amount);
+  const participantShareTotal = participants.reduce(
+    (sum, participant) => sum + Number(participant.shareAmount || 0),
+    0
+  );
+  const remainingSharedAmount = Number.isFinite(transactionAmount)
+    ? transactionAmount - participantShareTotal
+    : 0;
 
   const saveTransaction = useMutation({
     mutationFn: () => {
@@ -77,7 +114,21 @@ export function TransactionsPage() {
         date: form.date,
         accountId: form.accountId || null,
         categoryId: form.categoryId || null,
-        notes: form.notes || null
+        notes: form.notes || null,
+        ...(!form.id && form.isShared
+          ? {
+              sharedExpense: {
+                title: form.sharedTitle || form.name,
+                participants: participants.map((participant) => ({
+                  userId: participant.userId ?? null,
+                  participantName: participant.participantName,
+                  shareAmount: Number(participant.shareAmount),
+                  paidAmount: 0,
+                  status: "pending"
+                }))
+              }
+            }
+          : {})
       };
       return form.id
         ? apiRequest(`/transactions/${form.id}`, { method: "PUT", body })
@@ -99,7 +150,64 @@ export function TransactionsPage() {
 
   function closeForm() {
     setForm(emptyForm);
+    setParticipantName("");
+    setUserSearch("");
+    setParticipants([]);
+    setAreSharedFieldsOpen(true);
     setIsFormOpen(false);
+  }
+
+  function addManualParticipant() {
+    const name = participantName.trim();
+    if (!name) return;
+
+    setParticipants((current) => [
+      ...current,
+      {
+        draftId: crypto.randomUUID(),
+        participantName: name,
+        source: "manual",
+        shareAmount: ""
+      }
+    ]);
+    setParticipantName("");
+  }
+
+  function addUserParticipant(user: PublicUser) {
+    setParticipants((current) => {
+      if (current.some((participant) => participant.userId === user.id)) {
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          draftId: crypto.randomUUID(),
+          userId: user.id,
+          participantName: user.name,
+          email: user.email,
+          source: "app",
+          shareAmount: ""
+        }
+      ];
+    });
+    setUserSearch("");
+  }
+
+  function updateParticipantShare(draftId: string, value: string) {
+    setParticipants((current) =>
+      current.map((participant) =>
+        participant.draftId === draftId
+          ? { ...participant, shareAmount: value }
+          : participant
+      )
+    );
+  }
+
+  function removeParticipant(draftId: string) {
+    setParticipants((current) =>
+      current.filter((participant) => participant.draftId !== draftId)
+    );
   }
 
   return (
@@ -204,8 +312,188 @@ export function TransactionsPage() {
                   }
                 />
               </div>
+              {!form.id ? (
+                <div className="grid gap-3 rounded-md border border-slate-200 p-3 md:col-span-2 xl:col-span-3 dark:border-slate-800">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-pine"
+                        checked={form.isShared}
+                        onChange={(event) => {
+                          setForm({ ...form, isShared: event.target.checked });
+                          if (!event.target.checked) {
+                            setParticipantName("");
+                            setUserSearch("");
+                            setParticipants([]);
+                          }
+                        }}
+                      />
+                      Shared expense
+                    </label>
+                    {form.isShared ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full sm:w-auto"
+                        aria-expanded={areSharedFieldsOpen}
+                        onClick={() =>
+                          setAreSharedFieldsOpen((value) => !value)
+                        }
+                      >
+                        Participants{" "}
+                        <span aria-hidden="true">
+                          {areSharedFieldsOpen ? "^" : "v"}
+                        </span>
+                      </Button>
+                    ) : null}
+                  </div>
+                  {form.isShared && areSharedFieldsOpen ? (
+                    <div className="grid gap-3">
+                      <TextInput
+                        label="Split title"
+                        value={form.sharedTitle}
+                        onChange={(event) =>
+                          setForm({ ...form, sharedTitle: event.target.value })
+                        }
+                        placeholder={form.name || "Shared transaction"}
+                      />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <TextInput
+                          label="Find app user"
+                          value={userSearch}
+                          onChange={(event) => setUserSearch(event.target.value)}
+                          placeholder="Search by name or email"
+                        />
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                          <TextInput
+                            label="Manual participant"
+                            value={participantName}
+                            onChange={(event) =>
+                              setParticipantName(event.target.value)
+                            }
+                            className="sm:min-w-60"
+                            placeholder="Name"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full sm:w-auto"
+                            onClick={addManualParticipant}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                      {trimmedUserSearch.length > 1 ? (
+                        <div className="grid gap-2">
+                          {userSearchQuery.isFetching ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              Searching app users...
+                            </p>
+                          ) : (userSearchQuery.data ?? []).length > 0 ? (
+                            (userSearchQuery.data ?? []).map((user) => (
+                              <div
+                                key={user.id}
+                                className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
+                              >
+                                <div>
+                                  <p className="font-medium">{user.name}</p>
+                                  <p className="text-slate-500 dark:text-slate-400">
+                                    {user.email}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  className="w-full sm:w-auto"
+                                  onClick={() => addUserParticipant(user)}
+                                >
+                                  Add app user
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              No app users found.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                      <div className="grid gap-2">
+                        {participants.map((participant) => (
+                          <div
+                            key={participant.draftId}
+                            className="grid gap-3 rounded-md bg-slate-50 p-3 dark:bg-slate-950 sm:grid-cols-[1fr_minmax(8rem,12rem)_auto] sm:items-end"
+                          >
+                            <div className="text-sm">
+                              <p className="font-semibold">
+                                {participant.participantName}
+                              </p>
+                              <p className="text-slate-500 dark:text-slate-400">
+                                {participant.source === "app"
+                                  ? `App user${
+                                      participant.email
+                                        ? ` · ${participant.email}`
+                                        : ""
+                                    }`
+                                  : "Manual participant"}
+                              </p>
+                            </div>
+                            <TextInput
+                              label="Share"
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={participant.shareAmount}
+                              onChange={(event) =>
+                                updateParticipantShare(
+                                  participant.draftId,
+                                  event.target.value
+                                )
+                              }
+                              required
+                            />
+                            <Button
+                              type="button"
+                              variant="danger"
+                              className="w-full sm:w-auto"
+                              onClick={() =>
+                                removeParticipant(participant.draftId)
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        {participants.length > 0 ? (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Assigned {money.format(participantShareTotal)} of{" "}
+                            {Number.isFinite(transactionAmount)
+                              ? money.format(transactionAmount)
+                              : "$0.00"}
+                            . Remaining owner share:{" "}
+                            {money.format(Math.max(0, remainingSharedAmount))}.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Add an app user or manual participant to create a split.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="md:col-span-2 xl:col-span-3">
-                <Button type="submit" disabled={saveTransaction.isPending}>
+                <Button
+                  type="submit"
+                  disabled={
+                    saveTransaction.isPending ||
+                    (form.isShared &&
+                      (participants.length === 0 || remainingSharedAmount < 0))
+                  }
+                >
                   Save transaction
                 </Button>
               </div>
@@ -217,6 +505,10 @@ export function TransactionsPage() {
             className="w-full sm:w-auto"
             onClick={() => {
               setForm(emptyForm);
+              setParticipantName("");
+              setUserSearch("");
+              setParticipants([]);
+              setAreSharedFieldsOpen(true);
               setIsFormOpen(true);
             }}
           >
@@ -352,8 +644,13 @@ export function TransactionsPage() {
                       date: transaction.date.slice(0, 10),
                       accountId: transaction.accountId ?? "",
                       categoryId: transaction.categoryId ?? "",
-                      notes: transaction.notes ?? ""
+                      notes: transaction.notes ?? "",
+                      isShared: false,
+                      sharedTitle: ""
                     });
+                    setParticipantName("");
+                    setUserSearch("");
+                    setParticipants([]);
                     setIsFormOpen(true);
                   }}
                 >

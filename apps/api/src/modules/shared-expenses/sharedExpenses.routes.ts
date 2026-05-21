@@ -1,64 +1,18 @@
 import { sharedExpenseSchema, updateSharedExpenseSchema } from "@flowledger/shared";
-import type { SharedExpenseInput } from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import {
+  createSharedExpenseForTransaction,
+  getOwnedTransaction,
+  normalizeSharedExpenseParticipants,
+  validateSharedExpenseParticipants
+} from "./sharedExpenses.service.js";
 
 export const sharedExpensesRouter = Router();
-
-async function getOwnedTransaction(userId: string, transactionId?: string) {
-  if (!transactionId) return null;
-
-  const transaction = await prisma.transaction.findFirst({
-    where: { id: transactionId, userId }
-  });
-
-  if (!transaction) {
-    throw new HttpError(400, "Transaction does not exist for this user");
-  }
-
-  return transaction;
-}
-
-async function normalizeParticipants(
-  ownerUserId: string,
-  participants: SharedExpenseInput["participants"] = []
-) {
-  const participantUserIds = Array.from(
-    new Set(participants.map((participant) => participant.userId).filter(Boolean))
-  ) as string[];
-
-  if (participantUserIds.includes(ownerUserId)) {
-    throw new HttpError(400, "Shared expense participants cannot include the owner");
-  }
-
-  if (participantUserIds.length === 0) {
-    return participants;
-  }
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: participantUserIds } },
-    select: { id: true, name: true }
-  });
-  const usersById = new Map(users.map((user) => [user.id, user]));
-
-  if (users.length !== participantUserIds.length) {
-    throw new HttpError(400, "One or more participants do not exist");
-  }
-
-  return participants.map((participant) => {
-    if (!participant.userId) return participant;
-
-    const user = usersById.get(participant.userId);
-    return {
-      ...participant,
-      participantName: user?.name ?? participant.participantName
-    };
-  });
-}
 
 sharedExpensesRouter.get(
   "/",
@@ -81,17 +35,9 @@ sharedExpensesRouter.post(
       throw new HttpError(400, "Transaction is required");
     }
 
-    const { participants = [], ...input } = req.body;
-    const normalizedParticipants = await normalizeParticipants(req.user!.id, participants);
-    const sharedExpense = await prisma.sharedExpense.create({
-      data: {
-        ...input,
-        totalAmount: transaction.amount,
-        ownerUserId: req.user!.id,
-        participants: { create: normalizedParticipants }
-      },
-      include: { transaction: true, participants: true }
-    });
+    const sharedExpense = await prisma.$transaction((tx) =>
+      createSharedExpenseForTransaction(tx, req.user!.id, transaction, req.body)
+    );
 
     res.status(201).json({ sharedExpense: serialize(sharedExpense) });
   })
@@ -123,8 +69,16 @@ sharedExpensesRouter.put(
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants
-      ? await normalizeParticipants(req.user!.id, participants)
+      ? await normalizeSharedExpenseParticipants(req.user!.id, participants)
       : undefined;
+
+    if (normalizedParticipants) {
+      validateSharedExpenseParticipants(
+        transaction?.amount ?? existing.totalAmount,
+        normalizedParticipants
+      );
+    }
+
     const sharedExpense = await prisma.sharedExpense.update({
       where: { id: existing.id },
       data: {

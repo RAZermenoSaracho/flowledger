@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
+import { createSharedExpenseForTransaction } from "../shared-expenses/sharedExpenses.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
@@ -73,9 +74,24 @@ transactionsRouter.post(
   asyncHandler(async (req, res) => {
     await assertOwnedRelations(req.user!.id, req.body);
 
-    const transaction = await prisma.transaction.create({
-      data: { ...req.body, userId: req.user!.id, date: new Date(req.body.date) },
-      include: { account: true, category: true }
+    const { sharedExpense, ...input } = req.body;
+    const transaction = await prisma.$transaction(async (tx) => {
+      const createdTransaction = await tx.transaction.create({
+        data: { ...input, userId: req.user!.id, date: new Date(input.date) },
+        include: { account: true, category: true }
+      });
+
+      if (sharedExpense) {
+        await createSharedExpenseForTransaction(tx, req.user!.id, createdTransaction, {
+          ...sharedExpense,
+          status: "open"
+        });
+      }
+
+      return tx.transaction.findUniqueOrThrow({
+        where: { id: createdTransaction.id },
+        include: { account: true, category: true, sharedExpense: { include: { participants: true } } }
+      });
     });
 
     res.status(201).json({ transaction: serialize(transaction) });

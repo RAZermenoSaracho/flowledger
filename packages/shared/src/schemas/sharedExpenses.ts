@@ -5,8 +5,8 @@ import { moneySchema } from "./common.js";
 export const sharedExpenseParticipantSchema = z.object({
   userId: z.string().min(1).optional().nullable(),
   participantName: z.string().trim().min(1).max(120),
-  shareAmount: moneySchema,
-  paidAmount: moneySchema.default(0),
+  shareAmount: moneySchema.positive(),
+  paidAmount: moneySchema.nonnegative().default(0),
   status: z.enum(PARTICIPANT_STATUSES).default("pending")
 });
 

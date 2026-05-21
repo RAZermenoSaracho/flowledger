@@ -1,0 +1,92 @@
+import type { SharedExpenseInput } from "@flowledger/shared";
+import type { Prisma, Transaction } from "@prisma/client";
+import { prisma } from "../../db/prisma.js";
+import { HttpError } from "../../utils/httpError.js";
+
+type ParticipantInput = NonNullable<SharedExpenseInput["participants"]>[number];
+
+function totalParticipantShares(participants: ParticipantInput[]) {
+  return participants.reduce((sum, participant) => sum + Number(participant.shareAmount), 0);
+}
+
+export async function getOwnedTransaction(userId: string, transactionId?: string) {
+  if (!transactionId) return null;
+
+  const transaction = await prisma.transaction.findFirst({
+    where: { id: transactionId, userId }
+  });
+
+  if (!transaction) {
+    throw new HttpError(400, "Transaction does not exist for this user");
+  }
+
+  return transaction;
+}
+
+export async function normalizeSharedExpenseParticipants(
+  ownerUserId: string,
+  participants: SharedExpenseInput["participants"] = []
+) {
+  const participantUserIds = Array.from(
+    new Set(participants.map((participant) => participant.userId).filter(Boolean))
+  ) as string[];
+
+  if (participantUserIds.includes(ownerUserId)) {
+    throw new HttpError(400, "Shared expense participants cannot include the owner");
+  }
+
+  if (participantUserIds.length === 0) {
+    return participants;
+  }
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: participantUserIds } },
+    select: { id: true, name: true }
+  });
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  if (users.length !== participantUserIds.length) {
+    throw new HttpError(400, "One or more participants do not exist");
+  }
+
+  return participants.map((participant) => {
+    if (!participant.userId) return participant;
+
+    const user = usersById.get(participant.userId);
+    return {
+      ...participant,
+      participantName: user?.name ?? participant.participantName
+    };
+  });
+}
+
+export function validateSharedExpenseParticipants(
+  totalAmount: Prisma.Decimal,
+  participants: ParticipantInput[]
+) {
+  if (totalParticipantShares(participants) > totalAmount.toNumber()) {
+    throw new HttpError(400, "Participant shares cannot exceed the transaction amount");
+  }
+}
+
+export async function createSharedExpenseForTransaction(
+  tx: Prisma.TransactionClient,
+  ownerUserId: string,
+  transaction: Pick<Transaction, "id" | "amount" | "name">,
+  input: Omit<SharedExpenseInput, "transactionId"> & { transactionId?: string }
+) {
+  const participants = await normalizeSharedExpenseParticipants(ownerUserId, input.participants);
+  validateSharedExpenseParticipants(transaction.amount, participants);
+
+  return tx.sharedExpense.create({
+    data: {
+      transactionId: transaction.id,
+      title: input.title || transaction.name,
+      status: input.status,
+      totalAmount: transaction.amount,
+      ownerUserId,
+      participants: { create: participants }
+    },
+    include: { transaction: true, participants: true }
+  });
+}
