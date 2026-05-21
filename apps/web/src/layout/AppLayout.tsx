@@ -142,10 +142,11 @@ function ThemeSelector({
   setPreference: (preference: ThemePreference) => void;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-      Theme
+    <label className="inline-flex w-full items-center sm:w-auto">
+      <span className="sr-only">Theme</span>
       <select
-        className="min-h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case text-ink outline-none transition focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
+        aria-label="Theme preference"
+        className="min-h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-50 focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:focus:ring-emerald-900 sm:w-32"
         value={preference}
         onChange={(event) => setPreference(event.target.value as ThemePreference)}
       >
