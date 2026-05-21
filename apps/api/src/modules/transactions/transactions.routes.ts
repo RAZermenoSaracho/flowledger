@@ -3,6 +3,10 @@ import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
+import {
+  assertHouseholdCategory,
+  getHouseholdMembership
+} from "../households/households.service.js";
 import { createSharedExpenseForTransaction } from "../shared-expenses/sharedExpenses.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
@@ -22,6 +26,17 @@ async function assertOwnedRelations(userId: string, input: { accountId?: string 
   }
 }
 
+async function assertHouseholdRelations(
+  userId: string,
+  input: { householdId?: string | null; householdCategoryId?: string | null }
+) {
+  if (input.householdId) {
+    await getHouseholdMembership(userId, input.householdId);
+  }
+
+  await assertHouseholdCategory(userId, input.householdId, input.householdCategoryId);
+}
+
 transactionsRouter.get(
   "/",
   validate(transactionFiltersSchema, "query"),
@@ -30,6 +45,8 @@ transactionsRouter.get(
       dateFrom?: string;
       dateTo?: string;
       categoryId?: string;
+      householdId?: string;
+      householdCategoryId?: string;
       accountId?: string;
       type?: "income" | "expense" | "transfer";
       search?: string;
@@ -38,6 +55,10 @@ transactionsRouter.get(
     const where: Prisma.TransactionWhereInput = {
       userId: req.user!.id,
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+      ...(filters.householdId ? { householdId: filters.householdId } : {}),
+      ...(filters.householdCategoryId
+        ? { householdCategoryId: filters.householdCategoryId }
+        : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
       ...(filters.search
@@ -60,7 +81,7 @@ transactionsRouter.get(
 
     const transactions = await prisma.transaction.findMany({
       where,
-      include: { account: true, category: true },
+      include: { account: true, category: true, household: true, householdCategory: true },
       orderBy: { date: "desc" }
     });
 
@@ -73,6 +94,7 @@ transactionsRouter.post(
   validate(transactionSchema),
   asyncHandler(async (req, res) => {
     await assertOwnedRelations(req.user!.id, req.body);
+    await assertHouseholdRelations(req.user!.id, req.body);
 
     const { sharedExpense, ...input } = req.body;
     const transaction = await prisma.$transaction(async (tx) => {
@@ -90,7 +112,13 @@ transactionsRouter.post(
 
       return tx.transaction.findUniqueOrThrow({
         where: { id: createdTransaction.id },
-        include: { account: true, category: true, sharedExpense: { include: { participants: true } } }
+        include: {
+          account: true,
+          category: true,
+          household: true,
+          householdCategory: true,
+          sharedExpense: { include: { participants: true } }
+        }
       });
     });
 
@@ -106,6 +134,8 @@ transactionsRouter.get(
       include: {
         account: true,
         category: true,
+        household: true,
+        householdCategory: true,
         relations: { include: { relatedTransaction: true } },
         relatedBy: { include: { transaction: true } },
         sharedExpense: { include: { participants: true } }
@@ -127,6 +157,14 @@ transactionsRouter.put(
     if (!existing) throw notFound("Transaction");
 
     await assertOwnedRelations(req.user!.id, req.body);
+    await assertHouseholdRelations(req.user!.id, {
+      householdId:
+        req.body.householdId !== undefined ? req.body.householdId : existing.householdId,
+      householdCategoryId:
+        req.body.householdCategoryId !== undefined
+          ? req.body.householdCategoryId
+          : existing.householdCategoryId
+    });
 
     const transaction = await prisma.$transaction(async (tx) => {
       const updatedTransaction = await tx.transaction.update({
@@ -135,7 +173,7 @@ transactionsRouter.put(
           ...req.body,
           ...(req.body.date ? { date: new Date(req.body.date) } : {})
         },
-        include: { account: true, category: true }
+        include: { account: true, category: true, household: true, householdCategory: true }
       });
 
       if (req.body.amount !== undefined) {

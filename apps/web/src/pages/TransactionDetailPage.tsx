@@ -39,6 +39,11 @@ export function TransactionDetailPage() {
           <Detail label="Date" value={new Date(transaction.date).toLocaleDateString()} />
           <Detail label="Account" value={transaction.account?.name ?? "No account"} />
           <Detail label="Category" value={transaction.category?.name ?? "Uncategorized"} />
+          <Detail label="Household" value={transaction.household?.name ?? "No household"} />
+          <Detail
+            label="Household category"
+            value={transaction.householdCategory?.name ?? "No household category"}
+          />
           <Detail label="Notes" value={transaction.notes ?? "No notes"} />
         </dl>
       </Card>

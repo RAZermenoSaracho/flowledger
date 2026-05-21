@@ -1,6 +1,7 @@
 import type {
   AccountType,
   CategoryType,
+  HouseholdRole,
   ParticipantStatus,
   SettlementStatus,
   SharedExpenseStatus,
@@ -35,6 +36,38 @@ export type Category = {
   updatedAt: string;
 };
 
+export type HouseholdMember = {
+  id: string;
+  householdId: string;
+  userId: string;
+  role: HouseholdRole;
+  user: PublicUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HouseholdCategory = {
+  id: string;
+  householdId: string;
+  name: string;
+  type: CategoryType;
+  color?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Household = {
+  id: string;
+  name: string;
+  description?: string | null;
+  ownerUserId: string;
+  members: HouseholdMember[];
+  categories: HouseholdCategory[];
+  transactions?: Transaction[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Transaction = {
   id: string;
   name: string;
@@ -42,12 +75,16 @@ export type Transaction = {
   type: TransactionType;
   date: string;
   categoryId?: string | null;
+  householdId?: string | null;
+  householdCategoryId?: string | null;
   accountId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
   account?: Account | null;
   category?: Category | null;
+  household?: Household | null;
+  householdCategory?: HouseholdCategory | null;
   sharedExpense?: SharedExpense | null;
 };
 

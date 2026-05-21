@@ -14,6 +14,7 @@ const navItems = [
   ["Transactions", routes.transactions],
   ["Accounts", routes.accounts],
   ["Categories", routes.categories],
+  ["Households", routes.households],
   ["Reports", routes.reports],
   ["Shared", routes.sharedExpenses],
   ["Debts", routes.debts],

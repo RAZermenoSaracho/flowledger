@@ -12,6 +12,7 @@ import { CategoriesPage } from "./pages/CategoriesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DebtsPage } from "./pages/DebtsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { HouseholdsPage } from "./pages/HouseholdsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/transactions/:id" element={<TransactionDetailPage />} />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/households" element={<HouseholdsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/shared-expenses" element={<SharedExpensesPage />} />
                 <Route path="/debts" element={<DebtsPage />} />

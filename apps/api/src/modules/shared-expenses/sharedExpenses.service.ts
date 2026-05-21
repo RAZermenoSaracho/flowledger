@@ -25,7 +25,8 @@ export async function getOwnedTransaction(userId: string, transactionId?: string
 
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
-  participants: SharedExpenseInput["participants"] = []
+  participants: SharedExpenseInput["participants"] = [],
+  householdId?: string | null
 ) {
   const participantUserIds = Array.from(
     new Set(participants.map((participant) => participant.userId).filter(Boolean))
@@ -35,8 +36,25 @@ export async function normalizeSharedExpenseParticipants(
     throw new HttpError(400, "Shared expense participants cannot include the owner");
   }
 
+  if (householdId && participants.some((participant) => !participant.userId)) {
+    throw new HttpError(400, "Household split participants must be app users");
+  }
+
   if (participantUserIds.length === 0) {
     return participants;
+  }
+
+  if (householdId) {
+    const householdMemberCount = await prisma.householdMember.count({
+      where: {
+        householdId,
+        userId: { in: participantUserIds }
+      }
+    });
+
+    if (householdMemberCount !== participantUserIds.length) {
+      throw new HttpError(400, "Household split participants must be household members");
+    }
   }
 
   const users = await prisma.user.findMany({
@@ -72,10 +90,14 @@ export function validateSharedExpenseParticipants(
 export async function createSharedExpenseForTransaction(
   tx: Prisma.TransactionClient,
   ownerUserId: string,
-  transaction: Pick<Transaction, "id" | "amount" | "name">,
+  transaction: Pick<Transaction, "id" | "amount" | "name" | "householdId">,
   input: Omit<SharedExpenseInput, "transactionId"> & { transactionId?: string }
 ) {
-  const participants = await normalizeSharedExpenseParticipants(ownerUserId, input.participants);
+  const participants = await normalizeSharedExpenseParticipants(
+    ownerUserId,
+    input.participants,
+    transaction.householdId
+  );
   validateSharedExpenseParticipants(transaction.amount, participants);
 
   return tx.sharedExpense.create({

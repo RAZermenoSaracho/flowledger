@@ -61,7 +61,8 @@ sharedExpensesRouter.put(
   validate(updateSharedExpenseSchema),
   asyncHandler(async (req, res) => {
     const existing = await prisma.sharedExpense.findFirst({
-      where: { id: req.params.id, ownerUserId: req.user!.id }
+      where: { id: req.params.id, ownerUserId: req.user!.id },
+      include: { transaction: true }
     });
     if (!existing) throw notFound("Shared expense");
 
@@ -69,7 +70,11 @@ sharedExpensesRouter.put(
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants
-      ? await normalizeSharedExpenseParticipants(req.user!.id, participants)
+      ? await normalizeSharedExpenseParticipants(
+          req.user!.id,
+          participants,
+          transaction?.householdId ?? existing.transaction.householdId
+        )
       : undefined;
 
     if (normalizedParticipants) {
