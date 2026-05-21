@@ -3,10 +3,10 @@ import { FormEvent, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { TextArea, TextInput } from "../components/FormField";
+import { SelectField, TextArea, TextInput } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
-import type { Debt, SettlementRequest } from "../types/api";
+import type { Account, Category, Debt, SettlementRequest } from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -17,6 +17,7 @@ type DebtsResponse = {
   iOwe: Debt[];
   owedToMe: Debt[];
   pendingSettlementRequests: SettlementRequest[];
+  approvedSettlementRequests: SettlementRequest[];
   settledDebts: Debt[];
 };
 
@@ -24,6 +25,32 @@ type SettlementDraft = {
   amount: string;
   note: string;
 };
+
+type RegistrationDraft = {
+  accountId: string;
+  categoryId: string;
+  date: string;
+  notes: string;
+};
+
+const REGISTERED_SETTLEMENTS_KEY = "flowledger.registeredSettlements";
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function readHiddenSettlementIds() {
+  try {
+    const value = localStorage.getItem(REGISTERED_SETTLEMENTS_KEY);
+    return new Set<string>(value ? (JSON.parse(value) as string[]) : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeHiddenSettlementIds(ids: Set<string>) {
+  localStorage.setItem(REGISTERED_SETTLEMENTS_KEY, JSON.stringify(Array.from(ids)));
+}
 
 function debtTitle(debt: Debt) {
   return debt.sharedExpense.title;
@@ -33,10 +60,13 @@ function participantName(debt: Debt) {
   return debt.user?.name ?? debt.participantName;
 }
 
-function partyName(debt: Debt, userId?: string) {
+function partyName(debt: Debt, userId?: string | null) {
   if (!userId) return undefined;
   if (userId === debt.sharedExpense.ownerUserId) return debt.sharedExpense.owner?.name;
   if (userId === debt.userId) return participantName(debt);
+  if (!debt.userId && (userId === debt.debtorUserId || userId === debt.creditorUserId)) {
+    return participantName(debt);
+  }
   return undefined;
 }
 
@@ -99,13 +129,37 @@ export function DebtsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, SettlementDraft>>({});
+  const [registrationDrafts, setRegistrationDrafts] = useState<
+    Record<string, RegistrationDraft>
+  >({});
+  const [hiddenSettlementIds, setHiddenSettlementIds] = useState(readHiddenSettlementIds);
 
   const debtsQuery = useQuery({
     queryKey: ["debts"],
     queryFn: async () => apiRequest<DebtsResponse>("/debts")
   });
+  const accountsQuery = useQuery({
+    queryKey: ["accounts"],
+    queryFn: async () => (await apiRequest<{ accounts: Account[] }>("/accounts")).accounts
+  });
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => (await apiRequest<{ categories: Category[] }>("/categories")).categories
+  });
 
   const debts = debtsQuery.data;
+  const expenseCategories = useMemo(
+    () => (categoriesQuery.data ?? []).filter((category) => category.type === "expense"),
+    [categoriesQuery.data]
+  );
+  const approvedForRegistration = useMemo(
+    () =>
+      (debts?.approvedSettlementRequests ?? []).filter(
+        (request) =>
+          request.debtorUserId === auth.user?.id && !hiddenSettlementIds.has(request.id)
+      ),
+    [auth.user?.id, debts?.approvedSettlementRequests, hiddenSettlementIds]
+  );
   const pendingForMe = useMemo(
     () =>
       (debts?.pendingSettlementRequests ?? []).filter(
@@ -153,6 +207,43 @@ export function DebtsPage() {
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
+  const markDebtSettled = useMutation({
+    mutationFn: (debtId: string) =>
+      apiRequest(`/debts/${debtId}/settle`, {
+        method: "POST",
+        body: {}
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["debts"] });
+    }
+  });
+  const createSettlementTransaction = useMutation({
+    mutationFn: ({
+      request,
+      draft
+    }: {
+      request: SettlementRequest;
+      draft: RegistrationDraft;
+    }) =>
+      apiRequest("/transactions", {
+        method: "POST",
+        body: {
+          name: `Settlement: ${
+            request.sharedExpenseParticipant?.sharedExpense.title ?? "Shared expense"
+          }`,
+          amount: request.amount,
+          type: "expense",
+          date: draft.date,
+          accountId: draft.accountId || null,
+          categoryId: draft.categoryId || null,
+          notes: draft.notes.trim() || null
+        }
+      }),
+    onSuccess: async (_data, variables) => {
+      hideSettlementRegistration(variables.request.id);
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
 
   function draftFor(debt: Debt) {
     return (
@@ -173,16 +264,93 @@ export function DebtsPage() {
     }));
   }
 
+  function registrationDraftFor(request: SettlementRequest) {
+    return (
+      registrationDrafts[request.id] ?? {
+        accountId: accountsQuery.data?.[0]?.id ?? "",
+        categoryId: expenseCategories[0]?.id ?? "",
+        date: todayInputValue(),
+        notes: request.note ?? ""
+      }
+    );
+  }
+
+  function updateRegistrationDraft(
+    settlementId: string,
+    field: keyof RegistrationDraft,
+    value: string
+  ) {
+    setRegistrationDrafts((current) => ({
+      ...current,
+      [settlementId]: {
+        ...(current[settlementId] ?? {
+          accountId: accountsQuery.data?.[0]?.id ?? "",
+          categoryId: expenseCategories[0]?.id ?? "",
+          date: todayInputValue(),
+          notes: ""
+        }),
+        [field]: value
+      }
+    }));
+  }
+
+  function hideSettlementRegistration(settlementId: string) {
+    setHiddenSettlementIds((current) => {
+      const next = new Set(current);
+      next.add(settlementId);
+      writeHiddenSettlementIds(next);
+      return next;
+    });
+  }
+
   async function submitSettlement(event: FormEvent, debt: Debt) {
     event.preventDefault();
     await requestSettlement.mutateAsync({ debtId: debt.id, draft: draftFor(debt) });
   }
 
+  async function submitSettlementTransaction(event: FormEvent, request: SettlementRequest) {
+    event.preventDefault();
+    await createSettlementTransaction.mutateAsync({
+      request,
+      draft: registrationDraftFor(request)
+    });
+  }
+
   const isActing =
-    requestSettlement.isPending || approveSettlement.isPending || rejectSettlement.isPending;
+    requestSettlement.isPending ||
+    approveSettlement.isPending ||
+    rejectSettlement.isPending ||
+    markDebtSettled.isPending ||
+    createSettlementTransaction.isPending;
 
   return (
     <div className="grid gap-6">
+      {approvedForRegistration.length > 0 ? (
+        <Card>
+          <h2 className="text-lg font-semibold">Register approved settlements</h2>
+          <div className="mt-4 grid gap-3">
+            {approvedForRegistration.map((request) => {
+              const draft = registrationDraftFor(request);
+              return (
+                <SettlementRegistrationCard
+                  key={request.id}
+                  request={request}
+                  draft={draft}
+                  accounts={accountsQuery.data ?? []}
+                  categories={expenseCategories}
+                  disabled={isActing}
+                  onDismiss={() => hideSettlementRegistration(request.id)}
+                  onChange={(field, value) =>
+                    updateRegistrationDraft(request.id, field, value)
+                  }
+                  onSubmit={(event) => submitSettlementTransaction(event, request)}
+                />
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         <h2 className="text-lg font-semibold">I owe</h2>
         <div className="mt-4 grid gap-3">
@@ -238,9 +406,26 @@ export function DebtsPage() {
           {(debts?.owedToMe ?? []).length === 0 ? (
             <EmptyState>No one currently owes you.</EmptyState>
           ) : (
-            debts?.owedToMe.map((debt) => (
-              <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id} />
-            ))
+            debts?.owedToMe.map((debt) => {
+              const hasPendingRequest = debt.pendingSettlementAmount > 0;
+              return (
+                <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id}>
+                  {hasPendingRequest ? (
+                    <EmptyState>Review the pending settlement request below.</EmptyState>
+                  ) : (
+                    <div className="flex justify-start">
+                      <Button
+                        type="button"
+                        disabled={isActing}
+                        onClick={() => markDebtSettled.mutate(debt.id)}
+                      >
+                        Mark paid
+                      </Button>
+                    </div>
+                  )}
+                </DebtCard>
+              );
+            })
           )}
         </div>
       </Card>
@@ -321,6 +506,91 @@ export function DebtsPage() {
         </p>
       ) : null}
     </div>
+  );
+}
+
+function SettlementRegistrationCard({
+  request,
+  draft,
+  accounts,
+  categories,
+  disabled,
+  onChange,
+  onDismiss,
+  onSubmit
+}: {
+  request: SettlementRequest;
+  draft: RegistrationDraft;
+  accounts: Account[];
+  categories: Category[];
+  disabled: boolean;
+  onChange: (field: keyof RegistrationDraft, value: string) => void;
+  onDismiss: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  const debt = request.sharedExpenseParticipant;
+
+  return (
+    <form
+      className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
+      onSubmit={onSubmit}
+    >
+      <div className="flex flex-col justify-between gap-2 sm:flex-row">
+        <div>
+          <p className="font-semibold">{debt?.sharedExpense.title ?? "Approved settlement"}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Approved payment of {money.format(request.amount)}
+          </p>
+        </div>
+        <Button type="button" variant="secondary" disabled={disabled} onClick={onDismiss}>
+          Skip
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <SelectField
+          label="Account"
+          value={draft.accountId}
+          onChange={(event) => onChange("accountId", event.target.value)}
+        >
+          <option value="">No account</option>
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+            </option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Category"
+          value={draft.categoryId}
+          onChange={(event) => onChange("categoryId", event.target.value)}
+        >
+          <option value="">No category</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </SelectField>
+        <TextInput
+          label="Date"
+          type="date"
+          value={draft.date}
+          onChange={(event) => onChange("date", event.target.value)}
+          required
+        />
+        <TextArea
+          label="Notes"
+          value={draft.notes}
+          onChange={(event) => onChange("notes", event.target.value)}
+          placeholder="Optional"
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={disabled}>
+          Create transaction
+        </Button>
+      </div>
+    </form>
   );
 }
 

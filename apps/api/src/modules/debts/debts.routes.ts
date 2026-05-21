@@ -1,4 +1,4 @@
-import { settlementRequestSchema } from "@flowledger/shared";
+import { directSettlementSchema, settlementRequestSchema } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
@@ -68,6 +68,17 @@ function pendingSettlementTotal(debt: {
     .reduce((sum, request) => sum + request.amount.toNumber(), 0);
 }
 
+function balanceDebt(debt: Prisma.SharedExpenseParticipantGetPayload<{ include: typeof debtInclude }>) {
+  const direction = getDebtDirection(debt);
+  return {
+    ...debt,
+    debtorUserId: direction?.debtorUserId,
+    creditorUserId: direction?.creditorUserId,
+    outstandingAmount: debtOutstanding(debt),
+    pendingSettlementAmount: pendingSettlementTotal(debt)
+  };
+}
+
 function participantStatus(shareAmount: number, paidAmount: number) {
   if (paidAmount >= shareAmount) return "paid";
   if (paidAmount > 0) return "partial";
@@ -96,7 +107,6 @@ debtsRouter.get(
     const userId = req.user!.id;
     const debts = await prisma.sharedExpenseParticipant.findMany({
       where: {
-        userId: { not: null },
         OR: [{ userId }, { sharedExpense: { ownerUserId: userId } }]
       },
       include: debtInclude,
@@ -124,19 +134,24 @@ debtsRouter.get(
       },
       orderBy: { createdAt: "desc" }
     });
+    const approvedSettlementRequests = await prisma.settlementRequest.findMany({
+      where: {
+        status: "approved",
+        debtorUserId: userId
+      },
+      include: {
+        debtor: { select: { id: true, name: true, email: true } },
+        creditor: { select: { id: true, name: true, email: true } },
+        sharedExpenseParticipant: {
+          include: debtInclude
+        }
+      },
+      orderBy: { approvedAt: "desc" }
+    });
 
     const withBalances = debts
       .filter((debt) => isDebtRelevantToUser(debt, userId))
-      .map((debt) => {
-        const direction = getDebtDirection(debt);
-        return {
-          ...debt,
-          debtorUserId: direction?.debtorUserId,
-          creditorUserId: direction?.creditorUserId,
-          outstandingAmount: debtOutstanding(debt),
-          pendingSettlementAmount: pendingSettlementTotal(debt)
-        };
-      });
+      .map((debt) => balanceDebt(debt));
 
     res.json(
       serialize({
@@ -147,6 +162,10 @@ debtsRouter.get(
           (debt) => debt.creditorUserId === userId && debt.outstandingAmount > 0
         ),
         pendingSettlementRequests,
+        approvedSettlementRequests: approvedSettlementRequests.map((request) => ({
+          ...request,
+          sharedExpenseParticipant: balanceDebt(request.sharedExpenseParticipant)
+        })),
         settledDebts: withBalances.filter((debt) => debt.outstandingAmount === 0)
       })
     );
@@ -167,6 +186,9 @@ debtsRouter.post(
     if (!direction || direction.debtorUserId !== req.user!.id) {
       throw notFound("Debt");
     }
+    if (!direction.creditorUserId) {
+      throw notFound("Debt");
+    }
 
     const outstandingAmount = debtOutstanding(debt);
     const pendingAmount = pendingSettlementTotal(debt);
@@ -182,7 +204,7 @@ debtsRouter.post(
     const settlementRequest = await prisma.settlementRequest.create({
       data: {
         sharedExpenseParticipantId: debt.id,
-        debtorUserId: direction.debtorUserId,
+        debtorUserId: req.user!.id,
         creditorUserId: direction.creditorUserId,
         amount: new Prisma.Decimal(requestAmount),
         note: req.body.note?.trim() || null
@@ -205,6 +227,52 @@ debtsRouter.post(
     });
 
     res.status(201).json({ settlementRequest: serialize(settlementRequest) });
+  })
+);
+
+debtsRouter.post(
+  "/:id/settle",
+  validate(directSettlementSchema),
+  asyncHandler(async (req, res) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const debt = await tx.sharedExpenseParticipant.findFirst({
+        where: { id: req.params.id },
+        include: debtInclude
+      });
+      if (!debt) throw notFound("Debt");
+
+      const direction = getDebtDirection(debt);
+      if (!direction || direction.creditorUserId !== req.user!.id) {
+        throw notFound("Debt");
+      }
+
+      const outstandingAmount = debtOutstanding(debt);
+      if (outstandingAmount <= 0) {
+        throw new HttpError(400, "Debt is already settled");
+      }
+
+      const updatedDebt = await tx.sharedExpenseParticipant.update({
+        where: { id: debt.id },
+        data: {
+          paidAmount: debt.shareAmount,
+          status: "paid"
+        },
+        include: debtInclude
+      });
+
+      await tx.settlementRequest.updateMany({
+        where: {
+          sharedExpenseParticipantId: debt.id,
+          status: "pending"
+        },
+        data: { status: "approved", approvedAt: new Date() }
+      });
+
+      return { debt: updatedDebt };
+    });
+
+    await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
+    res.json(serialize({ debt: balanceDebt(result.debt) }));
   })
 );
 

@@ -6,4 +6,9 @@ export const settlementRequestSchema = z.object({
   note: z.string().trim().max(500).optional().nullable()
 });
 
+export const directSettlementSchema = z.object({
+  note: z.string().trim().max(500).optional().nullable()
+});
+
 export type SettlementRequestInput = z.infer<typeof settlementRequestSchema>;
+export type DirectSettlementInput = z.infer<typeof directSettlementSchema>;

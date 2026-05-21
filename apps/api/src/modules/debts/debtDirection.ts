@@ -9,13 +9,12 @@ type DebtDirectionInput = {
 };
 
 export type DebtDirection = {
-  debtorUserId: string;
-  creditorUserId: string;
+  debtorUserId: string | null;
+  creditorUserId: string | null;
 };
 
 export function getDebtDirection(debt: DebtDirectionInput): DebtDirection | null {
   const participantUserId = debt.userId;
-  if (!participantUserId) return null;
 
   if (debt.sharedExpense.transaction.type === "expense") {
     return {
@@ -41,7 +40,7 @@ export function isDebtRelevantToUser(debt: DebtDirectionInput, userId: string) {
 
 export function isSettlementDirectionCurrent(
   debt: DebtDirectionInput,
-  settlementRequest: DebtDirection
+  settlementRequest: { debtorUserId: string; creditorUserId: string }
 ) {
   const direction = getDebtDirection(debt);
   return (
