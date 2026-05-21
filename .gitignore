@@ -144,3 +144,5 @@ keys/
 *.pem
 *.key
 
+database/prisma/migrations/
+package-lock.json
