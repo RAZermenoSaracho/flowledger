@@ -112,13 +112,24 @@ transactionsRouter.put(
 
     await assertOwnedRelations(req.user!.id, req.body);
 
-    const transaction = await prisma.transaction.update({
-      where: { id: existing.id },
-      data: {
-        ...req.body,
-        ...(req.body.date ? { date: new Date(req.body.date) } : {})
-      },
-      include: { account: true, category: true }
+    const transaction = await prisma.$transaction(async (tx) => {
+      const updatedTransaction = await tx.transaction.update({
+        where: { id: existing.id },
+        data: {
+          ...req.body,
+          ...(req.body.date ? { date: new Date(req.body.date) } : {})
+        },
+        include: { account: true, category: true }
+      });
+
+      if (req.body.amount !== undefined) {
+        await tx.sharedExpense.updateMany({
+          where: { transactionId: existing.id },
+          data: { totalAmount: updatedTransaction.amount }
+        });
+      }
+
+      return updatedTransaction;
     });
 
     res.json({ transaction: serialize(transaction) });

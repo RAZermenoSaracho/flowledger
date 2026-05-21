@@ -13,7 +13,6 @@ export const sharedExpenseParticipantSchema = z.object({
 export const sharedExpenseSchema = z.object({
   transactionId: z.string().min(1),
   title: z.string().trim().min(1).max(160),
-  totalAmount: moneySchema,
   status: z.enum(SHARED_EXPENSE_STATUSES).default("open"),
   participants: z.array(sharedExpenseParticipantSchema).min(1).optional()
 });

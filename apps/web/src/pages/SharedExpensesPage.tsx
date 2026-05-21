@@ -36,7 +36,6 @@ export function SharedExpensesPage() {
   const queryClient = useQueryClient();
   const [transactionId, setTransactionId] = useState("");
   const [title, setTitle] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
   const [status, setStatus] = useState<SharedExpenseStatus>("open");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [participantName, setParticipantName] = useState("");
@@ -70,6 +69,9 @@ export function SharedExpensesPage() {
         })
       ).users
   });
+  const selectedTransaction = (transactionsQuery.data ?? []).find(
+    (transaction) => transaction.id === transactionId
+  );
 
   const createSharedExpense = useMutation({
     mutationFn: () =>
@@ -78,7 +80,6 @@ export function SharedExpensesPage() {
         body: {
           transactionId,
           title,
-          totalAmount: Number(totalAmount),
           status,
           participants: participants.map((participant) => ({
             userId: participant.userId ?? null,
@@ -101,7 +102,6 @@ export function SharedExpensesPage() {
         body: {
           transactionId,
           title,
-          totalAmount: Number(totalAmount),
           status,
           participants: participants.map((participant) => ({
             userId: participant.userId ?? null,
@@ -137,7 +137,6 @@ export function SharedExpensesPage() {
   function closeForm() {
     setTransactionId("");
     setTitle("");
-    setTotalAmount("");
     setStatus("open");
     setEditingId(null);
     setParticipantName("");
@@ -208,7 +207,6 @@ export function SharedExpensesPage() {
   function editSharedExpense(sharedExpense: SharedExpense) {
     setTransactionId(sharedExpense.transactionId);
     setTitle(sharedExpense.title);
-    setTotalAmount(String(sharedExpense.totalAmount));
     setStatus(sharedExpense.status);
     setEditingId(sharedExpense.id);
     setParticipantName("");
@@ -269,14 +267,16 @@ export function SharedExpensesPage() {
                 onChange={(event) => setTitle(event.target.value)}
                 required
               />
-              <TextInput
-                label="Total amount"
-                type="number"
-                step="0.01"
-                value={totalAmount}
-                onChange={(event) => setTotalAmount(event.target.value)}
-                required
-              />
+              <div className="grid gap-1">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Transaction amount
+                </span>
+                <p className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
+                  {selectedTransaction
+                    ? money.format(selectedTransaction.amount)
+                    : "Select transaction"}
+                </p>
+              </div>
               <SelectField
                 label="Status"
                 value={status}

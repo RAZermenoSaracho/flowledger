@@ -9,8 +9,8 @@ import { serialize } from "../../utils/serialize.js";
 
 export const sharedExpensesRouter = Router();
 
-async function assertOwnedTransaction(userId: string, transactionId?: string) {
-  if (!transactionId) return;
+async function getOwnedTransaction(userId: string, transactionId?: string) {
+  if (!transactionId) return null;
 
   const transaction = await prisma.transaction.findFirst({
     where: { id: transactionId, userId }
@@ -19,6 +19,8 @@ async function assertOwnedTransaction(userId: string, transactionId?: string) {
   if (!transaction) {
     throw new HttpError(400, "Transaction does not exist for this user");
   }
+
+  return transaction;
 }
 
 async function normalizeParticipants(
@@ -74,13 +76,17 @@ sharedExpensesRouter.post(
   "/",
   validate(sharedExpenseSchema),
   asyncHandler(async (req, res) => {
-    await assertOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
+    if (!transaction) {
+      throw new HttpError(400, "Transaction is required");
+    }
 
     const { participants = [], ...input } = req.body;
     const normalizedParticipants = await normalizeParticipants(req.user!.id, participants);
     const sharedExpense = await prisma.sharedExpense.create({
       data: {
         ...input,
+        totalAmount: transaction.amount,
         ownerUserId: req.user!.id,
         participants: { create: normalizedParticipants }
       },
@@ -113,7 +119,7 @@ sharedExpensesRouter.put(
     });
     if (!existing) throw notFound("Shared expense");
 
-    await assertOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants
@@ -123,6 +129,7 @@ sharedExpensesRouter.put(
       where: { id: existing.id },
       data: {
         ...input,
+        ...(transaction ? { totalAmount: transaction.amount } : {}),
         ...(normalizedParticipants
           ? {
               participants: {
