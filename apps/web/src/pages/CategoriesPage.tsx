@@ -14,6 +14,12 @@ export function CategoriesPage() {
   const [type, setType] = useState<CategoryType>("expense");
   const [color, setColor] = useState("#176b52");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null
+  );
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<CategoryType>("expense");
+  const [editColor, setEditColor] = useState("#176b52");
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
@@ -34,7 +40,30 @@ export function CategoriesPage() {
     }
   });
 
-  async function submit(event: FormEvent) {
+  const updateCategory = useMutation({
+    mutationFn: (category: {
+      id: string;
+      name: string;
+      type: CategoryType;
+      color: string;
+    }) =>
+      apiRequest(`/categories/${category.id}`, {
+        method: "PUT",
+        body: {
+          name: category.name,
+          type: category.type,
+          color: category.color
+        }
+      }),
+    onSuccess: async () => {
+      closeEditForm();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["category-report"] });
+    }
+  });
+
+  async function submitCreate(event: FormEvent) {
     event.preventDefault();
     await createCategory.mutateAsync();
   }
@@ -44,6 +73,32 @@ export function CategoriesPage() {
     setType("expense");
     setColor("#176b52");
     setIsFormOpen(false);
+  }
+
+  function openEditForm(category: Category) {
+    setEditingCategoryId(category.id);
+    setEditName(category.name);
+    setEditType(category.type);
+    setEditColor(category.color ?? "#176b52");
+  }
+
+  function closeEditForm() {
+    setEditingCategoryId(null);
+    setEditName("");
+    setEditType("expense");
+    setEditColor("#176b52");
+  }
+
+  async function submitEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editingCategoryId) return;
+
+    await updateCategory.mutateAsync({
+      id: editingCategoryId,
+      name: editName,
+      type: editType,
+      color: editColor
+    });
   }
 
   return (
@@ -62,7 +117,10 @@ export function CategoriesPage() {
                 Cancel
               </Button>
             </div>
-            <form className="mt-4 grid gap-4 md:grid-cols-3" onSubmit={submit}>
+            <form
+              className="mt-4 grid gap-4 md:grid-cols-3"
+              onSubmit={submitCreate}
+            >
               <TextInput
                 label="Name"
                 value={name}
@@ -111,16 +169,74 @@ export function CategoriesPage() {
           {(categoriesQuery.data ?? []).map((category) => (
             <div
               key={category.id}
-              className="flex items-center gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
+              className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
             >
-              <span
-                className="h-4 w-4 rounded-full"
-                style={{ background: category.color ?? "#cbd5e1" }}
-              />
-              <div>
-                <p className="font-semibold">{category.name}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{category.type}</p>
-              </div>
+              {editingCategoryId === category.id ? (
+                <form className="grid gap-3" onSubmit={submitEdit}>
+                  <TextInput
+                    label="Name"
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                    required
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SelectField
+                      label="Type"
+                      value={editType}
+                      onChange={(event) =>
+                        setEditType(event.target.value as CategoryType)
+                      }
+                    >
+                      {CATEGORY_TYPES.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </SelectField>
+                    <TextInput
+                      label="Color"
+                      type="color"
+                      value={editColor}
+                      onChange={(event) => setEditColor(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button type="submit" disabled={updateCategory.isPending}>
+                      Save changes
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={closeEditForm}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full"
+                      style={{ background: category.color ?? "#cbd5e1" }}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{category.name}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {category.type}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => openEditForm(category)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
