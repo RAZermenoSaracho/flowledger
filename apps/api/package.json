@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"No API tests yet\""
+    "test": "node --experimental-strip-types tests/debtDirection.test.ts"
   },
   "dependencies": {
     "@flowledger/shared": "0.1.0",

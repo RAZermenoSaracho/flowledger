@@ -6,6 +6,11 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import {
+  getDebtDirection,
+  isDebtRelevantToUser,
+  isSettlementDirectionCurrent
+} from "./debtDirection.js";
 
 export const debtsRouter = Router();
 export const settlementsRouter = Router();
@@ -40,10 +45,26 @@ function debtOutstanding(debt: { shareAmount: Prisma.Decimal; paidAmount: Prisma
 }
 
 function pendingSettlementTotal(debt: {
-  settlementRequests: { status: string; amount: Prisma.Decimal }[];
+  userId: string | null;
+  sharedExpense: {
+    ownerUserId: string;
+    transaction: { type: "income" | "expense" | "transfer" };
+  };
+  settlementRequests: {
+    status: string;
+    amount: Prisma.Decimal;
+    debtorUserId: string;
+    creditorUserId: string;
+  }[];
 }) {
+  const direction = getDebtDirection(debt);
+  if (!direction) return 0;
+
   return debt.settlementRequests
-    .filter((request) => request.status === "pending")
+    .filter(
+      (request) =>
+        request.status === "pending" && isSettlementDirectionCurrent(debt, request)
+    )
     .reduce((sum, request) => sum + request.amount.toNumber(), 0);
 }
 
@@ -75,16 +96,8 @@ debtsRouter.get(
     const userId = req.user!.id;
     const debts = await prisma.sharedExpenseParticipant.findMany({
       where: {
-        userId,
-        sharedExpense: { ownerUserId: { not: userId } }
-      },
-      include: debtInclude,
-      orderBy: { createdAt: "desc" }
-    });
-    const owedToMe = await prisma.sharedExpenseParticipant.findMany({
-      where: {
         userId: { not: null },
-        sharedExpense: { ownerUserId: userId }
+        OR: [{ userId }, { sharedExpense: { ownerUserId: userId } }]
       },
       include: debtInclude,
       orderBy: { createdAt: "desc" }
@@ -112,17 +125,26 @@ debtsRouter.get(
       orderBy: { createdAt: "desc" }
     });
 
-    const withBalances = [...debts, ...owedToMe].map((debt) => ({
-      ...debt,
-      outstandingAmount: debtOutstanding(debt),
-      pendingSettlementAmount: pendingSettlementTotal(debt)
-    }));
+    const withBalances = debts
+      .filter((debt) => isDebtRelevantToUser(debt, userId))
+      .map((debt) => {
+        const direction = getDebtDirection(debt);
+        return {
+          ...debt,
+          debtorUserId: direction?.debtorUserId,
+          creditorUserId: direction?.creditorUserId,
+          outstandingAmount: debtOutstanding(debt),
+          pendingSettlementAmount: pendingSettlementTotal(debt)
+        };
+      });
 
     res.json(
       serialize({
-        iOwe: withBalances.filter((debt) => debt.userId === userId && debt.outstandingAmount > 0),
+        iOwe: withBalances.filter(
+          (debt) => debt.debtorUserId === userId && debt.outstandingAmount > 0
+        ),
         owedToMe: withBalances.filter(
-          (debt) => debt.sharedExpense.ownerUserId === userId && debt.outstandingAmount > 0
+          (debt) => debt.creditorUserId === userId && debt.outstandingAmount > 0
         ),
         pendingSettlementRequests,
         settledDebts: withBalances.filter((debt) => debt.outstandingAmount === 0)
@@ -136,10 +158,15 @@ debtsRouter.post(
   validate(settlementRequestSchema),
   asyncHandler(async (req, res) => {
     const debt = await prisma.sharedExpenseParticipant.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id: req.params.id, userId: { not: null } },
       include: debtInclude
     });
     if (!debt) throw notFound("Debt");
+
+    const direction = getDebtDirection(debt);
+    if (!direction || direction.debtorUserId !== req.user!.id) {
+      throw notFound("Debt");
+    }
 
     const outstandingAmount = debtOutstanding(debt);
     const pendingAmount = pendingSettlementTotal(debt);
@@ -155,8 +182,8 @@ debtsRouter.post(
     const settlementRequest = await prisma.settlementRequest.create({
       data: {
         sharedExpenseParticipantId: debt.id,
-        debtorUserId: req.user!.id,
-        creditorUserId: debt.sharedExpense.ownerUserId,
+        debtorUserId: direction.debtorUserId,
+        creditorUserId: direction.creditorUserId,
         amount: new Prisma.Decimal(requestAmount),
         note: req.body.note?.trim() || null
       },
@@ -210,6 +237,10 @@ settlementsRouter.post(
       if (!settlementRequest) throw notFound("Settlement request");
 
       const debt = settlementRequest.sharedExpenseParticipant;
+      if (!isSettlementDirectionCurrent(debt, settlementRequest)) {
+        throw new HttpError(400, "Settlement request does not match the current debt direction");
+      }
+
       const outstandingAmount = debtOutstanding(debt);
       const amount = settlementRequest.amount.toNumber();
       if (amount > outstandingAmount) {

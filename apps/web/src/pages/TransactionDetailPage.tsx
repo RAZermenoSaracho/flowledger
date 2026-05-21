@@ -6,6 +6,12 @@ import type { Transaction } from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+function splitDirectionLabel(type: Transaction["type"]) {
+  if (type === "income") return "You owe participants";
+  if (type === "expense") return "Participants owe you";
+  return "No debt direction";
+}
+
 export function TransactionDetailPage() {
   const { id } = useParams();
   const transactionQuery = useQuery({
@@ -41,12 +47,14 @@ export function TransactionDetailPage() {
         {transaction.sharedExpense ? (
           <div className="mt-4 grid gap-3">
             <p className="font-semibold">{transaction.sharedExpense.title}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{transaction.sharedExpense.status}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {transaction.sharedExpense.status} · {splitDirectionLabel(transaction.type)}
+            </p>
             {transaction.sharedExpense.participants.map((participant) => (
               <div key={participant.id} className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950">
                 <p className="font-medium">{participant.participantName}</p>
                 <p>
-                  {money.format(participant.paidAmount)} paid of {money.format(participant.shareAmount)}
+                  {money.format(participant.paidAmount)} settled of {money.format(participant.shareAmount)}
                 </p>
               </div>
             ))}

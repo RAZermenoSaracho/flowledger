@@ -78,6 +78,8 @@ export type SettlementRequest = {
 
 export type Debt = SharedExpenseParticipant & {
   sharedExpenseId: string;
+  debtorUserId?: string;
+  creditorUserId?: string;
   outstandingAmount: number;
   pendingSettlementAmount: number;
   sharedExpense: SharedExpense & {

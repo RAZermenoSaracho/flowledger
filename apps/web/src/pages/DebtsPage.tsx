@@ -29,15 +29,30 @@ function debtTitle(debt: Debt) {
   return debt.sharedExpense.title;
 }
 
+function participantName(debt: Debt) {
+  return debt.user?.name ?? debt.participantName;
+}
+
+function partyName(debt: Debt, userId?: string) {
+  if (!userId) return undefined;
+  if (userId === debt.sharedExpense.ownerUserId) return debt.sharedExpense.owner?.name;
+  if (userId === debt.userId) return participantName(debt);
+  return undefined;
+}
+
+function transactionTypeLabel(debt: Debt) {
+  return debt.sharedExpense.transaction?.type === "income" ? "income split" : "expense split";
+}
+
 function debtDescription(debt: Debt, viewerUserId?: string) {
   const otherParty =
-    debt.userId === viewerUserId
-      ? debt.sharedExpense.owner?.name
-      : debt.user?.name ?? debt.participantName;
+    debt.debtorUserId === viewerUserId
+      ? partyName(debt, debt.creditorUserId)
+      : partyName(debt, debt.debtorUserId);
 
-  return `${otherParty ?? "Unknown user"} · ${money.format(debt.paidAmount)} paid of ${money.format(
-    debt.shareAmount
-  )}`;
+  return `${otherParty ?? "Unknown user"} · ${transactionTypeLabel(debt)} · ${money.format(
+    debt.paidAmount
+  )} settled of ${money.format(debt.shareAmount)}`;
 }
 
 function statusLabel(debt: Debt) {

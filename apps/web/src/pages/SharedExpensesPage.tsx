@@ -32,6 +32,12 @@ function participantStatus(shareAmount: string, paidAmount: string) {
   return "pending";
 }
 
+function splitDirectionLabel(sharedExpense: SharedExpense) {
+  if (sharedExpense.transaction?.type === "income") return "You owe participants";
+  if (sharedExpense.transaction?.type === "expense") return "Participants owe you";
+  return "No debt direction";
+}
+
 export function SharedExpensesPage() {
   const queryClient = useQueryClient();
   const [transactionId, setTransactionId] = useState("");
@@ -257,7 +263,7 @@ export function SharedExpensesPage() {
                 <option value="">Select transaction</option>
                 {(transactionsQuery.data ?? []).map((transaction) => (
                   <option key={transaction.id} value={transaction.id}>
-                    {transaction.name} · {money.format(transaction.amount)}
+                    {transaction.name} · {transaction.type} · {money.format(transaction.amount)}
                   </option>
                 ))}
               </SelectField>
@@ -378,7 +384,7 @@ export function SharedExpensesPage() {
                       required
                     />
                     <TextInput
-                      label="Paid amount"
+                      label="Settled amount"
                       type="number"
                       step="0.01"
                       min="0"
@@ -441,7 +447,7 @@ export function SharedExpensesPage() {
                 <div>
                   <p className="font-semibold">{sharedExpense.title}</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {sharedExpense.status}
+                    {sharedExpense.status} · {splitDirectionLabel(sharedExpense)}
                   </p>
                 </div>
                 <p className="font-semibold">
@@ -468,7 +474,7 @@ export function SharedExpensesPage() {
                       {participant.userId ? "App user" : "Manual"}
                     </span>{" "}
                     · {participant.participantName}:{" "}
-                    {money.format(participant.paidAmount)} paid of{" "}
+                    {money.format(participant.paidAmount)} settled of{" "}
                     {money.format(participant.shareAmount)}
                   </div>
                 ))}
