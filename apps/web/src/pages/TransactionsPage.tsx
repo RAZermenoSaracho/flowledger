@@ -186,9 +186,32 @@ export function TransactionsPage() {
     }
   });
 
+  const deleteTransaction = useMutation({
+    mutationFn: (transactionId: string) =>
+      apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
+      await queryClient.invalidateQueries({ queryKey: ["debts"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  });
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     await saveTransaction.mutateAsync();
+  }
+
+  async function confirmDeleteTransaction(transaction: Transaction) {
+    const confirmed = window.confirm(
+      `Delete "${transaction.name}" permanently? This will also remove any attached shared expense, participants, debts, settlements, and related notifications.`
+    );
+    if (!confirmed) return;
+
+    await deleteTransaction.mutateAsync(transaction.id);
   }
 
   function closeForm() {
@@ -847,32 +870,42 @@ export function TransactionsPage() {
                 >
                   {money.format(transaction.amount)}
                 </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setForm({
-                      id: transaction.id,
-                      name: transaction.name,
-                      amount: String(transaction.amount),
-                      type: transaction.type,
-                      date: transaction.date.slice(0, 10),
-                      accountId: transaction.accountId ?? "",
-                      categoryId: transaction.categoryId ?? "",
-                      groupId: transaction.groupId ?? "",
-                      groupCategoryId: transaction.groupCategoryId ?? "",
-                      notes: transaction.notes ?? "",
-                      isShared: false,
-                      sharedTitle: ""
-                    });
-                    setParticipantName("");
-                    setUserSearch("");
-                    setParticipants([]);
-                    setIsFormOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
+                <div className="flex flex-wrap gap-2 md:justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setForm({
+                        id: transaction.id,
+                        name: transaction.name,
+                        amount: String(transaction.amount),
+                        type: transaction.type,
+                        date: transaction.date.slice(0, 10),
+                        accountId: transaction.accountId ?? "",
+                        categoryId: transaction.categoryId ?? "",
+                        groupId: transaction.groupId ?? "",
+                        groupCategoryId: transaction.groupCategoryId ?? "",
+                        notes: transaction.notes ?? "",
+                        isShared: false,
+                        sharedTitle: ""
+                      });
+                      setParticipantName("");
+                      setUserSearch("");
+                      setParticipants([]);
+                      setIsFormOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    disabled={deleteTransaction.isPending}
+                    onClick={() => void confirmDeleteTransaction(transaction)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             ))}
             {visibleTransactions.length === 0 ? (

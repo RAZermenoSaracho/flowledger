@@ -231,11 +231,59 @@ transactionsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const existing = await prisma.transaction.findFirst({
-      where: { id: req.params.id, userId: req.user!.id }
+      where: { id: req.params.id, userId: req.user!.id },
+      include: {
+        sharedExpense: {
+          include: {
+            participants: {
+              include: { settlementRequests: true }
+            }
+          }
+        }
+      }
     });
     if (!existing) throw notFound("Transaction");
 
-    await prisma.transaction.delete({ where: { id: existing.id } });
+    const sharedExpenseId = existing.sharedExpense?.id;
+    const participantIds =
+      existing.sharedExpense?.participants.map((participant) => participant.id) ??
+      [];
+    const settlementRequestIds =
+      existing.sharedExpense?.participants.flatMap((participant) =>
+        participant.settlementRequests.map((request) => request.id)
+      ) ?? [];
+
+    await prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({
+        where: {
+          OR: [
+            { metadata: { path: ["transactionId"], equals: existing.id } },
+            ...(sharedExpenseId
+              ? [
+                  {
+                    metadata: {
+                      path: ["sharedExpenseId"],
+                      equals: sharedExpenseId
+                    }
+                  }
+                ]
+              : []),
+            ...participantIds.map((participantId) => ({
+              metadata: { path: ["participantId"], equals: participantId }
+            })),
+            ...settlementRequestIds.map((settlementRequestId) => ({
+              metadata: {
+                path: ["settlementRequestId"],
+                equals: settlementRequestId
+              }
+            }))
+          ]
+        }
+      });
+
+      await tx.transaction.delete({ where: { id: existing.id } });
+    });
+
     res.status(204).send();
   })
 );

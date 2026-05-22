@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { apiRequest } from "../services/api";
 import type { Transaction } from "../types/api";
@@ -17,12 +18,28 @@ function splitDirectionLabel(type: Transaction["type"]) {
 
 export function TransactionDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const transactionQuery = useQuery({
     queryKey: ["transaction", id],
     enabled: Boolean(id),
     queryFn: async () =>
       (await apiRequest<{ transaction: Transaction }>(`/transactions/${id}`))
         .transaction
+  });
+  const deleteTransaction = useMutation({
+    mutationFn: (transactionId: string) =>
+      apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
+      await queryClient.invalidateQueries({ queryKey: ["debts"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      navigate("/transactions");
+    }
   });
 
   const transaction = transactionQuery.data;
@@ -34,12 +51,30 @@ export function TransactionDetailPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <Card>
-        <Link
-          className="text-sm font-semibold text-pine dark:text-emerald-300"
-          to="/transactions"
-        >
-          Back to transactions
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            className="text-sm font-semibold text-pine dark:text-emerald-300"
+            to="/transactions"
+          >
+            Back to transactions
+          </Link>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={deleteTransaction.isPending}
+            onClick={() => {
+              const sharedCleanup = transaction.sharedExpense
+                ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
+                : "";
+              const confirmed = window.confirm(
+                `Delete "${transaction.name}" permanently?${sharedCleanup}`
+              );
+              if (confirmed) void deleteTransaction.mutateAsync(transaction.id);
+            }}
+          >
+            Delete
+          </Button>
+        </div>
         <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <Detail label="Amount" value={money.format(transaction.amount)} />
