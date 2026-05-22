@@ -74,7 +74,6 @@ export function AppLayout() {
         </nav>
 
         <div className="border-t border-slate-200 p-4 dark:border-slate-800">
-          <NotificationsMenu queryClient={queryClient} />
           {auth.user ? (
             <Link
               to={routes.profile}
@@ -98,10 +97,14 @@ export function AppLayout() {
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:hidden">
+        <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <BrandLink />
-            <NotificationsMenu queryClient={queryClient} compact />
+            <div className="lg:hidden">
+              <BrandLink />
+            </div>
+            <div className="ml-auto">
+              <NotificationsMenu queryClient={queryClient} />
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -128,13 +131,7 @@ export function AppLayout() {
   );
 }
 
-function NotificationsMenu({
-  compact,
-  queryClient
-}: {
-  compact?: boolean;
-  queryClient: ReturnType<typeof useQueryClient>;
-}) {
+function NotificationsMenu({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
   const [isOpen, setIsOpen] = useState(false);
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
@@ -179,16 +176,15 @@ function NotificationsMenu({
   }, [isOpen]);
 
   return (
-    <div className={`relative ${compact ? "" : "mb-3"}`}>
+    <div className="relative">
       <button
         type="button"
-        className="relative inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
         aria-label="Notifications"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
         <BellIcon />
-        {compact ? null : <span>Notifications</span>}
         {unreadCount > 0 ? (
           <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-pine px-1.5 py-0.5 text-center text-xs font-bold text-white dark:bg-emerald-500 dark:text-slate-950">
             {unreadCount > 99 ? "99+" : unreadCount}
