@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
-import { apiRequest } from "../services/api";
+import { apiAssetUrl, apiRequest } from "../services/api";
 import type { User } from "../types/api";
 
 const planLabels = {
@@ -18,7 +18,9 @@ export function ProfilePage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState(auth.user?.name ?? "");
   const [email, setEmail] = useState(auth.user?.email ?? "");
-  const [avatarUrl, setAvatarUrl] = useState(auth.user?.avatarUrl ?? "");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -40,25 +42,49 @@ export function ProfilePage() {
   });
 
   useEffect(() => {
-    if (profileQuery.data) {
+    if (profileQuery.data && !isEditingProfile) {
       setName(profileQuery.data.name);
       setEmail(profileQuery.data.email);
-      setAvatarUrl(profileQuery.data.avatarUrl ?? "");
     }
-  }, [profileQuery.data]);
+  }, [isEditingProfile, profileQuery.data]);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreviewUrl(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [avatarFile]);
+
+  function syncUser(user: User) {
+    auth.setUser(user);
+    queryClient.setQueryData(["me"], user);
+  }
 
   const updateProfile = useMutation({
     mutationFn: () =>
       apiRequest<{ user: User }>("/users/me", {
         method: "PATCH",
-        body: { name, email, avatarUrl }
+        body: { name, email }
       }),
-    onSuccess: async (response) => {
-      auth.setUser(response.user);
-      queryClient.setQueryData(["me"], response.user);
-      await queryClient.invalidateQueries({ queryKey: ["me"] });
-      setProfileMessage("Profile updated");
-    }
+    onSuccess: (response) => syncUser(response.user)
+  });
+
+  const uploadAvatar = useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      return apiRequest<{ user: User }>("/users/me/avatar", {
+        method: "POST",
+        body: formData
+      });
+    },
+    onSuccess: (response) => syncUser(response.user)
   });
 
   const updatePassword = useMutation({
@@ -95,9 +121,37 @@ export function ProfilePage() {
 
     try {
       await updateProfile.mutateAsync();
+      if (avatarFile) {
+        await uploadAvatar.mutateAsync(avatarFile);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["me"] });
+      setAvatarFile(null);
+      setIsEditingProfile(false);
+      setProfileMessage("Profile updated");
     } catch (caught) {
       setProfileError(caught instanceof Error ? caught.message : "Profile could not be updated");
     }
+  }
+
+  function startEditingProfile() {
+    setName(user?.name ?? "");
+    setEmail(user?.email ?? "");
+    setAvatarFile(null);
+    setProfileError(null);
+    setProfileMessage(null);
+    setIsEditingProfile(true);
+  }
+
+  function cancelEditingProfile() {
+    setName(user?.name ?? "");
+    setEmail(user?.email ?? "");
+    setAvatarFile(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setProfileError(null);
+    setPasswordError(null);
+    setIsEditingProfile(false);
   }
 
   async function submitPassword(event: FormEvent) {
@@ -125,6 +179,8 @@ export function ProfilePage() {
   const user = profileQuery.data;
   const isLoading = profileQuery.isLoading && !user;
   const currentPlan = user?.planType ?? "free";
+  const profileAvatarUrl = avatarPreviewUrl ?? apiAssetUrl(user?.avatarUrl);
+  const isProfileSaving = updateProfile.isPending || uploadAvatar.isPending;
   const initials = (user?.name ?? "FL")
     .split(" ")
     .map((part) => part[0])
@@ -136,24 +192,31 @@ export function ProfilePage() {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
       <section className="grid gap-6">
         <Card>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt=""
-                className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
-              />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-mint text-lg font-bold text-pine dark:bg-emerald-950 dark:text-emerald-200">
-                {initials}
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              {profileAvatarUrl ? (
+                <img
+                  src={profileAvatarUrl}
+                  alt=""
+                  className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-mint text-lg font-bold text-pine dark:bg-emerald-950 dark:text-emerald-200">
+                  {initials}
+                </div>
+              )}
+              <div>
+                <h2 className="text-xl font-semibold">Profile and account</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Manage your FlowLedger identity, sign-in details, and MVP plan.
+                </p>
               </div>
-            )}
-            <div>
-              <h2 className="text-xl font-semibold">Profile and account</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Manage your FlowLedger identity, sign-in details, and MVP plan.
-              </p>
             </div>
+            {!isEditingProfile ? (
+              <Button type="button" className="w-full sm:w-auto" onClick={startEditingProfile} disabled={isLoading}>
+                Edit Profile
+              </Button>
+            ) : null}
           </div>
 
           {profileQuery.isError ? (
@@ -170,79 +233,107 @@ export function ProfilePage() {
           </dl>
         </Card>
 
-        <Card>
-          <h3 className="text-lg font-semibold">Profile details</h3>
-          <form className="mt-4 grid gap-4" onSubmit={submitProfile}>
-            <TextInput
-              label="Name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              maxLength={120}
-              disabled={isLoading}
-            />
-            <TextInput
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              maxLength={255}
-              disabled={isLoading}
-            />
-            <TextInput
-              label="Profile picture URL"
-              type="url"
-              value={avatarUrl}
-              onChange={(event) => setAvatarUrl(event.target.value)}
-              maxLength={2048}
-              placeholder="https://example.com/avatar.jpg"
-              disabled={isLoading}
-            />
-            {profileError ? <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p> : null}
-            {profileMessage ? <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p> : null}
-            <Button type="submit" disabled={isLoading || updateProfile.isPending}>
-              Save profile
-            </Button>
-          </form>
-        </Card>
+        {isEditingProfile ? (
+          <Card>
+            <h3 className="text-lg font-semibold">Profile details</h3>
+            <form className="mt-4 grid gap-4" onSubmit={submitProfile}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                {profileAvatarUrl ? (
+                  <img
+                    src={profileAvatarUrl}
+                    alt=""
+                    className="h-20 w-20 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-mint text-xl font-bold text-pine dark:bg-emerald-950 dark:text-emerald-200">
+                    {initials}
+                  </div>
+                )}
+                <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <span>Profile picture</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                    disabled={isLoading || isProfileSaving}
+                    className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-pine file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ink dark:text-slate-300 dark:file:bg-emerald-700"
+                  />
+                  <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                    JPG, PNG, WebP, or GIF up to 2 MB.
+                  </span>
+                </label>
+              </div>
+              <TextInput
+                label="Name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+                maxLength={120}
+                disabled={isLoading || isProfileSaving}
+              />
+              <TextInput
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                maxLength={255}
+                disabled={isLoading || isProfileSaving}
+              />
+              {profileError ? <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p> : null}
+              {profileMessage ? <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p> : null}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="submit" disabled={isLoading || isProfileSaving}>
+                  Save profile
+                </Button>
+                <Button type="button" variant="secondary" onClick={cancelEditingProfile} disabled={isProfileSaving}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </Card>
+        ) : profileMessage ? (
+          <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p>
+        ) : null}
 
-        <Card>
-          <h3 className="text-lg font-semibold">Password</h3>
-          <form className="mt-4 grid gap-4" onSubmit={submitPassword}>
-            <TextInput
-              label="Current password"
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              required
-              maxLength={128}
-            />
-            <TextInput
-              label="New password"
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              required
-              minLength={8}
-              maxLength={128}
-            />
-            <TextInput
-              label="Confirm new password"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              required
-              minLength={8}
-              maxLength={128}
-            />
-            {passwordError ? <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p> : null}
-            {passwordMessage ? <p className="text-sm text-pine dark:text-emerald-300">{passwordMessage}</p> : null}
-            <Button type="submit" disabled={updatePassword.isPending}>
-              Change password
-            </Button>
-          </form>
-        </Card>
+        {isEditingProfile ? (
+          <Card>
+            <h3 className="text-lg font-semibold">Password</h3>
+            <form className="mt-4 grid gap-4" onSubmit={submitPassword}>
+              <TextInput
+                label="Current password"
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+                maxLength={128}
+              />
+              <TextInput
+                label="New password"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+              />
+              <TextInput
+                label="Confirm new password"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+              />
+              {passwordError ? <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p> : null}
+              {passwordMessage ? <p className="text-sm text-pine dark:text-emerald-300">{passwordMessage}</p> : null}
+              <Button type="submit" disabled={updatePassword.isPending}>
+                Change password
+              </Button>
+            </form>
+          </Card>
+        ) : null}
       </section>
 
       <Card className="self-start">

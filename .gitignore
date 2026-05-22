@@ -129,6 +129,7 @@ build/
 *.db
 *.sqlite
 *.sqlite3
+apps/api/uploads/
 
 # archives/backups
 *.zip

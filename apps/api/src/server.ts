@@ -2,6 +2,8 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -18,11 +20,14 @@ import { transactionsRouter } from "./modules/transactions/transactions.routes.j
 import { usersRouter } from "./modules/users/users.routes.js";
 
 const app = express();
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const uploadDir = path.resolve(moduleDir, "../uploads");
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use("/uploads", express.static(uploadDir));
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

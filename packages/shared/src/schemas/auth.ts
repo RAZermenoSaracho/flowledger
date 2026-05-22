@@ -14,10 +14,7 @@ export const loginSchema = z.object({
 
 export const updateUserProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(255),
-  avatarUrl: z
-    .preprocess((value) => (value === "" ? null : value), z.string().trim().url().max(2048).nullable())
-    .optional()
+  email: z.string().trim().email().max(255)
 });
 
 export const updateUserPasswordSchema = z

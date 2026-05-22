@@ -13,6 +13,12 @@ type ApiOptions = {
   query?: Record<string, string | undefined>;
 };
 
+export function apiAssetUrl(path: string | null | undefined) {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const url = new URL(`${API_URL}${path}`);
 
@@ -21,13 +27,16 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   const token = tokenStore.get();
+  const isFormData = options.body instanceof FormData;
+  const requestBody: BodyInit | undefined =
+    options.body instanceof FormData ? options.body : options.body ? JSON.stringify(options.body) : undefined;
   const response = await fetch(url, {
     method: options.method ?? "GET",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: requestBody
   });
 
   if (!response.ok) {
