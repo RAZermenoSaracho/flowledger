@@ -21,7 +21,9 @@ async function assertOwnedRelations(userId: string, input: { accountId?: string 
   }
 
   if (input.categoryId) {
-    const category = await prisma.category.findFirst({ where: { id: input.categoryId, userId } });
+    const category = await prisma.category.findFirst({
+      where: { id: input.categoryId, userId, householdId: null }
+    });
     if (!category) throw new HttpError(400, "Category does not exist for this user");
   }
 }

@@ -39,7 +39,7 @@ export async function assertHouseholdCategory(
 
   await getHouseholdMembership(userId, householdId);
 
-  const category = await prisma.householdCategory.findFirst({
+  const category = await prisma.category.findFirst({
     where: { id: householdCategoryId, householdId }
   });
 

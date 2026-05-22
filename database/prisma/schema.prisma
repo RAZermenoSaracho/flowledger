@@ -86,16 +86,20 @@ model Account {
 
 model Category {
   id           String        @id @default(cuid())
-  userId       String
+  userId       String?
+  householdId  String?
   name         String
   type         CategoryType
   color        String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  household    Household?    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  transactions Transaction[] @relation("TransactionCategory")
+  householdTransactions Transaction[] @relation("TransactionHouseholdCategory")
 
   @@index([userId])
+  @@index([householdId])
 }
 
 model Transaction {
@@ -113,9 +117,9 @@ model Transaction {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category              Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category              Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   household             Household?            @relation(fields: [householdId], references: [id], onDelete: SetNull)
-  householdCategory     HouseholdCategory?    @relation(fields: [householdCategoryId], references: [id], onDelete: SetNull)
+  householdCategory     Category?             @relation("TransactionHouseholdCategory", fields: [householdCategoryId], references: [id], onDelete: SetNull)
   account               Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
   relations             TransactionRelation[] @relation("TransactionRelations")
   relatedBy             TransactionRelation[] @relation("RelatedTransactionRelations")
@@ -137,7 +141,7 @@ model Household {
   updatedAt      DateTime            @updatedAt
   owner          User                @relation("OwnedHouseholds", fields: [ownerUserId], references: [id], onDelete: Cascade)
   members        HouseholdMember[]
-  categories     HouseholdCategory[]
+  categories     Category[]
   transactions   Transaction[]
 
   @@index([ownerUserId])
@@ -155,20 +159,6 @@ model HouseholdMember {
 
   @@unique([householdId, userId])
   @@index([userId])
-}
-
-model HouseholdCategory {
-  id             String        @id @default(cuid())
-  householdId    String
-  name           String
-  type           CategoryType
-  color          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  household      Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  transactions   Transaction[]
-
-  @@index([householdId])
 }
 
 model TransactionRelation {

@@ -144,5 +144,7 @@ keys/
 *.pem
 *.key
 
-database/prisma/migrations/
+database/prisma/migrations/*
+!database/prisma/migrations/20260522120000_unify_household_categories/
+!database/prisma/migrations/20260522120000_unify_household_categories/migration.sql
 package-lock.json

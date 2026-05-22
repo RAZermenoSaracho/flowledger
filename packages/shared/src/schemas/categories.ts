@@ -7,10 +7,15 @@ export const categorySchema = z.object({
   color: z.string().trim().max(32).optional().nullable()
 });
 
+export const categoryFiltersSchema = z.object({
+  householdId: z.string().min(1).optional()
+});
+
 export const updateCategorySchema = categorySchema.partial().refine(
   (value) => Object.keys(value).length > 0,
   "At least one category field is required"
 );
 
 export type CategoryInput = z.infer<typeof categorySchema>;
+export type CategoryFilters = z.infer<typeof categoryFiltersSchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

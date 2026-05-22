@@ -137,7 +137,7 @@ householdsRouter.post(
 
     await getHouseholdAdmin(req.user!.id, householdId);
 
-    const category = await prisma.householdCategory.create({
+    const category = await prisma.category.create({
       data: {
         householdId,
         name: req.body.name,

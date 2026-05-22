@@ -25,6 +25,10 @@ export function HouseholdsPage() {
   const [categoryName, setCategoryName] = useState("");
   const [categoryType, setCategoryType] = useState<CategoryType>("expense");
   const [categoryColor, setCategoryColor] = useState("#176b52");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [editCategoryType, setEditCategoryType] = useState<CategoryType>("expense");
+  const [editCategoryColor, setEditCategoryColor] = useState("#176b52");
   const trimmedUserSearch = userSearch.trim();
 
   const householdsQuery = useQuery({
@@ -94,6 +98,27 @@ export function HouseholdsPage() {
       await refreshSelectedHousehold();
     }
   });
+  const updateCategory = useMutation({
+    mutationFn: (category: {
+      id: string;
+      name: string;
+      type: CategoryType;
+      color: string;
+    }) =>
+      apiRequest(`/categories/${category.id}`, {
+        method: "PUT",
+        body: {
+          name: category.name,
+          type: category.type,
+          color: category.color
+        }
+      }),
+    onSuccess: async () => {
+      closeCategoryEditForm();
+      await refreshSelectedHousehold();
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
 
   async function refreshSelectedHousehold() {
     setUserSearch("");
@@ -111,10 +136,36 @@ export function HouseholdsPage() {
     await addCategory.mutateAsync();
   }
 
+  async function submitCategoryEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editingCategoryId) return;
+
+    await updateCategory.mutateAsync({
+      id: editingCategoryId,
+      name: editCategoryName,
+      type: editCategoryType,
+      color: editCategoryColor
+    });
+  }
+
   function closeCreateForm() {
     setName("");
     setDescription("");
     setIsCreateOpen(false);
+  }
+
+  function openCategoryEditForm(category: Household["categories"][number]) {
+    setEditingCategoryId(category.id);
+    setEditCategoryName(category.name);
+    setEditCategoryType(category.type);
+    setEditCategoryColor(category.color ?? "#176b52");
+  }
+
+  function closeCategoryEditForm() {
+    setEditingCategoryId(null);
+    setEditCategoryName("");
+    setEditCategoryType("expense");
+    setEditCategoryColor("#176b52");
   }
 
   return (
@@ -169,7 +220,10 @@ export function HouseholdsPage() {
                     ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
                     : "border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
                 }`}
-                onClick={() => setSelectedHouseholdId(household.id)}
+                onClick={() => {
+                  closeCategoryEditForm();
+                  setSelectedHouseholdId(household.id);
+                }}
               >
                 <p className="font-semibold">{household.name}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -269,18 +323,76 @@ export function HouseholdsPage() {
                 {selectedHousehold.categories.map((category) => (
                   <div
                     key={category.id}
-                    className="flex items-center gap-3 rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800"
+                    className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800"
                   >
-                    <span
-                      className="h-4 w-4 shrink-0 rounded-full"
-                      style={{ background: category.color ?? "#cbd5e1" }}
-                    />
-                    <div>
-                      <p className="font-medium">{category.name}</p>
-                      <p className="text-slate-500 dark:text-slate-400">
-                        {category.type}
-                      </p>
-                    </div>
+                    {editingCategoryId === category.id ? (
+                      <form className="grid gap-3" onSubmit={submitCategoryEdit}>
+                        <TextInput
+                          label="Name"
+                          value={editCategoryName}
+                          onChange={(event) => setEditCategoryName(event.target.value)}
+                          required
+                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <SelectField
+                            label="Type"
+                            value={editCategoryType}
+                            onChange={(event) =>
+                              setEditCategoryType(event.target.value as CategoryType)
+                            }
+                          >
+                            {CATEGORY_TYPES.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </SelectField>
+                          <TextInput
+                            label="Color"
+                            type="color"
+                            value={editCategoryColor}
+                            onChange={(event) => setEditCategoryColor(event.target.value)}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button type="submit" disabled={updateCategory.isPending}>
+                            Save changes
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={closeCategoryEditForm}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="h-4 w-4 shrink-0 rounded-full"
+                            style={{ background: category.color ?? "#cbd5e1" }}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{category.name}</p>
+                            <p className="text-slate-500 dark:text-slate-400">
+                              {category.type}
+                            </p>
+                          </div>
+                        </div>
+                        {canManage ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full sm:w-auto"
+                            onClick={() => openCategoryEditForm(category)}
+                          >
+                            Edit
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

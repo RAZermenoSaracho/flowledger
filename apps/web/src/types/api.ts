@@ -32,6 +32,7 @@ export type Account = {
 
 export type Category = {
   id: string;
+  householdId?: string | null;
   name: string;
   type: CategoryType;
   color?: string | null;
@@ -49,15 +50,7 @@ export type HouseholdMember = {
   updatedAt: string;
 };
 
-export type HouseholdCategory = {
-  id: string;
-  householdId: string;
-  name: string;
-  type: CategoryType;
-  color?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+export type HouseholdCategory = Category & { householdId: string };
 
 export type Household = {
   id: string;
