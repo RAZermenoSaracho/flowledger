@@ -131,27 +131,29 @@ model CategoryUser {
 }
 
 model Transaction {
-  id              String                @id @default(cuid())
-  userId          String
-  name            String
-  amount          Decimal               @db.Decimal(12, 2)
-  type            TransactionType
-  date            DateTime
-  categoryId      String?
-  groupId         String?
-  groupCategoryId String?
-  accountId       String?
-  notes           String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category        Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
-  group           Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  groupCategory   Category?             @relation("TransactionGroupCategory", fields: [groupCategoryId], references: [id], onDelete: SetNull)
-  account         Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  relations       TransactionRelation[] @relation("TransactionRelations")
-  relatedBy       TransactionRelation[] @relation("RelatedTransactionRelations")
-  sharedExpense   SharedExpense?
+  id                        String                @id @default(cuid())
+  userId                    String
+  name                      String
+  amount                    Decimal               @db.Decimal(12, 2)
+  type                      TransactionType
+  date                      DateTime
+  categoryId                String?
+  groupId                   String?
+  groupCategoryId           String?
+  accountId                 String?
+  notes                     String?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category                  Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  group                     Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  groupCategory             Category?             @relation("TransactionGroupCategory", fields: [groupCategoryId], references: [id], onDelete: SetNull)
+  account                   Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  relations                 TransactionRelation[] @relation("TransactionRelations")
+  relatedBy                 TransactionRelation[] @relation("RelatedTransactionRelations")
+  sharedExpense             SharedExpense?
+  debtorSettlementRequest   SettlementRequest?    @relation("SettlementDebtorTransaction")
+  creditorSettlementRequest SettlementRequest?    @relation("SettlementCreditorTransaction")
 
   @@index([userId, date])
   @@index([categoryId])
@@ -247,16 +249,25 @@ model SettlementRequest {
   amount                     Decimal                  @db.Decimal(12, 2)
   status                     SettlementStatus         @default(pending)
   note                       String?
+  paymentInfo                String?
+  debtorAccountId            String?
+  debtorCategoryId           String?
+  debtorTransactionId        String?                  @unique
+  creditorTransactionId      String?                  @unique
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
   approvedAt                 DateTime?
   sharedExpenseParticipant   SharedExpenseParticipant @relation(fields: [sharedExpenseParticipantId], references: [id], onDelete: Cascade)
   debtor                     User                     @relation("SettlementDebtor", fields: [debtorUserId], references: [id], onDelete: Cascade)
   creditor                   User                     @relation("SettlementCreditor", fields: [creditorUserId], references: [id], onDelete: Cascade)
+  debtorTransaction          Transaction?             @relation("SettlementDebtorTransaction", fields: [debtorTransactionId], references: [id], onDelete: SetNull)
+  creditorTransaction        Transaction?             @relation("SettlementCreditorTransaction", fields: [creditorTransactionId], references: [id], onDelete: SetNull)
 
   @@index([sharedExpenseParticipantId])
   @@index([debtorUserId])
   @@index([creditorUserId])
+  @@index([debtorAccountId])
+  @@index([debtorCategoryId])
   @@index([status])
 }
 

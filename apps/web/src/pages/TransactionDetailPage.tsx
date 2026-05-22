@@ -16,6 +16,10 @@ function splitDirectionLabel(type: Transaction["type"]) {
   return "No debt direction";
 }
 
+function needsClassification(transaction: Transaction) {
+  return !transaction.accountId || !transaction.categoryId;
+}
+
 export function TransactionDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -48,6 +52,8 @@ export function TransactionDetailPage() {
     return <Card>Loading transaction...</Card>;
   }
 
+  const isPendingClassification = needsClassification(transaction);
+
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <Card>
@@ -76,6 +82,11 @@ export function TransactionDetailPage() {
           </Button>
         </div>
         <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
+        {isPendingClassification ? (
+          <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+            Pending classification: add a category and account.
+          </p>
+        ) : null}
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <Detail label="Amount" value={money.format(transaction.amount)} />
           <Detail label="Type" value={transaction.type} />

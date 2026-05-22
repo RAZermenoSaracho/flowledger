@@ -1,4 +1,7 @@
-import { directSettlementSchema, settlementRequestSchema } from "@flowledger/shared";
+import {
+  directSettlementSchema,
+  settlementRequestSchema
+} from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
@@ -6,7 +9,10 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
-import { createNotifications, moneyText } from "../notifications/notifications.service.js";
+import {
+  createNotifications,
+  moneyText
+} from "../notifications/notifications.service.js";
 import {
   getDebtDirection,
   isDebtRelevantToUser,
@@ -41,7 +47,10 @@ const debtInclude = {
   }
 };
 
-function debtOutstanding(debt: { shareAmount: Prisma.Decimal; paidAmount: Prisma.Decimal }) {
+function debtOutstanding(debt: {
+  shareAmount: Prisma.Decimal;
+  paidAmount: Prisma.Decimal;
+}) {
   return Math.max(0, debt.shareAmount.toNumber() - debt.paidAmount.toNumber());
 }
 
@@ -64,12 +73,17 @@ function pendingSettlementTotal(debt: {
   return debt.settlementRequests
     .filter(
       (request) =>
-        request.status === "pending" && isSettlementDirectionCurrent(debt, request)
+        request.status === "pending" &&
+        isSettlementDirectionCurrent(debt, request)
     )
     .reduce((sum, request) => sum + request.amount.toNumber(), 0);
 }
 
-function balanceDebt(debt: Prisma.SharedExpenseParticipantGetPayload<{ include: typeof debtInclude }>) {
+function balanceDebt(
+  debt: Prisma.SharedExpenseParticipantGetPayload<{
+    include: typeof debtInclude;
+  }>
+) {
   const direction = getDebtDirection(debt);
   return {
     ...debt,
@@ -84,6 +98,47 @@ function participantStatus(shareAmount: number, paidAmount: number) {
   if (paidAmount >= shareAmount) return "paid";
   if (paidAmount > 0) return "partial";
   return "pending";
+}
+
+async function assertSettlementAccount(userId: string, accountId: string) {
+  const account = await prisma.account.findFirst({
+    where: { id: accountId, userId, isArchived: false }
+  });
+  if (!account) {
+    throw new HttpError(400, "Account does not exist or is archived");
+  }
+}
+
+async function assertSettlementCategory(
+  userId: string,
+  categoryId?: string | null
+) {
+  if (!categoryId) return;
+
+  const category = await prisma.category.findFirst({
+    where: {
+      id: categoryId,
+      type: "expense",
+      groupId: null,
+      isArchived: false,
+      users: { some: { userId } }
+    }
+  });
+  if (!category) {
+    throw new HttpError(400, "Category does not exist or is archived");
+  }
+}
+
+function settlementNotes(input: {
+  note: string | null;
+  paymentInfo: string | null;
+}) {
+  return [
+    input.note,
+    input.paymentInfo ? `Payment info: ${input.paymentInfo}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
@@ -163,11 +218,17 @@ debtsRouter.get(
           (debt) => debt.creditorUserId === userId && debt.outstandingAmount > 0
         ),
         pendingSettlementRequests,
-        approvedSettlementRequests: approvedSettlementRequests.map((request) => ({
-          ...request,
-          sharedExpenseParticipant: balanceDebt(request.sharedExpenseParticipant)
-        })),
-        settledDebts: withBalances.filter((debt) => debt.outstandingAmount === 0)
+        approvedSettlementRequests: approvedSettlementRequests.map(
+          (request) => ({
+            ...request,
+            sharedExpenseParticipant: balanceDebt(
+              request.sharedExpenseParticipant
+            )
+          })
+        ),
+        settledDebts: withBalances.filter(
+          (debt) => debt.outstandingAmount === 0
+        )
       })
     );
   })
@@ -194,12 +255,17 @@ debtsRouter.post(
     const outstandingAmount = debtOutstanding(debt);
     const pendingAmount = pendingSettlementTotal(debt);
     const requestAmount = Number(req.body.amount);
+    await assertSettlementAccount(req.user!.id, req.body.accountId);
+    await assertSettlementCategory(req.user!.id, req.body.categoryId);
 
     if (outstandingAmount <= 0) {
       throw new HttpError(400, "Debt is already settled");
     }
     if (requestAmount > outstandingAmount - pendingAmount) {
-      throw new HttpError(400, "Settlement request exceeds the outstanding balance");
+      throw new HttpError(
+        400,
+        "Settlement request exceeds the outstanding balance"
+      );
     }
 
     const settlementRequest = await prisma.settlementRequest.create({
@@ -208,7 +274,10 @@ debtsRouter.post(
         debtorUserId: req.user!.id,
         creditorUserId: direction.creditorUserId,
         amount: new Prisma.Decimal(requestAmount),
-        note: req.body.note?.trim() || null
+        debtorAccountId: req.body.accountId,
+        debtorCategoryId: req.body.categoryId || null,
+        note: req.body.note?.trim() || null,
+        paymentInfo: req.body.paymentInfo?.trim() || null
       },
       include: {
         debtor: { select: { id: true, name: true, email: true } },
@@ -237,7 +306,8 @@ debtsRouter.post(
         )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
         metadata: {
           settlementRequestId: settlementRequest.id,
-          sharedExpenseId: settlementRequest.sharedExpenseParticipant.sharedExpenseId,
+          sharedExpenseId:
+            settlementRequest.sharedExpenseParticipant.sharedExpenseId,
           participantId: settlementRequest.sharedExpenseParticipantId
         }
       }
@@ -348,13 +418,19 @@ settlementsRouter.post(
 
       const debt = settlementRequest.sharedExpenseParticipant;
       if (!isSettlementDirectionCurrent(debt, settlementRequest)) {
-        throw new HttpError(400, "Settlement request does not match the current debt direction");
+        throw new HttpError(
+          400,
+          "Settlement request does not match the current debt direction"
+        );
       }
 
       const outstandingAmount = debtOutstanding(debt);
       const amount = settlementRequest.amount.toNumber();
       if (amount > outstandingAmount) {
-        throw new HttpError(400, "Settlement request exceeds the current outstanding balance");
+        throw new HttpError(
+          400,
+          "Settlement request exceeds the current outstanding balance"
+        );
       }
 
       const paidAmount = debt.paidAmount.toNumber() + amount;
@@ -388,36 +464,114 @@ settlementsRouter.post(
         }
       });
 
+      if (
+        approvedRequest.debtorTransactionId ||
+        approvedRequest.creditorTransactionId
+      ) {
+        throw new HttpError(409, "Settlement transactions already exist");
+      }
+
+      if (!settlementRequest.debtorAccountId) {
+        throw new HttpError(
+          400,
+          "Settlement request is missing a source account"
+        );
+      }
+
+      const transactionDate = approvedRequest.approvedAt ?? new Date();
+      const transactionName = `Settlement: ${approvedRequest.sharedExpenseParticipant.sharedExpense.title}`;
+      const notes = settlementNotes({
+        note: approvedRequest.note,
+        paymentInfo: approvedRequest.paymentInfo
+      });
+      const debtorTransaction = await tx.transaction.create({
+        data: {
+          userId: approvedRequest.debtorUserId,
+          name: transactionName,
+          amount: approvedRequest.amount,
+          type: "expense",
+          date: transactionDate,
+          accountId: settlementRequest.debtorAccountId,
+          categoryId: settlementRequest.debtorCategoryId,
+          notes: notes || null
+        }
+      });
+      const creditorTransaction = await tx.transaction.create({
+        data: {
+          userId: approvedRequest.creditorUserId,
+          name: transactionName,
+          amount: approvedRequest.amount,
+          type: "income",
+          date: transactionDate,
+          notes: notes || null
+        }
+      });
+
+      await tx.transactionRelation.createMany({
+        data: [
+          {
+            transactionId: debtorTransaction.id,
+            relatedTransactionId: creditorTransaction.id,
+            relationType: "settlement_payment"
+          },
+          {
+            transactionId: creditorTransaction.id,
+            relatedTransactionId: debtorTransaction.id,
+            relationType: "settlement_payment"
+          }
+        ]
+      });
+
+      const approvedRequestWithTransactions = await tx.settlementRequest.update(
+        {
+          where: { id: approvedRequest.id },
+          data: {
+            debtorTransactionId: debtorTransaction.id,
+            creditorTransactionId: creditorTransaction.id
+          },
+          include: {
+            debtor: { select: { id: true, name: true, email: true } },
+            creditor: { select: { id: true, name: true, email: true } },
+            sharedExpenseParticipant: {
+              include: {
+                sharedExpense: {
+                  include: {
+                    owner: { select: { id: true, name: true, email: true } },
+                    transaction: { select: publicTransactionSelect }
+                  }
+                },
+                user: { select: { id: true, name: true, email: true } }
+              }
+            }
+          }
+        }
+      );
+
       await createNotifications(tx, [
         {
-          userId: approvedRequest.debtorUserId,
+          userId: approvedRequestWithTransactions.debtorUserId,
           type: "settlement_approved",
           title: "Settlement approved",
-          message: `${approvedRequest.creditor.name} approved your ${moneyText(
-            approvedRequest.amount
-          )} settlement for ${approvedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
+          message: `${approvedRequestWithTransactions.creditor.name} approved your ${moneyText(
+            approvedRequestWithTransactions.amount
+          )} settlement for ${approvedRequestWithTransactions.sharedExpenseParticipant.sharedExpense.title}. A transaction was created automatically.`,
           metadata: {
-            settlementRequestId: approvedRequest.id,
-            sharedExpenseId: approvedRequest.sharedExpenseParticipant.sharedExpenseId,
-            participantId: approvedRequest.sharedExpenseParticipantId
-          }
-        },
-        {
-          userId: approvedRequest.debtorUserId,
-          type: "settlement_payment_registration_needed",
-          title: "Register settlement payment",
-          message: `Register the approved ${moneyText(
-            approvedRequest.amount
-          )} settlement payment as a transaction when ready.`,
-          metadata: {
-            settlementRequestId: approvedRequest.id,
-            sharedExpenseId: approvedRequest.sharedExpenseParticipant.sharedExpenseId,
-            participantId: approvedRequest.sharedExpenseParticipantId
+            settlementRequestId: approvedRequestWithTransactions.id,
+            sharedExpenseId:
+              approvedRequestWithTransactions.sharedExpenseParticipant
+                .sharedExpenseId,
+            participantId:
+              approvedRequestWithTransactions.sharedExpenseParticipantId,
+            debtorTransactionId: debtorTransaction.id,
+            creditorTransactionId: creditorTransaction.id
           }
         }
       ]);
 
-      return { settlementRequest: approvedRequest, debt: updatedDebt };
+      return {
+        settlementRequest: approvedRequestWithTransactions,
+        debt: updatedDebt
+      };
     });
 
     await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
@@ -467,7 +621,8 @@ settlementsRouter.post(
         )} settlement for ${rejectedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
         metadata: {
           settlementRequestId: rejectedRequest.id,
-          sharedExpenseId: rejectedRequest.sharedExpenseParticipant.sharedExpenseId,
+          sharedExpenseId:
+            rejectedRequest.sharedExpenseParticipant.sharedExpenseId,
           participantId: rejectedRequest.sharedExpenseParticipantId
         }
       }

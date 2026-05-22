@@ -108,6 +108,11 @@ export type SettlementRequest = {
   amount: number;
   status: SettlementStatus;
   note?: string | null;
+  paymentInfo?: string | null;
+  debtorAccountId?: string | null;
+  debtorCategoryId?: string | null;
+  debtorTransactionId?: string | null;
+  creditorTransactionId?: string | null;
   createdAt: string;
   updatedAt: string;
   approvedAt?: string | null;

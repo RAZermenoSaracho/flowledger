@@ -60,6 +60,10 @@ const emptyForm: TransactionForm = {
   sharedTitle: ""
 };
 
+function needsClassification(transaction: Transaction) {
+  return !transaction.accountId || !transaction.categoryId;
+}
+
 export function TransactionsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
@@ -139,7 +143,7 @@ export function TransactionsPage() {
   const selectedGroupCategories = selectedGroup?.categories ?? [];
   const categoryOptions = form.groupId
     ? selectedGroupCategories
-    : categoriesQuery.data ?? [];
+    : (categoriesQuery.data ?? []);
   const selectedCategoryId = form.groupId
     ? form.groupCategoryId
     : form.categoryId;
@@ -841,78 +845,90 @@ export function TransactionsPage() {
         <Card>
           <h2 className="text-lg font-semibold">Transactions</h2>
           <div className="mt-4 grid gap-3">
-            {visibleTransactions.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[1fr_auto_auto] md:items-center"
-              >
-                <div>
-                  <Link
-                    className="font-semibold text-pine dark:text-emerald-300"
-                    to={`/transactions/${transaction.id}`}
-                  >
-                    {transaction.name}
-                  </Link>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {new Date(transaction.date).toLocaleDateString()} ·{" "}
-                    {transaction.category?.name ?? "Uncategorized"} ·{" "}
-                    {transaction.account?.name ?? "No account"}
-                    {transaction.group
-                      ? ` · ${transaction.group.name}${
-                          transaction.groupCategory
-                            ? ` / ${transaction.groupCategory.name}`
-                            : ""
-                        }`
-                      : ""}
-                  </p>
-                </div>
-                <span
-                  className={
-                    transaction.type === "income"
-                      ? "font-semibold text-pine dark:text-emerald-300"
-                      : "font-semibold text-coral dark:text-orange-300"
-                  }
+            {visibleTransactions.map((transaction) => {
+              const isPendingClassification = needsClassification(transaction);
+              return (
+                <div
+                  key={transaction.id}
+                  className={`grid gap-3 rounded-md border p-3 md:grid-cols-[1fr_auto_auto] md:items-center ${
+                    isPendingClassification
+                      ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"
+                      : "border-slate-200 dark:border-slate-800"
+                  }`}
                 >
-                  {money.format(transaction.amount)}
-                </span>
-                <div className="flex flex-wrap gap-2 md:justify-end">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setForm({
-                        id: transaction.id,
-                        name: transaction.name,
-                        amount: String(transaction.amount),
-                        type: transaction.type,
-                        date: transaction.date.slice(0, 10),
-                        accountId: transaction.accountId ?? "",
-                        categoryId: transaction.categoryId ?? "",
-                        groupId: transaction.groupId ?? "",
-                        groupCategoryId: transaction.groupCategoryId ?? "",
-                        notes: transaction.notes ?? "",
-                        isShared: false,
-                        sharedTitle: ""
-                      });
-                      setParticipantName("");
-                      setUserSearch("");
-                      setParticipants([]);
-                      setIsFormOpen(true);
-                    }}
+                  <div>
+                    <Link
+                      className="font-semibold text-pine dark:text-emerald-300"
+                      to={`/transactions/${transaction.id}`}
+                    >
+                      {transaction.name}
+                    </Link>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {new Date(transaction.date).toLocaleDateString()} ·{" "}
+                      {transaction.category?.name ?? "Uncategorized"} ·{" "}
+                      {transaction.account?.name ?? "No account"}
+                      {transaction.group
+                        ? ` · ${transaction.group.name}${
+                            transaction.groupCategory
+                              ? ` / ${transaction.groupCategory.name}`
+                              : ""
+                          }`
+                        : ""}
+                    </p>
+                    {isPendingClassification ? (
+                      <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                        Pending classification: add a category and account.
+                      </p>
+                    ) : null}
+                  </div>
+                  <span
+                    className={
+                      transaction.type === "income"
+                        ? "font-semibold text-pine dark:text-emerald-300"
+                        : "font-semibold text-coral dark:text-orange-300"
+                    }
                   >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    disabled={deleteTransaction.isPending}
-                    onClick={() => void confirmDeleteTransaction(transaction)}
-                  >
-                    Delete
-                  </Button>
+                    {money.format(transaction.amount)}
+                  </span>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setForm({
+                          id: transaction.id,
+                          name: transaction.name,
+                          amount: String(transaction.amount),
+                          type: transaction.type,
+                          date: transaction.date.slice(0, 10),
+                          accountId: transaction.accountId ?? "",
+                          categoryId: transaction.categoryId ?? "",
+                          groupId: transaction.groupId ?? "",
+                          groupCategoryId: transaction.groupCategoryId ?? "",
+                          notes: transaction.notes ?? "",
+                          isShared: false,
+                          sharedTitle: ""
+                        });
+                        setParticipantName("");
+                        setUserSearch("");
+                        setParticipants([]);
+                        setIsFormOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={deleteTransaction.isPending}
+                      onClick={() => void confirmDeleteTransaction(transaction)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {visibleTransactions.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 No transactions found.

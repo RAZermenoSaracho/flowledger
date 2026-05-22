@@ -25,19 +25,13 @@ type DebtsResponse = {
 
 type SettlementDraft = {
   amount: string;
-  note: string;
-};
-
-type RegistrationDraft = {
   accountId: string;
   categoryId: string;
-  date: string;
-  notes: string;
+  note: string;
+  paymentInfo: string;
 };
 
 type DebtsTab = "iOwe" | "owedToMe" | "pending" | "settled";
-
-const REGISTERED_SETTLEMENTS_KEY = "flowledger.registeredSettlements";
 
 const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "iOwe", label: "I owe" },
@@ -45,26 +39,6 @@ const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "pending", label: "Pending settlement requests" },
   { id: "settled", label: "Settled debts" }
 ];
-
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function readHiddenSettlementIds() {
-  try {
-    const value = localStorage.getItem(REGISTERED_SETTLEMENTS_KEY);
-    return new Set<string>(value ? (JSON.parse(value) as string[]) : []);
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function writeHiddenSettlementIds(ids: Set<string>) {
-  localStorage.setItem(
-    REGISTERED_SETTLEMENTS_KEY,
-    JSON.stringify(Array.from(ids))
-  );
-}
 
 function debtTitle(debt: Debt) {
   return debt.sharedExpense.title;
@@ -194,12 +168,6 @@ export function DebtsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, SettlementDraft>>({});
-  const [registrationDrafts, setRegistrationDrafts] = useState<
-    Record<string, RegistrationDraft>
-  >({});
-  const [hiddenSettlementIds, setHiddenSettlementIds] = useState(
-    readHiddenSettlementIds
-  );
   const [activeTab, setActiveTab] = useState<DebtsTab>("iOwe");
   const [iOweSearch, setIOweSearch] = useState("");
   const [owedToMeSearch, setOwedToMeSearch] = useState("");
@@ -229,15 +197,6 @@ export function DebtsPage() {
         (category) => category.type === "expense"
       ),
     [categoriesQuery.data]
-  );
-  const approvedForRegistration = useMemo(
-    () =>
-      (debts?.approvedSettlementRequests ?? []).filter(
-        (request) =>
-          request.debtorUserId === auth.user?.id &&
-          !hiddenSettlementIds.has(request.id)
-      ),
-    [auth.user?.id, debts?.approvedSettlementRequests, hiddenSettlementIds]
   );
   const pendingForMe = useMemo(
     () =>
@@ -301,7 +260,10 @@ export function DebtsPage() {
         method: "POST",
         body: {
           amount: Number(draft.amount),
-          note: draft.note.trim() || null
+          accountId: draft.accountId,
+          categoryId: draft.categoryId || null,
+          note: draft.note.trim() || null,
+          paymentInfo: draft.paymentInfo.trim() || null
         }
       }),
     onSuccess: async (_data, variables) => {
@@ -318,6 +280,7 @@ export function DebtsPage() {
       apiRequest(`/settlements/${settlementId}/approve`, { method: "POST" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
   });
   const rejectSettlement = useMutation({
@@ -327,52 +290,16 @@ export function DebtsPage() {
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
-  const markDebtSettled = useMutation({
-    mutationFn: (debtId: string) =>
-      apiRequest(`/debts/${debtId}/settle`, {
-        method: "POST",
-        body: {}
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["debts"] });
-    }
-  });
-  const createSettlementTransaction = useMutation({
-    mutationFn: ({
-      request,
-      draft
-    }: {
-      request: SettlementRequest;
-      draft: RegistrationDraft;
-    }) =>
-      apiRequest("/transactions", {
-        method: "POST",
-        body: {
-          name: `Settlement: ${
-            request.sharedExpenseParticipant?.sharedExpense.title ??
-            "Shared expense"
-          }`,
-          amount: request.amount,
-          type: "expense",
-          date: draft.date,
-          accountId: draft.accountId || null,
-          categoryId: draft.categoryId || null,
-          notes: draft.notes.trim() || null
-        }
-      }),
-    onSuccess: async (_data, variables) => {
-      hideSettlementRegistration(variables.request.id);
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    }
-  });
-
   function draftFor(debt: Debt) {
     return (
       drafts[debt.id] ?? {
         amount: String(
           Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount)
         ),
-        note: ""
+        accountId: accountsQuery.data?.[0]?.id ?? "",
+        categoryId: expenseCategories[0]?.id ?? "",
+        note: "",
+        paymentInfo: ""
       }
     );
   }
@@ -385,49 +312,16 @@ export function DebtsPage() {
     setDrafts((current) => ({
       ...current,
       [debtId]: {
-        ...(current[debtId] ?? { amount: "", note: "" }),
-        [field]: value
-      }
-    }));
-  }
-
-  function registrationDraftFor(request: SettlementRequest) {
-    return (
-      registrationDrafts[request.id] ?? {
-        accountId: accountsQuery.data?.[0]?.id ?? "",
-        categoryId: expenseCategories[0]?.id ?? "",
-        date: todayInputValue(),
-        notes: request.note ?? ""
-      }
-    );
-  }
-
-  function updateRegistrationDraft(
-    settlementId: string,
-    field: keyof RegistrationDraft,
-    value: string
-  ) {
-    setRegistrationDrafts((current) => ({
-      ...current,
-      [settlementId]: {
-        ...(current[settlementId] ?? {
+        ...(current[debtId] ?? {
+          amount: "",
           accountId: accountsQuery.data?.[0]?.id ?? "",
           categoryId: expenseCategories[0]?.id ?? "",
-          date: todayInputValue(),
-          notes: ""
+          note: "",
+          paymentInfo: ""
         }),
         [field]: value
       }
     }));
-  }
-
-  function hideSettlementRegistration(settlementId: string) {
-    setHiddenSettlementIds((current) => {
-      const next = new Set(current);
-      next.add(settlementId);
-      writeHiddenSettlementIds(next);
-      return next;
-    });
   }
 
   async function submitSettlement(event: FormEvent, debt: Debt) {
@@ -438,23 +332,10 @@ export function DebtsPage() {
     });
   }
 
-  async function submitSettlementTransaction(
-    event: FormEvent,
-    request: SettlementRequest
-  ) {
-    event.preventDefault();
-    await createSettlementTransaction.mutateAsync({
-      request,
-      draft: registrationDraftFor(request)
-    });
-  }
-
   const isActing =
     requestSettlement.isPending ||
     approveSettlement.isPending ||
-    rejectSettlement.isPending ||
-    markDebtSettled.isPending ||
-    createSettlementTransaction.isPending;
+    rejectSettlement.isPending;
 
   function renderIOwe() {
     return (
@@ -500,7 +381,7 @@ export function DebtsPage() {
                     </EmptyState>
                   ) : (
                     <form
-                      className="grid gap-3 md:grid-cols-[minmax(0,12rem)_1fr_auto]"
+                      className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,12rem)_1fr_auto]"
                       onSubmit={(event) => submitSettlement(event, debt)}
                     >
                       <TextInput
@@ -515,11 +396,52 @@ export function DebtsPage() {
                         }
                         required
                       />
+                      <SelectField
+                        label="Source account"
+                        value={draft.accountId}
+                        onChange={(event) =>
+                          updateDraft(debt.id, "accountId", event.target.value)
+                        }
+                        required
+                      >
+                        <option value="">Select account</option>
+                        {(accountsQuery.data ?? []).map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                      </SelectField>
+                      <SelectField
+                        label="Category"
+                        value={draft.categoryId}
+                        onChange={(event) =>
+                          updateDraft(debt.id, "categoryId", event.target.value)
+                        }
+                      >
+                        <option value="">No category</option>
+                        {expenseCategories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </SelectField>
                       <TextArea
                         label="Note"
                         value={draft.note}
                         onChange={(event) =>
                           updateDraft(debt.id, "note", event.target.value)
+                        }
+                        placeholder="Optional"
+                      />
+                      <TextArea
+                        label="Payment info"
+                        value={draft.paymentInfo}
+                        onChange={(event) =>
+                          updateDraft(
+                            debt.id,
+                            "paymentInfo",
+                            event.target.value
+                          )
                         }
                         placeholder="Optional"
                       />
@@ -578,21 +500,11 @@ export function DebtsPage() {
                   debt={debt}
                   viewerUserId={auth.user?.id}
                 >
-                  {hasPendingRequest ? (
-                    <EmptyState>
-                      Review the pending settlement request below.
-                    </EmptyState>
-                  ) : (
-                    <div className="flex justify-start">
-                      <Button
-                        type="button"
-                        disabled={isActing}
-                        onClick={() => markDebtSettled.mutate(debt.id)}
-                      >
-                        Mark paid
-                      </Button>
-                    </div>
-                  )}
+                  <EmptyState>
+                    {hasPendingRequest
+                      ? "Review the pending settlement request below."
+                      : "Waiting for the debtor to request settlement with payment details."}
+                  </EmptyState>
                 </DebtCard>
               );
             })
@@ -737,36 +649,6 @@ export function DebtsPage() {
 
   return (
     <div className="grid gap-6">
-      {approvedForRegistration.length > 0 ? (
-        <Card>
-          <h2 className="text-lg font-semibold">
-            Register approved settlements
-          </h2>
-          <div className="mt-4 grid gap-3">
-            {approvedForRegistration.map((request) => {
-              const draft = registrationDraftFor(request);
-              return (
-                <SettlementRegistrationCard
-                  key={request.id}
-                  request={request}
-                  draft={draft}
-                  accounts={accountsQuery.data ?? []}
-                  categories={expenseCategories}
-                  disabled={isActing}
-                  onDismiss={() => hideSettlementRegistration(request.id)}
-                  onChange={(field, value) =>
-                    updateRegistrationDraft(request.id, field, value)
-                  }
-                  onSubmit={(event) =>
-                    submitSettlementTransaction(event, request)
-                  }
-                />
-              );
-            })}
-          </div>
-        </Card>
-      ) : null}
-
       <div className="grid gap-4">
         <div
           className="grid grid-cols-2 gap-2 lg:grid-cols-4"
@@ -813,98 +695,6 @@ export function DebtsPage() {
         </p>
       ) : null}
     </div>
-  );
-}
-
-function SettlementRegistrationCard({
-  request,
-  draft,
-  accounts,
-  categories,
-  disabled,
-  onChange,
-  onDismiss,
-  onSubmit
-}: {
-  request: SettlementRequest;
-  draft: RegistrationDraft;
-  accounts: Account[];
-  categories: Category[];
-  disabled: boolean;
-  onChange: (field: keyof RegistrationDraft, value: string) => void;
-  onDismiss: () => void;
-  onSubmit: (event: FormEvent) => void;
-}) {
-  const debt = request.sharedExpenseParticipant;
-
-  return (
-    <form
-      className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
-      onSubmit={onSubmit}
-    >
-      <div className="flex flex-col justify-between gap-2 sm:flex-row">
-        <div>
-          <p className="font-semibold">
-            {debt?.sharedExpense.title ?? "Approved settlement"}
-          </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Approved payment of {money.format(request.amount)}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled}
-          onClick={onDismiss}
-        >
-          Skip
-        </Button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <SelectField
-          label="Account"
-          value={draft.accountId}
-          onChange={(event) => onChange("accountId", event.target.value)}
-        >
-          <option value="">No account</option>
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
-          label="Category"
-          value={draft.categoryId}
-          onChange={(event) => onChange("categoryId", event.target.value)}
-        >
-          <option value="">No category</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </SelectField>
-        <TextInput
-          label="Date"
-          type="date"
-          value={draft.date}
-          onChange={(event) => onChange("date", event.target.value)}
-          required
-        />
-        <TextArea
-          label="Notes"
-          value={draft.notes}
-          onChange={(event) => onChange("notes", event.target.value)}
-          placeholder="Optional"
-        />
-      </div>
-      <div className="flex justify-end">
-        <Button type="submit" disabled={disabled}>
-          Create transaction
-        </Button>
-      </div>
-    </form>
   );
 }
 
