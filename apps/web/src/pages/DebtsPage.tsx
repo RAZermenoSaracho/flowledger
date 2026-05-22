@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { Account, Category, Debt, SettlementRequest } from "../types/api";
@@ -33,7 +34,16 @@ type RegistrationDraft = {
   notes: string;
 };
 
+type DebtsTab = "iOwe" | "owedToMe" | "pending" | "settled";
+
 const REGISTERED_SETTLEMENTS_KEY = "flowledger.registeredSettlements";
+
+const debtsTabs: { id: DebtsTab; label: string }[] = [
+  { id: "iOwe", label: "I owe" },
+  { id: "owedToMe", label: "Owed to me" },
+  { id: "pending", label: "Pending settlement requests" },
+  { id: "settled", label: "Settled debts" }
+];
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
@@ -91,6 +101,50 @@ function statusLabel(debt: Debt) {
   return debt.status;
 }
 
+function matchesSearch(parts: Array<string | number | null | undefined>, search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return true;
+  return parts.some((part) => String(part ?? "").toLowerCase().includes(query));
+}
+
+function debtMatchesSearch(debt: Debt, search: string, viewerUserId?: string) {
+  return matchesSearch(
+    [
+      debtTitle(debt),
+      debtDescription(debt, viewerUserId),
+      statusLabel(debt),
+      debt.participantName,
+      debt.user?.name,
+      debt.user?.email,
+      debt.sharedExpense.owner?.name,
+      debt.sharedExpense.owner?.email,
+      debt.sharedExpense.transaction?.name,
+      debt.shareAmount,
+      debt.paidAmount,
+      debt.outstandingAmount
+    ],
+    search
+  );
+}
+
+function settlementRequestMatchesSearch(request: SettlementRequest, search: string) {
+  const debt = request.sharedExpenseParticipant;
+  return matchesSearch(
+    [
+      debt?.sharedExpense.title,
+      debt?.sharedExpense.transaction?.name,
+      request.debtor?.name,
+      request.debtor?.email,
+      request.creditor?.name,
+      request.creditor?.email,
+      request.amount,
+      request.status,
+      request.note
+    ],
+    search
+  );
+}
+
 function DebtCard({
   debt,
   viewerUserId,
@@ -133,6 +187,12 @@ export function DebtsPage() {
     Record<string, RegistrationDraft>
   >({});
   const [hiddenSettlementIds, setHiddenSettlementIds] = useState(readHiddenSettlementIds);
+  const [activeTab, setActiveTab] = useState<DebtsTab>("iOwe");
+  const [iOweSearch, setIOweSearch] = useState("");
+  const [owedToMeSearch, setOwedToMeSearch] = useState("");
+  const [pendingFromMeSearch, setPendingFromMeSearch] = useState("");
+  const [pendingForMeSearch, setPendingForMeSearch] = useState("");
+  const [settledSearch, setSettledSearch] = useState("");
 
   const debtsQuery = useQuery({
     queryKey: ["debts"],
@@ -173,6 +233,41 @@ export function DebtsPage() {
         (request) => request.debtorUserId === auth.user?.id
       ),
     [auth.user?.id, debts?.pendingSettlementRequests]
+  );
+  const visibleIOwe = useMemo(
+    () =>
+      (debts?.iOwe ?? []).filter((debt) =>
+        debtMatchesSearch(debt, iOweSearch, auth.user?.id)
+      ),
+    [auth.user?.id, debts?.iOwe, iOweSearch]
+  );
+  const visibleOwedToMe = useMemo(
+    () =>
+      (debts?.owedToMe ?? []).filter((debt) =>
+        debtMatchesSearch(debt, owedToMeSearch, auth.user?.id)
+      ),
+    [auth.user?.id, debts?.owedToMe, owedToMeSearch]
+  );
+  const visiblePendingForMe = useMemo(
+    () =>
+      pendingForMe.filter((request) =>
+        settlementRequestMatchesSearch(request, pendingForMeSearch)
+      ),
+    [pendingForMe, pendingForMeSearch]
+  );
+  const visiblePendingFromMe = useMemo(
+    () =>
+      pendingFromMe.filter((request) =>
+        settlementRequestMatchesSearch(request, pendingFromMeSearch)
+      ),
+    [pendingFromMe, pendingFromMeSearch]
+  );
+  const visibleSettledDebts = useMemo(
+    () =>
+      (debts?.settledDebts ?? []).filter((debt) =>
+        debtMatchesSearch(debt, settledSearch, auth.user?.id)
+      ),
+    [auth.user?.id, debts?.settledDebts, settledSearch]
   );
 
   const requestSettlement = useMutation({
@@ -323,41 +418,34 @@ export function DebtsPage() {
     markDebtSettled.isPending ||
     createSettlementTransaction.isPending;
 
-  return (
-    <div className="grid gap-6">
-      {approvedForRegistration.length > 0 ? (
-        <Card>
-          <h2 className="text-lg font-semibold">Register approved settlements</h2>
-          <div className="mt-4 grid gap-3">
-            {approvedForRegistration.map((request) => {
-              const draft = registrationDraftFor(request);
-              return (
-                <SettlementRegistrationCard
-                  key={request.id}
-                  request={request}
-                  draft={draft}
-                  accounts={accountsQuery.data ?? []}
-                  categories={expenseCategories}
-                  disabled={isActing}
-                  onDismiss={() => hideSettlementRegistration(request.id)}
-                  onChange={(field, value) =>
-                    updateRegistrationDraft(request.id, field, value)
-                  }
-                  onSubmit={(event) => submitSettlementTransaction(event, request)}
-                />
-              );
-            })}
-          </div>
-        </Card>
-      ) : null}
-
+  function renderIOwe() {
+    return (
       <Card>
-        <h2 className="text-lg font-semibold">I owe</h2>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">I owe</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Debts where you owe money.
+            </p>
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {visibleIOwe.length} of {(debts?.iOwe ?? []).length}
+          </p>
+        </div>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={iOweSearch}
+            searchPlaceholder="Search debts I owe"
+            onSearchChange={setIOweSearch}
+          />
+        </div>
         <div className="mt-4 grid gap-3">
           {(debts?.iOwe ?? []).length === 0 ? (
             <EmptyState>No outstanding debts.</EmptyState>
+          ) : visibleIOwe.length === 0 ? (
+            <EmptyState>No debts match your search.</EmptyState>
           ) : (
-            debts?.iOwe.map((debt) => {
+            visibleIOwe.map((debt) => {
               const draft = draftFor(debt);
               const availableAmount = debt.outstandingAmount - debt.pendingSettlementAmount;
 
@@ -399,14 +487,37 @@ export function DebtsPage() {
           )}
         </div>
       </Card>
+    );
+  }
 
+  function renderOwedToMe() {
+    return (
       <Card>
-        <h2 className="text-lg font-semibold">Owed to me</h2>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Owed to me</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Debts where other users owe you.
+            </p>
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {visibleOwedToMe.length} of {(debts?.owedToMe ?? []).length}
+          </p>
+        </div>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={owedToMeSearch}
+            searchPlaceholder="Search debts owed to me"
+            onSearchChange={setOwedToMeSearch}
+          />
+        </div>
         <div className="mt-4 grid gap-3">
           {(debts?.owedToMe ?? []).length === 0 ? (
             <EmptyState>No one currently owes you.</EmptyState>
+          ) : visibleOwedToMe.length === 0 ? (
+            <EmptyState>No debts match your search.</EmptyState>
           ) : (
-            debts?.owedToMe.map((debt) => {
+            visibleOwedToMe.map((debt) => {
               const hasPendingRequest = debt.pendingSettlementAmount > 0;
               return (
                 <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id}>
@@ -429,18 +540,67 @@ export function DebtsPage() {
           )}
         </div>
       </Card>
+    );
+  }
 
+  function renderPendingRequests() {
+    return (
       <Card>
-        <h2 className="text-lg font-semibold">Pending settlement requests</h2>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Pending settlement requests</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Review outgoing requests and approvals waiting on you.
+            </p>
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {visiblePendingFromMe.length + visiblePendingForMe.length} of{" "}
+            {pendingFromMe.length + pendingForMe.length}
+          </p>
+        </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="grid gap-3">
-            <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Awaiting my approval
-            </h3>
+            <div>
+              <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
+                Requests by me
+              </h3>
+              <div className="mt-3">
+                <SearchComponent
+                  searchValue={pendingFromMeSearch}
+                  searchPlaceholder="Search requests by me"
+                  onSearchChange={setPendingFromMeSearch}
+                />
+              </div>
+            </div>
+            {pendingFromMe.length === 0 ? (
+              <EmptyState>No outgoing requests.</EmptyState>
+            ) : visiblePendingFromMe.length === 0 ? (
+              <EmptyState>No requests match your search.</EmptyState>
+            ) : (
+              visiblePendingFromMe.map((request) => (
+                <SettlementRequestCard key={request.id} request={request} />
+              ))
+            )}
+          </div>
+          <div className="grid gap-3">
+            <div>
+              <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
+                Awaiting my approval
+              </h3>
+              <div className="mt-3">
+                <SearchComponent
+                  searchValue={pendingForMeSearch}
+                  searchPlaceholder="Search approvals"
+                  onSearchChange={setPendingForMeSearch}
+                />
+              </div>
+            </div>
             {pendingForMe.length === 0 ? (
               <EmptyState>No requests to review.</EmptyState>
+            ) : visiblePendingForMe.length === 0 ? (
+              <EmptyState>No requests match your search.</EmptyState>
             ) : (
-              pendingForMe.map((request) => (
+              visiblePendingForMe.map((request) => (
                 <SettlementRequestCard
                   key={request.id}
                   request={request}
@@ -469,33 +629,109 @@ export function DebtsPage() {
               ))
             )}
           </div>
-          <div className="grid gap-3">
-            <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Requested by me
-            </h3>
-            {pendingFromMe.length === 0 ? (
-              <EmptyState>No outgoing requests.</EmptyState>
-            ) : (
-              pendingFromMe.map((request) => (
-                <SettlementRequestCard key={request.id} request={request} />
-              ))
-            )}
-          </div>
         </div>
       </Card>
+    );
+  }
 
+  function renderSettledDebts() {
+    return (
       <Card>
-        <h2 className="text-lg font-semibold">Settled debts</h2>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Settled debts</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Completed shared-expense debts.
+            </p>
+          </div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {visibleSettledDebts.length} of {(debts?.settledDebts ?? []).length}
+          </p>
+        </div>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={settledSearch}
+            searchPlaceholder="Search settled debts"
+            onSearchChange={setSettledSearch}
+          />
+        </div>
         <div className="mt-4 grid gap-3">
           {(debts?.settledDebts ?? []).length === 0 ? (
             <EmptyState>No settled debts yet.</EmptyState>
+          ) : visibleSettledDebts.length === 0 ? (
+            <EmptyState>No settled debts match your search.</EmptyState>
           ) : (
-            debts?.settledDebts.map((debt) => (
+            visibleSettledDebts.map((debt) => (
               <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id} />
             ))
           )}
         </div>
       </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-6">
+      {approvedForRegistration.length > 0 ? (
+        <Card>
+          <h2 className="text-lg font-semibold">Register approved settlements</h2>
+          <div className="mt-4 grid gap-3">
+            {approvedForRegistration.map((request) => {
+              const draft = registrationDraftFor(request);
+              return (
+                <SettlementRegistrationCard
+                  key={request.id}
+                  request={request}
+                  draft={draft}
+                  accounts={accountsQuery.data ?? []}
+                  categories={expenseCategories}
+                  disabled={isActing}
+                  onDismiss={() => hideSettlementRegistration(request.id)}
+                  onChange={(field, value) =>
+                    updateRegistrationDraft(request.id, field, value)
+                  }
+                  onSubmit={(event) => submitSettlementTransaction(event, request)}
+                />
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4">
+        <div
+          className="grid grid-cols-2 gap-2 lg:grid-cols-4"
+          role="tablist"
+          aria-label="Debt views"
+        >
+          {debtsTabs.map((tab) => {
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition ${
+                  isSelected
+                    ? "bg-pine text-white dark:bg-emerald-700"
+                    : "bg-white text-ink ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800"
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div role="tabpanel">
+          {activeTab === "iOwe" ? renderIOwe() : null}
+          {activeTab === "owedToMe" ? renderOwedToMe() : null}
+          {activeTab === "pending" ? renderPendingRequests() : null}
+          {activeTab === "settled" ? renderSettledDebts() : null}
+        </div>
+      </div>
 
       {debtsQuery.isLoading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Loading debts...</p>
