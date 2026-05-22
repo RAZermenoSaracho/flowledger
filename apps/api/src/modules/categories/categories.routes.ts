@@ -8,20 +8,15 @@ import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
-import { getHouseholdAdmin, getHouseholdMembership } from "../households/households.service.js";
+import { getHouseholdMembership } from "../households/households.service.js";
 
 export const categoriesRouter = Router();
 
 async function getEditableCategory(userId: string, categoryId: string) {
-  const category = await prisma.category.findUnique({ where: { id: categoryId } });
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, users: { some: { userId } } }
+  });
   if (!category) throw notFound("Category");
-
-  if (category.householdId) {
-    await getHouseholdAdmin(userId, category.householdId);
-    return category;
-  }
-
-  if (category.userId !== userId) throw notFound("Category");
   return category;
 }
 
@@ -37,8 +32,8 @@ categoriesRouter.get(
 
     const categories = await prisma.category.findMany({
       where: filters.householdId
-        ? { householdId: filters.householdId }
-        : { userId: req.user!.id, householdId: null },
+        ? { householdId: filters.householdId, users: { some: { userId: req.user!.id } } }
+        : { householdId: null, users: { some: { userId: req.user!.id } } },
       orderBy: [{ type: "asc" }, { name: "asc" }]
     });
     res.json({ categories });
@@ -50,7 +45,11 @@ categoriesRouter.post(
   validate(categorySchema),
   asyncHandler(async (req, res) => {
     const category = await prisma.category.create({
-      data: { ...req.body, userId: req.user!.id, householdId: null }
+      data: {
+        ...req.body,
+        householdId: null,
+        users: { create: { userId: req.user!.id } }
+      }
     });
     res.status(201).json({ category });
   })

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
 
@@ -40,7 +41,7 @@ export async function assertHouseholdCategory(
   await getHouseholdMembership(userId, householdId);
 
   const category = await prisma.category.findFirst({
-    where: { id: householdCategoryId, householdId }
+    where: { id: householdCategoryId, householdId, users: { some: { userId } } }
   });
 
   if (!category) {
@@ -48,4 +49,38 @@ export async function assertHouseholdCategory(
   }
 
   return category;
+}
+
+export async function grantHouseholdCategoriesToUser(
+  tx: Prisma.TransactionClient,
+  householdId: string,
+  userId: string
+) {
+  const categories = await tx.category.findMany({
+    where: { householdId },
+    select: { id: true }
+  });
+
+  if (categories.length === 0) return;
+
+  await tx.categoryUser.createMany({
+    data: categories.map((category) => ({
+      categoryId: category.id,
+      userId
+    })),
+    skipDuplicates: true
+  });
+}
+
+export async function revokeHouseholdCategoriesFromUser(
+  tx: Prisma.TransactionClient,
+  householdId: string,
+  userId: string
+) {
+  await tx.categoryUser.deleteMany({
+    where: {
+      userId,
+      category: { householdId }
+    }
+  });
 }

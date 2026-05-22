@@ -42,7 +42,7 @@ reportsRouter.get(
     });
 
     const categories = await prisma.category.findMany({
-      where: { userId: req.user!.id }
+      where: { users: { some: { userId: req.user!.id } } }
     });
     const categoryById = new Map(
       categories.map((category) => [category.id, category])

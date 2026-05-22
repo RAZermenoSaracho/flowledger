@@ -71,7 +71,7 @@ model User {
   createdAt                     DateTime                   @default(now())
   updatedAt                     DateTime                   @updatedAt
   accounts                      Account[]
-  categories                    Category[]
+  categoryMemberships           CategoryUser[]
   transactions                  Transaction[]
   ownedSharedExpenses           SharedExpense[]            @relation("OwnedSharedExpenses")
   sharedExpenseParticipations   SharedExpenseParticipant[]
@@ -97,21 +97,31 @@ model Account {
 }
 
 model Category {
-  id           String        @id @default(cuid())
-  userId       String?
-  householdId  String?
-  name         String
-  type         CategoryType
-  color        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  household    Household?    @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  transactions Transaction[] @relation("TransactionCategory")
+  id                    String        @id @default(cuid())
+  householdId           String?
+  name                  String
+  type                  CategoryType
+  color                 String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  household             Household?    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  users                 CategoryUser[]
+  transactions          Transaction[] @relation("TransactionCategory")
   householdTransactions Transaction[] @relation("TransactionHouseholdCategory")
 
-  @@index([userId])
   @@index([householdId])
+}
+
+model CategoryUser {
+  id         String   @id @default(cuid())
+  categoryId String
+  userId     String
+  createdAt  DateTime @default(now())
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, userId])
+  @@index([userId])
 }
 
 model Transaction {

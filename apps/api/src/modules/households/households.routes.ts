@@ -10,28 +10,36 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
 import { createNotifications } from "../notifications/notifications.service.js";
-import { getHouseholdAdmin, getHouseholdMembership } from "./households.service.js";
+import {
+  getHouseholdAdmin,
+  getHouseholdMembership,
+  grantHouseholdCategoriesToUser,
+  revokeHouseholdCategoriesFromUser
+} from "./households.service.js";
 
 export const householdsRouter = Router();
 
-const householdInclude = {
-  members: {
-    include: {
-      user: { select: { id: true, name: true, email: true } }
+function householdInclude(userId: string) {
+  return {
+    members: {
+      include: {
+        user: { select: { id: true, name: true, email: true } }
+      },
+      orderBy: { createdAt: "asc" as const }
     },
-    orderBy: { createdAt: "asc" as const }
-  },
-  categories: {
-    orderBy: [{ type: "asc" as const }, { name: "asc" as const }]
-  }
-};
+    categories: {
+      where: { users: { some: { userId } } },
+      orderBy: [{ type: "asc" as const }, { name: "asc" as const }]
+    }
+  };
+}
 
 householdsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const households = await prisma.household.findMany({
       where: { members: { some: { userId: req.user!.id } } },
-      include: householdInclude,
+      include: householdInclude(req.user!.id),
       orderBy: { createdAt: "desc" }
     });
 
@@ -55,7 +63,7 @@ householdsRouter.post(
           }
         }
       },
-      include: householdInclude
+      include: householdInclude(req.user!.id)
     });
 
     res.status(201).json({ household: serialize(household) });
@@ -70,7 +78,7 @@ householdsRouter.get(
     const household = await prisma.household.findUnique({
       where: { id: req.params.id },
       include: {
-        ...householdInclude,
+        ...householdInclude(req.user!.id),
         transactions: {
           where: { userId: req.user!.id },
           include: { account: true, category: true, householdCategory: true },
@@ -132,6 +140,8 @@ householdsRouter.post(
         include: { user: { select: { id: true, name: true, email: true } } }
       });
 
+      await grantHouseholdCategoriesToUser(tx, householdId, req.body.userId);
+
       await createNotifications(tx, [
         {
           userId: req.body.userId,
@@ -149,6 +159,33 @@ householdsRouter.post(
   })
 );
 
+householdsRouter.delete(
+  "/:id/members/:userId",
+  asyncHandler(async (req, res) => {
+    const householdId = req.params.id;
+    const memberUserId = req.params.userId;
+    if (!householdId || !memberUserId) throw notFound("Household");
+
+    if (memberUserId !== req.user!.id) {
+      await getHouseholdAdmin(req.user!.id, householdId);
+    } else {
+      await getHouseholdMembership(req.user!.id, householdId);
+    }
+
+    const member = await prisma.householdMember.findUnique({
+      where: { householdId_userId: { householdId, userId: memberUserId } }
+    });
+    if (!member) throw notFound("Household member");
+
+    await prisma.$transaction(async (tx) => {
+      await revokeHouseholdCategoriesFromUser(tx, householdId, memberUserId);
+      await tx.householdMember.delete({ where: { id: member.id } });
+    });
+
+    res.status(204).send();
+  })
+);
+
 householdsRouter.post(
   "/:id/categories",
   validate(householdCategorySchema),
@@ -158,13 +195,23 @@ householdsRouter.post(
 
     await getHouseholdAdmin(req.user!.id, householdId);
 
-    const category = await prisma.category.create({
-      data: {
-        householdId,
-        name: req.body.name,
-        type: req.body.type,
-        color: req.body.color ?? null
-      }
+    const category = await prisma.$transaction(async (tx) => {
+      const members = await tx.householdMember.findMany({
+        where: { householdId },
+        select: { userId: true }
+      });
+
+      return tx.category.create({
+        data: {
+          householdId,
+          name: req.body.name,
+          type: req.body.type,
+          color: req.body.color ?? null,
+          users: {
+            create: members.map((member) => ({ userId: member.userId }))
+          }
+        }
+      });
     });
 
     res.status(201).json({ category: serialize(category) });
