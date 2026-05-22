@@ -19,7 +19,6 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { SharedExpensesPage } from "./pages/SharedExpensesPage";
 import { TransactionDetailPage } from "./pages/TransactionDetailPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
-import { EditProfilePage } from "./pages/EditProfilePage";
 
 const queryClient = new QueryClient();
 
@@ -49,7 +48,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/shared-expenses" element={<SharedExpensesPage />} />
                 <Route path="/debts" element={<DebtsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/profile/edit" element={<EditProfilePage />} />
+                <Route path="/profile/edit" element={<Navigate to="/profile" replace />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

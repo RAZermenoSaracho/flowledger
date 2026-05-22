@@ -1,5 +1,11 @@
-import type { UserSearchQuery } from "@flowledger/shared";
-import { updateUserProfileSchema, userSearchQuerySchema } from "@flowledger/shared";
+import type { UpdateUserPasswordInput, UpdateUserPlanInput, UpdateUserProfileInput, UserSearchQuery } from "@flowledger/shared";
+import {
+  updateUserPasswordSchema,
+  updateUserPlanSchema,
+  updateUserProfileSchema,
+  userSearchQuerySchema
+} from "@flowledger/shared";
+import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -47,7 +53,8 @@ usersRouter.patch(
   "/me",
   validate(updateUserProfileSchema),
   asyncHandler(async (req, res) => {
-    const emailOwner = await prisma.user.findUnique({ where: { email: req.body.email } });
+    const input = req.body as UpdateUserProfileInput;
+    const emailOwner = await prisma.user.findUnique({ where: { email: input.email } });
 
     if (emailOwner && emailOwner.id !== req.user!.id) {
       throw new HttpError(409, "Email is already registered");
@@ -56,9 +63,46 @@ usersRouter.patch(
     const user = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
-        name: req.body.name,
-        email: req.body.email
+        name: input.name,
+        email: input.email,
+        avatarUrl: input.avatarUrl ?? null
       }
+    });
+
+    res.json({ user: publicUser(user) });
+  })
+);
+
+usersRouter.patch(
+  "/me/password",
+  validate(updateUserPasswordSchema),
+  asyncHandler(async (req, res) => {
+    const input = req.body as UpdateUserPasswordInput;
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+    const isCurrentPasswordValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+
+    if (!isCurrentPasswordValid) {
+      throw new HttpError(401, "Current password is incorrect");
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { passwordHash }
+    });
+
+    res.status(204).send();
+  })
+);
+
+usersRouter.patch(
+  "/me/plan",
+  validate(updateUserPlanSchema),
+  asyncHandler(async (req, res) => {
+    const input = req.body as UpdateUserPlanInput;
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { planType: input.planType }
     });
 
     res.json({ user: publicUser(user) });

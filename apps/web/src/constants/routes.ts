@@ -9,6 +9,5 @@ export const routes = {
   reports: "/reports",
   sharedExpenses: "/shared-expenses",
   debts: "/debts",
-  profile: "/profile",
-  editProfile: "/profile/edit"
+  profile: "/profile"
 } as const;

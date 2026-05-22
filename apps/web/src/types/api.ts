@@ -3,6 +3,7 @@ import type {
   CategoryType,
   HouseholdRole,
   ParticipantStatus,
+  PlanType,
   SettlementStatus,
   SharedExpenseStatus,
   TransactionType
@@ -12,6 +13,8 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
+  planType: PlanType;
   createdAt: string;
   updatedAt: string;
 };

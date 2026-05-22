@@ -17,8 +17,7 @@ const navItems = [
   ["Households", routes.households],
   ["Reports", routes.reports],
   ["Shared", routes.sharedExpenses],
-  ["Debts", routes.debts],
-  ["Profile", routes.profile]
+  ["Debts", routes.debts]
 ] as const;
 
 const mobileNavItems = navItems;
@@ -62,7 +61,7 @@ export function AppLayout() {
               aria-label="Go to Dashboard"
             >
               <h1 className="text-xl font-bold text-ink dark:text-slate-100">FlowLedger</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{auth.user ? auth.user.email : "Personal finance workspace"}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Personal finance workspace</p>
             </Link>
             <button
               type="button"
@@ -97,6 +96,15 @@ export function AppLayout() {
                   </NavLink>
                 ))}
               </nav>
+              {auth.user ? (
+                <Link
+                  to={routes.profile}
+                  className="max-w-40 truncate rounded-md px-3 py-2 text-sm font-semibold text-pine transition hover:bg-mint focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:focus:ring-offset-slate-950"
+                  title={auth.user.name}
+                >
+                  {auth.user.name}
+                </Link>
+              ) : null}
               <ThemeSelector preference={preference} setPreference={setPreference} />
               <Button variant="secondary" onClick={logout}>
                 Sign out
@@ -125,6 +133,21 @@ export function AppLayout() {
                 {label}
               </NavLink>
             ))}
+            {auth.user ? (
+              <NavLink
+                to={routes.profile}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-2 text-sm font-semibold ${
+                    isActive
+                      ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                      : "text-pine hover:bg-slate-100 dark:text-emerald-300 dark:hover:bg-slate-800"
+                  }`
+                }
+              >
+                {auth.user.name}
+              </NavLink>
+            ) : null}
             <ThemeSelector preference={preference} setPreference={setPreference} />
             <Button variant="secondary" onClick={logout} className="justify-self-start">
               Sign out
