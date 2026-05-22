@@ -20,11 +20,16 @@ export function CategoriesPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<CategoryType>("expense");
   const [editColor, setEditColor] = useState("#176b52");
+  const [showArchived, setShowArchived] = useState(false);
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", showArchived],
     queryFn: async () =>
-      (await apiRequest<{ categories: Category[] }>("/categories")).categories
+      (
+        await apiRequest<{ categories: Category[] }>("/categories", {
+          query: { includeArchived: showArchived ? "true" : undefined }
+        })
+      ).categories
   });
 
   const createCategory = useMutation({
@@ -57,6 +62,33 @@ export function CategoriesPage() {
       }),
     onSuccess: async () => {
       closeEditForm();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["category-report"] });
+    }
+  });
+
+  const archiveCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/archive`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
+  const restoreCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/restore`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+    }
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}`, { method: "DELETE" }),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["category-report"] });
@@ -99,6 +131,14 @@ export function CategoriesPage() {
       type: editType,
       color: editColor
     });
+  }
+
+  async function confirmDelete(category: Category) {
+    const confirmed = window.confirm(
+      `Delete "${category.name}" permanently? This cannot be undone. Related financial data may also be deleted or disconnected from this category.`
+    );
+    if (!confirmed) return;
+    await deleteCategory.mutateAsync(category.id);
   }
 
   return (
@@ -164,7 +204,17 @@ export function CategoriesPage() {
         )}
       </Card>
       <Card>
-        <h2 className="text-lg font-semibold">Categories</h2>
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <h2 className="text-lg font-semibold">Categories</h2>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+            />
+            Show archived
+          </label>
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {(categoriesQuery.data ?? []).map((category) => (
             <div
@@ -222,6 +272,11 @@ export function CategoriesPage() {
                     />
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{category.name}</p>
+                      {category.isArchived ? (
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          Archived
+                        </span>
+                      ) : null}
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         {category.type}
                       </p>
@@ -234,6 +289,36 @@ export function CategoriesPage() {
                     onClick={() => openEditForm(category)}
                   >
                     Edit
+                  </Button>
+                  {category.isArchived ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      disabled={restoreCategory.isPending}
+                      onClick={() => restoreCategory.mutate(category.id)}
+                    >
+                      Restore
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      disabled={archiveCategory.isPending}
+                      onClick={() => archiveCategory.mutate(category.id)}
+                    >
+                      Archive
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="w-full sm:w-auto"
+                    disabled={deleteCategory.isPending}
+                    onClick={() => confirmDelete(category)}
+                  >
+                    Delete
                   </Button>
                 </div>
               )}

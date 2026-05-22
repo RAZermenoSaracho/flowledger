@@ -20,6 +20,11 @@ export function GroupsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [showArchivedGroups, setShowArchivedGroups] = useState(false);
+  const [showArchivedCategories, setShowArchivedCategories] = useState(false);
+  const [isEditingGroup, setIsEditingGroup] = useState(false);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupDescription, setEditGroupDescription] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [categoryName, setCategoryName] = useState("");
@@ -35,15 +40,27 @@ export function GroupsPage() {
   const trimmedUserSearch = userSearch.trim();
 
   const groupsQuery = useQuery({
-    queryKey: ["groups"],
+    queryKey: ["groups", showArchivedGroups],
     queryFn: async () =>
-      (await apiRequest<{ groups: Group[] }>("/groups")).groups
+      (
+        await apiRequest<{ groups: Group[] }>("/groups", {
+          query: { includeArchived: showArchivedGroups ? "true" : undefined }
+        })
+      ).groups
   });
   const selectedGroupQuery = useQuery({
-    queryKey: ["groups", selectedGroupId],
+    queryKey: ["groups", selectedGroupId, showArchivedCategories],
     enabled: Boolean(selectedGroupId),
     queryFn: async () =>
-      (await apiRequest<{ group: Group }>(`/groups/${selectedGroupId}`)).group
+      (
+        await apiRequest<{ group: Group }>(`/groups/${selectedGroupId}`, {
+          query: {
+            includeArchivedCategories: showArchivedCategories
+              ? "true"
+              : undefined
+          }
+        })
+      ).group
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
@@ -62,6 +79,7 @@ export function GroupsPage() {
   const canManage = selectedGroup?.members.some(
     (member) => member.userId === auth.user?.id && member.role === "admin"
   );
+  const canManageActive = Boolean(canManage && !selectedGroup?.isArchived);
 
   const createGroup = useMutation({
     mutationFn: () =>
@@ -84,6 +102,47 @@ export function GroupsPage() {
         body: { userId }
       }),
     onSuccess: refreshSelectedGroup
+  });
+
+  const updateGroup = useMutation({
+    mutationFn: (group: { id: string; name: string; description: string }) =>
+      apiRequest(`/groups/${group.id}`, {
+        method: "PUT",
+        body: {
+          name: group.name,
+          description: group.description || null
+        }
+      }),
+    onSuccess: async () => {
+      closeGroupEditForm();
+      await refreshSelectedGroup();
+    }
+  });
+
+  const archiveGroup = useMutation({
+    mutationFn: (groupId: string) =>
+      apiRequest(`/groups/${groupId}/archive`, { method: "POST" }),
+    onSuccess: async () => {
+      setSelectedGroupId(null);
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
+  const restoreGroup = useMutation({
+    mutationFn: (groupId: string) =>
+      apiRequest(`/groups/${groupId}/restore`, { method: "POST" }),
+    onSuccess: refreshSelectedGroup
+  });
+
+  const deleteGroup = useMutation({
+    mutationFn: (groupId: string) =>
+      apiRequest(`/groups/${groupId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      setSelectedGroupId(null);
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
   });
 
   const addCategory = useMutation({
@@ -119,6 +178,30 @@ export function GroupsPage() {
     }
   });
 
+  const archiveCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/archive`, { method: "POST" }),
+    onSuccess: async () => {
+      await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
+  const restoreCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/restore`, { method: "POST" }),
+    onSuccess: refreshSelectedGroup
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
   async function refreshSelectedGroup() {
     setUserSearch("");
     await queryClient.invalidateQueries({ queryKey: ["groups"] });
@@ -130,6 +213,17 @@ export function GroupsPage() {
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
     await createGroup.mutateAsync();
+  }
+
+  async function submitGroupEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedGroup) return;
+
+    await updateGroup.mutateAsync({
+      id: selectedGroup.id,
+      name: editGroupName,
+      description: editGroupDescription
+    });
   }
 
   async function submitCategory(event: FormEvent) {
@@ -155,6 +249,18 @@ export function GroupsPage() {
     setIsCreateOpen(false);
   }
 
+  function openGroupEditForm(group: Group) {
+    setIsEditingGroup(true);
+    setEditGroupName(group.name);
+    setEditGroupDescription(group.description ?? "");
+  }
+
+  function closeGroupEditForm() {
+    setIsEditingGroup(false);
+    setEditGroupName("");
+    setEditGroupDescription("");
+  }
+
   function openCategoryEditForm(category: Group["categories"][number]) {
     setEditingCategoryId(category.id);
     setEditCategoryName(category.name);
@@ -167,6 +273,22 @@ export function GroupsPage() {
     setEditCategoryName("");
     setEditCategoryType("expense");
     setEditCategoryColor("#176b52");
+  }
+
+  async function confirmDeleteGroup(group: Group) {
+    const confirmed = window.confirm(
+      `Delete "${group.name}" permanently? This cannot be undone. Related transactions, categories, members, and shared financial data may also be deleted or disconnected from this group.`
+    );
+    if (!confirmed) return;
+    await deleteGroup.mutateAsync(group.id);
+  }
+
+  async function confirmDeleteCategory(category: Group["categories"][number]) {
+    const confirmed = window.confirm(
+      `Delete "${category.name}" permanently? This cannot be undone. Related financial data may also be deleted or disconnected from this category.`
+    );
+    if (!confirmed) return;
+    await deleteCategory.mutateAsync(category.id);
   }
 
   return (
@@ -214,7 +336,19 @@ export function GroupsPage() {
           )}
         </Card>
         <Card>
-          <h2 className="text-lg font-semibold">Groups</h2>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <h2 className="text-lg font-semibold">Groups</h2>
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={showArchivedGroups}
+                onChange={(event) =>
+                  setShowArchivedGroups(event.target.checked)
+                }
+              />
+              Show archived
+            </label>
+          </div>
           <div className="mt-4 grid gap-3">
             {(groupsQuery.data ?? []).map((group) => (
               <button
@@ -230,7 +364,14 @@ export function GroupsPage() {
                   setSelectedGroupId(group.id);
                 }}
               >
-                <p className="font-semibold">{group.name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">{group.name}</p>
+                  {group.isArchived ? (
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      Archived
+                    </span>
+                  ) : null}
+                </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {group.members.length} members · {group.categories.length}{" "}
                   categories
@@ -248,19 +389,96 @@ export function GroupsPage() {
       <Card>
         {selectedGroup ? (
           <div className="grid gap-6">
-            <div className="flex flex-col justify-between gap-2 sm:flex-row">
-              <div>
-                <h2 className="text-lg font-semibold">{selectedGroup.name}</h2>
-                {selectedGroup.description ? (
+            {isEditingGroup ? (
+              <form className="grid gap-3" onSubmit={submitGroupEdit}>
+                <TextInput
+                  label="Name"
+                  value={editGroupName}
+                  onChange={(event) => setEditGroupName(event.target.value)}
+                  required
+                />
+                <TextArea
+                  label="Description"
+                  value={editGroupDescription}
+                  onChange={(event) =>
+                    setEditGroupDescription(event.target.value)
+                  }
+                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button type="submit" disabled={updateGroup.isPending}>
+                    Save changes
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={closeGroupEditForm}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex flex-col justify-between gap-3 sm:flex-row">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">
+                      {selectedGroup.name}
+                    </h2>
+                    {selectedGroup.isArchived ? (
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        Archived
+                      </span>
+                    ) : null}
+                  </div>
+                  {selectedGroup.description ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {selectedGroup.description}
+                    </p>
+                  ) : null}
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {selectedGroup.description}
+                    {canManage ? "Admin" : "Member"}
                   </p>
+                </div>
+                {canManage ? (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => openGroupEditForm(selectedGroup)}
+                    >
+                      Edit
+                    </Button>
+                    {selectedGroup.isArchived ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={restoreGroup.isPending}
+                        onClick={() => restoreGroup.mutate(selectedGroup.id)}
+                      >
+                        Restore
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={archiveGroup.isPending}
+                        onClick={() => archiveGroup.mutate(selectedGroup.id)}
+                      >
+                        Archive
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={deleteGroup.isPending}
+                      onClick={() => confirmDeleteGroup(selectedGroup)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 ) : null}
               </div>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                {canManage ? "Admin" : "Member"}
-              </span>
-            </div>
+            )}
             <section>
               <h3 className="font-semibold">Members</h3>
               <div className="mt-3 grid gap-2">
@@ -276,7 +494,7 @@ export function GroupsPage() {
                   </div>
                 ))}
               </div>
-              {canManage ? (
+              {canManageActive ? (
                 <div className="mt-4 grid gap-3">
                   <TextInput
                     label="Find app user"
@@ -324,7 +542,19 @@ export function GroupsPage() {
               ) : null}
             </section>
             <section>
-              <h3 className="font-semibold">Group categories</h3>
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <h3 className="font-semibold">Group categories</h3>
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={showArchivedCategories}
+                    onChange={(event) =>
+                      setShowArchivedCategories(event.target.checked)
+                    }
+                  />
+                  Show archived
+                </label>
+              </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {selectedGroup.categories.map((category) => (
                   <div
@@ -393,30 +623,73 @@ export function GroupsPage() {
                             style={{ background: category.color ?? "#cbd5e1" }}
                           />
                           <div className="min-w-0">
-                            <p className="truncate font-medium">
-                              {category.name}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-medium">
+                                {category.name}
+                              </p>
+                              {category.isArchived ? (
+                                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                  Archived
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="text-slate-500 dark:text-slate-400">
                               {category.type}
                             </p>
                           </div>
                         </div>
                         {canManage ? (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="w-full sm:w-auto"
-                            onClick={() => openCategoryEditForm(category)}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="w-full sm:w-auto"
+                              onClick={() => openCategoryEditForm(category)}
+                            >
+                              Edit
+                            </Button>
+                            {category.isArchived ? (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="w-full sm:w-auto"
+                                disabled={restoreCategory.isPending}
+                                onClick={() =>
+                                  restoreCategory.mutate(category.id)
+                                }
+                              >
+                                Restore
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="w-full sm:w-auto"
+                                disabled={archiveCategory.isPending}
+                                onClick={() =>
+                                  archiveCategory.mutate(category.id)
+                                }
+                              >
+                                Archive
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="danger"
+                              className="w-full sm:w-auto"
+                              disabled={deleteCategory.isPending}
+                              onClick={() => confirmDeleteCategory(category)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         ) : null}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-              {canManage ? (
+              {canManageActive ? (
                 <form
                   className="mt-4 grid gap-3 md:grid-cols-4"
                   onSubmit={submitCategory}

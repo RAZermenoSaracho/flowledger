@@ -8,7 +8,8 @@ export const categorySchema = z.object({
 });
 
 export const categoryFiltersSchema = z.object({
-  groupId: z.string().min(1).optional()
+  groupId: z.string().min(1).optional(),
+  includeArchived: z.enum(["true", "false"]).optional()
 });
 
 export const updateCategorySchema = categorySchema

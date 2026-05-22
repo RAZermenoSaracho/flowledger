@@ -24,10 +24,10 @@ async function assertOwnedRelations(
 ) {
   if (input.accountId) {
     const account = await prisma.account.findFirst({
-      where: { id: input.accountId, userId }
+      where: { id: input.accountId, userId, isArchived: false }
     });
     if (!account)
-      throw new HttpError(400, "Account does not exist for this user");
+      throw new HttpError(400, "Account does not exist or is archived");
   }
 
   if (input.categoryId) {
@@ -35,11 +35,12 @@ async function assertOwnedRelations(
       where: {
         id: input.categoryId,
         groupId: null,
+        isArchived: false,
         users: { some: { userId } }
       }
     });
     if (!category)
-      throw new HttpError(400, "Category does not exist for this user");
+      throw new HttpError(400, "Category does not exist or is archived");
   }
 }
 
@@ -49,6 +50,10 @@ async function assertGroupRelations(
 ) {
   if (input.groupId) {
     await getGroupMembership(userId, input.groupId);
+    const group = await prisma.group.findFirst({
+      where: { id: input.groupId, isArchived: false }
+    });
+    if (!group) throw new HttpError(400, "Group does not exist or is archived");
   }
 
   await assertGroupCategory(userId, input.groupId, input.groupCategoryId);

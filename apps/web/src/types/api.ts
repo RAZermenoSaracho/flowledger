@@ -27,6 +27,8 @@ export type Account = {
   name: string;
   type: AccountType;
   identifier?: string | null;
+  isArchived: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -37,6 +39,8 @@ export type Category = {
   name: string;
   type: CategoryType;
   color?: string | null;
+  isArchived: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -58,6 +62,8 @@ export type Group = {
   name: string;
   description?: string | null;
   ownerUserId: string;
+  isArchived: boolean;
+  archivedAt?: string | null;
   members: GroupMember[];
   categories: GroupCategory[];
   transactions?: Transaction[];

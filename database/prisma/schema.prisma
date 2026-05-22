@@ -88,12 +88,15 @@ model Account {
   name         String
   type         AccountType
   identifier   String?
+  isArchived   Boolean       @default(false)
+  archivedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@index([userId])
+  @@index([userId, isArchived])
 }
 
 model Category {
@@ -102,6 +105,8 @@ model Category {
   name              String
   type              CategoryType
   color             String?
+  isArchived        Boolean        @default(false)
+  archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   group             Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -110,6 +115,7 @@ model Category {
   groupTransactions Transaction[]  @relation("TransactionGroupCategory")
 
   @@index([groupId])
+  @@index([groupId, isArchived])
 }
 
 model CategoryUser {
@@ -159,6 +165,8 @@ model Group {
   name         String
   description  String?
   ownerUserId  String
+  isArchived   Boolean       @default(false)
+  archivedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   owner        User          @relation("OwnedGroups", fields: [ownerUserId], references: [id], onDelete: Cascade)
@@ -167,6 +175,7 @@ model Group {
   transactions Transaction[]
 
   @@index([ownerUserId])
+  @@index([ownerUserId, isArchived])
 }
 
 model GroupMember {

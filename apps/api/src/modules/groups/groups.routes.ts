@@ -1,7 +1,9 @@
 import {
+  groupFiltersSchema,
   groupCategorySchema,
   groupMemberSchema,
-  groupSchema
+  groupSchema,
+  updateGroupSchema
 } from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
@@ -19,7 +21,7 @@ import {
 
 export const groupsRouter = Router();
 
-function groupInclude(userId: string) {
+function groupInclude(userId: string, includeArchivedCategories = false) {
   return {
     members: {
       include: {
@@ -28,7 +30,10 @@ function groupInclude(userId: string) {
       orderBy: { createdAt: "asc" as const }
     },
     categories: {
-      where: { users: { some: { userId } } },
+      where: {
+        users: { some: { userId } },
+        ...(includeArchivedCategories ? {} : { isArchived: false })
+      },
       orderBy: [{ type: "asc" as const }, { name: "asc" as const }]
     }
   };
@@ -36,9 +41,14 @@ function groupInclude(userId: string) {
 
 groupsRouter.get(
   "/",
+  validate(groupFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
+    const filters = req.query as { includeArchived?: string };
     const groups = await prisma.group.findMany({
-      where: { members: { some: { userId: req.user!.id } } },
+      where: {
+        members: { some: { userId: req.user!.id } },
+        ...(filters.includeArchived === "true" ? {} : { isArchived: false })
+      },
       include: groupInclude(req.user!.id),
       orderBy: { createdAt: "desc" }
     });
@@ -70,15 +80,77 @@ groupsRouter.post(
   })
 );
 
+groupsRouter.put(
+  "/:id",
+  validate(updateGroupSchema),
+  asyncHandler(async (req, res) => {
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
+
+    await getGroupAdmin(req.user!.id, groupId);
+
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        ...(req.body.name !== undefined ? { name: req.body.name } : {}),
+        ...(req.body.description !== undefined
+          ? { description: req.body.description ?? null }
+          : {})
+      },
+      include: groupInclude(req.user!.id)
+    });
+
+    res.json({ group: serialize(group) });
+  })
+);
+
+groupsRouter.post(
+  "/:id/archive",
+  asyncHandler(async (req, res) => {
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
+
+    await getGroupAdmin(req.user!.id, groupId);
+
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: { isArchived: true, archivedAt: new Date() },
+      include: groupInclude(req.user!.id)
+    });
+
+    res.json({ group: serialize(group) });
+  })
+);
+
+groupsRouter.post(
+  "/:id/restore",
+  asyncHandler(async (req, res) => {
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
+
+    await getGroupAdmin(req.user!.id, groupId);
+
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: { isArchived: false, archivedAt: null },
+      include: groupInclude(req.user!.id)
+    });
+
+    res.json({ group: serialize(group) });
+  })
+);
+
 groupsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
     await getGroupMembership(req.user!.id, req.params.id);
+    const includeArchivedCategories =
+      req.query.includeArchivedCategories === "true";
 
     const group = await prisma.group.findUnique({
       where: { id: req.params.id },
       include: {
-        ...groupInclude(req.user!.id),
+        ...groupInclude(req.user!.id, includeArchivedCategories),
         transactions: {
           where: { userId: req.user!.id },
           include: { account: true, category: true, groupCategory: true },
@@ -93,6 +165,18 @@ groupsRouter.get(
   })
 );
 
+groupsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
+
+    await getGroupAdmin(req.user!.id, groupId);
+    await prisma.group.delete({ where: { id: groupId } });
+    res.status(204).send();
+  })
+);
+
 groupsRouter.post(
   "/:id/members",
   validate(groupMemberSchema),
@@ -104,6 +188,15 @@ groupsRouter.post(
 
     if (req.body.userId === req.user!.id) {
       throw new HttpError(400, "You are already a group member");
+    }
+
+    const existingGroup = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { isArchived: true }
+    });
+    if (!existingGroup) throw notFound("Group");
+    if (existingGroup.isArchived) {
+      throw new HttpError(400, "Archived groups cannot add members");
     }
 
     const user = await prisma.user.findUnique({
@@ -194,6 +287,15 @@ groupsRouter.post(
     if (!groupId) throw notFound("Group");
 
     await getGroupAdmin(req.user!.id, groupId);
+
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { isArchived: true }
+    });
+    if (!group) throw notFound("Group");
+    if (group.isArchived) {
+      throw new HttpError(400, "Archived groups cannot add categories");
+    }
 
     const category = await prisma.$transaction(async (tx) => {
       const members = await tx.groupMember.findMany({

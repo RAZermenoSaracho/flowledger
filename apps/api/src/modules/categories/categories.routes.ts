@@ -8,7 +8,10 @@ import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
-import { getGroupMembership } from "../groups/groups.service.js";
+import {
+  getGroupAdmin,
+  getGroupMembership
+} from "../groups/groups.service.js";
 
 export const categoriesRouter = Router();
 
@@ -17,6 +20,9 @@ async function getEditableCategory(userId: string, categoryId: string) {
     where: { id: categoryId, users: { some: { userId } } }
   });
   if (!category) throw notFound("Category");
+  if (category.groupId) {
+    await getGroupAdmin(userId, category.groupId);
+  }
   return category;
 }
 
@@ -25,6 +31,7 @@ categoriesRouter.get(
   validate(categoryFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
     const filters = req.query as { groupId?: string };
+    const includeArchived = req.query.includeArchived === "true";
 
     if (filters.groupId) {
       await getGroupMembership(req.user!.id, filters.groupId);
@@ -34,9 +41,14 @@ categoriesRouter.get(
       where: filters.groupId
         ? {
             groupId: filters.groupId,
+            ...(includeArchived ? {} : { isArchived: false }),
             users: { some: { userId: req.user!.id } }
           }
-        : { groupId: null, users: { some: { userId: req.user!.id } } },
+        : {
+            groupId: null,
+            ...(includeArchived ? {} : { isArchived: false }),
+            users: { some: { userId: req.user!.id } }
+          },
       orderBy: [{ type: "asc" }, { name: "asc" }]
     });
     res.json({ categories });
@@ -70,6 +82,38 @@ categoriesRouter.put(
     const category = await prisma.category.update({
       where: { id: existing.id },
       data: req.body
+    });
+    res.json({ category });
+  })
+);
+
+categoriesRouter.post(
+  "/:id/archive",
+  asyncHandler(async (req, res) => {
+    const categoryId = req.params.id;
+    if (!categoryId) throw notFound("Category");
+
+    const existing = await getEditableCategory(req.user!.id, categoryId);
+
+    const category = await prisma.category.update({
+      where: { id: existing.id },
+      data: { isArchived: true, archivedAt: new Date() }
+    });
+    res.json({ category });
+  })
+);
+
+categoriesRouter.post(
+  "/:id/restore",
+  asyncHandler(async (req, res) => {
+    const categoryId = req.params.id;
+    if (!categoryId) throw notFound("Category");
+
+    const existing = await getEditableCategory(req.user!.id, categoryId);
+
+    const category = await prisma.category.update({
+      where: { id: existing.id },
+      data: { isArchived: false, archivedAt: null }
     });
     res.json({ category });
   })

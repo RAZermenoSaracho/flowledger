@@ -154,4 +154,6 @@ database/prisma/migrations/*
 !database/prisma/migrations/20260522170000_category_user_memberships/migration.sql
 !database/prisma/migrations/20260522180000_rename_households_to_groups/
 !database/prisma/migrations/20260522180000_rename_households_to_groups/migration.sql
+!database/prisma/migrations/20260522193000_archive_core_entities/
+!database/prisma/migrations/20260522193000_archive_core_entities/migration.sql
 package-lock.json

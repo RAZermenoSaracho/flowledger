@@ -44,11 +44,17 @@ export async function assertGroupCategory(
   await getGroupMembership(userId, groupId);
 
   const category = await prisma.category.findFirst({
-    where: { id: groupCategoryId, groupId, users: { some: { userId } } }
+    where: {
+      id: groupCategoryId,
+      groupId,
+      isArchived: false,
+      group: { isArchived: false },
+      users: { some: { userId } }
+    }
   });
 
   if (!category) {
-    throw new HttpError(400, "Group category does not exist for this group");
+    throw new HttpError(400, "Group category does not exist or is archived");
   }
 
   return category;
@@ -60,7 +66,7 @@ export async function grantGroupCategoriesToUser(
   userId: string
 ) {
   const categories = await tx.category.findMany({
-    where: { groupId },
+    where: { groupId, isArchived: false },
     select: { id: true }
   });
 
