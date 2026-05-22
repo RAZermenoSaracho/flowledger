@@ -4,8 +4,6 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
-import { useTheme } from "../hooks/useTheme";
-import type { ThemePreference } from "../hooks/useTheme";
 import { apiRequest, tokenStore } from "../services/api";
 import type { Notification, User } from "../types/api";
 import { Button } from "../components/Button";
@@ -27,7 +25,6 @@ const mobileNavItems = navItems;
 export function AppLayout() {
   const auth = useAuth();
   const queryClient = useQueryClient();
-  const { preference, setPreference } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -93,7 +90,6 @@ export function AppLayout() {
             </Link>
           ) : null}
           <div className="grid gap-3">
-            <ThemeSelector preference={preference} setPreference={setPreference} />
             <Button variant="secondary" onClick={logout} className="w-full">
               Sign out
             </Button>
@@ -119,8 +115,6 @@ export function AppLayout() {
         items={mobileNavItems}
         onClose={() => setIsMobileMenuOpen(false)}
         onLogout={logout}
-        preference={preference}
-        setPreference={setPreference}
         side={mobileSidebarSide}
       />
 
@@ -309,8 +303,6 @@ function MobileSidebarDrawer({
   items,
   onClose,
   onLogout,
-  preference,
-  setPreference,
   side
 }: {
   authUserName?: string;
@@ -318,8 +310,6 @@ function MobileSidebarDrawer({
   items: readonly (readonly [string, string])[];
   onClose: () => void;
   onLogout: () => void;
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => void;
   side: MobileSidebarSide;
 }) {
   const sideClasses = side === "left" ? "left-0" : "right-0";
@@ -374,7 +364,6 @@ function MobileSidebarDrawer({
           </nav>
 
           <div className="grid gap-3 border-t border-slate-200 p-4 dark:border-slate-800">
-            <ThemeSelector preference={preference} setPreference={setPreference} />
             <Button variant="secondary" onClick={onLogout} className="w-full">
               Sign out
             </Button>
@@ -460,29 +449,5 @@ function PrimaryNavLinks({
         </NavLink>
       ))}
     </>
-  );
-}
-
-function ThemeSelector({
-  preference,
-  setPreference
-}: {
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => void;
-}) {
-  return (
-    <label className="inline-flex w-full items-center sm:w-auto">
-      <span className="sr-only">Theme</span>
-      <select
-        aria-label="Theme preference"
-        className="min-h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-50 focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900 dark:focus:ring-emerald-900 sm:w-32"
-        value={preference}
-        onChange={(event) => setPreference(event.target.value as ThemePreference)}
-      >
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-        <option value="system">System</option>
-      </select>
-    </label>
   );
 }

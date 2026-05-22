@@ -5,6 +5,8 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
+import { useTheme } from "../hooks/useTheme";
+import type { ThemePreference } from "../hooks/useTheme";
 import { apiAssetUrl, apiRequest } from "../services/api";
 import type { User } from "../types/api";
 
@@ -16,6 +18,7 @@ const planLabels = {
 export function ProfilePage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const { preference, setPreference } = useTheme();
   const [name, setName] = useState(auth.user?.name ?? "");
   const [email, setEmail] = useState(auth.user?.email ?? "");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -338,6 +341,24 @@ export function ProfilePage() {
 
       <Card className="self-start">
         <div className="grid gap-6">
+          <section>
+            <h3 className="text-lg font-semibold">Appearance</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Choose how FlowLedger matches your device.
+            </p>
+            <div className="mt-4">
+              <SelectField
+                label="Theme"
+                value={preference}
+                onChange={(event) => setPreference(event.target.value as ThemePreference)}
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </SelectField>
+            </div>
+          </section>
+
           <section>
             <h3 className="text-lg font-semibold">Mobile menu</h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
