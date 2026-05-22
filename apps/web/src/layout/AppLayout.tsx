@@ -3,15 +3,13 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
+import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
 import { useTheme } from "../hooks/useTheme";
 import type { ThemePreference } from "../hooks/useTheme";
 import { apiRequest, tokenStore } from "../services/api";
 import type { Notification, User } from "../types/api";
 import { Button } from "../components/Button";
-
-type MobileSidebarSide = "left" | "right";
-
-const mobileSidebarSideKey = "flowledger.mobileSidebarSide";
+import type { MobileSidebarSide } from "../hooks/useMobileSidebarSide";
 
 const navItems = [
   ["Dashboard", routes.dashboard],
@@ -33,11 +31,7 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [mobileSidebarSide, setMobileSidebarSide] = useState<MobileSidebarSide>(() => {
-    if (typeof window === "undefined") return "left";
-
-    return window.localStorage.getItem(mobileSidebarSideKey) === "right" ? "right" : "left";
-  });
+  const [mobileSidebarSide] = useMobileSidebarSide();
 
   useQuery({
     queryKey: ["me"],
@@ -55,10 +49,6 @@ export function AppLayout() {
   }, [location.pathname]);
 
   useEffect(() => {
-    window.localStorage.setItem(mobileSidebarSideKey, mobileSidebarSide);
-  }, [mobileSidebarSide]);
-
-  useEffect(() => {
     if (!isMobileMenuOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -73,10 +63,6 @@ export function AppLayout() {
     setIsMobileMenuOpen(false);
     auth.logout();
     navigate(routes.login);
-  };
-
-  const toggleMobileSidebarSide = () => {
-    setMobileSidebarSide((side) => (side === "left" ? "right" : "left"));
   };
 
   return (
@@ -143,8 +129,6 @@ export function AppLayout() {
         onNavigate={() => setIsMobileMenuOpen(false)}
         onLogout={logout}
         onToggleDrawer={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
-        onToggleSide={toggleMobileSidebarSide}
-        side={mobileSidebarSide}
       />
     </div>
   );
@@ -408,20 +392,16 @@ function MobileBottomNav({
   isDrawerOpen,
   onNavigate,
   onLogout,
-  onToggleDrawer,
-  onToggleSide,
-  side
+  onToggleDrawer
 }: {
   isDrawerOpen: boolean;
   onNavigate: () => void;
   onLogout: () => void;
   onToggleDrawer: () => void;
-  onToggleSide: () => void;
-  side: MobileSidebarSide;
 }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-lg shadow-slate-950/10 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-3 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-lg shadow-slate-950/10 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
       aria-label="Mobile primary actions"
     >
       <NavLink
@@ -443,14 +423,6 @@ function MobileBottomNav({
         onClick={onLogout}
       >
         Sign out
-      </button>
-      <button
-        type="button"
-        className="mx-1 flex min-h-12 flex-col items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
-        aria-label={`Open sidebar from the ${side === "left" ? "right" : "left"} side`}
-        onClick={onToggleSide}
-      >
-        {side === "left" ? "Left side" : "Right side"}
       </button>
       <button
         type="button"

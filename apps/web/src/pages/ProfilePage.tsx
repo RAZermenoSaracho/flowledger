@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
+import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
 import { apiRequest } from "../services/api";
 import type { User } from "../types/api";
 
@@ -26,6 +27,7 @@ export function ProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [mobileSidebarSide, setMobileSidebarSide] = useMobileSidebarSide();
 
   const profileQuery = useQuery({
     queryKey: ["me"],
@@ -244,39 +246,82 @@ export function ProfilePage() {
       </section>
 
       <Card className="self-start">
-        <h3 className="text-lg font-semibold">Account plan</h3>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Payments are not connected yet. This MVP control only changes the saved plan label.
-        </p>
-        <div className="mt-4 grid gap-4">
-          <SelectField
-            label="Plan type"
-            value={currentPlan}
-            onChange={(event) => changePlan(event.target.value as User["planType"])}
-            disabled={isLoading || updatePlan.isPending}
-          >
-            <option value="free">Free</option>
-            <option value="flowledger_one">FlowLedger One</option>
-          </SelectField>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <PlanOption
-              title="Free"
-              description="Standard FlowLedger features."
-              active={currentPlan === "free"}
-              actionLabel="Downgrade"
-              onClick={() => changePlan("free")}
-              disabled={currentPlan === "free" || updatePlan.isPending}
-            />
-            <PlanOption
-              title="FlowLedger One"
-              description="Paid/VIP-style plan placeholder."
-              active={currentPlan === "flowledger_one"}
-              actionLabel="Upgrade"
-              onClick={() => changePlan("flowledger_one")}
-              disabled={currentPlan === "flowledger_one" || updatePlan.isPending}
-            />
-          </div>
-          {planError ? <p className="text-sm text-red-600 dark:text-red-400">{planError}</p> : null}
+        <div className="grid gap-6">
+          <section>
+            <h3 className="text-lg font-semibold">Mobile menu</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Choose where the mobile sidebar drawer opens.
+            </p>
+            <label className="mt-4 flex items-center justify-between gap-4 rounded-md border border-slate-200 p-4 dark:border-slate-700">
+              <span>
+                <span className="block text-sm font-semibold text-ink dark:text-slate-100">
+                  Sidebar drawer side
+                </span>
+                <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
+                  {mobileSidebarSide === "left" ? "Left sidebar drawer" : "Right sidebar drawer"}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <span>Left</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="peer sr-only"
+                  checked={mobileSidebarSide === "right"}
+                  aria-label="Use right sidebar drawer"
+                  onChange={(event) => setMobileSidebarSide(event.target.checked ? "right" : "left")}
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative h-7 w-12 rounded-full bg-slate-300 transition peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-pine peer-focus:ring-offset-2 peer-checked:bg-pine dark:bg-slate-700 dark:peer-checked:bg-emerald-500 dark:peer-focus:ring-offset-slate-950"
+                >
+                  <span
+                    className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                      mobileSidebarSide === "right" ? "translate-x-5" : ""
+                    }`}
+                  />
+                </span>
+                <span>Right</span>
+              </span>
+            </label>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold">Account plan</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Payments are not connected yet. This MVP control only changes the saved plan label.
+            </p>
+            <div className="mt-4 grid gap-4">
+              <SelectField
+                label="Plan type"
+                value={currentPlan}
+                onChange={(event) => changePlan(event.target.value as User["planType"])}
+                disabled={isLoading || updatePlan.isPending}
+              >
+                <option value="free">Free</option>
+                <option value="flowledger_one">FlowLedger One</option>
+              </SelectField>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                <PlanOption
+                  title="Free"
+                  description="Standard FlowLedger features."
+                  active={currentPlan === "free"}
+                  actionLabel="Downgrade"
+                  onClick={() => changePlan("free")}
+                  disabled={currentPlan === "free" || updatePlan.isPending}
+                />
+                <PlanOption
+                  title="FlowLedger One"
+                  description="Paid/VIP-style plan placeholder."
+                  active={currentPlan === "flowledger_one"}
+                  actionLabel="Upgrade"
+                  onClick={() => changePlan("flowledger_one")}
+                  disabled={currentPlan === "flowledger_one" || updatePlan.isPending}
+                />
+              </div>
+              {planError ? <p className="text-sm text-red-600 dark:text-red-400">{planError}</p> : null}
+            </div>
+          </section>
         </div>
       </Card>
     </div>
