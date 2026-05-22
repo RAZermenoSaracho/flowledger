@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
@@ -56,10 +56,14 @@ export function AppLayout() {
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between gap-4">
-            <div>
+            <Link
+              to={routes.dashboard}
+              className="rounded-md focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+              aria-label="Go to Dashboard"
+            >
               <h1 className="text-xl font-bold text-ink dark:text-slate-100">FlowLedger</h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">{auth.user ? auth.user.email : "Personal finance workspace"}</p>
-            </div>
+            </Link>
             <button
               type="button"
               className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950 lg:hidden"
