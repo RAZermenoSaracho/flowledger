@@ -1,7 +1,7 @@
 import {
-  householdCategorySchema,
-  householdMemberSchema,
-  householdSchema
+  groupCategorySchema,
+  groupMemberSchema,
+  groupSchema
 } from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
@@ -11,15 +11,15 @@ import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
 import { createNotifications } from "../notifications/notifications.service.js";
 import {
-  getHouseholdAdmin,
-  getHouseholdMembership,
-  grantHouseholdCategoriesToUser,
-  revokeHouseholdCategoriesFromUser
-} from "./households.service.js";
+  getGroupAdmin,
+  getGroupMembership,
+  grantGroupCategoriesToUser,
+  revokeGroupCategoriesFromUser
+} from "./groups.service.js";
 
-export const householdsRouter = Router();
+export const groupsRouter = Router();
 
-function householdInclude(userId: string) {
+function groupInclude(userId: string) {
   return {
     members: {
       include: {
@@ -34,24 +34,24 @@ function householdInclude(userId: string) {
   };
 }
 
-householdsRouter.get(
+groupsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const households = await prisma.household.findMany({
+    const groups = await prisma.group.findMany({
       where: { members: { some: { userId: req.user!.id } } },
-      include: householdInclude(req.user!.id),
+      include: groupInclude(req.user!.id),
       orderBy: { createdAt: "desc" }
     });
 
-    res.json({ households: serialize(households) });
+    res.json({ groups: serialize(groups) });
   })
 );
 
-householdsRouter.post(
+groupsRouter.post(
   "/",
-  validate(householdSchema),
+  validate(groupSchema),
   asyncHandler(async (req, res) => {
-    const household = await prisma.household.create({
+    const group = await prisma.group.create({
       data: {
         name: req.body.name,
         description: req.body.description ?? null,
@@ -63,47 +63,47 @@ householdsRouter.post(
           }
         }
       },
-      include: householdInclude(req.user!.id)
+      include: groupInclude(req.user!.id)
     });
 
-    res.status(201).json({ household: serialize(household) });
+    res.status(201).json({ group: serialize(group) });
   })
 );
 
-householdsRouter.get(
+groupsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    await getHouseholdMembership(req.user!.id, req.params.id);
+    await getGroupMembership(req.user!.id, req.params.id);
 
-    const household = await prisma.household.findUnique({
+    const group = await prisma.group.findUnique({
       where: { id: req.params.id },
       include: {
-        ...householdInclude(req.user!.id),
+        ...groupInclude(req.user!.id),
         transactions: {
           where: { userId: req.user!.id },
-          include: { account: true, category: true, householdCategory: true },
+          include: { account: true, category: true, groupCategory: true },
           orderBy: { date: "desc" },
           take: 25
         }
       }
     });
 
-    if (!household) throw notFound("Household");
-    res.json({ household: serialize(household) });
+    if (!group) throw notFound("Group");
+    res.json({ group: serialize(group) });
   })
 );
 
-householdsRouter.post(
+groupsRouter.post(
   "/:id/members",
-  validate(householdMemberSchema),
+  validate(groupMemberSchema),
   asyncHandler(async (req, res) => {
-    const householdId = req.params.id;
-    if (!householdId) throw notFound("Household");
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
 
-    await getHouseholdAdmin(req.user!.id, householdId);
+    await getGroupAdmin(req.user!.id, groupId);
 
     if (req.body.userId === req.user!.id) {
-      throw new HttpError(400, "You are already a household member");
+      throw new HttpError(400, "You are already a group member");
     }
 
     const user = await prisma.user.findUnique({
@@ -112,43 +112,43 @@ householdsRouter.post(
     });
     if (!user) throw new HttpError(400, "User does not exist");
 
-    const existingMember = await prisma.householdMember.findUnique({
+    const existingMember = await prisma.groupMember.findUnique({
       where: {
-          householdId_userId: {
-          householdId,
+        groupId_userId: {
+          groupId,
           userId: req.body.userId
         }
       }
     });
     if (existingMember) {
-      throw new HttpError(409, "User is already a household member");
+      throw new HttpError(409, "User is already a group member");
     }
 
     const member = await prisma.$transaction(async (tx) => {
-      const household = await tx.household.findUnique({
-        where: { id: householdId },
+      const group = await tx.group.findUnique({
+        where: { id: groupId },
         select: { id: true, name: true }
       });
-      if (!household) throw notFound("Household");
+      if (!group) throw notFound("Group");
 
-      const createdMember = await tx.householdMember.create({
+      const createdMember = await tx.groupMember.create({
         data: {
-          householdId,
+          groupId,
           userId: req.body.userId,
           role: "member"
         },
         include: { user: { select: { id: true, name: true, email: true } } }
       });
 
-      await grantHouseholdCategoriesToUser(tx, householdId, req.body.userId);
+      await grantGroupCategoriesToUser(tx, groupId, req.body.userId);
 
       await createNotifications(tx, [
         {
           userId: req.body.userId,
-          type: "household_member_added",
-          title: "Added to household",
-          message: `You were added to ${household.name}.`,
-          metadata: { householdId: household.id }
+          type: "group_member_added",
+          title: "Added to group",
+          message: `You were added to ${group.name}.`,
+          metadata: { groupId: group.id }
         }
       ]);
 
@@ -159,51 +159,51 @@ householdsRouter.post(
   })
 );
 
-householdsRouter.delete(
+groupsRouter.delete(
   "/:id/members/:userId",
   asyncHandler(async (req, res) => {
-    const householdId = req.params.id;
+    const groupId = req.params.id;
     const memberUserId = req.params.userId;
-    if (!householdId || !memberUserId) throw notFound("Household");
+    if (!groupId || !memberUserId) throw notFound("Group");
 
     if (memberUserId !== req.user!.id) {
-      await getHouseholdAdmin(req.user!.id, householdId);
+      await getGroupAdmin(req.user!.id, groupId);
     } else {
-      await getHouseholdMembership(req.user!.id, householdId);
+      await getGroupMembership(req.user!.id, groupId);
     }
 
-    const member = await prisma.householdMember.findUnique({
-      where: { householdId_userId: { householdId, userId: memberUserId } }
+    const member = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: memberUserId } }
     });
-    if (!member) throw notFound("Household member");
+    if (!member) throw notFound("Group member");
 
     await prisma.$transaction(async (tx) => {
-      await revokeHouseholdCategoriesFromUser(tx, householdId, memberUserId);
-      await tx.householdMember.delete({ where: { id: member.id } });
+      await revokeGroupCategoriesFromUser(tx, groupId, memberUserId);
+      await tx.groupMember.delete({ where: { id: member.id } });
     });
 
     res.status(204).send();
   })
 );
 
-householdsRouter.post(
+groupsRouter.post(
   "/:id/categories",
-  validate(householdCategorySchema),
+  validate(groupCategorySchema),
   asyncHandler(async (req, res) => {
-    const householdId = req.params.id;
-    if (!householdId) throw notFound("Household");
+    const groupId = req.params.id;
+    if (!groupId) throw notFound("Group");
 
-    await getHouseholdAdmin(req.user!.id, householdId);
+    await getGroupAdmin(req.user!.id, groupId);
 
     const category = await prisma.$transaction(async (tx) => {
-      const members = await tx.householdMember.findMany({
-        where: { householdId },
+      const members = await tx.groupMember.findMany({
+        where: { groupId },
         select: { userId: true }
       });
 
       return tx.category.create({
         data: {
-          householdId,
+          groupId,
           name: req.body.name,
           type: req.body.type,
           color: req.body.color ?? null,

@@ -17,7 +17,7 @@ export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type PlanType = (typeof PLAN_TYPES)[number];
-export type HouseholdRole = "admin" | "member";
+export type GroupRole = "admin" | "member";
 
 export type PublicUser = {
   id: string;

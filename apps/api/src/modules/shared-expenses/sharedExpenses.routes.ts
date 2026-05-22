@@ -1,4 +1,7 @@
-import { sharedExpenseSchema, updateSharedExpenseSchema } from "@flowledger/shared";
+import {
+  sharedExpenseSchema,
+  updateSharedExpenseSchema
+} from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -31,7 +34,10 @@ sharedExpensesRouter.post(
   "/",
   validate(sharedExpenseSchema),
   asyncHandler(async (req, res) => {
-    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(
+      req.user!.id,
+      req.body.transactionId
+    );
     if (!transaction) {
       throw new HttpError(400, "Transaction is required");
     }
@@ -67,14 +73,17 @@ sharedExpensesRouter.put(
     });
     if (!existing) throw notFound("Shared expense");
 
-    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(
+      req.user!.id,
+      req.body.transactionId
+    );
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants
       ? await normalizeSharedExpenseParticipants(
           req.user!.id,
           participants,
-          transaction?.householdId ?? existing.transaction.householdId
+          transaction?.groupId ?? existing.transaction.groupId
         )
       : undefined;
 
@@ -121,7 +130,8 @@ sharedExpensesRouter.put(
           req.user!.id,
           updated,
           updated.participants.filter(
-            (participant) => participant.userId && addedUserIds.has(participant.userId)
+            (participant) =>
+              participant.userId && addedUserIds.has(participant.userId)
           )
         );
       }

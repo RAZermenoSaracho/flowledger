@@ -1,12 +1,16 @@
-import { transactionFiltersSchema, transactionSchema, updateTransactionSchema } from "@flowledger/shared";
+import {
+  transactionFiltersSchema,
+  transactionSchema,
+  updateTransactionSchema
+} from "@flowledger/shared";
 import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import {
-  assertHouseholdCategory,
-  getHouseholdMembership
-} from "../households/households.service.js";
+  assertGroupCategory,
+  getGroupMembership
+} from "../groups/groups.service.js";
 import { createSharedExpenseForTransaction } from "../shared-expenses/sharedExpenses.service.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
@@ -14,29 +18,40 @@ import { serialize } from "../../utils/serialize.js";
 
 export const transactionsRouter = Router();
 
-async function assertOwnedRelations(userId: string, input: { accountId?: string | null; categoryId?: string | null }) {
+async function assertOwnedRelations(
+  userId: string,
+  input: { accountId?: string | null; categoryId?: string | null }
+) {
   if (input.accountId) {
-    const account = await prisma.account.findFirst({ where: { id: input.accountId, userId } });
-    if (!account) throw new HttpError(400, "Account does not exist for this user");
+    const account = await prisma.account.findFirst({
+      where: { id: input.accountId, userId }
+    });
+    if (!account)
+      throw new HttpError(400, "Account does not exist for this user");
   }
 
   if (input.categoryId) {
     const category = await prisma.category.findFirst({
-      where: { id: input.categoryId, householdId: null, users: { some: { userId } } }
+      where: {
+        id: input.categoryId,
+        groupId: null,
+        users: { some: { userId } }
+      }
     });
-    if (!category) throw new HttpError(400, "Category does not exist for this user");
+    if (!category)
+      throw new HttpError(400, "Category does not exist for this user");
   }
 }
 
-async function assertHouseholdRelations(
+async function assertGroupRelations(
   userId: string,
-  input: { householdId?: string | null; householdCategoryId?: string | null }
+  input: { groupId?: string | null; groupCategoryId?: string | null }
 ) {
-  if (input.householdId) {
-    await getHouseholdMembership(userId, input.householdId);
+  if (input.groupId) {
+    await getGroupMembership(userId, input.groupId);
   }
 
-  await assertHouseholdCategory(userId, input.householdId, input.householdCategoryId);
+  await assertGroupCategory(userId, input.groupId, input.groupCategoryId);
 }
 
 transactionsRouter.get(
@@ -47,8 +62,8 @@ transactionsRouter.get(
       dateFrom?: string;
       dateTo?: string;
       categoryId?: string;
-      householdId?: string;
-      householdCategoryId?: string;
+      groupId?: string;
+      groupCategoryId?: string;
       accountId?: string;
       type?: "income" | "expense" | "transfer";
       search?: string;
@@ -57,9 +72,9 @@ transactionsRouter.get(
     const where: Prisma.TransactionWhereInput = {
       userId: req.user!.id,
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-      ...(filters.householdId ? { householdId: filters.householdId } : {}),
-      ...(filters.householdCategoryId
-        ? { householdCategoryId: filters.householdCategoryId }
+      ...(filters.groupId ? { groupId: filters.groupId } : {}),
+      ...(filters.groupCategoryId
+        ? { groupCategoryId: filters.groupCategoryId }
         : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
@@ -83,7 +98,12 @@ transactionsRouter.get(
 
     const transactions = await prisma.transaction.findMany({
       where,
-      include: { account: true, category: true, household: true, householdCategory: true },
+      include: {
+        account: true,
+        category: true,
+        group: true,
+        groupCategory: true
+      },
       orderBy: { date: "desc" }
     });
 
@@ -96,7 +116,7 @@ transactionsRouter.post(
   validate(transactionSchema),
   asyncHandler(async (req, res) => {
     await assertOwnedRelations(req.user!.id, req.body);
-    await assertHouseholdRelations(req.user!.id, req.body);
+    await assertGroupRelations(req.user!.id, req.body);
 
     const { sharedExpense, ...input } = req.body;
     const transaction = await prisma.$transaction(async (tx) => {
@@ -106,10 +126,15 @@ transactionsRouter.post(
       });
 
       if (sharedExpense) {
-        await createSharedExpenseForTransaction(tx, req.user!.id, createdTransaction, {
-          ...sharedExpense,
-          status: "open"
-        });
+        await createSharedExpenseForTransaction(
+          tx,
+          req.user!.id,
+          createdTransaction,
+          {
+            ...sharedExpense,
+            status: "open"
+          }
+        );
       }
 
       return tx.transaction.findUniqueOrThrow({
@@ -117,8 +142,8 @@ transactionsRouter.post(
         include: {
           account: true,
           category: true,
-          household: true,
-          householdCategory: true,
+          group: true,
+          groupCategory: true,
           sharedExpense: { include: { participants: true } }
         }
       });
@@ -136,8 +161,8 @@ transactionsRouter.get(
       include: {
         account: true,
         category: true,
-        household: true,
-        householdCategory: true,
+        group: true,
+        groupCategory: true,
         relations: { include: { relatedTransaction: true } },
         relatedBy: { include: { transaction: true } },
         sharedExpense: { include: { participants: true } }
@@ -159,13 +184,13 @@ transactionsRouter.put(
     if (!existing) throw notFound("Transaction");
 
     await assertOwnedRelations(req.user!.id, req.body);
-    await assertHouseholdRelations(req.user!.id, {
-      householdId:
-        req.body.householdId !== undefined ? req.body.householdId : existing.householdId,
-      householdCategoryId:
-        req.body.householdCategoryId !== undefined
-          ? req.body.householdCategoryId
-          : existing.householdCategoryId
+    await assertGroupRelations(req.user!.id, {
+      groupId:
+        req.body.groupId !== undefined ? req.body.groupId : existing.groupId,
+      groupCategoryId:
+        req.body.groupCategoryId !== undefined
+          ? req.body.groupCategoryId
+          : existing.groupCategoryId
     });
 
     const transaction = await prisma.$transaction(async (tx) => {
@@ -175,7 +200,12 @@ transactionsRouter.put(
           ...req.body,
           ...(req.body.date ? { date: new Date(req.body.date) } : {})
         },
-        include: { account: true, category: true, household: true, householdCategory: true }
+        include: {
+          account: true,
+          category: true,
+          group: true,
+          groupCategory: true
+        }
       });
 
       if (req.body.amount !== undefined) {

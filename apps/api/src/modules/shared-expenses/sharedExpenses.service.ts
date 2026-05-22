@@ -2,16 +2,25 @@ import type { SharedExpenseInput } from "@flowledger/shared";
 import type { Prisma, Transaction } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
-import { createNotifications, moneyText } from "../notifications/notifications.service.js";
+import {
+  createNotifications,
+  moneyText
+} from "../notifications/notifications.service.js";
 import { getDebtDirection } from "../debts/debtDirection.js";
 
 type ParticipantInput = NonNullable<SharedExpenseInput["participants"]>[number];
 
 function totalParticipantShares(participants: ParticipantInput[]) {
-  return participants.reduce((sum, participant) => sum + Number(participant.shareAmount), 0);
+  return participants.reduce(
+    (sum, participant) => sum + Number(participant.shareAmount),
+    0
+  );
 }
 
-export async function getOwnedTransaction(userId: string, transactionId?: string) {
+export async function getOwnedTransaction(
+  userId: string,
+  transactionId?: string
+) {
   if (!transactionId) return null;
 
   const transaction = await prisma.transaction.findFirst({
@@ -28,34 +37,42 @@ export async function getOwnedTransaction(userId: string, transactionId?: string
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
   participants: SharedExpenseInput["participants"] = [],
-  householdId?: string | null
+  groupId?: string | null
 ) {
   const participantUserIds = Array.from(
-    new Set(participants.map((participant) => participant.userId).filter(Boolean))
+    new Set(
+      participants.map((participant) => participant.userId).filter(Boolean)
+    )
   ) as string[];
 
   if (participantUserIds.includes(ownerUserId)) {
-    throw new HttpError(400, "Shared expense participants cannot include the owner");
+    throw new HttpError(
+      400,
+      "Shared expense participants cannot include the owner"
+    );
   }
 
-  if (householdId && participants.some((participant) => !participant.userId)) {
-    throw new HttpError(400, "Household split participants must be app users");
+  if (groupId && participants.some((participant) => !participant.userId)) {
+    throw new HttpError(400, "Group split participants must be app users");
   }
 
   if (participantUserIds.length === 0) {
     return participants;
   }
 
-  if (householdId) {
-    const householdMemberCount = await prisma.householdMember.count({
+  if (groupId) {
+    const groupMemberCount = await prisma.groupMember.count({
       where: {
-        householdId,
+        groupId,
         userId: { in: participantUserIds }
       }
     });
 
-    if (householdMemberCount !== participantUserIds.length) {
-      throw new HttpError(400, "Household split participants must be household members");
+    if (groupMemberCount !== participantUserIds.length) {
+      throw new HttpError(
+        400,
+        "Group split participants must be group members"
+      );
     }
   }
 
@@ -85,20 +102,23 @@ export function validateSharedExpenseParticipants(
   participants: ParticipantInput[]
 ) {
   if (totalParticipantShares(participants) > totalAmount.toNumber()) {
-    throw new HttpError(400, "Participant shares cannot exceed the transaction amount");
+    throw new HttpError(
+      400,
+      "Participant shares cannot exceed the transaction amount"
+    );
   }
 }
 
 export async function createSharedExpenseForTransaction(
   tx: Prisma.TransactionClient,
   ownerUserId: string,
-  transaction: Pick<Transaction, "id" | "amount" | "name" | "householdId">,
+  transaction: Pick<Transaction, "id" | "amount" | "name" | "groupId">,
   input: Omit<SharedExpenseInput, "transactionId"> & { transactionId?: string }
 ) {
   const participants = await normalizeSharedExpenseParticipants(
     ownerUserId,
     input.participants,
-    transaction.householdId
+    transaction.groupId
   );
   validateSharedExpenseParticipants(transaction.amount, participants);
 
@@ -114,7 +134,12 @@ export async function createSharedExpenseForTransaction(
     include: { transaction: true, participants: true }
   });
 
-  await notifySharedExpenseParticipants(tx, ownerUserId, sharedExpense, sharedExpense.participants);
+  await notifySharedExpenseParticipants(
+    tx,
+    ownerUserId,
+    sharedExpense,
+    sharedExpense.participants
+  );
 
   return sharedExpense;
 }

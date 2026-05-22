@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate
+} from "react-router-dom";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
@@ -14,7 +20,7 @@ const navItems = [
   ["Transactions", routes.transactions],
   ["Accounts", routes.accounts],
   ["Categories", routes.categories],
-  ["Households", routes.households],
+  ["Groups", routes.groups],
   ["Reports", routes.reports],
   ["Shared Expenses", routes.sharedExpenses],
   ["Debts", routes.debts]
@@ -69,7 +75,10 @@ export function AppLayout() {
           <BrandLink />
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5" aria-label="Primary navigation">
+        <nav
+          className="flex-1 space-y-1 overflow-y-auto px-4 py-5"
+          aria-label="Primary navigation"
+        >
           <PrimaryNavLinks items={navItems} />
         </nav>
 
@@ -130,12 +139,17 @@ export function AppLayout() {
   );
 }
 
-function NotificationsMenu({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+function NotificationsMenu({
+  queryClient
+}: {
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: async () =>
-      (await apiRequest<{ count: number }>("/notifications/unread-count")).count,
+      (await apiRequest<{ count: number }>("/notifications/unread-count"))
+        .count,
     refetchInterval: 60_000
   });
   const notificationsQuery = useQuery({
@@ -153,7 +167,8 @@ function NotificationsMenu({ queryClient }: { queryClient: ReturnType<typeof use
     }
   });
   const markAllRead = useMutation({
-    mutationFn: () => apiRequest("/notifications/read-all", { method: "PATCH" }),
+    mutationFn: () =>
+      apiRequest("/notifications/read-all", { method: "PATCH" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     }
@@ -286,8 +301,12 @@ function BrandLink({ onNavigate }: { onNavigate?: () => void }) {
       className="inline-block rounded-md focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:focus:ring-offset-slate-950"
       aria-label="Go to Dashboard"
     >
-      <h1 className="text-xl font-bold text-ink dark:text-slate-100">FlowLedger</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400">Personal finance workspace</p>
+      <h1 className="text-xl font-bold text-ink dark:text-slate-100">
+        FlowLedger
+      </h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Personal finance workspace
+      </p>
     </Link>
   );
 }
@@ -309,7 +328,8 @@ function MobileSidebarDrawer({
 }) {
   const sideClasses = side === "left" ? "left-0" : "right-0";
   const borderClasses = side === "left" ? "border-r" : "border-l";
-  const closedTransform = side === "left" ? "-translate-x-full" : "translate-x-full";
+  const closedTransform =
+    side === "left" ? "-translate-x-full" : "translate-x-full";
 
   return (
     <div className={`${isOpen ? "block" : "hidden"} lg:hidden`}>
@@ -339,7 +359,10 @@ function MobileSidebarDrawer({
             </button>
           </div>
 
-          <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5" aria-label="Mobile full navigation">
+          <nav
+            className="flex-1 space-y-1 overflow-y-auto px-4 py-5"
+            aria-label="Mobile full navigation"
+          >
             <PrimaryNavLinks items={items} onNavigate={onClose} />
             {authUserName ? (
               <NavLink
@@ -417,7 +440,9 @@ function MobileBottomNav({
       <button
         type="button"
         className={`${navActionClasses} text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800`}
-        aria-label={isDrawerOpen ? "Close navigation menu" : "Open navigation menu"}
+        aria-label={
+          isDrawerOpen ? "Close navigation menu" : "Open navigation menu"
+        }
         aria-controls="mobile-sidebar"
         aria-expanded={isDrawerOpen}
         onClick={onToggleDrawer}

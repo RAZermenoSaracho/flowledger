@@ -11,8 +11,11 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { accountsRouter } from "./modules/accounts/accounts.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { categoriesRouter } from "./modules/categories/categories.routes.js";
-import { debtsRouter, settlementsRouter } from "./modules/debts/debts.routes.js";
-import { householdsRouter } from "./modules/households/households.routes.js";
+import {
+  debtsRouter,
+  settlementsRouter
+} from "./modules/debts/debts.routes.js";
+import { groupsRouter } from "./modules/groups/groups.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
@@ -37,7 +40,7 @@ app.use("/auth", authRouter);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);
-app.use("/households", requireAuth, householdsRouter);
+app.use("/groups", requireAuth, groupsRouter);
 app.use("/notifications", requireAuth, notificationsRouter);
 app.use("/debts", requireAuth, debtsRouter);
 app.use("/settlements", requireAuth, settlementsRouter);

@@ -10,7 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import type {
   Account,
   Category,
-  Household,
+  Group,
   PublicUser,
   Transaction
 } from "../types/api";
@@ -28,8 +28,8 @@ type TransactionForm = {
   date: string;
   accountId: string;
   categoryId: string;
-  householdId: string;
-  householdCategoryId: string;
+  groupId: string;
+  groupCategoryId: string;
   notes: string;
   isShared: boolean;
   sharedTitle: string;
@@ -51,8 +51,8 @@ const emptyForm: TransactionForm = {
   date: new Date().toISOString().slice(0, 10),
   accountId: "",
   categoryId: "",
-  householdId: "",
-  householdCategoryId: "",
+  groupId: "",
+  groupCategoryId: "",
   notes: "",
   isShared: false,
   sharedTitle: ""
@@ -67,8 +67,8 @@ export function TransactionsPage() {
     type: "",
     accountId: "",
     categoryId: "",
-    householdId: "",
-    householdCategoryId: "",
+    groupId: "",
+    groupCategoryId: "",
     dateFrom: "",
     dateTo: ""
   });
@@ -90,10 +90,10 @@ export function TransactionsPage() {
     queryFn: async () =>
       (await apiRequest<{ categories: Category[] }>("/categories")).categories
   });
-  const householdsQuery = useQuery({
-    queryKey: ["households"],
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
     queryFn: async () =>
-      (await apiRequest<{ households: Household[] }>("/households")).households
+      (await apiRequest<{ groups: Group[] }>("/groups")).groups
   });
   const transactionsQuery = useQuery({
     queryKey: ["transactions", filters],
@@ -106,7 +106,8 @@ export function TransactionsPage() {
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
+    enabled:
+      isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
     queryFn: async () =>
       (
         await apiRequest<{ users: PublicUser[] }>("/users/search", {
@@ -116,10 +117,10 @@ export function TransactionsPage() {
   });
 
   const transactionAmount = Number(form.amount);
-  const selectedHousehold = (householdsQuery.data ?? []).find(
-    (household) => household.id === form.householdId
+  const selectedGroup = (groupsQuery.data ?? []).find(
+    (group) => group.id === form.groupId
   );
-  const selectedHouseholdCategories = selectedHousehold?.categories ?? [];
+  const selectedGroupCategories = selectedGroup?.categories ?? [];
   const participantShareTotal = participants.reduce(
     (sum, participant) => sum + Number(participant.shareAmount || 0),
     0
@@ -137,8 +138,8 @@ export function TransactionsPage() {
         date: form.date,
         accountId: form.accountId || null,
         categoryId: form.categoryId || null,
-        householdId: form.householdId || null,
-        householdCategoryId: form.householdCategoryId || null,
+        groupId: form.groupId || null,
+        groupCategoryId: form.groupCategoryId || null,
         notes: form.notes || null,
         ...(!form.id && form.isShared
           ? {
@@ -163,7 +164,7 @@ export function TransactionsPage() {
       setForm(emptyForm);
       setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      await queryClient.invalidateQueries({ queryKey: ["households"] });
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
     }
@@ -183,17 +184,21 @@ export function TransactionsPage() {
     setIsFormOpen(false);
   }
 
-  function suggestEqualHouseholdSplit(household: Household, amountValue = form.amount) {
+  function suggestEqualGroupSplit(group: Group, amountValue = form.amount) {
     const amount = Number(amountValue);
-    const members = household.members;
-    const participantMembers = members.filter((member) => member.userId !== auth.user?.id);
+    const members = group.members;
+    const participantMembers = members.filter(
+      (member) => member.userId !== auth.user?.id
+    );
 
     if (!Number.isFinite(amount) || amount <= 0 || members.length < 2) {
       setParticipants([]);
       return;
     }
 
-    const equalShare = (Math.round((amount / members.length) * 100) / 100).toFixed(2);
+    const equalShare = (
+      Math.round((amount / members.length) * 100) / 100
+    ).toFixed(2);
     setParticipants(
       participantMembers.map((member) => ({
         draftId: member.id,
@@ -224,8 +229,8 @@ export function TransactionsPage() {
 
   function addUserParticipant(user: PublicUser) {
     if (
-      selectedHousehold &&
-      !selectedHousehold.members.some((member) => member.userId === user.id)
+      selectedGroup &&
+      !selectedGroup.members.some((member) => member.userId === user.id)
     ) {
       return;
     }
@@ -360,41 +365,43 @@ export function TransactionsPage() {
                 ))}
               </SelectField>
               <SelectField
-                label="Household"
-                value={form.householdId}
+                label="Group"
+                value={form.groupId}
                 onChange={(event) => {
-                  const householdId = event.target.value;
-                  const household = (householdsQuery.data ?? []).find(
-                    (item) => item.id === householdId
+                  const groupId = event.target.value;
+                  const group = (groupsQuery.data ?? []).find(
+                    (item) => item.id === groupId
                   );
                   setForm({
                     ...form,
-                    householdId,
-                    householdCategoryId: "",
-                    isShared: householdId ? form.isShared || !form.id : form.isShared
+                    groupId,
+                    groupCategoryId: "",
+                    isShared: groupId
+                      ? form.isShared || !form.id
+                      : form.isShared
                   });
-                  if (household && !form.id) {
-                    suggestEqualHouseholdSplit(household);
+                  if (group && !form.id) {
+                    suggestEqualGroupSplit(group);
                   }
                 }}
               >
                 <option value="">None</option>
-                {(householdsQuery.data ?? []).map((household) => (
-                  <option key={household.id} value={household.id}>
-                    {household.name}
+                {(groupsQuery.data ?? []).map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
                   </option>
                 ))}
               </SelectField>
               <SelectField
-                label="Household category"
-                value={form.householdCategoryId}
+                label="Group category"
+                value={form.groupCategoryId}
                 onChange={(event) =>
-                  setForm({ ...form, householdCategoryId: event.target.value })
+                  setForm({ ...form, groupCategoryId: event.target.value })
                 }
-                disabled={!form.householdId}
+                disabled={!form.groupId}
               >
                 <option value="">None</option>
-                {selectedHouseholdCategories.map((category) => (
+                {selectedGroupCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
@@ -455,17 +462,19 @@ export function TransactionsPage() {
                         }
                         placeholder={form.name || "Shared transaction"}
                       />
-                      {selectedHousehold ? (
+                      {selectedGroup ? (
                         <div className="flex flex-col justify-between gap-2 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950 sm:flex-row sm:items-center">
                           <p className="text-slate-600 dark:text-slate-300">
-                            Suggested split from {selectedHousehold.name}: equal share across{" "}
-                            {selectedHousehold.members.length} members.
+                            Suggested split from {selectedGroup.name}: equal
+                            share across {selectedGroup.members.length} members.
                           </p>
                           <Button
                             type="button"
                             variant="secondary"
                             className="w-full sm:w-auto"
-                            onClick={() => suggestEqualHouseholdSplit(selectedHousehold)}
+                            onClick={() =>
+                              suggestEqualGroupSplit(selectedGroup)
+                            }
                           >
                             Reset split
                           </Button>
@@ -475,10 +484,12 @@ export function TransactionsPage() {
                         <TextInput
                           label="Find app user"
                           value={userSearch}
-                          onChange={(event) => setUserSearch(event.target.value)}
+                          onChange={(event) =>
+                            setUserSearch(event.target.value)
+                          }
                           placeholder="Search by name or email"
                         />
-                        {!selectedHousehold ? (
+                        {!selectedGroup ? (
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                             <TextInput
                               label="Manual participant"
@@ -508,39 +519,39 @@ export function TransactionsPage() {
                             </p>
                           ) : (userSearchQuery.data ?? []).filter(
                               (user) =>
-                                !selectedHousehold ||
-                                selectedHousehold.members.some(
+                                !selectedGroup ||
+                                selectedGroup.members.some(
                                   (member) => member.userId === user.id
                                 )
                             ).length > 0 ? (
                             (userSearchQuery.data ?? [])
                               .filter(
                                 (user) =>
-                                  !selectedHousehold ||
-                                  selectedHousehold.members.some(
+                                  !selectedGroup ||
+                                  selectedGroup.members.some(
                                     (member) => member.userId === user.id
                                   )
                               )
                               .map((user) => (
-                              <div
-                                key={user.id}
-                                className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
-                              >
-                                <div>
-                                  <p className="font-medium">{user.name}</p>
-                                  <p className="text-slate-500 dark:text-slate-400">
-                                    {user.email}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  className="w-full sm:w-auto"
-                                  onClick={() => addUserParticipant(user)}
+                                <div
+                                  key={user.id}
+                                  className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
                                 >
-                                  Add app user
-                                </Button>
-                              </div>
+                                  <div>
+                                    <p className="font-medium">{user.name}</p>
+                                    <p className="text-slate-500 dark:text-slate-400">
+                                      {user.email}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto"
+                                    onClick={() => addUserParticipant(user)}
+                                  >
+                                    Add app user
+                                  </Button>
+                                </div>
                               ))
                           ) : (
                             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -606,7 +617,8 @@ export function TransactionsPage() {
                           </p>
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Add an app user or manual participant to create a split.
+                            Add an app user or manual participant to create a
+                            split.
                           </p>
                         )}
                       </div>
@@ -701,35 +713,40 @@ export function TransactionsPage() {
                 ))}
               </SelectField>
               <SelectField
-                label="Household"
-                value={filters.householdId}
+                label="Group"
+                value={filters.groupId}
                 onChange={(event) =>
                   setFilters({
                     ...filters,
-                    householdId: event.target.value,
-                    householdCategoryId: ""
+                    groupId: event.target.value,
+                    groupCategoryId: ""
                   })
                 }
               >
                 <option value="">All</option>
-                {(householdsQuery.data ?? []).map((household) => (
-                  <option key={household.id} value={household.id}>
-                    {household.name}
+                {(groupsQuery.data ?? []).map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
                   </option>
                 ))}
               </SelectField>
               <SelectField
-                label="Household category"
-                value={filters.householdCategoryId}
+                label="Group category"
+                value={filters.groupCategoryId}
                 onChange={(event) =>
-                  setFilters({ ...filters, householdCategoryId: event.target.value })
+                  setFilters({
+                    ...filters,
+                    groupCategoryId: event.target.value
+                  })
                 }
-                disabled={!filters.householdId}
+                disabled={!filters.groupId}
               >
                 <option value="">All</option>
-                {((householdsQuery.data ?? []).find(
-                  (household) => household.id === filters.householdId
-                )?.categories ?? []).map((category) => (
+                {(
+                  (groupsQuery.data ?? []).find(
+                    (group) => group.id === filters.groupId
+                  )?.categories ?? []
+                ).map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
@@ -785,10 +802,10 @@ export function TransactionsPage() {
                     {new Date(transaction.date).toLocaleDateString()} ·{" "}
                     {transaction.category?.name ?? "Uncategorized"} ·{" "}
                     {transaction.account?.name ?? "No account"}
-                    {transaction.household
-                      ? ` · ${transaction.household.name}${
-                          transaction.householdCategory
-                            ? ` / ${transaction.householdCategory.name}`
+                    {transaction.group
+                      ? ` · ${transaction.group.name}${
+                          transaction.groupCategory
+                            ? ` / ${transaction.groupCategory.name}`
                             : ""
                         }`
                       : ""}
@@ -815,8 +832,8 @@ export function TransactionsPage() {
                       date: transaction.date.slice(0, 10),
                       accountId: transaction.accountId ?? "",
                       categoryId: transaction.categoryId ?? "",
-                      householdId: transaction.householdId ?? "",
-                      householdCategoryId: transaction.householdCategoryId ?? "",
+                      groupId: transaction.groupId ?? "",
+                      groupCategoryId: transaction.groupCategoryId ?? "",
                       notes: transaction.notes ?? "",
                       isShared: false,
                       sharedTitle: ""

@@ -1,7 +1,7 @@
 import type {
   AccountType,
   CategoryType,
-  HouseholdRole,
+  GroupRole,
   NotificationType,
   ParticipantStatus,
   PlanType,
@@ -33,7 +33,7 @@ export type Account = {
 
 export type Category = {
   id: string;
-  householdId?: string | null;
+  groupId?: string | null;
   name: string;
   type: CategoryType;
   color?: string | null;
@@ -41,25 +41,25 @@ export type Category = {
   updatedAt: string;
 };
 
-export type HouseholdMember = {
+export type GroupMember = {
   id: string;
-  householdId: string;
+  groupId: string;
   userId: string;
-  role: HouseholdRole;
+  role: GroupRole;
   user: PublicUser;
   createdAt: string;
   updatedAt: string;
 };
 
-export type HouseholdCategory = Category & { householdId: string };
+export type GroupCategory = Category & { groupId: string };
 
-export type Household = {
+export type Group = {
   id: string;
   name: string;
   description?: string | null;
   ownerUserId: string;
-  members: HouseholdMember[];
-  categories: HouseholdCategory[];
+  members: GroupMember[];
+  categories: GroupCategory[];
   transactions?: Transaction[];
   createdAt: string;
   updatedAt: string;
@@ -72,16 +72,16 @@ export type Transaction = {
   type: TransactionType;
   date: string;
   categoryId?: string | null;
-  householdId?: string | null;
-  householdCategoryId?: string | null;
+  groupId?: string | null;
+  groupCategoryId?: string | null;
   accountId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
   account?: Account | null;
   category?: Category | null;
-  household?: Household | null;
-  householdCategory?: HouseholdCategory | null;
+  group?: Group | null;
+  groupCategory?: GroupCategory | null;
   sharedExpense?: SharedExpense | null;
 };
 

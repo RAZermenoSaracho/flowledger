@@ -7,48 +7,47 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput, TextArea } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
-import type { Household, PublicUser } from "../types/api";
+import type { Group, PublicUser } from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD"
 });
 
-export function HouseholdsPage() {
+export function GroupsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [categoryName, setCategoryName] = useState("");
   const [categoryType, setCategoryType] = useState<CategoryType>("expense");
   const [categoryColor, setCategoryColor] = useState("#176b52");
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null
+  );
   const [editCategoryName, setEditCategoryName] = useState("");
-  const [editCategoryType, setEditCategoryType] = useState<CategoryType>("expense");
+  const [editCategoryType, setEditCategoryType] =
+    useState<CategoryType>("expense");
   const [editCategoryColor, setEditCategoryColor] = useState("#176b52");
   const trimmedUserSearch = userSearch.trim();
 
-  const householdsQuery = useQuery({
-    queryKey: ["households"],
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
     queryFn: async () =>
-      (await apiRequest<{ households: Household[] }>("/households")).households
+      (await apiRequest<{ groups: Group[] }>("/groups")).groups
   });
-  const selectedHouseholdQuery = useQuery({
-    queryKey: ["households", selectedHouseholdId],
-    enabled: Boolean(selectedHouseholdId),
+  const selectedGroupQuery = useQuery({
+    queryKey: ["groups", selectedGroupId],
+    enabled: Boolean(selectedGroupId),
     queryFn: async () =>
-      (
-        await apiRequest<{ household: Household }>(
-          `/households/${selectedHouseholdId}`
-        )
-      ).household
+      (await apiRequest<{ group: Group }>(`/groups/${selectedGroupId}`)).group
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: Boolean(selectedHouseholdId) && trimmedUserSearch.length > 1,
+    enabled: Boolean(selectedGroupId) && trimmedUserSearch.length > 1,
     queryFn: async () =>
       (
         await apiRequest<{ users: PublicUser[] }>("/users/search", {
@@ -57,45 +56,45 @@ export function HouseholdsPage() {
       ).users
   });
 
-  const selectedHousehold =
-    selectedHouseholdQuery.data ??
-    (householdsQuery.data ?? []).find((household) => household.id === selectedHouseholdId);
-  const canManage = selectedHousehold?.members.some(
+  const selectedGroup =
+    selectedGroupQuery.data ??
+    (groupsQuery.data ?? []).find((group) => group.id === selectedGroupId);
+  const canManage = selectedGroup?.members.some(
     (member) => member.userId === auth.user?.id && member.role === "admin"
   );
 
-  const createHousehold = useMutation({
+  const createGroup = useMutation({
     mutationFn: () =>
-      apiRequest("/households", {
+      apiRequest("/groups", {
         method: "POST",
         body: { name, description: description || null }
       }),
     onSuccess: async (response: unknown) => {
-      const created = response as { household: Household };
+      const created = response as { group: Group };
       closeCreateForm();
-      setSelectedHouseholdId(created.household.id);
-      await queryClient.invalidateQueries({ queryKey: ["households"] });
+      setSelectedGroupId(created.group.id);
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
     }
   });
 
   const addMember = useMutation({
     mutationFn: (userId: string) =>
-      apiRequest(`/households/${selectedHouseholdId}/members`, {
+      apiRequest(`/groups/${selectedGroupId}/members`, {
         method: "POST",
         body: { userId }
       }),
-    onSuccess: refreshSelectedHousehold
+    onSuccess: refreshSelectedGroup
   });
 
   const addCategory = useMutation({
     mutationFn: () =>
-      apiRequest(`/households/${selectedHouseholdId}/categories`, {
+      apiRequest(`/groups/${selectedGroupId}/categories`, {
         method: "POST",
         body: { name: categoryName, type: categoryType, color: categoryColor }
       }),
     onSuccess: async () => {
       setCategoryName("");
-      await refreshSelectedHousehold();
+      await refreshSelectedGroup();
     }
   });
   const updateCategory = useMutation({
@@ -115,20 +114,22 @@ export function HouseholdsPage() {
       }),
     onSuccess: async () => {
       closeCategoryEditForm();
-      await refreshSelectedHousehold();
+      await refreshSelectedGroup();
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
   });
 
-  async function refreshSelectedHousehold() {
+  async function refreshSelectedGroup() {
     setUserSearch("");
-    await queryClient.invalidateQueries({ queryKey: ["households"] });
-    await queryClient.invalidateQueries({ queryKey: ["households", selectedHouseholdId] });
+    await queryClient.invalidateQueries({ queryKey: ["groups"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["groups", selectedGroupId]
+    });
   }
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
-    await createHousehold.mutateAsync();
+    await createGroup.mutateAsync();
   }
 
   async function submitCategory(event: FormEvent) {
@@ -154,7 +155,7 @@ export function HouseholdsPage() {
     setIsCreateOpen(false);
   }
 
-  function openCategoryEditForm(category: Household["categories"][number]) {
+  function openCategoryEditForm(category: Group["categories"][number]) {
     setEditingCategoryId(category.id);
     setEditCategoryName(category.name);
     setEditCategoryType(category.type);
@@ -175,8 +176,12 @@ export function HouseholdsPage() {
           {isCreateOpen ? (
             <>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <h2 className="text-lg font-semibold">New household</h2>
-                <Button type="button" variant="secondary" onClick={closeCreateForm}>
+                <h2 className="text-lg font-semibold">New group</h2>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={closeCreateForm}
+                >
                   Cancel
                 </Button>
               </div>
@@ -193,8 +198,8 @@ export function HouseholdsPage() {
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                 />
-                <Button type="submit" disabled={createHousehold.isPending}>
-                  Save household
+                <Button type="submit" disabled={createGroup.isPending}>
+                  Save group
                 </Button>
               </form>
             </>
@@ -204,50 +209,51 @@ export function HouseholdsPage() {
               className="w-full sm:w-auto"
               onClick={() => setIsCreateOpen(true)}
             >
-              Add household
+              Add group
             </Button>
           )}
         </Card>
         <Card>
-          <h2 className="text-lg font-semibold">Households</h2>
+          <h2 className="text-lg font-semibold">Groups</h2>
           <div className="mt-4 grid gap-3">
-            {(householdsQuery.data ?? []).map((household) => (
+            {(groupsQuery.data ?? []).map((group) => (
               <button
-                key={household.id}
+                key={group.id}
                 type="button"
                 className={`rounded-md border p-3 text-left transition ${
-                  selectedHouseholdId === household.id
+                  selectedGroupId === group.id
                     ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
                     : "border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
                 }`}
                 onClick={() => {
                   closeCategoryEditForm();
-                  setSelectedHouseholdId(household.id);
+                  setSelectedGroupId(group.id);
                 }}
               >
-                <p className="font-semibold">{household.name}</p>
+                <p className="font-semibold">{group.name}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {household.members.length} members · {household.categories.length} categories
+                  {group.members.length} members · {group.categories.length}{" "}
+                  categories
                 </p>
               </button>
             ))}
-            {(householdsQuery.data ?? []).length === 0 ? (
+            {(groupsQuery.data ?? []).length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                No households yet.
+                No groups yet.
               </p>
             ) : null}
           </div>
         </Card>
       </div>
       <Card>
-        {selectedHousehold ? (
+        {selectedGroup ? (
           <div className="grid gap-6">
             <div className="flex flex-col justify-between gap-2 sm:flex-row">
               <div>
-                <h2 className="text-lg font-semibold">{selectedHousehold.name}</h2>
-                {selectedHousehold.description ? (
+                <h2 className="text-lg font-semibold">{selectedGroup.name}</h2>
+                {selectedGroup.description ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {selectedHousehold.description}
+                    {selectedGroup.description}
                   </p>
                 ) : null}
               </div>
@@ -258,7 +264,7 @@ export function HouseholdsPage() {
             <section>
               <h3 className="font-semibold">Members</h3>
               <div className="mt-3 grid gap-2">
-                {selectedHousehold.members.map((member) => (
+                {selectedGroup.members.map((member) => (
                   <div
                     key={member.id}
                     className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
@@ -318,19 +324,24 @@ export function HouseholdsPage() {
               ) : null}
             </section>
             <section>
-              <h3 className="font-semibold">Household categories</h3>
+              <h3 className="font-semibold">Group categories</h3>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {selectedHousehold.categories.map((category) => (
+                {selectedGroup.categories.map((category) => (
                   <div
                     key={category.id}
                     className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800"
                   >
                     {editingCategoryId === category.id ? (
-                      <form className="grid gap-3" onSubmit={submitCategoryEdit}>
+                      <form
+                        className="grid gap-3"
+                        onSubmit={submitCategoryEdit}
+                      >
                         <TextInput
                           label="Name"
                           value={editCategoryName}
-                          onChange={(event) => setEditCategoryName(event.target.value)}
+                          onChange={(event) =>
+                            setEditCategoryName(event.target.value)
+                          }
                           required
                         />
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -338,7 +349,9 @@ export function HouseholdsPage() {
                             label="Type"
                             value={editCategoryType}
                             onChange={(event) =>
-                              setEditCategoryType(event.target.value as CategoryType)
+                              setEditCategoryType(
+                                event.target.value as CategoryType
+                              )
                             }
                           >
                             {CATEGORY_TYPES.map((item) => (
@@ -351,11 +364,16 @@ export function HouseholdsPage() {
                             label="Color"
                             type="color"
                             value={editCategoryColor}
-                            onChange={(event) => setEditCategoryColor(event.target.value)}
+                            onChange={(event) =>
+                              setEditCategoryColor(event.target.value)
+                            }
                           />
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row">
-                          <Button type="submit" disabled={updateCategory.isPending}>
+                          <Button
+                            type="submit"
+                            disabled={updateCategory.isPending}
+                          >
                             Save changes
                           </Button>
                           <Button
@@ -375,7 +393,9 @@ export function HouseholdsPage() {
                             style={{ background: category.color ?? "#cbd5e1" }}
                           />
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{category.name}</p>
+                            <p className="truncate font-medium">
+                              {category.name}
+                            </p>
                             <p className="text-slate-500 dark:text-slate-400">
                               {category.type}
                             </p>
@@ -397,7 +417,10 @@ export function HouseholdsPage() {
                 ))}
               </div>
               {canManage ? (
-                <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={submitCategory}>
+                <form
+                  className="mt-4 grid gap-3 md:grid-cols-4"
+                  onSubmit={submitCategory}
+                >
                   <TextInput
                     label="Category"
                     value={categoryName}
@@ -432,26 +455,28 @@ export function HouseholdsPage() {
               ) : null}
             </section>
             <section>
-              <h3 className="font-semibold">Recent household transactions</h3>
+              <h3 className="font-semibold">Recent group transactions</h3>
               <div className="mt-3 grid gap-2">
-                {(selectedHousehold.transactions ?? []).map((transaction) => (
+                {(selectedGroup.transactions ?? []).map((transaction) => (
                   <div
                     key={transaction.id}
                     className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
                   >
                     <div className="flex flex-col justify-between gap-1 sm:flex-row">
                       <p className="font-medium">{transaction.name}</p>
-                      <p className="font-semibold">{money.format(transaction.amount)}</p>
+                      <p className="font-semibold">
+                        {money.format(transaction.amount)}
+                      </p>
                     </div>
                     <p className="text-slate-500 dark:text-slate-400">
-                      {transaction.householdCategory?.name ?? "No household category"} ·{" "}
+                      {transaction.groupCategory?.name ?? "No group category"} ·{" "}
                       {new Date(transaction.date).toLocaleDateString()}
                     </p>
                   </div>
                 ))}
-                {(selectedHousehold.transactions ?? []).length === 0 ? (
+                {(selectedGroup.transactions ?? []).length === 0 ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No household transactions for your account yet.
+                    No group transactions for your account yet.
                   </p>
                 ) : null}
               </div>
@@ -459,7 +484,7 @@ export function HouseholdsPage() {
           </div>
         ) : (
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Select a household to view details.
+            Select a group to view details.
           </p>
         )}
       </Card>

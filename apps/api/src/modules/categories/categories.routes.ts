@@ -8,7 +8,7 @@ import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
-import { getHouseholdMembership } from "../households/households.service.js";
+import { getGroupMembership } from "../groups/groups.service.js";
 
 export const categoriesRouter = Router();
 
@@ -24,16 +24,19 @@ categoriesRouter.get(
   "/",
   validate(categoryFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
-    const filters = req.query as { householdId?: string };
+    const filters = req.query as { groupId?: string };
 
-    if (filters.householdId) {
-      await getHouseholdMembership(req.user!.id, filters.householdId);
+    if (filters.groupId) {
+      await getGroupMembership(req.user!.id, filters.groupId);
     }
 
     const categories = await prisma.category.findMany({
-      where: filters.householdId
-        ? { householdId: filters.householdId, users: { some: { userId: req.user!.id } } }
-        : { householdId: null, users: { some: { userId: req.user!.id } } },
+      where: filters.groupId
+        ? {
+            groupId: filters.groupId,
+            users: { some: { userId: req.user!.id } }
+          }
+        : { groupId: null, users: { some: { userId: req.user!.id } } },
       orderBy: [{ type: "asc" }, { name: "asc" }]
     });
     res.json({ categories });
@@ -47,7 +50,7 @@ categoriesRouter.post(
     const category = await prisma.category.create({
       data: {
         ...req.body,
-        householdId: null,
+        groupId: null,
         users: { create: { userId: req.user!.id } }
       }
     });
@@ -64,7 +67,10 @@ categoriesRouter.put(
 
     const existing = await getEditableCategory(req.user!.id, categoryId);
 
-    const category = await prisma.category.update({ where: { id: existing.id }, data: req.body });
+    const category = await prisma.category.update({
+      where: { id: existing.id },
+      data: req.body
+    });
     res.json({ category });
   })
 );
