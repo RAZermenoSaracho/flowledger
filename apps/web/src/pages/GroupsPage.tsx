@@ -1,10 +1,11 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput, TextArea } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { Group, PublicUser } from "../types/api";
@@ -20,8 +21,23 @@ export function GroupsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [showArchivedGroups, setShowArchivedGroups] = useState(false);
-  const [showArchivedCategories, setShowArchivedCategories] = useState(false);
+  const [groupArchiveMode, setGroupArchiveMode] = useState<
+    "active" | "archived"
+  >("active");
+  const [categoryArchiveMode, setCategoryArchiveMode] = useState<
+    "active" | "archived"
+  >("active");
+  const [groupSearch, setGroupSearch] = useState("");
+  const [groupSortBy, setGroupSortBy] = useState("name");
+  const [groupSortDirection, setGroupSortDirection] = useState<"asc" | "desc">(
+    "asc"
+  );
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState("");
+  const [categorySortBy, setCategorySortBy] = useState("name");
+  const [categorySortDirection, setCategorySortDirection] = useState<
+    "asc" | "desc"
+  >("asc");
   const [isEditingGroup, setIsEditingGroup] = useState(false);
   const [editGroupName, setEditGroupName] = useState("");
   const [editGroupDescription, setEditGroupDescription] = useState("");
@@ -40,24 +56,26 @@ export function GroupsPage() {
   const trimmedUserSearch = userSearch.trim();
 
   const groupsQuery = useQuery({
-    queryKey: ["groups", showArchivedGroups],
+    queryKey: ["groups", groupArchiveMode],
     queryFn: async () =>
       (
         await apiRequest<{ groups: Group[] }>("/groups", {
-          query: { includeArchived: showArchivedGroups ? "true" : undefined }
+          query: {
+            includeArchived:
+              groupArchiveMode === "archived" ? "true" : undefined
+          }
         })
       ).groups
   });
   const selectedGroupQuery = useQuery({
-    queryKey: ["groups", selectedGroupId, showArchivedCategories],
+    queryKey: ["groups", selectedGroupId, categoryArchiveMode],
     enabled: Boolean(selectedGroupId),
     queryFn: async () =>
       (
         await apiRequest<{ group: Group }>(`/groups/${selectedGroupId}`, {
           query: {
-            includeArchivedCategories: showArchivedCategories
-              ? "true"
-              : undefined
+            includeArchivedCategories:
+              categoryArchiveMode === "archived" ? "true" : undefined
           }
         })
       ).group
@@ -76,6 +94,75 @@ export function GroupsPage() {
   const selectedGroup =
     selectedGroupQuery.data ??
     (groupsQuery.data ?? []).find((group) => group.id === selectedGroupId);
+  const visibleGroups = useMemo(() => {
+    const normalizedSearch = groupSearch.trim().toLowerCase();
+    const direction = groupSortDirection === "asc" ? 1 : -1;
+
+    return [...(groupsQuery.data ?? [])]
+      .filter((group) =>
+        groupArchiveMode === "archived" ? group.isArchived : !group.isArchived
+      )
+      .filter((group) => {
+        if (!normalizedSearch) return true;
+        return [group.name, group.description ?? ""].some((value) =>
+          value.toLowerCase().includes(normalizedSearch)
+        );
+      })
+      .sort((left, right) => {
+        if (groupSortBy === "createdAt" || groupSortBy === "updatedAt") {
+          return (
+            (Date.parse(left[groupSortBy]) - Date.parse(right[groupSortBy])) *
+            direction
+          );
+        }
+
+        return left.name.localeCompare(right.name) * direction;
+      });
+  }, [
+    groupArchiveMode,
+    groupSearch,
+    groupSortBy,
+    groupSortDirection,
+    groupsQuery.data
+  ]);
+  const visibleGroupCategories = useMemo(() => {
+    const normalizedSearch = categorySearch.trim().toLowerCase();
+    const direction = categorySortDirection === "asc" ? 1 : -1;
+
+    return [...(selectedGroup?.categories ?? [])]
+      .filter((category) =>
+        categoryArchiveMode === "archived"
+          ? category.isArchived
+          : !category.isArchived
+      )
+      .filter((category) =>
+        categoryTypeFilter ? category.type === categoryTypeFilter : true
+      )
+      .filter((category) => {
+        if (!normalizedSearch) return true;
+        return [category.name, category.type].some((value) =>
+          value.toLowerCase().includes(normalizedSearch)
+        );
+      })
+      .sort((left, right) => {
+        if (categorySortBy === "createdAt" || categorySortBy === "updatedAt") {
+          return (
+            (Date.parse(left[categorySortBy]) -
+              Date.parse(right[categorySortBy])) *
+            direction
+          );
+        }
+
+        return left.name.localeCompare(right.name) * direction;
+      });
+  }, [
+    categoryArchiveMode,
+    categorySearch,
+    categorySortBy,
+    categorySortDirection,
+    categoryTypeFilter,
+    selectedGroup?.categories
+  ]);
   const canManage = selectedGroup?.members.some(
     (member) => member.userId === auth.user?.id && member.role === "admin"
   );
@@ -336,21 +423,31 @@ export function GroupsPage() {
           )}
         </Card>
         <Card>
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <h2 className="text-lg font-semibold">Groups</h2>
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={showArchivedGroups}
-                onChange={(event) =>
-                  setShowArchivedGroups(event.target.checked)
-                }
-              />
-              Show archived
-            </label>
+          <h2 className="text-lg font-semibold">Groups</h2>
+          <div className="mt-4">
+            <SearchComponent
+              searchValue={groupSearch}
+              searchPlaceholder="Search groups"
+              onSearchChange={setGroupSearch}
+              sort={{
+                value: groupSortBy,
+                direction: groupSortDirection,
+                onChange: setGroupSortBy,
+                onDirectionChange: setGroupSortDirection,
+                options: [
+                  { label: "Name", value: "name" },
+                  { label: "Created date", value: "createdAt" },
+                  { label: "Updated date", value: "updatedAt" }
+                ]
+              }}
+              archiveToggle={{
+                value: groupArchiveMode,
+                onChange: setGroupArchiveMode
+              }}
+            />
           </div>
           <div className="mt-4 grid gap-3">
-            {(groupsQuery.data ?? []).map((group) => (
+            {visibleGroups.map((group) => (
               <button
                 key={group.id}
                 type="button"
@@ -378,9 +475,9 @@ export function GroupsPage() {
                 </p>
               </button>
             ))}
-            {(groupsQuery.data ?? []).length === 0 ? (
+            {visibleGroups.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                No groups yet.
+                No groups found.
               </p>
             ) : null}
           </div>
@@ -542,21 +639,46 @@ export function GroupsPage() {
               ) : null}
             </section>
             <section>
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <h3 className="font-semibold">Group categories</h3>
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={showArchivedCategories}
-                    onChange={(event) =>
-                      setShowArchivedCategories(event.target.checked)
+              <h3 className="font-semibold">Group categories</h3>
+              <div className="mt-3">
+                <SearchComponent
+                  searchValue={categorySearch}
+                  searchPlaceholder="Search group categories"
+                  onSearchChange={setCategorySearch}
+                  filters={[
+                    {
+                      id: "type",
+                      label: "Type",
+                      value: categoryTypeFilter,
+                      onChange: setCategoryTypeFilter,
+                      options: [
+                        { label: "All types", value: "" },
+                        ...CATEGORY_TYPES.map((item) => ({
+                          label: item,
+                          value: item
+                        }))
+                      ]
                     }
-                  />
-                  Show archived
-                </label>
+                  ]}
+                  sort={{
+                    value: categorySortBy,
+                    direction: categorySortDirection,
+                    onChange: setCategorySortBy,
+                    onDirectionChange: setCategorySortDirection,
+                    options: [
+                      { label: "Name", value: "name" },
+                      { label: "Created date", value: "createdAt" },
+                      { label: "Updated date", value: "updatedAt" }
+                    ]
+                  }}
+                  archiveToggle={{
+                    value: categoryArchiveMode,
+                    onChange: setCategoryArchiveMode
+                  }}
+                />
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {selectedGroup.categories.map((category) => (
+                {visibleGroupCategories.map((category) => (
                   <div
                     key={category.id}
                     className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800"
@@ -688,6 +810,11 @@ export function GroupsPage() {
                     )}
                   </div>
                 ))}
+                {visibleGroupCategories.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    No group categories found.
+                  </p>
+                ) : null}
               </div>
               {canManageActive ? (
                 <form

@@ -1,10 +1,11 @@
 import { TRANSACTION_TYPES } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import type {
@@ -74,6 +75,8 @@ export function TransactionsPage() {
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [areAdvancedFiltersOpen, setAreAdvancedFiltersOpen] = useState(false);
+  const [sortBy, setSortBy] = useState("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [areSharedFieldsOpen, setAreSharedFieldsOpen] = useState(true);
   const [participantName, setParticipantName] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -120,6 +123,23 @@ export function TransactionsPage() {
   const selectedGroup = (groupsQuery.data ?? []).find(
     (group) => group.id === form.groupId
   );
+  const visibleTransactions = useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1;
+
+    return [...(transactionsQuery.data ?? [])].sort((left, right) => {
+      if (sortBy === "date" || sortBy === "createdAt") {
+        return (
+          (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
+        );
+      }
+
+      if (sortBy === "amount") {
+        return (left.amount - right.amount) * direction;
+      }
+
+      return left.name.localeCompare(right.name) * direction;
+    });
+  }, [sortBy, sortDirection, transactionsQuery.data]);
   const selectedGroupCategories = selectedGroup?.categories ?? [];
   const participantShareTotal = participants.reduce(
     (sum, participant) => sum + Number(participant.shareAmount || 0),
@@ -659,14 +679,25 @@ export function TransactionsPage() {
       </Card>
       <div className="grid gap-4">
         <Card>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <TextInput
-              label="Search"
-              value={filters.search}
-              onChange={(event) =>
-                setFilters({ ...filters, search: event.target.value })
-              }
-            />
+          <SearchComponent
+            searchValue={filters.search}
+            searchPlaceholder="Search transactions"
+            onSearchChange={(value) =>
+              setFilters({ ...filters, search: value })
+            }
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Date", value: "date" },
+                { label: "Name", value: "name" },
+                { label: "Amount", value: "amount" },
+                { label: "Created date", value: "createdAt" }
+              ]
+            }}
+          >
             <Button
               type="button"
               variant="secondary"
@@ -679,114 +710,114 @@ export function TransactionsPage() {
                 {areAdvancedFiltersOpen ? "^" : "v"}
               </span>
             </Button>
-          </div>
-          {areAdvancedFiltersOpen ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <TextInput
-                label="From"
-                type="date"
-                value={filters.dateFrom}
-                onChange={(event) =>
-                  setFilters({ ...filters, dateFrom: event.target.value })
-                }
-              />
-              <TextInput
-                label="To"
-                type="date"
-                value={filters.dateTo}
-                onChange={(event) =>
-                  setFilters({ ...filters, dateTo: event.target.value })
-                }
-              />
-              <SelectField
-                label="Category"
-                value={filters.categoryId}
-                onChange={(event) =>
-                  setFilters({ ...filters, categoryId: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {(categoriesQuery.data ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Group"
-                value={filters.groupId}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    groupId: event.target.value,
-                    groupCategoryId: ""
-                  })
-                }
-              >
-                <option value="">All</option>
-                {(groupsQuery.data ?? []).map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Group category"
-                value={filters.groupCategoryId}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    groupCategoryId: event.target.value
-                  })
-                }
-                disabled={!filters.groupId}
-              >
-                <option value="">All</option>
-                {(
-                  (groupsQuery.data ?? []).find(
-                    (group) => group.id === filters.groupId
-                  )?.categories ?? []
-                ).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Account"
-                value={filters.accountId}
-                onChange={(event) =>
-                  setFilters({ ...filters, accountId: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {(accountsQuery.data ?? []).map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Type"
-                value={filters.type}
-                onChange={(event) =>
-                  setFilters({ ...filters, type: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {TRANSACTION_TYPES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-          ) : null}
+            {areAdvancedFiltersOpen ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <TextInput
+                  label="From"
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(event) =>
+                    setFilters({ ...filters, dateFrom: event.target.value })
+                  }
+                />
+                <TextInput
+                  label="To"
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(event) =>
+                    setFilters({ ...filters, dateTo: event.target.value })
+                  }
+                />
+                <SelectField
+                  label="Category"
+                  value={filters.categoryId}
+                  onChange={(event) =>
+                    setFilters({ ...filters, categoryId: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {(categoriesQuery.data ?? []).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Group"
+                  value={filters.groupId}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      groupId: event.target.value,
+                      groupCategoryId: ""
+                    })
+                  }
+                >
+                  <option value="">All</option>
+                  {(groupsQuery.data ?? []).map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Group category"
+                  value={filters.groupCategoryId}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      groupCategoryId: event.target.value
+                    })
+                  }
+                  disabled={!filters.groupId}
+                >
+                  <option value="">All</option>
+                  {(
+                    (groupsQuery.data ?? []).find(
+                      (group) => group.id === filters.groupId
+                    )?.categories ?? []
+                  ).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Account"
+                  value={filters.accountId}
+                  onChange={(event) =>
+                    setFilters({ ...filters, accountId: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {(accountsQuery.data ?? []).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Type"
+                  value={filters.type}
+                  onChange={(event) =>
+                    setFilters({ ...filters, type: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {TRANSACTION_TYPES.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            ) : null}
+          </SearchComponent>
         </Card>
         <Card>
           <h2 className="text-lg font-semibold">Transactions</h2>
           <div className="mt-4 grid gap-3">
-            {(transactionsQuery.data ?? []).map((transaction) => (
+            {visibleTransactions.map((transaction) => (
               <div
                 key={transaction.id}
                 className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[1fr_auto_auto] md:items-center"
@@ -848,6 +879,11 @@ export function TransactionsPage() {
                 </Button>
               </div>
             ))}
+            {visibleTransactions.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                No transactions found.
+              </p>
+            ) : null}
           </div>
         </Card>
       </div>

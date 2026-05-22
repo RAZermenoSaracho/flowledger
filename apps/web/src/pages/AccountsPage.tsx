@@ -1,10 +1,11 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import type { AccountType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { Account } from "../types/api";
 
@@ -14,21 +15,62 @@ export function AccountsPage() {
   const [type, setType] = useState<AccountType>("checking");
   const [identifier, setIdentifier] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
+    "active"
+  );
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
   const [editIdentifier, setEditIdentifier] = useState("");
 
   const accountsQuery = useQuery({
-    queryKey: ["accounts", showArchived],
+    queryKey: ["accounts", archiveMode],
     queryFn: async () =>
       (
         await apiRequest<{ accounts: Account[] }>("/accounts", {
-          query: { includeArchived: showArchived ? "true" : undefined }
+          query: {
+            includeArchived: archiveMode === "archived" ? "true" : undefined
+          }
         })
       ).accounts
   });
+
+  const visibleAccounts = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const direction = sortDirection === "asc" ? 1 : -1;
+
+    return [...(accountsQuery.data ?? [])]
+      .filter((account) =>
+        archiveMode === "archived" ? account.isArchived : !account.isArchived
+      )
+      .filter((account) => (typeFilter ? account.type === typeFilter : true))
+      .filter((account) => {
+        if (!normalizedSearch) return true;
+        return [account.name, account.type, account.identifier ?? ""].some(
+          (value) => value.toLowerCase().includes(normalizedSearch)
+        );
+      })
+      .sort((left, right) => {
+        if (sortBy === "createdAt" || sortBy === "updatedAt") {
+          return (
+            (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
+          );
+        }
+
+        return left.name.localeCompare(right.name) * direction;
+      });
+  }, [
+    accountsQuery.data,
+    archiveMode,
+    search,
+    sortBy,
+    sortDirection,
+    typeFilter
+  ]);
 
   const createAccount = useMutation({
     mutationFn: () =>
@@ -194,19 +236,46 @@ export function AccountsPage() {
         )}
       </Card>
       <Card>
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <h2 className="text-lg font-semibold">Accounts</h2>
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(event) => setShowArchived(event.target.checked)}
-            />
-            Show archived
-          </label>
+        <h2 className="text-lg font-semibold">Accounts</h2>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={search}
+            searchPlaceholder="Search accounts"
+            onSearchChange={setSearch}
+            filters={[
+              {
+                id: "type",
+                label: "Type",
+                value: typeFilter,
+                onChange: setTypeFilter,
+                options: [
+                  { label: "All types", value: "" },
+                  ...ACCOUNT_TYPES.map((item) => ({
+                    label: item.replace("_", " "),
+                    value: item
+                  }))
+                ]
+              }
+            ]}
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Name", value: "name" },
+                { label: "Created date", value: "createdAt" },
+                { label: "Updated date", value: "updatedAt" }
+              ]
+            }}
+            archiveToggle={{
+              value: archiveMode,
+              onChange: setArchiveMode
+            }}
+          />
         </div>
         <div className="mt-4 grid gap-3">
-          {(accountsQuery.data ?? []).map((account) => (
+          {visibleAccounts.map((account) => (
             <div
               key={account.id}
               className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
@@ -314,6 +383,11 @@ export function AccountsPage() {
               )}
             </div>
           ))}
+          {visibleAccounts.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No accounts found.
+            </p>
+          ) : null}
         </div>
       </Card>
     </div>

@@ -1,10 +1,11 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { Category } from "../types/api";
 
@@ -20,17 +21,58 @@ export function CategoriesPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<CategoryType>("expense");
   const [editColor, setEditColor] = useState("#176b52");
-  const [showArchived, setShowArchived] = useState(false);
+  const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
+    "active"
+  );
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories", showArchived],
+    queryKey: ["categories", archiveMode],
     queryFn: async () =>
       (
         await apiRequest<{ categories: Category[] }>("/categories", {
-          query: { includeArchived: showArchived ? "true" : undefined }
+          query: {
+            includeArchived: archiveMode === "archived" ? "true" : undefined
+          }
         })
       ).categories
   });
+
+  const visibleCategories = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const direction = sortDirection === "asc" ? 1 : -1;
+
+    return [...(categoriesQuery.data ?? [])]
+      .filter((category) =>
+        archiveMode === "archived" ? category.isArchived : !category.isArchived
+      )
+      .filter((category) => (typeFilter ? category.type === typeFilter : true))
+      .filter((category) => {
+        if (!normalizedSearch) return true;
+        return [category.name, category.type].some((value) =>
+          value.toLowerCase().includes(normalizedSearch)
+        );
+      })
+      .sort((left, right) => {
+        if (sortBy === "createdAt" || sortBy === "updatedAt") {
+          return (
+            (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
+          );
+        }
+
+        return left.name.localeCompare(right.name) * direction;
+      });
+  }, [
+    archiveMode,
+    categoriesQuery.data,
+    search,
+    sortBy,
+    sortDirection,
+    typeFilter
+  ]);
 
   const createCategory = useMutation({
     mutationFn: () =>
@@ -204,19 +246,46 @@ export function CategoriesPage() {
         )}
       </Card>
       <Card>
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <h2 className="text-lg font-semibold">Categories</h2>
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(event) => setShowArchived(event.target.checked)}
-            />
-            Show archived
-          </label>
+        <h2 className="text-lg font-semibold">Categories</h2>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={search}
+            searchPlaceholder="Search categories"
+            onSearchChange={setSearch}
+            filters={[
+              {
+                id: "type",
+                label: "Type",
+                value: typeFilter,
+                onChange: setTypeFilter,
+                options: [
+                  { label: "All types", value: "" },
+                  ...CATEGORY_TYPES.map((item) => ({
+                    label: item,
+                    value: item
+                  }))
+                ]
+              }
+            ]}
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Name", value: "name" },
+                { label: "Created date", value: "createdAt" },
+                { label: "Updated date", value: "updatedAt" }
+              ]
+            }}
+            archiveToggle={{
+              value: archiveMode,
+              onChange: setArchiveMode
+            }}
+          />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {(categoriesQuery.data ?? []).map((category) => (
+          {visibleCategories.map((category) => (
             <div
               key={category.id}
               className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
@@ -324,6 +393,11 @@ export function CategoriesPage() {
               )}
             </div>
           ))}
+          {visibleCategories.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No categories found.
+            </p>
+          ) : null}
         </div>
       </Card>
     </div>
