@@ -137,6 +137,12 @@ export function TransactionsPage() {
     });
   }, [sortBy, sortDirection, transactionsQuery.data]);
   const selectedGroupCategories = selectedGroup?.categories ?? [];
+  const categoryOptions = form.groupId
+    ? selectedGroupCategories
+    : categoriesQuery.data ?? [];
+  const selectedCategoryId = form.groupId
+    ? form.groupCategoryId
+    : form.categoryId;
   const participantShareTotal = participants.reduce(
     (sum, participant) => sum + Number(participant.shareAmount || 0),
     0
@@ -153,9 +159,9 @@ export function TransactionsPage() {
         type: form.type,
         date: form.date,
         accountId: form.accountId || null,
-        categoryId: form.categoryId || null,
+        categoryId: form.groupId ? null : form.categoryId || null,
         groupId: form.groupId || null,
-        groupCategoryId: form.groupCategoryId || null,
+        groupCategoryId: form.groupId ? form.groupCategoryId || null : null,
         notes: form.notes || null,
         ...(!form.id && form.isShared
           ? {
@@ -391,13 +397,26 @@ export function TransactionsPage() {
               </SelectField>
               <SelectField
                 label="Category"
-                value={form.categoryId}
-                onChange={(event) =>
-                  setForm({ ...form, categoryId: event.target.value })
-                }
+                value={selectedCategoryId}
+                onChange={(event) => {
+                  const categoryId = event.target.value;
+                  setForm(
+                    form.groupId
+                      ? {
+                          ...form,
+                          categoryId: "",
+                          groupCategoryId: categoryId
+                        }
+                      : {
+                          ...form,
+                          categoryId,
+                          groupCategoryId: ""
+                        }
+                  );
+                }}
               >
                 <option value="">None</option>
-                {(categoriesQuery.data ?? []).map((category) => (
+                {categoryOptions.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
@@ -414,6 +433,7 @@ export function TransactionsPage() {
                   setForm({
                     ...form,
                     groupId,
+                    categoryId: groupId ? "" : form.categoryId,
                     groupCategoryId: "",
                     isShared: groupId
                       ? form.isShared || !form.id
@@ -428,21 +448,6 @@ export function TransactionsPage() {
                 {(groupsQuery.data ?? []).map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Group category"
-                value={form.groupCategoryId}
-                onChange={(event) =>
-                  setForm({ ...form, groupCategoryId: event.target.value })
-                }
-                disabled={!form.groupId}
-              >
-                <option value="">None</option>
-                {selectedGroupCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
                   </option>
                 ))}
               </SelectField>
