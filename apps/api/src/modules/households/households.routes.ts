@@ -9,6 +9,7 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import { createNotifications } from "../notifications/notifications.service.js";
 import { getHouseholdAdmin, getHouseholdMembership } from "./households.service.js";
 
 export const householdsRouter = Router();
@@ -115,13 +116,33 @@ householdsRouter.post(
       throw new HttpError(409, "User is already a household member");
     }
 
-    const member = await prisma.householdMember.create({
-      data: {
-        householdId,
-        userId: req.body.userId,
-        role: "member"
-      },
-      include: { user: { select: { id: true, name: true, email: true } } }
+    const member = await prisma.$transaction(async (tx) => {
+      const household = await tx.household.findUnique({
+        where: { id: householdId },
+        select: { id: true, name: true }
+      });
+      if (!household) throw notFound("Household");
+
+      const createdMember = await tx.householdMember.create({
+        data: {
+          householdId,
+          userId: req.body.userId,
+          role: "member"
+        },
+        include: { user: { select: { id: true, name: true, email: true } } }
+      });
+
+      await createNotifications(tx, [
+        {
+          userId: req.body.userId,
+          type: "household_member_added",
+          title: "Added to household",
+          message: `You were added to ${household.name}.`,
+          metadata: { householdId: household.id }
+        }
+      ]);
+
+      return createdMember;
     });
 
     res.status(201).json({ member: serialize(member) });

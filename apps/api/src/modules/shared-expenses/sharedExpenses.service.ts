@@ -2,6 +2,8 @@ import type { SharedExpenseInput } from "@flowledger/shared";
 import type { Prisma, Transaction } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { HttpError } from "../../utils/httpError.js";
+import { createNotifications, moneyText } from "../notifications/notifications.service.js";
+import { getDebtDirection } from "../debts/debtDirection.js";
 
 type ParticipantInput = NonNullable<SharedExpenseInput["participants"]>[number];
 
@@ -100,7 +102,7 @@ export async function createSharedExpenseForTransaction(
   );
   validateSharedExpenseParticipants(transaction.amount, participants);
 
-  return tx.sharedExpense.create({
+  const sharedExpense = await tx.sharedExpense.create({
     data: {
       transactionId: transaction.id,
       title: input.title || transaction.name,
@@ -111,4 +113,83 @@ export async function createSharedExpenseForTransaction(
     },
     include: { transaction: true, participants: true }
   });
+
+  await notifySharedExpenseParticipants(tx, ownerUserId, sharedExpense, sharedExpense.participants);
+
+  return sharedExpense;
+}
+
+export async function notifySharedExpenseParticipants(
+  tx: Prisma.TransactionClient,
+  ownerUserId: string,
+  sharedExpense: {
+    id: string;
+    title: string;
+    transactionId: string;
+    transaction: { type: "income" | "expense" | "transfer" };
+  },
+  participants: {
+    id: string;
+    userId: string | null;
+    participantName: string;
+    shareAmount: Prisma.Decimal;
+  }[]
+) {
+  const notifications = participants.flatMap((participant) => {
+    if (!participant.userId) return [];
+
+    const direction = getDebtDirection({
+      userId: participant.userId,
+      sharedExpense: {
+        ownerUserId,
+        transaction: sharedExpense.transaction
+      }
+    });
+
+    const metadata = {
+      sharedExpenseId: sharedExpense.id,
+      transactionId: sharedExpense.transactionId,
+      participantId: participant.id
+    };
+    const base = [
+      {
+        userId: participant.userId,
+        type: "shared_expense_added" as const,
+        title: "Added to shared expense",
+        message: `You were added to ${sharedExpense.title}.`,
+        metadata
+      }
+    ];
+
+    if (!direction?.debtorUserId || !direction.creditorUserId) {
+      return base;
+    }
+
+    const amount = moneyText(participant.shareAmount);
+    return [
+      ...base,
+      {
+        userId: direction.debtorUserId,
+        type: "debt_owes_money" as const,
+        title: "You owe money",
+        message:
+          direction.debtorUserId === participant.userId
+            ? `You owe ${amount} for ${sharedExpense.title}.`
+            : `You owe ${participant.participantName} ${amount} for ${sharedExpense.title}.`,
+        metadata
+      },
+      {
+        userId: direction.creditorUserId,
+        type: "debt_owed_money" as const,
+        title: "You are owed money",
+        message:
+          direction.creditorUserId === participant.userId
+            ? `You are owed ${amount} for ${sharedExpense.title}.`
+            : `${participant.participantName} owes you ${amount} for ${sharedExpense.title}.`,
+        metadata
+      }
+    ];
+  });
+
+  await createNotifications(tx, notifications);
 }

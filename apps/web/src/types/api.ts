@@ -2,6 +2,7 @@ import type {
   AccountType,
   CategoryType,
   HouseholdRole,
+  NotificationType,
   ParticipantStatus,
   PlanType,
   SettlementStatus,
@@ -131,6 +132,18 @@ export type SharedExpense = {
   status: SharedExpenseStatus;
   transaction?: Transaction;
   participants: SharedExpenseParticipant[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Notification = {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  readAt?: string | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -6,6 +6,7 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import { createNotifications, moneyText } from "../notifications/notifications.service.js";
 import {
   getDebtDirection,
   isDebtRelevantToUser,
@@ -226,6 +227,22 @@ debtsRouter.post(
       }
     });
 
+    await createNotifications(prisma, [
+      {
+        userId: settlementRequest.creditorUserId,
+        type: "settlement_requested",
+        title: "Settlement requested",
+        message: `${settlementRequest.debtor.name} requested settlement of ${moneyText(
+          settlementRequest.amount
+        )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
+        metadata: {
+          settlementRequestId: settlementRequest.id,
+          sharedExpenseId: settlementRequest.sharedExpenseParticipant.sharedExpenseId,
+          participantId: settlementRequest.sharedExpenseParticipantId
+        }
+      }
+    ]);
+
     res.status(201).json({ settlementRequest: serialize(settlementRequest) });
   })
 );
@@ -267,6 +284,31 @@ debtsRouter.post(
         },
         data: { status: "approved", approvedAt: new Date() }
       });
+
+      if (direction.debtorUserId) {
+        await createNotifications(tx, [
+          {
+            userId: direction.debtorUserId,
+            type: "settlement_approved",
+            title: "Settlement approved",
+            message: `Your settlement for ${debt.sharedExpense.title} was approved.`,
+            metadata: {
+              sharedExpenseId: debt.sharedExpenseId,
+              participantId: debt.id
+            }
+          },
+          {
+            userId: direction.debtorUserId,
+            type: "settlement_payment_registration_needed",
+            title: "Register settlement payment",
+            message: `Your settlement for ${debt.sharedExpense.title} was approved. Register the payment as a transaction when ready.`,
+            metadata: {
+              sharedExpenseId: debt.sharedExpenseId,
+              participantId: debt.id
+            }
+          }
+        ]);
+      }
 
       return { debt: updatedDebt };
     });
@@ -346,6 +388,35 @@ settlementsRouter.post(
         }
       });
 
+      await createNotifications(tx, [
+        {
+          userId: approvedRequest.debtorUserId,
+          type: "settlement_approved",
+          title: "Settlement approved",
+          message: `${approvedRequest.creditor.name} approved your ${moneyText(
+            approvedRequest.amount
+          )} settlement for ${approvedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
+          metadata: {
+            settlementRequestId: approvedRequest.id,
+            sharedExpenseId: approvedRequest.sharedExpenseParticipant.sharedExpenseId,
+            participantId: approvedRequest.sharedExpenseParticipantId
+          }
+        },
+        {
+          userId: approvedRequest.debtorUserId,
+          type: "settlement_payment_registration_needed",
+          title: "Register settlement payment",
+          message: `Register the approved ${moneyText(
+            approvedRequest.amount
+          )} settlement payment as a transaction when ready.`,
+          metadata: {
+            settlementRequestId: approvedRequest.id,
+            sharedExpenseId: approvedRequest.sharedExpenseParticipant.sharedExpenseId,
+            participantId: approvedRequest.sharedExpenseParticipantId
+          }
+        }
+      ]);
+
       return { settlementRequest: approvedRequest, debt: updatedDebt };
     });
 
@@ -385,6 +456,22 @@ settlementsRouter.post(
         }
       }
     });
+
+    await createNotifications(prisma, [
+      {
+        userId: rejectedRequest.debtorUserId,
+        type: "settlement_rejected",
+        title: "Settlement rejected",
+        message: `${rejectedRequest.creditor.name} rejected your ${moneyText(
+          rejectedRequest.amount
+        )} settlement for ${rejectedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
+        metadata: {
+          settlementRequestId: rejectedRequest.id,
+          sharedExpenseId: rejectedRequest.sharedExpenseParticipant.sharedExpenseId,
+          participantId: rejectedRequest.sharedExpenseParticipantId
+        }
+      }
+    ]);
 
     res.json({ settlementRequest: serialize(rejectedRequest) });
   })
