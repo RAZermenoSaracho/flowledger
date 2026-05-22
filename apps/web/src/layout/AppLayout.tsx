@@ -9,6 +9,10 @@ import { apiRequest, tokenStore } from "../services/api";
 import type { User } from "../types/api";
 import { Button } from "../components/Button";
 
+type MobileSidebarSide = "left" | "right";
+
+const mobileSidebarSideKey = "flowledger.mobileSidebarSide";
+
 const navItems = [
   ["Dashboard", routes.dashboard],
   ["Transactions", routes.transactions],
@@ -28,6 +32,11 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileSidebarSide, setMobileSidebarSide] = useState<MobileSidebarSide>(() => {
+    if (typeof window === "undefined") return "left";
+
+    return window.localStorage.getItem(mobileSidebarSideKey) === "right" ? "right" : "left";
+  });
 
   useQuery({
     queryKey: ["me"],
@@ -44,14 +53,33 @@ export function AppLayout() {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    window.localStorage.setItem(mobileSidebarSideKey, mobileSidebarSide);
+  }, [mobileSidebarSide]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMobileMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isMobileMenuOpen]);
+
   const logout = () => {
     setIsMobileMenuOpen(false);
     auth.logout();
     navigate(routes.login);
   };
 
+  const toggleMobileSidebarSide = () => {
+    setMobileSidebarSide((side) => (side === "left" ? "right" : "left"));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 lg:flex">
+    <div className="min-h-screen bg-slate-50 pb-20 dark:bg-slate-950 lg:flex lg:pb-0">
       <aside className="hidden h-screen w-72 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-0 lg:flex lg:flex-col">
         <div className="border-b border-slate-200 px-6 py-5 dark:border-slate-800">
           <BrandLink />
@@ -88,71 +116,194 @@ export function AppLayout() {
       <div className="min-w-0 flex-1">
         <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:hidden">
           <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-            <div className="flex items-center justify-between gap-4">
-              <BrandLink />
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-slate-200 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950 lg:hidden"
-                aria-controls="mobile-navigation"
-                aria-expanded={isMobileMenuOpen}
-                aria-label="Toggle navigation menu"
-                onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
-              >
-                <span aria-hidden="true" className="grid gap-1">
-                  <span className="block h-0.5 w-5 rounded bg-current" />
-                  <span className="block h-0.5 w-5 rounded bg-current" />
-                  <span className="block h-0.5 w-5 rounded bg-current" />
-                </span>
-                Menu
-              </button>
-            </div>
-
-            <nav
-              id="mobile-navigation"
-              className={`${isMobileMenuOpen ? "grid" : "hidden"} mt-4 gap-2 border-t border-slate-200 pt-4 dark:border-slate-800 lg:hidden`}
-              aria-label="Mobile navigation"
-            >
-              <PrimaryNavLinks items={mobileNavItems} onNavigate={() => setIsMobileMenuOpen(false)} />
-              {auth.user ? (
-                <NavLink
-                  to={routes.profile}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `rounded-md px-3 py-2 text-sm font-semibold ${
-                      isActive
-                        ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
-                        : "text-pine hover:bg-slate-100 dark:text-emerald-300 dark:hover:bg-slate-800"
-                    }`
-                  }
-                >
-                  {auth.user.name}
-                </NavLink>
-              ) : null}
-              <ThemeSelector preference={preference} setPreference={setPreference} />
-              <Button variant="secondary" onClick={logout} className="justify-self-start">
-                Sign out
-              </Button>
-            </nav>
+            <BrandLink />
           </div>
         </header>
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
+
+      <MobileSidebarDrawer
+        authUserName={auth.user?.name}
+        isOpen={isMobileMenuOpen}
+        items={mobileNavItems}
+        onClose={() => setIsMobileMenuOpen(false)}
+        onLogout={logout}
+        preference={preference}
+        setPreference={setPreference}
+        side={mobileSidebarSide}
+      />
+
+      <MobileBottomNav
+        isDrawerOpen={isMobileMenuOpen}
+        onNavigate={() => setIsMobileMenuOpen(false)}
+        onLogout={logout}
+        onToggleDrawer={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+        onToggleSide={toggleMobileSidebarSide}
+        side={mobileSidebarSide}
+      />
     </div>
   );
 }
 
-function BrandLink() {
+function BrandLink({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <Link
       to={routes.dashboard}
+      onClick={onNavigate}
       className="inline-block rounded-md focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:focus:ring-offset-slate-950"
       aria-label="Go to Dashboard"
     >
       <h1 className="text-xl font-bold text-ink dark:text-slate-100">FlowLedger</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">Personal finance workspace</p>
     </Link>
+  );
+}
+
+function MobileSidebarDrawer({
+  authUserName,
+  isOpen,
+  items,
+  onClose,
+  onLogout,
+  preference,
+  setPreference,
+  side
+}: {
+  authUserName?: string;
+  isOpen: boolean;
+  items: readonly (readonly [string, string])[];
+  onClose: () => void;
+  onLogout: () => void;
+  preference: ThemePreference;
+  setPreference: (preference: ThemePreference) => void;
+  side: MobileSidebarSide;
+}) {
+  const sideClasses = side === "left" ? "left-0" : "right-0";
+  const borderClasses = side === "left" ? "border-r" : "border-l";
+  const closedTransform = side === "left" ? "-translate-x-full" : "translate-x-full";
+
+  return (
+    <div className={`${isOpen ? "block" : "hidden"} lg:hidden`}>
+      <button
+        type="button"
+        className="fixed inset-x-0 bottom-20 top-0 z-30 cursor-default bg-slate-950/40"
+        aria-label="Close sidebar"
+        onClick={onClose}
+      />
+      <aside
+        id="mobile-sidebar"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-sidebar-title"
+        className={`fixed bottom-20 top-0 z-40 flex w-[min(20rem,calc(100vw-2rem))] ${sideClasses} ${borderClasses} border-slate-200 bg-white shadow-xl transition-transform dark:border-slate-800 dark:bg-slate-900 ${
+          isOpen ? "translate-x-0" : closedTransform
+        }`}
+      >
+        <div className="flex min-h-0 w-full flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800">
+            <div id="mobile-sidebar-title">
+              <BrandLink onNavigate={onClose} />
+            </div>
+            <button
+              type="button"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+
+          <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5" aria-label="Mobile full navigation">
+            <PrimaryNavLinks items={items} onNavigate={onClose} />
+            {authUserName ? (
+              <NavLink
+                to={routes.profile}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `mt-2 block rounded-md px-3 py-2 text-sm font-semibold ${
+                    isActive
+                      ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                      : "text-pine hover:bg-slate-100 dark:text-emerald-300 dark:hover:bg-slate-800"
+                  }`
+                }
+              >
+                {authUserName}
+              </NavLink>
+            ) : null}
+          </nav>
+
+          <div className="grid gap-3 border-t border-slate-200 p-4 dark:border-slate-800">
+            <ThemeSelector preference={preference} setPreference={setPreference} />
+            <Button variant="secondary" onClick={onLogout} className="w-full">
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function MobileBottomNav({
+  isDrawerOpen,
+  onNavigate,
+  onLogout,
+  onToggleDrawer,
+  onToggleSide,
+  side
+}: {
+  isDrawerOpen: boolean;
+  onNavigate: () => void;
+  onLogout: () => void;
+  onToggleDrawer: () => void;
+  onToggleSide: () => void;
+  side: MobileSidebarSide;
+}) {
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-lg shadow-slate-950/10 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+      aria-label="Mobile primary actions"
+    >
+      <NavLink
+        to={routes.dashboard}
+        onClick={onNavigate}
+        className={({ isActive }) =>
+          `mx-1 flex min-h-12 flex-col items-center justify-center rounded-md px-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:focus:ring-offset-slate-950 ${
+            isActive
+              ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+              : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          }`
+        }
+      >
+        Dashboard
+      </NavLink>
+      <button
+        type="button"
+        className="mx-1 flex min-h-12 flex-col items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+        onClick={onLogout}
+      >
+        Sign out
+      </button>
+      <button
+        type="button"
+        className="mx-1 flex min-h-12 flex-col items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+        aria-label={`Open sidebar from the ${side === "left" ? "right" : "left"} side`}
+        onClick={onToggleSide}
+      >
+        {side === "left" ? "Left side" : "Right side"}
+      </button>
+      <button
+        type="button"
+        className="mx-1 flex min-h-12 flex-col items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
+        aria-controls="mobile-sidebar"
+        aria-expanded={isDrawerOpen}
+        onClick={onToggleDrawer}
+      >
+        {isDrawerOpen ? "Close menu" : "Open menu"}
+      </button>
+    </nav>
   );
 }
 
