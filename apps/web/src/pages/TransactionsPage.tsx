@@ -8,6 +8,7 @@ import { SelectField, TextArea, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 import type {
   Account,
   Category,
@@ -124,20 +125,15 @@ export function TransactionsPage() {
     (group) => group.id === form.groupId
   );
   const visibleTransactions = useMemo(() => {
-    const direction = sortDirection === "asc" ? 1 : -1;
-
-    return [...(transactionsQuery.data ?? [])].sort((left, right) => {
-      if (sortBy === "date" || sortBy === "createdAt") {
-        return (
-          (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
-        );
+    return applyCollectionControls(transactionsQuery.data ?? [], {
+      sortBy,
+      sortDirection,
+      sorters: {
+        date: (transaction) => dateSortValue(transaction.date),
+        createdAt: (transaction) => dateSortValue(transaction.createdAt),
+        name: (transaction) => transaction.name,
+        amount: (transaction) => transaction.amount
       }
-
-      if (sortBy === "amount") {
-        return (left.amount - right.amount) * direction;
-      }
-
-      return left.name.localeCompare(right.name) * direction;
     });
   }, [sortBy, sortDirection, transactionsQuery.data]);
   const selectedGroupCategories = selectedGroup?.categories ?? [];

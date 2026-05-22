@@ -8,6 +8,7 @@ import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { Category } from "../types/api";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
@@ -42,29 +43,24 @@ export function CategoriesPage() {
   });
 
   const visibleCategories = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    const direction = sortDirection === "asc" ? 1 : -1;
-
-    return [...(categoriesQuery.data ?? [])]
-      .filter((category) =>
-        archiveMode === "archived" ? category.isArchived : !category.isArchived
-      )
-      .filter((category) => (typeFilter ? category.type === typeFilter : true))
-      .filter((category) => {
-        if (!normalizedSearch) return true;
-        return [category.name, category.type].some((value) =>
-          value.toLowerCase().includes(normalizedSearch)
-        );
-      })
-      .sort((left, right) => {
-        if (sortBy === "createdAt" || sortBy === "updatedAt") {
-          return (
-            (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
-          );
-        }
-
-        return left.name.localeCompare(right.name) * direction;
-      });
+    return applyCollectionControls(categoriesQuery.data ?? [], {
+      search,
+      searchFields: (category) => [category.name, category.type],
+      filters: [
+        (category) =>
+          archiveMode === "archived"
+            ? category.isArchived
+            : !category.isArchived,
+        (category) => (typeFilter ? category.type === typeFilter : true)
+      ],
+      sortBy,
+      sortDirection,
+      sorters: {
+        name: (category) => category.name,
+        createdAt: (category) => dateSortValue(category.createdAt),
+        updatedAt: (category) => dateSortValue(category.updatedAt)
+      }
+    });
   }, [
     archiveMode,
     categoriesQuery.data,

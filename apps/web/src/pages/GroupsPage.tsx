@@ -9,6 +9,7 @@ import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { Group, PublicUser } from "../types/api";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -95,29 +96,21 @@ export function GroupsPage() {
     selectedGroupQuery.data ??
     (groupsQuery.data ?? []).find((group) => group.id === selectedGroupId);
   const visibleGroups = useMemo(() => {
-    const normalizedSearch = groupSearch.trim().toLowerCase();
-    const direction = groupSortDirection === "asc" ? 1 : -1;
-
-    return [...(groupsQuery.data ?? [])]
-      .filter((group) =>
-        groupArchiveMode === "archived" ? group.isArchived : !group.isArchived
-      )
-      .filter((group) => {
-        if (!normalizedSearch) return true;
-        return [group.name, group.description ?? ""].some((value) =>
-          value.toLowerCase().includes(normalizedSearch)
-        );
-      })
-      .sort((left, right) => {
-        if (groupSortBy === "createdAt" || groupSortBy === "updatedAt") {
-          return (
-            (Date.parse(left[groupSortBy]) - Date.parse(right[groupSortBy])) *
-            direction
-          );
-        }
-
-        return left.name.localeCompare(right.name) * direction;
-      });
+    return applyCollectionControls(groupsQuery.data ?? [], {
+      search: groupSearch,
+      searchFields: (group) => [group.name, group.description],
+      filters: [
+        (group) =>
+          groupArchiveMode === "archived" ? group.isArchived : !group.isArchived
+      ],
+      sortBy: groupSortBy,
+      sortDirection: groupSortDirection,
+      sorters: {
+        name: (group) => group.name,
+        createdAt: (group) => dateSortValue(group.createdAt),
+        updatedAt: (group) => dateSortValue(group.updatedAt)
+      }
+    });
   }, [
     groupArchiveMode,
     groupSearch,
@@ -126,35 +119,25 @@ export function GroupsPage() {
     groupsQuery.data
   ]);
   const visibleGroupCategories = useMemo(() => {
-    const normalizedSearch = categorySearch.trim().toLowerCase();
-    const direction = categorySortDirection === "asc" ? 1 : -1;
-
-    return [...(selectedGroup?.categories ?? [])]
-      .filter((category) =>
-        categoryArchiveMode === "archived"
-          ? category.isArchived
-          : !category.isArchived
-      )
-      .filter((category) =>
-        categoryTypeFilter ? category.type === categoryTypeFilter : true
-      )
-      .filter((category) => {
-        if (!normalizedSearch) return true;
-        return [category.name, category.type].some((value) =>
-          value.toLowerCase().includes(normalizedSearch)
-        );
-      })
-      .sort((left, right) => {
-        if (categorySortBy === "createdAt" || categorySortBy === "updatedAt") {
-          return (
-            (Date.parse(left[categorySortBy]) -
-              Date.parse(right[categorySortBy])) *
-            direction
-          );
-        }
-
-        return left.name.localeCompare(right.name) * direction;
-      });
+    return applyCollectionControls(selectedGroup?.categories ?? [], {
+      search: categorySearch,
+      searchFields: (category) => [category.name, category.type],
+      filters: [
+        (category) =>
+          categoryArchiveMode === "archived"
+            ? category.isArchived
+            : !category.isArchived,
+        (category) =>
+          categoryTypeFilter ? category.type === categoryTypeFilter : true
+      ],
+      sortBy: categorySortBy,
+      sortDirection: categorySortDirection,
+      sorters: {
+        name: (category) => category.name,
+        createdAt: (category) => dateSortValue(category.createdAt),
+        updatedAt: (category) => dateSortValue(category.updatedAt)
+      }
+    });
   }, [
     categoryArchiveMode,
     categorySearch,

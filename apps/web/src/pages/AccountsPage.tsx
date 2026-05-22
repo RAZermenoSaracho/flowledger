@@ -8,6 +8,7 @@ import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { Account } from "../types/api";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 export function AccountsPage() {
   const queryClient = useQueryClient();
@@ -40,29 +41,26 @@ export function AccountsPage() {
   });
 
   const visibleAccounts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    const direction = sortDirection === "asc" ? 1 : -1;
-
-    return [...(accountsQuery.data ?? [])]
-      .filter((account) =>
-        archiveMode === "archived" ? account.isArchived : !account.isArchived
-      )
-      .filter((account) => (typeFilter ? account.type === typeFilter : true))
-      .filter((account) => {
-        if (!normalizedSearch) return true;
-        return [account.name, account.type, account.identifier ?? ""].some(
-          (value) => value.toLowerCase().includes(normalizedSearch)
-        );
-      })
-      .sort((left, right) => {
-        if (sortBy === "createdAt" || sortBy === "updatedAt") {
-          return (
-            (Date.parse(left[sortBy]) - Date.parse(right[sortBy])) * direction
-          );
-        }
-
-        return left.name.localeCompare(right.name) * direction;
-      });
+    return applyCollectionControls(accountsQuery.data ?? [], {
+      search,
+      searchFields: (account) => [
+        account.name,
+        account.type,
+        account.identifier
+      ],
+      filters: [
+        (account) =>
+          archiveMode === "archived" ? account.isArchived : !account.isArchived,
+        (account) => (typeFilter ? account.type === typeFilter : true)
+      ],
+      sortBy,
+      sortDirection,
+      sorters: {
+        name: (account) => account.name,
+        createdAt: (account) => dateSortValue(account.createdAt),
+        updatedAt: (account) => dateSortValue(account.updatedAt)
+      }
+    });
   }, [
     accountsQuery.data,
     archiveMode,

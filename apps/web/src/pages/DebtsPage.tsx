@@ -8,6 +8,7 @@ import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { Account, Category, Debt, SettlementRequest } from "../types/api";
+import { matchesSearch } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -59,7 +60,10 @@ function readHiddenSettlementIds() {
 }
 
 function writeHiddenSettlementIds(ids: Set<string>) {
-  localStorage.setItem(REGISTERED_SETTLEMENTS_KEY, JSON.stringify(Array.from(ids)));
+  localStorage.setItem(
+    REGISTERED_SETTLEMENTS_KEY,
+    JSON.stringify(Array.from(ids))
+  );
 }
 
 function debtTitle(debt: Debt) {
@@ -72,16 +76,22 @@ function participantName(debt: Debt) {
 
 function partyName(debt: Debt, userId?: string | null) {
   if (!userId) return undefined;
-  if (userId === debt.sharedExpense.ownerUserId) return debt.sharedExpense.owner?.name;
+  if (userId === debt.sharedExpense.ownerUserId)
+    return debt.sharedExpense.owner?.name;
   if (userId === debt.userId) return participantName(debt);
-  if (!debt.userId && (userId === debt.debtorUserId || userId === debt.creditorUserId)) {
+  if (
+    !debt.userId &&
+    (userId === debt.debtorUserId || userId === debt.creditorUserId)
+  ) {
     return participantName(debt);
   }
   return undefined;
 }
 
 function transactionTypeLabel(debt: Debt) {
-  return debt.sharedExpense.transaction?.type === "income" ? "income split" : "expense split";
+  return debt.sharedExpense.transaction?.type === "income"
+    ? "income split"
+    : "expense split";
 }
 
 function debtDescription(debt: Debt, viewerUserId?: string) {
@@ -99,12 +109,6 @@ function statusLabel(debt: Debt) {
   if (debt.outstandingAmount <= 0) return "settled";
   if (debt.pendingSettlementAmount > 0) return "settlement pending";
   return debt.status;
-}
-
-function matchesSearch(parts: Array<string | number | null | undefined>, search: string) {
-  const query = search.trim().toLowerCase();
-  if (!query) return true;
-  return parts.some((part) => String(part ?? "").toLowerCase().includes(query));
 }
 
 function debtMatchesSearch(debt: Debt, search: string, viewerUserId?: string) {
@@ -127,7 +131,10 @@ function debtMatchesSearch(debt: Debt, search: string, viewerUserId?: string) {
   );
 }
 
-function settlementRequestMatchesSearch(request: SettlementRequest, search: string) {
+function settlementRequestMatchesSearch(
+  request: SettlementRequest,
+  search: string
+) {
   const debt = request.sharedExpenseParticipant;
   return matchesSearch(
     [
@@ -164,7 +171,9 @@ function DebtCard({
           </p>
         </div>
         <div className="text-left sm:text-right">
-          <p className="font-semibold">{money.format(debt.outstandingAmount)}</p>
+          <p className="font-semibold">
+            {money.format(debt.outstandingAmount)}
+          </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {statusLabel(debt)}
           </p>
@@ -176,7 +185,9 @@ function DebtCard({
 }
 
 function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="text-sm text-slate-500 dark:text-slate-400">{children}</p>;
+  return (
+    <p className="text-sm text-slate-500 dark:text-slate-400">{children}</p>
+  );
 }
 
 export function DebtsPage() {
@@ -186,7 +197,9 @@ export function DebtsPage() {
   const [registrationDrafts, setRegistrationDrafts] = useState<
     Record<string, RegistrationDraft>
   >({});
-  const [hiddenSettlementIds, setHiddenSettlementIds] = useState(readHiddenSettlementIds);
+  const [hiddenSettlementIds, setHiddenSettlementIds] = useState(
+    readHiddenSettlementIds
+  );
   const [activeTab, setActiveTab] = useState<DebtsTab>("iOwe");
   const [iOweSearch, setIOweSearch] = useState("");
   const [owedToMeSearch, setOwedToMeSearch] = useState("");
@@ -200,23 +213,29 @@ export function DebtsPage() {
   });
   const accountsQuery = useQuery({
     queryKey: ["accounts"],
-    queryFn: async () => (await apiRequest<{ accounts: Account[] }>("/accounts")).accounts
+    queryFn: async () =>
+      (await apiRequest<{ accounts: Account[] }>("/accounts")).accounts
   });
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
-    queryFn: async () => (await apiRequest<{ categories: Category[] }>("/categories")).categories
+    queryFn: async () =>
+      (await apiRequest<{ categories: Category[] }>("/categories")).categories
   });
 
   const debts = debtsQuery.data;
   const expenseCategories = useMemo(
-    () => (categoriesQuery.data ?? []).filter((category) => category.type === "expense"),
+    () =>
+      (categoriesQuery.data ?? []).filter(
+        (category) => category.type === "expense"
+      ),
     [categoriesQuery.data]
   );
   const approvedForRegistration = useMemo(
     () =>
       (debts?.approvedSettlementRequests ?? []).filter(
         (request) =>
-          request.debtorUserId === auth.user?.id && !hiddenSettlementIds.has(request.id)
+          request.debtorUserId === auth.user?.id &&
+          !hiddenSettlementIds.has(request.id)
       ),
     [auth.user?.id, debts?.approvedSettlementRequests, hiddenSettlementIds]
   );
@@ -271,7 +290,13 @@ export function DebtsPage() {
   );
 
   const requestSettlement = useMutation({
-    mutationFn: ({ debtId, draft }: { debtId: string; draft: SettlementDraft }) =>
+    mutationFn: ({
+      debtId,
+      draft
+    }: {
+      debtId: string;
+      draft: SettlementDraft;
+    }) =>
       apiRequest(`/debts/${debtId}/settlement-request`, {
         method: "POST",
         body: {
@@ -324,7 +349,8 @@ export function DebtsPage() {
         method: "POST",
         body: {
           name: `Settlement: ${
-            request.sharedExpenseParticipant?.sharedExpense.title ?? "Shared expense"
+            request.sharedExpenseParticipant?.sharedExpense.title ??
+            "Shared expense"
           }`,
           amount: request.amount,
           type: "expense",
@@ -343,13 +369,19 @@ export function DebtsPage() {
   function draftFor(debt: Debt) {
     return (
       drafts[debt.id] ?? {
-        amount: String(Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount)),
+        amount: String(
+          Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount)
+        ),
         note: ""
       }
     );
   }
 
-  function updateDraft(debtId: string, field: keyof SettlementDraft, value: string) {
+  function updateDraft(
+    debtId: string,
+    field: keyof SettlementDraft,
+    value: string
+  ) {
     setDrafts((current) => ({
       ...current,
       [debtId]: {
@@ -400,10 +432,16 @@ export function DebtsPage() {
 
   async function submitSettlement(event: FormEvent, debt: Debt) {
     event.preventDefault();
-    await requestSettlement.mutateAsync({ debtId: debt.id, draft: draftFor(debt) });
+    await requestSettlement.mutateAsync({
+      debtId: debt.id,
+      draft: draftFor(debt)
+    });
   }
 
-  async function submitSettlementTransaction(event: FormEvent, request: SettlementRequest) {
+  async function submitSettlementTransaction(
+    event: FormEvent,
+    request: SettlementRequest
+  ) {
     event.preventDefault();
     await createSettlementTransaction.mutateAsync({
       request,
@@ -447,12 +485,19 @@ export function DebtsPage() {
           ) : (
             visibleIOwe.map((debt) => {
               const draft = draftFor(debt);
-              const availableAmount = debt.outstandingAmount - debt.pendingSettlementAmount;
+              const availableAmount =
+                debt.outstandingAmount - debt.pendingSettlementAmount;
 
               return (
-                <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id}>
+                <DebtCard
+                  key={debt.id}
+                  debt={debt}
+                  viewerUserId={auth.user?.id}
+                >
                   {availableAmount <= 0 ? (
-                    <EmptyState>A settlement request is waiting for approval.</EmptyState>
+                    <EmptyState>
+                      A settlement request is waiting for approval.
+                    </EmptyState>
                   ) : (
                     <form
                       className="grid gap-3 md:grid-cols-[minmax(0,12rem)_1fr_auto]"
@@ -465,17 +510,25 @@ export function DebtsPage() {
                         max={availableAmount}
                         step="0.01"
                         value={draft.amount}
-                        onChange={(event) => updateDraft(debt.id, "amount", event.target.value)}
+                        onChange={(event) =>
+                          updateDraft(debt.id, "amount", event.target.value)
+                        }
                         required
                       />
                       <TextArea
                         label="Note"
                         value={draft.note}
-                        onChange={(event) => updateDraft(debt.id, "note", event.target.value)}
+                        onChange={(event) =>
+                          updateDraft(debt.id, "note", event.target.value)
+                        }
                         placeholder="Optional"
                       />
                       <div className="flex items-end">
-                        <Button type="submit" className="w-full" disabled={isActing}>
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          disabled={isActing}
+                        >
                           Request settlement
                         </Button>
                       </div>
@@ -520,9 +573,15 @@ export function DebtsPage() {
             visibleOwedToMe.map((debt) => {
               const hasPendingRequest = debt.pendingSettlementAmount > 0;
               return (
-                <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id}>
+                <DebtCard
+                  key={debt.id}
+                  debt={debt}
+                  viewerUserId={auth.user?.id}
+                >
                   {hasPendingRequest ? (
-                    <EmptyState>Review the pending settlement request below.</EmptyState>
+                    <EmptyState>
+                      Review the pending settlement request below.
+                    </EmptyState>
                   ) : (
                     <div className="flex justify-start">
                       <Button
@@ -548,7 +607,9 @@ export function DebtsPage() {
       <Card>
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-lg font-semibold">Pending settlement requests</h2>
+            <h2 className="text-lg font-semibold">
+              Pending settlement requests
+            </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Review outgoing requests and approvals waiting on you.
             </p>
@@ -662,7 +723,11 @@ export function DebtsPage() {
             <EmptyState>No settled debts match your search.</EmptyState>
           ) : (
             visibleSettledDebts.map((debt) => (
-              <DebtCard key={debt.id} debt={debt} viewerUserId={auth.user?.id} />
+              <DebtCard
+                key={debt.id}
+                debt={debt}
+                viewerUserId={auth.user?.id}
+              />
             ))
           )}
         </div>
@@ -674,7 +739,9 @@ export function DebtsPage() {
     <div className="grid gap-6">
       {approvedForRegistration.length > 0 ? (
         <Card>
-          <h2 className="text-lg font-semibold">Register approved settlements</h2>
+          <h2 className="text-lg font-semibold">
+            Register approved settlements
+          </h2>
           <div className="mt-4 grid gap-3">
             {approvedForRegistration.map((request) => {
               const draft = registrationDraftFor(request);
@@ -690,7 +757,9 @@ export function DebtsPage() {
                   onChange={(field, value) =>
                     updateRegistrationDraft(request.id, field, value)
                   }
-                  onSubmit={(event) => submitSettlementTransaction(event, request)}
+                  onSubmit={(event) =>
+                    submitSettlementTransaction(event, request)
+                  }
                 />
               );
             })}
@@ -734,7 +803,9 @@ export function DebtsPage() {
       </div>
 
       {debtsQuery.isLoading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Loading debts...</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Loading debts...
+        </p>
       ) : null}
       {debtsQuery.isError ? (
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
@@ -773,12 +844,19 @@ function SettlementRegistrationCard({
     >
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
         <div>
-          <p className="font-semibold">{debt?.sharedExpense.title ?? "Approved settlement"}</p>
+          <p className="font-semibold">
+            {debt?.sharedExpense.title ?? "Approved settlement"}
+          </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Approved payment of {money.format(request.amount)}
           </p>
         </div>
-        <Button type="button" variant="secondary" disabled={disabled} onClick={onDismiss}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled}
+          onClick={onDismiss}
+        >
           Skip
         </Button>
       </div>
@@ -843,9 +921,12 @@ function SettlementRequestCard({
     <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
         <div>
-          <p className="font-semibold">{debt?.sharedExpense.title ?? "Settlement request"}</p>
+          <p className="font-semibold">
+            {debt?.sharedExpense.title ?? "Settlement request"}
+          </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {request.debtor?.name ?? "Debtor"} requested {money.format(request.amount)}
+            {request.debtor?.name ?? "Debtor"} requested{" "}
+            {money.format(request.amount)}
           </p>
         </div>
         <p className="text-sm font-semibold">{request.status}</p>
