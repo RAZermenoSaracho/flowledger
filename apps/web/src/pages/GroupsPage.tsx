@@ -852,7 +852,7 @@ export function GroupsPage() {
                       </p>
                     </div>
                     <p className="text-slate-500 dark:text-slate-400">
-                      {transaction.groupCategory?.name ?? "No group category"} ·{" "}
+                      {transaction.category?.name ?? "No group category"} ·{" "}
                       {new Date(transaction.date).toLocaleDateString()}
                     </p>
                   </div>

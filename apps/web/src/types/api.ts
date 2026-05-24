@@ -55,8 +55,6 @@ export type GroupMember = {
   updatedAt: string;
 };
 
-export type GroupCategory = Category & { groupId: string };
-
 export type Group = {
   id: string;
   name: string;
@@ -65,7 +63,7 @@ export type Group = {
   isArchived: boolean;
   archivedAt?: string | null;
   members: GroupMember[];
-  categories: GroupCategory[];
+  categories: Category[];
   transactions?: Transaction[];
   createdAt: string;
   updatedAt: string;
@@ -79,7 +77,6 @@ export type Transaction = {
   date: string;
   categoryId?: string | null;
   groupId?: string | null;
-  groupCategoryId?: string | null;
   accountId?: string | null;
   notes?: string | null;
   createdAt: string;
@@ -87,7 +84,6 @@ export type Transaction = {
   account?: Account | null;
   category?: Category | null;
   group?: Group | null;
-  groupCategory?: GroupCategory | null;
   sharedExpense?: SharedExpense | null;
 };
 

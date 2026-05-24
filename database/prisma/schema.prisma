@@ -100,19 +100,18 @@ model Account {
 }
 
 model Category {
-  id                String         @id @default(cuid())
-  groupId           String?
-  name              String
-  type              CategoryType
-  color             String?
-  isArchived        Boolean        @default(false)
-  archivedAt        DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  group             Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  users             CategoryUser[]
-  transactions      Transaction[]  @relation("TransactionCategory")
-  groupTransactions Transaction[]  @relation("TransactionGroupCategory")
+  id           String         @id @default(cuid())
+  groupId      String?
+  name         String
+  type         CategoryType
+  color        String?
+  isArchived   Boolean        @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  group        Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users        CategoryUser[]
+  transactions Transaction[]  @relation("TransactionCategory")
 
   @@index([groupId])
   @@index([groupId, isArchived])
@@ -139,7 +138,6 @@ model Transaction {
   date                      DateTime
   categoryId                String?
   groupId                   String?
-  groupCategoryId           String?
   accountId                 String?
   notes                     String?
   createdAt                 DateTime              @default(now())
@@ -147,7 +145,6 @@ model Transaction {
   user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   category                  Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   group                     Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  groupCategory             Category?             @relation("TransactionGroupCategory", fields: [groupCategoryId], references: [id], onDelete: SetNull)
   account                   Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
   relations                 TransactionRelation[] @relation("TransactionRelations")
   relatedBy                 TransactionRelation[] @relation("RelatedTransactionRelations")
@@ -158,7 +155,6 @@ model Transaction {
   @@index([userId, date])
   @@index([categoryId])
   @@index([groupId])
-  @@index([groupCategoryId])
   @@index([accountId])
 }
 

@@ -105,7 +105,7 @@ export function TransactionDetailPage() {
           <Detail label="Group" value={transaction.group?.name ?? "No group"} />
           <Detail
             label="Group category"
-            value={transaction.groupCategory?.name ?? "No group category"}
+            value={transaction.category?.name ?? "No group category"}
           />
           <Detail label="Notes" value={transaction.notes ?? "No notes"} />
         </dl>

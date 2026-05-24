@@ -31,7 +31,6 @@ type TransactionForm = {
   accountId: string;
   categoryId: string;
   groupId: string;
-  groupCategoryId: string;
   notes: string;
   isShared: boolean;
   sharedTitle: string;
@@ -54,7 +53,6 @@ const emptyForm: TransactionForm = {
   accountId: "",
   categoryId: "",
   groupId: "",
-  groupCategoryId: "",
   notes: "",
   isShared: false,
   sharedTitle: ""
@@ -74,7 +72,6 @@ export function TransactionsPage() {
     accountId: "",
     categoryId: "",
     groupId: "",
-    groupCategoryId: "",
     dateFrom: "",
     dateTo: ""
   });
@@ -144,9 +141,7 @@ export function TransactionsPage() {
   const categoryOptions = form.groupId
     ? selectedGroupCategories
     : (categoriesQuery.data ?? []);
-  const selectedCategoryId = form.groupId
-    ? form.groupCategoryId
-    : form.categoryId;
+  const selectedCategoryId = form.categoryId;
   const participantShareTotal = participants.reduce(
     (sum, participant) => sum + Number(participant.shareAmount || 0),
     0
@@ -163,9 +158,8 @@ export function TransactionsPage() {
         type: form.type,
         date: form.date,
         accountId: form.accountId || null,
-        categoryId: form.groupId ? null : form.categoryId || null,
+        categoryId: form.categoryId || null,
         groupId: form.groupId || null,
-        groupCategoryId: form.groupId ? form.groupCategoryId || null : null,
         notes: form.notes || null,
         ...(!form.id && form.isShared
           ? {
@@ -363,12 +357,12 @@ export function TransactionsPage() {
               <SelectField
                 label="Type"
                 value={form.type}
-                onChange={(event) =>
+                onChange={(event) => {
                   setForm({
                     ...form,
                     type: event.target.value as typeof form.type
-                  })
-                }
+                  });
+                }}
               >
                 {TRANSACTION_TYPES.map((item) => (
                   <option key={item} value={item}>
@@ -403,20 +397,10 @@ export function TransactionsPage() {
                 label="Category"
                 value={selectedCategoryId}
                 onChange={(event) => {
-                  const categoryId = event.target.value;
-                  setForm(
-                    form.groupId
-                      ? {
-                          ...form,
-                          categoryId: "",
-                          groupCategoryId: categoryId
-                        }
-                      : {
-                          ...form,
-                          categoryId,
-                          groupCategoryId: ""
-                        }
-                  );
+                  setForm({
+                    ...form,
+                    categoryId: event.target.value
+                  });
                 }}
               >
                 <option value="">None</option>
@@ -438,7 +422,6 @@ export function TransactionsPage() {
                     ...form,
                     groupId,
                     categoryId: groupId ? "" : form.categoryId,
-                    groupCategoryId: "",
                     isShared: groupId
                       ? form.isShared || !form.id
                       : form.isShared
@@ -777,7 +760,7 @@ export function TransactionsPage() {
                     setFilters({
                       ...filters,
                       groupId: event.target.value,
-                      groupCategoryId: ""
+                      categoryId: ""
                     })
                   }
                 >
@@ -790,11 +773,11 @@ export function TransactionsPage() {
                 </SelectField>
                 <SelectField
                   label="Group category"
-                  value={filters.groupCategoryId}
+                  value={filters.categoryId}
                   onChange={(event) =>
                     setFilters({
                       ...filters,
-                      groupCategoryId: event.target.value
+                      categoryId: event.target.value
                     })
                   }
                   disabled={!filters.groupId}
@@ -869,8 +852,8 @@ export function TransactionsPage() {
                       {transaction.account?.name ?? "No account"}
                       {transaction.group
                         ? ` · ${transaction.group.name}${
-                            transaction.groupCategory
-                              ? ` / ${transaction.groupCategory.name}`
+                            transaction.category
+                              ? ` / ${transaction.category.name}`
                               : ""
                           }`
                         : ""}
@@ -904,7 +887,6 @@ export function TransactionsPage() {
                           accountId: transaction.accountId ?? "",
                           categoryId: transaction.categoryId ?? "",
                           groupId: transaction.groupId ?? "",
-                          groupCategoryId: transaction.groupCategoryId ?? "",
                           notes: transaction.notes ?? "",
                           isShared: false,
                           sharedTitle: ""

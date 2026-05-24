@@ -153,7 +153,7 @@ groupsRouter.get(
         ...groupInclude(req.user!.id, includeArchivedCategories),
         transactions: {
           where: { userId: req.user!.id },
-          include: { account: true, category: true, groupCategory: true },
+          include: { account: true, category: true },
           orderBy: { date: "desc" },
           take: 25
         }

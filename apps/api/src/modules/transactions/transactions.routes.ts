@@ -8,7 +8,7 @@ import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import {
-  assertGroupCategory,
+  assertCategory,
   getGroupMembership
 } from "../groups/groups.service.js";
 import { createSharedExpenseForTransaction } from "../shared-expenses/sharedExpenses.service.js";
@@ -20,7 +20,7 @@ export const transactionsRouter = Router();
 
 async function assertOwnedRelations(
   userId: string,
-  input: { accountId?: string | null; categoryId?: string | null }
+  input: { accountId?: string | null; categoryId?: string | null; groupId?: string | null }
 ) {
   if (input.accountId) {
     const account = await prisma.account.findFirst({
@@ -30,7 +30,7 @@ async function assertOwnedRelations(
       throw new HttpError(400, "Account does not exist or is archived");
   }
 
-  if (input.categoryId) {
+  if (input.categoryId && !input.groupId) {
     const category = await prisma.category.findFirst({
       where: {
         id: input.categoryId,
@@ -46,7 +46,7 @@ async function assertOwnedRelations(
 
 async function assertGroupRelations(
   userId: string,
-  input: { groupId?: string | null; groupCategoryId?: string | null }
+  input: { groupId?: string | null; categoryId?: string | null }
 ) {
   if (input.groupId) {
     await getGroupMembership(userId, input.groupId);
@@ -56,7 +56,9 @@ async function assertGroupRelations(
     if (!group) throw new HttpError(400, "Group does not exist or is archived");
   }
 
-  await assertGroupCategory(userId, input.groupId, input.groupCategoryId);
+  if (input.groupId) {
+    await assertCategory(userId, input.groupId, input.categoryId);
+  }
 }
 
 transactionsRouter.get(
@@ -68,7 +70,6 @@ transactionsRouter.get(
       dateTo?: string;
       categoryId?: string;
       groupId?: string;
-      groupCategoryId?: string;
       accountId?: string;
       type?: "income" | "expense" | "transfer";
       search?: string;
@@ -78,9 +79,6 @@ transactionsRouter.get(
       userId: req.user!.id,
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
       ...(filters.groupId ? { groupId: filters.groupId } : {}),
-      ...(filters.groupCategoryId
-        ? { groupCategoryId: filters.groupCategoryId }
-        : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
       ...(filters.search
@@ -107,7 +105,6 @@ transactionsRouter.get(
         account: true,
         category: true,
         group: true,
-        groupCategory: true
       },
       orderBy: { date: "desc" }
     });
@@ -148,7 +145,6 @@ transactionsRouter.post(
           account: true,
           category: true,
           group: true,
-          groupCategory: true,
           sharedExpense: { include: { participants: true } }
         }
       });
@@ -167,7 +163,6 @@ transactionsRouter.get(
         account: true,
         category: true,
         group: true,
-        groupCategory: true,
         relations: { include: { relatedTransaction: true } },
         relatedBy: { include: { transaction: true } },
         sharedExpense: { include: { participants: true } }
@@ -192,10 +187,10 @@ transactionsRouter.put(
     await assertGroupRelations(req.user!.id, {
       groupId:
         req.body.groupId !== undefined ? req.body.groupId : existing.groupId,
-      groupCategoryId:
-        req.body.groupCategoryId !== undefined
-          ? req.body.groupCategoryId
-          : existing.groupCategoryId
+      categoryId:
+        req.body.categoryId !== undefined
+          ? req.body.categoryId
+          : existing.categoryId
     });
 
     const transaction = await prisma.$transaction(async (tx) => {
@@ -209,7 +204,6 @@ transactionsRouter.put(
           account: true,
           category: true,
           group: true,
-          groupCategory: true
         }
       });
 

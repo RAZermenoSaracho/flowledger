@@ -31,12 +31,12 @@ export async function getGroupAdmin(userId: string, groupId: string) {
   return member;
 }
 
-export async function assertGroupCategory(
+export async function assertCategory(
   userId: string,
   groupId?: string | null,
-  groupCategoryId?: string | null
+  categoryId?: string | null
 ) {
-  if (!groupCategoryId) return null;
+  if (!categoryId) return null;
   if (!groupId) {
     throw new HttpError(400, "Group category requires a group");
   }
@@ -45,7 +45,7 @@ export async function assertGroupCategory(
 
   const category = await prisma.category.findFirst({
     where: {
-      id: groupCategoryId,
+      id: categoryId,
       groupId,
       isArchived: false,
       group: { isArchived: false },
