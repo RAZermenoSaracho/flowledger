@@ -1,12 +1,14 @@
 import { SHARED_EXPENSE_STATUSES } from "@flowledger/shared";
 import type { SharedExpenseStatus } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { PublicUser, SharedExpense, Transaction } from "../types/api";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -33,8 +35,10 @@ function participantStatus(shareAmount: string, paidAmount: string) {
 }
 
 function splitDirectionLabel(sharedExpense: SharedExpense) {
-  if (sharedExpense.transaction?.type === "income") return "You owe participants";
-  if (sharedExpense.transaction?.type === "expense") return "Participants owe you";
+  if (sharedExpense.transaction?.type === "income")
+    return "You owe participants";
+  if (sharedExpense.transaction?.type === "expense")
+    return "Participants owe you";
   return "No debt direction";
 }
 
@@ -48,6 +52,10 @@ export function SharedExpensesPage() {
   const [userSearch, setUserSearch] = useState("");
   const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const trimmedUserSearch = userSearch.trim();
 
   const transactionsQuery = useQuery({
@@ -77,6 +85,35 @@ export function SharedExpensesPage() {
   });
   const selectedTransaction = (transactionsQuery.data ?? []).find(
     (transaction) => transaction.id === transactionId
+  );
+  const visibleSharedExpenses = useMemo(
+    () =>
+      applyCollectionControls(sharedExpensesQuery.data ?? [], {
+        search,
+        searchFields: (sharedExpense) => [
+          sharedExpense.title,
+          sharedExpense.status,
+          splitDirectionLabel(sharedExpense),
+          sharedExpense.transaction?.name,
+          ...sharedExpense.participants.map(
+            (participant) => participant.participantName
+          )
+        ],
+        filters: [
+          (sharedExpense) =>
+            statusFilter ? sharedExpense.status === statusFilter : true
+        ],
+        sortBy,
+        sortDirection,
+        sorters: {
+          title: (sharedExpense) => sharedExpense.title,
+          totalAmount: (sharedExpense) => sharedExpense.totalAmount,
+          status: (sharedExpense) => sharedExpense.status,
+          createdAt: (sharedExpense) => dateSortValue(sharedExpense.createdAt),
+          updatedAt: (sharedExpense) => dateSortValue(sharedExpense.updatedAt)
+        }
+      }),
+    [search, sharedExpensesQuery.data, sortBy, sortDirection, statusFilter]
   );
 
   const createSharedExpense = useMutation({
@@ -230,7 +267,8 @@ export function SharedExpensesPage() {
     setIsFormOpen(true);
   }
 
-  const isSaving = createSharedExpense.isPending || updateSharedExpense.isPending;
+  const isSaving =
+    createSharedExpense.isPending || updateSharedExpense.isPending;
 
   return (
     <div className="grid gap-6">
@@ -263,7 +301,8 @@ export function SharedExpensesPage() {
                 <option value="">Select transaction</option>
                 {(transactionsQuery.data ?? []).map((transaction) => (
                   <option key={transaction.id} value={transaction.id}>
-                    {transaction.name} · {transaction.type} · {money.format(transaction.amount)}
+                    {transaction.name} · {transaction.type} ·{" "}
+                    {money.format(transaction.amount)}
                   </option>
                 ))}
               </SelectField>
@@ -361,7 +400,9 @@ export function SharedExpensesPage() {
                     className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-2 xl:grid-cols-4"
                   >
                     <div className="text-sm">
-                      <p className="font-semibold">{participant.participantName}</p>
+                      <p className="font-semibold">
+                        {participant.participantName}
+                      </p>
                       <p className="text-slate-500 dark:text-slate-400">
                         {participant.source === "app"
                           ? `App user${participant.email ? ` · ${participant.email}` : ""}`
@@ -437,8 +478,43 @@ export function SharedExpensesPage() {
       </Card>
       <Card>
         <h2 className="text-lg font-semibold">Shared expenses</h2>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={search}
+            searchPlaceholder="Search shared expenses"
+            onSearchChange={setSearch}
+            filters={[
+              {
+                id: "status",
+                label: "Status",
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: [
+                  { label: "All statuses", value: "" },
+                  ...SHARED_EXPENSE_STATUSES.map((item) => ({
+                    label: item,
+                    value: item
+                  }))
+                ]
+              }
+            ]}
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Created date", value: "createdAt" },
+                { label: "Updated date", value: "updatedAt" },
+                { label: "Title", value: "title" },
+                { label: "Total amount", value: "totalAmount" },
+                { label: "Status", value: "status" }
+              ]
+            }}
+          />
+        </div>
         <div className="mt-4 grid gap-3">
-          {(sharedExpensesQuery.data ?? []).map((sharedExpense) => (
+          {visibleSharedExpenses.map((sharedExpense) => (
             <div
               key={sharedExpense.id}
               className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
@@ -447,7 +523,8 @@ export function SharedExpensesPage() {
                 <div>
                   <p className="font-semibold">{sharedExpense.title}</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {sharedExpense.status} · {splitDirectionLabel(sharedExpense)}
+                    {sharedExpense.status} ·{" "}
+                    {splitDirectionLabel(sharedExpense)}
                   </p>
                 </div>
                 <p className="font-semibold">
@@ -481,6 +558,11 @@ export function SharedExpensesPage() {
               </div>
             </div>
           ))}
+          {visibleSharedExpenses.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No shared expenses found.
+            </p>
+          ) : null}
         </div>
       </Card>
     </div>

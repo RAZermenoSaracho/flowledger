@@ -5,10 +5,9 @@ export const routes = {
   transactions: "/transactions",
   accounts: "/accounts",
   categories: "/categories",
-  households: "/households",
+  groups: "/groups",
   reports: "/reports",
   sharedExpenses: "/shared-expenses",
   debts: "/debts",
-  profile: "/profile",
-  editProfile: "/profile/edit"
+  profile: "/profile"
 } as const;

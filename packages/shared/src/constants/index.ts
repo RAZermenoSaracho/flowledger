@@ -1,8 +1,23 @@
 export const TRANSACTION_TYPES = ["income", "expense", "transfer"] as const;
 export const CATEGORY_TYPES = ["income", "expense"] as const;
-export const SHARED_EXPENSE_STATUSES = ["open", "settled", "cancelled"] as const;
+export const SHARED_EXPENSE_STATUSES = [
+  "open",
+  "settled",
+  "cancelled"
+] as const;
 export const PARTICIPANT_STATUSES = ["pending", "partial", "paid"] as const;
 export const SETTLEMENT_STATUSES = ["pending", "approved", "rejected"] as const;
+export const NOTIFICATION_TYPES = [
+  "group_member_added",
+  "shared_expense_added",
+  "debt_owes_money",
+  "debt_owed_money",
+  "settlement_requested",
+  "settlement_approved",
+  "settlement_rejected",
+  "settlement_payment_registration_needed"
+] as const;
+export const PLAN_TYPES = ["free", "flowledger_one"] as const;
 
 export const ACCOUNT_TYPES = [
   "cash",

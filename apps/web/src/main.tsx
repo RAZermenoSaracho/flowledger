@@ -12,14 +12,13 @@ import { CategoriesPage } from "./pages/CategoriesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DebtsPage } from "./pages/DebtsPage";
 import { LoginPage } from "./pages/LoginPage";
-import { HouseholdsPage } from "./pages/HouseholdsPage";
+import { GroupsPage } from "./pages/GroupsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SharedExpensesPage } from "./pages/SharedExpensesPage";
 import { TransactionDetailPage } from "./pages/TransactionDetailPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
-import { EditProfilePage } from "./pages/EditProfilePage";
 
 const queryClient = new QueryClient();
 
@@ -41,15 +40,24 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
-                <Route path="/transactions/:id" element={<TransactionDetailPage />} />
+                <Route
+                  path="/transactions/:id"
+                  element={<TransactionDetailPage />}
+                />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/households" element={<HouseholdsPage />} />
+                <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/shared-expenses" element={<SharedExpensesPage />} />
+                <Route
+                  path="/shared-expenses"
+                  element={<SharedExpensesPage />}
+                />
                 <Route path="/debts" element={<DebtsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/profile/edit" element={<EditProfilePage />} />
+                <Route
+                  path="/profile/edit"
+                  element={<Navigate to="/profile" replace />}
+                />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

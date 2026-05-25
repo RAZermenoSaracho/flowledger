@@ -1,4 +1,7 @@
-import { sharedExpenseSchema, updateSharedExpenseSchema } from "@flowledger/shared";
+import {
+  sharedExpenseSchema,
+  updateSharedExpenseSchema
+} from "@flowledger/shared";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -8,6 +11,7 @@ import { serialize } from "../../utils/serialize.js";
 import {
   createSharedExpenseForTransaction,
   getOwnedTransaction,
+  notifySharedExpenseParticipants,
   normalizeSharedExpenseParticipants,
   validateSharedExpenseParticipants
 } from "./sharedExpenses.service.js";
@@ -30,7 +34,10 @@ sharedExpensesRouter.post(
   "/",
   validate(sharedExpenseSchema),
   asyncHandler(async (req, res) => {
-    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(
+      req.user!.id,
+      req.body.transactionId
+    );
     if (!transaction) {
       throw new HttpError(400, "Transaction is required");
     }
@@ -62,18 +69,21 @@ sharedExpensesRouter.put(
   asyncHandler(async (req, res) => {
     const existing = await prisma.sharedExpense.findFirst({
       where: { id: req.params.id, ownerUserId: req.user!.id },
-      include: { transaction: true }
+      include: { transaction: true, participants: true }
     });
     if (!existing) throw notFound("Shared expense");
 
-    const transaction = await getOwnedTransaction(req.user!.id, req.body.transactionId);
+    const transaction = await getOwnedTransaction(
+      req.user!.id,
+      req.body.transactionId
+    );
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants
       ? await normalizeSharedExpenseParticipants(
           req.user!.id,
           participants,
-          transaction?.householdId ?? existing.transaction.householdId
+          transaction?.groupId ?? existing.transaction.groupId
         )
       : undefined;
 
@@ -84,21 +94,49 @@ sharedExpensesRouter.put(
       );
     }
 
-    const sharedExpense = await prisma.sharedExpense.update({
-      where: { id: existing.id },
-      data: {
-        ...input,
-        ...(transaction ? { totalAmount: transaction.amount } : {}),
-        ...(normalizedParticipants
-          ? {
-              participants: {
-                deleteMany: {},
-                create: normalizedParticipants
+    const existingUserIds = new Set(
+      existing.participants
+        .map((participant) => participant.userId)
+        .filter((userId): userId is string => Boolean(userId))
+    );
+    const addedUserIds = new Set(
+      normalizedParticipants
+        ?.map((participant) => participant.userId)
+        .filter((userId): userId is string => Boolean(userId))
+        .filter((userId) => !existingUserIds.has(userId)) ?? []
+    );
+
+    const sharedExpense = await prisma.$transaction(async (tx) => {
+      const updated = await tx.sharedExpense.update({
+        where: { id: existing.id },
+        data: {
+          ...input,
+          ...(transaction ? { totalAmount: transaction.amount } : {}),
+          ...(normalizedParticipants
+            ? {
+                participants: {
+                  deleteMany: {},
+                  create: normalizedParticipants
+                }
               }
-            }
-          : {})
-      },
-      include: { transaction: true, participants: true }
+            : {})
+        },
+        include: { transaction: true, participants: true }
+      });
+
+      if (addedUserIds.size > 0) {
+        await notifySharedExpenseParticipants(
+          tx,
+          req.user!.id,
+          updated,
+          updated.participants.filter(
+            (participant) =>
+              participant.userId && addedUserIds.has(participant.userId)
+          )
+        );
+      }
+
+      return updated;
     });
 
     res.json({ sharedExpense: serialize(sharedExpense) });

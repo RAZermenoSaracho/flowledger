@@ -1,8 +1,10 @@
 import type {
   AccountType,
   CategoryType,
-  HouseholdRole,
+  GroupRole,
+  NotificationType,
   ParticipantStatus,
+  PlanType,
   SettlementStatus,
   SharedExpenseStatus,
   TransactionType
@@ -12,6 +14,8 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string | null;
+  planType: PlanType;
   createdAt: string;
   updatedAt: string;
 };
@@ -23,46 +27,43 @@ export type Account = {
   name: string;
   type: AccountType;
   identifier?: string | null;
+  isArchived: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type Category = {
   id: string;
+  groupId?: string | null;
   name: string;
   type: CategoryType;
   color?: string | null;
+  isArchived: boolean;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type HouseholdMember = {
+export type GroupMember = {
   id: string;
-  householdId: string;
+  groupId: string;
   userId: string;
-  role: HouseholdRole;
+  role: GroupRole;
   user: PublicUser;
   createdAt: string;
   updatedAt: string;
 };
 
-export type HouseholdCategory = {
-  id: string;
-  householdId: string;
-  name: string;
-  type: CategoryType;
-  color?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Household = {
+export type Group = {
   id: string;
   name: string;
   description?: string | null;
   ownerUserId: string;
-  members: HouseholdMember[];
-  categories: HouseholdCategory[];
+  isArchived: boolean;
+  archivedAt?: string | null;
+  members: GroupMember[];
+  categories: Category[];
   transactions?: Transaction[];
   createdAt: string;
   updatedAt: string;
@@ -75,16 +76,14 @@ export type Transaction = {
   type: TransactionType;
   date: string;
   categoryId?: string | null;
-  householdId?: string | null;
-  householdCategoryId?: string | null;
+  groupId?: string | null;
   accountId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
   account?: Account | null;
   category?: Category | null;
-  household?: Household | null;
-  householdCategory?: HouseholdCategory | null;
+  group?: Group | null;
   sharedExpense?: SharedExpense | null;
 };
 
@@ -105,6 +104,11 @@ export type SettlementRequest = {
   amount: number;
   status: SettlementStatus;
   note?: string | null;
+  paymentInfo?: string | null;
+  debtorAccountId?: string | null;
+  debtorCategoryId?: string | null;
+  debtorTransactionId?: string | null;
+  creditorTransactionId?: string | null;
   createdAt: string;
   updatedAt: string;
   approvedAt?: string | null;
@@ -135,6 +139,18 @@ export type SharedExpense = {
   status: SharedExpenseStatus;
   transaction?: Transaction;
   participants: SharedExpenseParticipant[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Notification = {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  readAt?: string | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };

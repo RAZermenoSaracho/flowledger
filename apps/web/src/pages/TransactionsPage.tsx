@@ -1,16 +1,18 @@
 import { TRANSACTION_TYPES } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 import type {
   Account,
   Category,
-  Household,
+  Group,
   PublicUser,
   Transaction
 } from "../types/api";
@@ -28,8 +30,7 @@ type TransactionForm = {
   date: string;
   accountId: string;
   categoryId: string;
-  householdId: string;
-  householdCategoryId: string;
+  groupId: string;
   notes: string;
   isShared: boolean;
   sharedTitle: string;
@@ -51,12 +52,15 @@ const emptyForm: TransactionForm = {
   date: new Date().toISOString().slice(0, 10),
   accountId: "",
   categoryId: "",
-  householdId: "",
-  householdCategoryId: "",
+  groupId: "",
   notes: "",
   isShared: false,
   sharedTitle: ""
 };
+
+function needsClassification(transaction: Transaction) {
+  return !transaction.accountId || !transaction.categoryId;
+}
 
 export function TransactionsPage() {
   const auth = useAuth();
@@ -67,13 +71,14 @@ export function TransactionsPage() {
     type: "",
     accountId: "",
     categoryId: "",
-    householdId: "",
-    householdCategoryId: "",
+    groupId: "",
     dateFrom: "",
     dateTo: ""
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [areAdvancedFiltersOpen, setAreAdvancedFiltersOpen] = useState(false);
+  const [sortBy, setSortBy] = useState("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [areSharedFieldsOpen, setAreSharedFieldsOpen] = useState(true);
   const [participantName, setParticipantName] = useState("");
   const [userSearch, setUserSearch] = useState("");
@@ -90,10 +95,10 @@ export function TransactionsPage() {
     queryFn: async () =>
       (await apiRequest<{ categories: Category[] }>("/categories")).categories
   });
-  const householdsQuery = useQuery({
-    queryKey: ["households"],
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
     queryFn: async () =>
-      (await apiRequest<{ households: Household[] }>("/households")).households
+      (await apiRequest<{ groups: Group[] }>("/groups")).groups
   });
   const transactionsQuery = useQuery({
     queryKey: ["transactions", filters],
@@ -106,7 +111,8 @@ export function TransactionsPage() {
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
+    enabled:
+      isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
     queryFn: async () =>
       (
         await apiRequest<{ users: PublicUser[] }>("/users/search", {
@@ -116,10 +122,26 @@ export function TransactionsPage() {
   });
 
   const transactionAmount = Number(form.amount);
-  const selectedHousehold = (householdsQuery.data ?? []).find(
-    (household) => household.id === form.householdId
+  const selectedGroup = (groupsQuery.data ?? []).find(
+    (group) => group.id === form.groupId
   );
-  const selectedHouseholdCategories = selectedHousehold?.categories ?? [];
+  const visibleTransactions = useMemo(() => {
+    return applyCollectionControls(transactionsQuery.data ?? [], {
+      sortBy,
+      sortDirection,
+      sorters: {
+        date: (transaction) => dateSortValue(transaction.date),
+        createdAt: (transaction) => dateSortValue(transaction.createdAt),
+        name: (transaction) => transaction.name,
+        amount: (transaction) => transaction.amount
+      }
+    });
+  }, [sortBy, sortDirection, transactionsQuery.data]);
+  const selectedGroupCategories = selectedGroup?.categories ?? [];
+  const categoryOptions = form.groupId
+    ? selectedGroupCategories
+    : (categoriesQuery.data ?? []);
+  const selectedCategoryId = form.categoryId;
   const participantShareTotal = participants.reduce(
     (sum, participant) => sum + Number(participant.shareAmount || 0),
     0
@@ -137,8 +159,7 @@ export function TransactionsPage() {
         date: form.date,
         accountId: form.accountId || null,
         categoryId: form.categoryId || null,
-        householdId: form.householdId || null,
-        householdCategoryId: form.householdCategoryId || null,
+        groupId: form.groupId || null,
         notes: form.notes || null,
         ...(!form.id && form.isShared
           ? {
@@ -163,15 +184,38 @@ export function TransactionsPage() {
       setForm(emptyForm);
       setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      await queryClient.invalidateQueries({ queryKey: ["households"] });
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+    }
+  });
+
+  const deleteTransaction = useMutation({
+    mutationFn: (transactionId: string) =>
+      apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["groups"] });
+      await queryClient.invalidateQueries({ queryKey: ["summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+      await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
+      await queryClient.invalidateQueries({ queryKey: ["debts"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     }
   });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     await saveTransaction.mutateAsync();
+  }
+
+  async function confirmDeleteTransaction(transaction: Transaction) {
+    const confirmed = window.confirm(
+      `Delete "${transaction.name}" permanently? This will also remove any attached shared expense, participants, debts, settlements, and related notifications.`
+    );
+    if (!confirmed) return;
+
+    await deleteTransaction.mutateAsync(transaction.id);
   }
 
   function closeForm() {
@@ -183,17 +227,21 @@ export function TransactionsPage() {
     setIsFormOpen(false);
   }
 
-  function suggestEqualHouseholdSplit(household: Household, amountValue = form.amount) {
+  function suggestEqualGroupSplit(group: Group, amountValue = form.amount) {
     const amount = Number(amountValue);
-    const members = household.members;
-    const participantMembers = members.filter((member) => member.userId !== auth.user?.id);
+    const members = group.members;
+    const participantMembers = members.filter(
+      (member) => member.userId !== auth.user?.id
+    );
 
     if (!Number.isFinite(amount) || amount <= 0 || members.length < 2) {
       setParticipants([]);
       return;
     }
 
-    const equalShare = (Math.round((amount / members.length) * 100) / 100).toFixed(2);
+    const equalShare = (
+      Math.round((amount / members.length) * 100) / 100
+    ).toFixed(2);
     setParticipants(
       participantMembers.map((member) => ({
         draftId: member.id,
@@ -224,8 +272,8 @@ export function TransactionsPage() {
 
   function addUserParticipant(user: PublicUser) {
     if (
-      selectedHousehold &&
-      !selectedHousehold.members.some((member) => member.userId === user.id)
+      selectedGroup &&
+      !selectedGroup.members.some((member) => member.userId === user.id)
     ) {
       return;
     }
@@ -309,12 +357,12 @@ export function TransactionsPage() {
               <SelectField
                 label="Type"
                 value={form.type}
-                onChange={(event) =>
+                onChange={(event) => {
                   setForm({
                     ...form,
                     type: event.target.value as typeof form.type
-                  })
-                }
+                  });
+                }}
               >
                 {TRANSACTION_TYPES.map((item) => (
                   <option key={item} value={item}>
@@ -347,56 +395,46 @@ export function TransactionsPage() {
               </SelectField>
               <SelectField
                 label="Category"
-                value={form.categoryId}
-                onChange={(event) =>
-                  setForm({ ...form, categoryId: event.target.value })
-                }
+                value={selectedCategoryId}
+                onChange={(event) => {
+                  setForm({
+                    ...form,
+                    categoryId: event.target.value
+                  });
+                }}
               >
                 <option value="">None</option>
-                {(categoriesQuery.data ?? []).map((category) => (
+                {categoryOptions.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
               </SelectField>
               <SelectField
-                label="Household"
-                value={form.householdId}
+                label="Group"
+                value={form.groupId}
                 onChange={(event) => {
-                  const householdId = event.target.value;
-                  const household = (householdsQuery.data ?? []).find(
-                    (item) => item.id === householdId
+                  const groupId = event.target.value;
+                  const group = (groupsQuery.data ?? []).find(
+                    (item) => item.id === groupId
                   );
                   setForm({
                     ...form,
-                    householdId,
-                    householdCategoryId: "",
-                    isShared: householdId ? form.isShared || !form.id : form.isShared
+                    groupId,
+                    categoryId: groupId ? "" : form.categoryId,
+                    isShared: groupId
+                      ? form.isShared || !form.id
+                      : form.isShared
                   });
-                  if (household && !form.id) {
-                    suggestEqualHouseholdSplit(household);
+                  if (group && !form.id) {
+                    suggestEqualGroupSplit(group);
                   }
                 }}
               >
                 <option value="">None</option>
-                {(householdsQuery.data ?? []).map((household) => (
-                  <option key={household.id} value={household.id}>
-                    {household.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Household category"
-                value={form.householdCategoryId}
-                onChange={(event) =>
-                  setForm({ ...form, householdCategoryId: event.target.value })
-                }
-                disabled={!form.householdId}
-              >
-                <option value="">None</option>
-                {selectedHouseholdCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                {(groupsQuery.data ?? []).map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
                   </option>
                 ))}
               </SelectField>
@@ -455,17 +493,19 @@ export function TransactionsPage() {
                         }
                         placeholder={form.name || "Shared transaction"}
                       />
-                      {selectedHousehold ? (
+                      {selectedGroup ? (
                         <div className="flex flex-col justify-between gap-2 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950 sm:flex-row sm:items-center">
                           <p className="text-slate-600 dark:text-slate-300">
-                            Suggested split from {selectedHousehold.name}: equal share across{" "}
-                            {selectedHousehold.members.length} members.
+                            Suggested split from {selectedGroup.name}: equal
+                            share across {selectedGroup.members.length} members.
                           </p>
                           <Button
                             type="button"
                             variant="secondary"
                             className="w-full sm:w-auto"
-                            onClick={() => suggestEqualHouseholdSplit(selectedHousehold)}
+                            onClick={() =>
+                              suggestEqualGroupSplit(selectedGroup)
+                            }
                           >
                             Reset split
                           </Button>
@@ -475,10 +515,12 @@ export function TransactionsPage() {
                         <TextInput
                           label="Find app user"
                           value={userSearch}
-                          onChange={(event) => setUserSearch(event.target.value)}
+                          onChange={(event) =>
+                            setUserSearch(event.target.value)
+                          }
                           placeholder="Search by name or email"
                         />
-                        {!selectedHousehold ? (
+                        {!selectedGroup ? (
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                             <TextInput
                               label="Manual participant"
@@ -508,39 +550,39 @@ export function TransactionsPage() {
                             </p>
                           ) : (userSearchQuery.data ?? []).filter(
                               (user) =>
-                                !selectedHousehold ||
-                                selectedHousehold.members.some(
+                                !selectedGroup ||
+                                selectedGroup.members.some(
                                   (member) => member.userId === user.id
                                 )
                             ).length > 0 ? (
                             (userSearchQuery.data ?? [])
                               .filter(
                                 (user) =>
-                                  !selectedHousehold ||
-                                  selectedHousehold.members.some(
+                                  !selectedGroup ||
+                                  selectedGroup.members.some(
                                     (member) => member.userId === user.id
                                   )
                               )
                               .map((user) => (
-                              <div
-                                key={user.id}
-                                className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
-                              >
-                                <div>
-                                  <p className="font-medium">{user.name}</p>
-                                  <p className="text-slate-500 dark:text-slate-400">
-                                    {user.email}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  className="w-full sm:w-auto"
-                                  onClick={() => addUserParticipant(user)}
+                                <div
+                                  key={user.id}
+                                  className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
                                 >
-                                  Add app user
-                                </Button>
-                              </div>
+                                  <div>
+                                    <p className="font-medium">{user.name}</p>
+                                    <p className="text-slate-500 dark:text-slate-400">
+                                      {user.email}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto"
+                                    onClick={() => addUserParticipant(user)}
+                                  >
+                                    Add app user
+                                  </Button>
+                                </div>
                               ))
                           ) : (
                             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -606,7 +648,8 @@ export function TransactionsPage() {
                           </p>
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Add an app user or manual participant to create a split.
+                            Add an app user or manual participant to create a
+                            split.
                           </p>
                         )}
                       </div>
@@ -647,14 +690,25 @@ export function TransactionsPage() {
       </Card>
       <div className="grid gap-4">
         <Card>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <TextInput
-              label="Search"
-              value={filters.search}
-              onChange={(event) =>
-                setFilters({ ...filters, search: event.target.value })
-              }
-            />
+          <SearchComponent
+            searchValue={filters.search}
+            searchPlaceholder="Search transactions"
+            onSearchChange={(value) =>
+              setFilters({ ...filters, search: value })
+            }
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Date", value: "date" },
+                { label: "Name", value: "name" },
+                { label: "Amount", value: "amount" },
+                { label: "Created date", value: "createdAt" }
+              ]
+            }}
+          >
             <Button
               type="button"
               variant="secondary"
@@ -667,170 +721,201 @@ export function TransactionsPage() {
                 {areAdvancedFiltersOpen ? "^" : "v"}
               </span>
             </Button>
-          </div>
-          {areAdvancedFiltersOpen ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <TextInput
-                label="From"
-                type="date"
-                value={filters.dateFrom}
-                onChange={(event) =>
-                  setFilters({ ...filters, dateFrom: event.target.value })
-                }
-              />
-              <TextInput
-                label="To"
-                type="date"
-                value={filters.dateTo}
-                onChange={(event) =>
-                  setFilters({ ...filters, dateTo: event.target.value })
-                }
-              />
-              <SelectField
-                label="Category"
-                value={filters.categoryId}
-                onChange={(event) =>
-                  setFilters({ ...filters, categoryId: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {(categoriesQuery.data ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Household"
-                value={filters.householdId}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    householdId: event.target.value,
-                    householdCategoryId: ""
-                  })
-                }
-              >
-                <option value="">All</option>
-                {(householdsQuery.data ?? []).map((household) => (
-                  <option key={household.id} value={household.id}>
-                    {household.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Household category"
-                value={filters.householdCategoryId}
-                onChange={(event) =>
-                  setFilters({ ...filters, householdCategoryId: event.target.value })
-                }
-                disabled={!filters.householdId}
-              >
-                <option value="">All</option>
-                {((householdsQuery.data ?? []).find(
-                  (household) => household.id === filters.householdId
-                )?.categories ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Account"
-                value={filters.accountId}
-                onChange={(event) =>
-                  setFilters({ ...filters, accountId: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {(accountsQuery.data ?? []).map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Type"
-                value={filters.type}
-                onChange={(event) =>
-                  setFilters({ ...filters, type: event.target.value })
-                }
-              >
-                <option value="">All</option>
-                {TRANSACTION_TYPES.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-          ) : null}
+            {areAdvancedFiltersOpen ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <TextInput
+                  label="From"
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(event) =>
+                    setFilters({ ...filters, dateFrom: event.target.value })
+                  }
+                />
+                <TextInput
+                  label="To"
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(event) =>
+                    setFilters({ ...filters, dateTo: event.target.value })
+                  }
+                />
+                <SelectField
+                  label="Category"
+                  value={filters.categoryId}
+                  onChange={(event) =>
+                    setFilters({ ...filters, categoryId: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {(categoriesQuery.data ?? []).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Group"
+                  value={filters.groupId}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      groupId: event.target.value,
+                      categoryId: ""
+                    })
+                  }
+                >
+                  <option value="">All</option>
+                  {(groupsQuery.data ?? []).map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Group category"
+                  value={filters.categoryId}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      categoryId: event.target.value
+                    })
+                  }
+                  disabled={!filters.groupId}
+                >
+                  <option value="">All</option>
+                  {(
+                    (groupsQuery.data ?? []).find(
+                      (group) => group.id === filters.groupId
+                    )?.categories ?? []
+                  ).map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Account"
+                  value={filters.accountId}
+                  onChange={(event) =>
+                    setFilters({ ...filters, accountId: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {(accountsQuery.data ?? []).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Type"
+                  value={filters.type}
+                  onChange={(event) =>
+                    setFilters({ ...filters, type: event.target.value })
+                  }
+                >
+                  <option value="">All</option>
+                  {TRANSACTION_TYPES.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+            ) : null}
+          </SearchComponent>
         </Card>
         <Card>
           <h2 className="text-lg font-semibold">Transactions</h2>
           <div className="mt-4 grid gap-3">
-            {(transactionsQuery.data ?? []).map((transaction) => (
-              <div
-                key={transaction.id}
-                className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[1fr_auto_auto] md:items-center"
-              >
-                <div>
-                  <Link
-                    className="font-semibold text-pine dark:text-emerald-300"
-                    to={`/transactions/${transaction.id}`}
+            {visibleTransactions.map((transaction) => {
+              const isPendingClassification = needsClassification(transaction);
+              return (
+                <div
+                  key={transaction.id}
+                  className={`grid gap-3 rounded-md border p-3 md:grid-cols-[1fr_auto_auto] md:items-center ${
+                    isPendingClassification
+                      ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"
+                      : "border-slate-200 dark:border-slate-800"
+                  }`}
+                >
+                  <div>
+                    <Link
+                      className="font-semibold text-pine dark:text-emerald-300"
+                      to={`/transactions/${transaction.id}`}
+                    >
+                      {transaction.name}
+                    </Link>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {new Date(transaction.date).toLocaleDateString()} ·{" "}
+                      {transaction.category?.name ?? "Uncategorized"} ·{" "}
+                      {transaction.account?.name ?? "No account"}
+                      {transaction.group
+                        ? ` · ${transaction.group.name}${
+                            transaction.category
+                              ? ` / ${transaction.category.name}`
+                              : ""
+                          }`
+                        : ""}
+                    </p>
+                    {isPendingClassification ? (
+                      <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                        Pending classification: add a category and account.
+                      </p>
+                    ) : null}
+                  </div>
+                  <span
+                    className={
+                      transaction.type === "income"
+                        ? "font-semibold text-pine dark:text-emerald-300"
+                        : "font-semibold text-coral dark:text-orange-300"
+                    }
                   >
-                    {transaction.name}
-                  </Link>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {new Date(transaction.date).toLocaleDateString()} ·{" "}
-                    {transaction.category?.name ?? "Uncategorized"} ·{" "}
-                    {transaction.account?.name ?? "No account"}
-                    {transaction.household
-                      ? ` · ${transaction.household.name}${
-                          transaction.householdCategory
-                            ? ` / ${transaction.householdCategory.name}`
-                            : ""
-                        }`
-                      : ""}
-                  </p>
+                    {money.format(transaction.amount)}
+                  </span>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setForm({
+                          id: transaction.id,
+                          name: transaction.name,
+                          amount: String(transaction.amount),
+                          type: transaction.type,
+                          date: transaction.date.slice(0, 10),
+                          accountId: transaction.accountId ?? "",
+                          categoryId: transaction.categoryId ?? "",
+                          groupId: transaction.groupId ?? "",
+                          notes: transaction.notes ?? "",
+                          isShared: false,
+                          sharedTitle: ""
+                        });
+                        setParticipantName("");
+                        setUserSearch("");
+                        setParticipants([]);
+                        setIsFormOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      disabled={deleteTransaction.isPending}
+                      onClick={() => void confirmDeleteTransaction(transaction)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
-                <span
-                  className={
-                    transaction.type === "income"
-                      ? "font-semibold text-pine dark:text-emerald-300"
-                      : "font-semibold text-coral dark:text-orange-300"
-                  }
-                >
-                  {money.format(transaction.amount)}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setForm({
-                      id: transaction.id,
-                      name: transaction.name,
-                      amount: String(transaction.amount),
-                      type: transaction.type,
-                      date: transaction.date.slice(0, 10),
-                      accountId: transaction.accountId ?? "",
-                      categoryId: transaction.categoryId ?? "",
-                      householdId: transaction.householdId ?? "",
-                      householdCategoryId: transaction.householdCategoryId ?? "",
-                      notes: transaction.notes ?? "",
-                      isShared: false,
-                      sharedTitle: ""
-                    });
-                    setParticipantName("");
-                    setUserSearch("");
-                    setParticipants([]);
-                    setIsFormOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-              </div>
-            ))}
+              );
+            })}
+            {visibleTransactions.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                No transactions found.
+              </p>
+            ) : null}
           </div>
         </Card>
       </div>

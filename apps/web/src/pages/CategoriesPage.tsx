@@ -1,12 +1,14 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
+import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type { Category } from "../types/api";
+import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
@@ -20,12 +22,53 @@ export function CategoriesPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<CategoryType>("expense");
   const [editColor, setEditColor] = useState("#176b52");
+  const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
+    "active"
+  );
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const categoriesQuery = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", archiveMode],
     queryFn: async () =>
-      (await apiRequest<{ categories: Category[] }>("/categories")).categories
+      (
+        await apiRequest<{ categories: Category[] }>("/categories", {
+          query: {
+            includeArchived: archiveMode === "archived" ? "true" : undefined
+          }
+        })
+      ).categories
   });
+
+  const visibleCategories = useMemo(() => {
+    return applyCollectionControls(categoriesQuery.data ?? [], {
+      search,
+      searchFields: (category) => [category.name, category.type],
+      filters: [
+        (category) =>
+          archiveMode === "archived"
+            ? category.isArchived
+            : !category.isArchived,
+        (category) => (typeFilter ? category.type === typeFilter : true)
+      ],
+      sortBy,
+      sortDirection,
+      sorters: {
+        name: (category) => category.name,
+        createdAt: (category) => dateSortValue(category.createdAt),
+        updatedAt: (category) => dateSortValue(category.updatedAt)
+      }
+    });
+  }, [
+    archiveMode,
+    categoriesQuery.data,
+    search,
+    sortBy,
+    sortDirection,
+    typeFilter
+  ]);
 
   const createCategory = useMutation({
     mutationFn: () =>
@@ -57,6 +100,33 @@ export function CategoriesPage() {
       }),
     onSuccess: async () => {
       closeEditForm();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["category-report"] });
+    }
+  });
+
+  const archiveCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/archive`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
+  const restoreCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}/restore`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+    }
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: (categoryId: string) =>
+      apiRequest(`/categories/${categoryId}`, { method: "DELETE" }),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["category-report"] });
@@ -99,6 +169,14 @@ export function CategoriesPage() {
       type: editType,
       color: editColor
     });
+  }
+
+  async function confirmDelete(category: Category) {
+    const confirmed = window.confirm(
+      `Delete "${category.name}" permanently? This cannot be undone. Related financial data may also be deleted or disconnected from this category.`
+    );
+    if (!confirmed) return;
+    await deleteCategory.mutateAsync(category.id);
   }
 
   return (
@@ -165,8 +243,45 @@ export function CategoriesPage() {
       </Card>
       <Card>
         <h2 className="text-lg font-semibold">Categories</h2>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={search}
+            searchPlaceholder="Search categories"
+            onSearchChange={setSearch}
+            filters={[
+              {
+                id: "type",
+                label: "Type",
+                value: typeFilter,
+                onChange: setTypeFilter,
+                options: [
+                  { label: "All types", value: "" },
+                  ...CATEGORY_TYPES.map((item) => ({
+                    label: item,
+                    value: item
+                  }))
+                ]
+              }
+            ]}
+            sort={{
+              value: sortBy,
+              direction: sortDirection,
+              onChange: setSortBy,
+              onDirectionChange: setSortDirection,
+              options: [
+                { label: "Name", value: "name" },
+                { label: "Created date", value: "createdAt" },
+                { label: "Updated date", value: "updatedAt" }
+              ]
+            }}
+            archiveToggle={{
+              value: archiveMode,
+              onChange: setArchiveMode
+            }}
+          />
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {(categoriesQuery.data ?? []).map((category) => (
+          {visibleCategories.map((category) => (
             <div
               key={category.id}
               className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
@@ -222,6 +337,11 @@ export function CategoriesPage() {
                     />
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{category.name}</p>
+                      {category.isArchived ? (
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          Archived
+                        </span>
+                      ) : null}
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         {category.type}
                       </p>
@@ -235,10 +355,45 @@ export function CategoriesPage() {
                   >
                     Edit
                   </Button>
+                  {category.isArchived ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      disabled={restoreCategory.isPending}
+                      onClick={() => restoreCategory.mutate(category.id)}
+                    >
+                      Restore
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      disabled={archiveCategory.isPending}
+                      onClick={() => archiveCategory.mutate(category.id)}
+                    >
+                      Archive
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="w-full sm:w-auto"
+                    disabled={deleteCategory.isPending}
+                    onClick={() => confirmDelete(category)}
+                  >
+                    Delete
+                  </Button>
                 </div>
               )}
             </div>
           ))}
+          {visibleCategories.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No categories found.
+            </p>
+          ) : null}
         </div>
       </Card>
     </div>

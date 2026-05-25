@@ -45,27 +45,41 @@ enum SettlementStatus {
   rejected
 }
 
-enum HouseholdRole {
+enum GroupRole {
   admin
   member
 }
 
+enum NotificationType {
+  group_member_added
+  shared_expense_added
+  debt_owes_money
+  debt_owed_money
+  settlement_requested
+  settlement_approved
+  settlement_rejected
+  settlement_payment_registration_needed
+}
+
 model User {
-  id                            String                     @id @default(cuid())
-  name                          String
-  email                         String                     @unique
-  passwordHash                  String
-  createdAt                     DateTime                   @default(now())
-  updatedAt                     DateTime                   @updatedAt
-  accounts                      Account[]
-  categories                    Category[]
-  transactions                  Transaction[]
-  ownedSharedExpenses           SharedExpense[]            @relation("OwnedSharedExpenses")
-  sharedExpenseParticipations   SharedExpenseParticipant[]
-  settlementRequestsMade        SettlementRequest[]        @relation("SettlementDebtor")
-  settlementRequestsReceived    SettlementRequest[]        @relation("SettlementCreditor")
-  householdMemberships          HouseholdMember[]
-  ownedHouseholds               Household[]                @relation("OwnedHouseholds")
+  id                          String                     @id @default(cuid())
+  name                        String
+  email                       String                     @unique
+  passwordHash                String
+  avatarUrl                   String?
+  planType                    String                     @default("free")
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
+  accounts                    Account[]
+  categoryMemberships         CategoryUser[]
+  transactions                Transaction[]
+  ownedSharedExpenses         SharedExpense[]            @relation("OwnedSharedExpenses")
+  sharedExpenseParticipations SharedExpenseParticipant[]
+  settlementRequestsMade      SettlementRequest[]        @relation("SettlementDebtor")
+  settlementRequestsReceived  SettlementRequest[]        @relation("SettlementCreditor")
+  groupMemberships            GroupMember[]
+  ownedGroups                 Group[]                    @relation("OwnedGroups")
+  notifications               Notification[]
 }
 
 model Account {
@@ -74,142 +88,149 @@ model Account {
   name         String
   type         AccountType
   identifier   String?
+  isArchived   Boolean       @default(false)
+  archivedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@index([userId])
+  @@index([userId, isArchived])
 }
 
 model Category {
-  id           String        @id @default(cuid())
-  userId       String
+  id           String         @id @default(cuid())
+  groupId      String?
   name         String
   type         CategoryType
   color        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  isArchived   Boolean        @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  group        Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users        CategoryUser[]
+  transactions Transaction[]  @relation("TransactionCategory")
 
+  @@index([groupId])
+  @@index([groupId, isArchived])
+}
+
+model CategoryUser {
+  id         String   @id @default(cuid())
+  categoryId String
+  userId     String
+  createdAt  DateTime @default(now())
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, userId])
   @@index([userId])
 }
 
 model Transaction {
-  id                    String                @id @default(cuid())
-  userId                String
-  name                  String
-  amount                Decimal               @db.Decimal(12, 2)
-  type                  TransactionType
-  date                  DateTime
-  categoryId            String?
-  householdId           String?
-  householdCategoryId   String?
-  accountId             String?
-  notes                 String?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category              Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  household             Household?            @relation(fields: [householdId], references: [id], onDelete: SetNull)
-  householdCategory     HouseholdCategory?    @relation(fields: [householdCategoryId], references: [id], onDelete: SetNull)
-  account               Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  relations             TransactionRelation[] @relation("TransactionRelations")
-  relatedBy             TransactionRelation[] @relation("RelatedTransactionRelations")
-  sharedExpense         SharedExpense?
+  id                        String                @id @default(cuid())
+  userId                    String
+  name                      String
+  amount                    Decimal               @db.Decimal(12, 2)
+  type                      TransactionType
+  date                      DateTime
+  categoryId                String?
+  groupId                   String?
+  accountId                 String?
+  notes                     String?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category                  Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  group                     Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  account                   Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  relations                 TransactionRelation[] @relation("TransactionRelations")
+  relatedBy                 TransactionRelation[] @relation("RelatedTransactionRelations")
+  sharedExpense             SharedExpense?
+  debtorSettlementRequest   SettlementRequest?    @relation("SettlementDebtorTransaction")
+  creditorSettlementRequest SettlementRequest?    @relation("SettlementCreditorTransaction")
 
   @@index([userId, date])
   @@index([categoryId])
-  @@index([householdId])
-  @@index([householdCategoryId])
+  @@index([groupId])
   @@index([accountId])
 }
 
-model Household {
-  id             String              @id @default(cuid())
-  name           String
-  description    String?
-  ownerUserId    String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  owner          User                @relation("OwnedHouseholds", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  members        HouseholdMember[]
-  categories     HouseholdCategory[]
-  transactions   Transaction[]
+model Group {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  ownerUserId  String
+  isArchived   Boolean       @default(false)
+  archivedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  owner        User          @relation("OwnedGroups", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members      GroupMember[]
+  categories   Category[]
+  transactions Transaction[]
 
   @@index([ownerUserId])
+  @@index([ownerUserId, isArchived])
 }
 
-model HouseholdMember {
-  id             String         @id @default(cuid())
-  householdId    String
-  userId         String
-  role           HouseholdRole  @default(member)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  household      Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+model GroupMember {
+  id        String    @id @default(cuid())
+  groupId   String
+  userId    String
+  role      GroupRole @default(member)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([householdId, userId])
+  @@unique([groupId, userId])
   @@index([userId])
-}
-
-model HouseholdCategory {
-  id             String        @id @default(cuid())
-  householdId    String
-  name           String
-  type           CategoryType
-  color          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  household      Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  transactions   Transaction[]
-
-  @@index([householdId])
 }
 
 model TransactionRelation {
   id                   String      @id @default(cuid())
-  transactionId         String
-  relatedTransactionId  String
-  relationType          String
-  createdAt             DateTime    @default(now())
-  transaction           Transaction @relation("TransactionRelations", fields: [transactionId], references: [id], onDelete: Cascade)
-  relatedTransaction    Transaction @relation("RelatedTransactionRelations", fields: [relatedTransactionId], references: [id], onDelete: Cascade)
+  transactionId        String
+  relatedTransactionId String
+  relationType         String
+  createdAt            DateTime    @default(now())
+  transaction          Transaction @relation("TransactionRelations", fields: [transactionId], references: [id], onDelete: Cascade)
+  relatedTransaction   Transaction @relation("RelatedTransactionRelations", fields: [relatedTransactionId], references: [id], onDelete: Cascade)
 
   @@index([transactionId])
   @@index([relatedTransactionId])
 }
 
 model SharedExpense {
-  id           String                     @id @default(cuid())
-  transactionId String                    @unique
-  ownerUserId  String
-  title        String
-  totalAmount  Decimal                    @db.Decimal(12, 2)
-  status       SharedExpenseStatus        @default(open)
-  createdAt    DateTime                   @default(now())
-  updatedAt    DateTime                   @updatedAt
-  transaction  Transaction                @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  owner        User                       @relation("OwnedSharedExpenses", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  participants SharedExpenseParticipant[]
+  id            String                     @id @default(cuid())
+  transactionId String                     @unique
+  ownerUserId   String
+  title         String
+  totalAmount   Decimal                    @db.Decimal(12, 2)
+  status        SharedExpenseStatus        @default(open)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  transaction   Transaction                @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  owner         User                       @relation("OwnedSharedExpenses", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  participants  SharedExpenseParticipant[]
 
   @@index([ownerUserId])
 }
 
 model SharedExpenseParticipant {
-  id              String            @id @default(cuid())
-  sharedExpenseId String
-  userId          String?
-  participantName String
-  shareAmount     Decimal           @db.Decimal(12, 2)
-  paidAmount      Decimal           @db.Decimal(12, 2) @default(0)
-  status          ParticipantStatus  @default(pending)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  sharedExpense   SharedExpense     @relation(fields: [sharedExpenseId], references: [id], onDelete: Cascade)
-  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id                 String              @id @default(cuid())
+  sharedExpenseId    String
+  userId             String?
+  participantName    String
+  shareAmount        Decimal             @db.Decimal(12, 2)
+  paidAmount         Decimal             @default(0) @db.Decimal(12, 2)
+  status             ParticipantStatus   @default(pending)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sharedExpense      SharedExpense       @relation(fields: [sharedExpenseId], references: [id], onDelete: Cascade)
+  user               User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   settlementRequests SettlementRequest[]
 
   @@index([sharedExpenseId])
@@ -224,15 +245,41 @@ model SettlementRequest {
   amount                     Decimal                  @db.Decimal(12, 2)
   status                     SettlementStatus         @default(pending)
   note                       String?
+  paymentInfo                String?
+  debtorAccountId            String?
+  debtorCategoryId           String?
+  debtorTransactionId        String?                  @unique
+  creditorTransactionId      String?                  @unique
   createdAt                  DateTime                 @default(now())
   updatedAt                  DateTime                 @updatedAt
   approvedAt                 DateTime?
   sharedExpenseParticipant   SharedExpenseParticipant @relation(fields: [sharedExpenseParticipantId], references: [id], onDelete: Cascade)
   debtor                     User                     @relation("SettlementDebtor", fields: [debtorUserId], references: [id], onDelete: Cascade)
   creditor                   User                     @relation("SettlementCreditor", fields: [creditorUserId], references: [id], onDelete: Cascade)
+  debtorTransaction          Transaction?             @relation("SettlementDebtorTransaction", fields: [debtorTransactionId], references: [id], onDelete: SetNull)
+  creditorTransaction        Transaction?             @relation("SettlementCreditorTransaction", fields: [creditorTransactionId], references: [id], onDelete: SetNull)
 
   @@index([sharedExpenseParticipantId])
   @@index([debtorUserId])
   @@index([creditorUserId])
+  @@index([debtorAccountId])
+  @@index([debtorCategoryId])
   @@index([status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([type])
 }

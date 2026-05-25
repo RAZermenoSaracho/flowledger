@@ -9,5 +9,12 @@ export const accountSchema = z.object({
 
 export const updateAccountSchema = accountSchema.partial();
 
+export const accountFiltersSchema = z.object({
+  includeArchived: z
+    .enum(["true", "false"])
+    .optional()
+});
+
 export type AccountInput = z.infer<typeof accountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+export type AccountFilters = z.infer<typeof accountFiltersSchema>;

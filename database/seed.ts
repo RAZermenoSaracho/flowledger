@@ -30,25 +30,49 @@ async function main() {
 
   const groceries = await prisma.category.upsert({
     where: { id: "demo-groceries-category" },
-    update: {},
+    update: {
+      users: {
+        connectOrCreate: {
+          where: {
+            categoryId_userId: {
+              categoryId: "demo-groceries-category",
+              userId: user.id
+            }
+          },
+          create: { userId: user.id }
+        }
+      }
+    },
     create: {
       id: "demo-groceries-category",
-      userId: user.id,
       name: "Groceries",
       type: "expense",
-      color: "#ef4444"
+      color: "#ef4444",
+      users: { create: { userId: user.id } }
     }
   });
 
   const salary = await prisma.category.upsert({
     where: { id: "demo-salary-category" },
-    update: {},
+    update: {
+      users: {
+        connectOrCreate: {
+          where: {
+            categoryId_userId: {
+              categoryId: "demo-salary-category",
+              userId: user.id
+            }
+          },
+          create: { userId: user.id }
+        }
+      }
+    },
     create: {
       id: "demo-salary-category",
-      userId: user.id,
       name: "Salary",
       type: "income",
-      color: "#22c55e"
+      color: "#22c55e",
+      users: { create: { userId: user.id } }
     }
   });
 
