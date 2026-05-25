@@ -71,21 +71,21 @@ export function ReportsPage() {
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">Income</p>
-          <p className="mt-2 text-2xl font-bold text-pine dark:text-emerald-300">
+          <p className="mt-2 break-words text-xl font-bold text-pine dark:text-emerald-300 sm:text-2xl">
             {money.format(summaryQuery.data?.totalIncome ?? 0)}
           </p>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">Expenses</p>
-          <p className="mt-2 text-2xl font-bold text-coral dark:text-orange-300">
+          <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
             {money.format(summaryQuery.data?.totalExpenses ?? 0)}
           </p>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">Balance</p>
-          <p className="mt-2 text-2xl font-bold">
+          <p className="mt-2 break-words text-xl font-bold sm:text-2xl">
             {money.format(summaryQuery.data?.currentBalance ?? 0)}
           </p>
         </Card>
@@ -104,9 +104,9 @@ export function ReportsPage() {
         />
       </section>
 
-      <Card>
+      <Card className="min-w-0">
         <h2 className="text-lg font-semibold">Monthly cashflow</h2>
-        <div className="mt-4 h-80 sm:h-96">
+        <div className="mt-4 h-80 min-w-0 overflow-hidden sm:h-96">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={cashflowQuery.data ?? []}
@@ -151,17 +151,17 @@ function CategoryBreakdown({
   const total = rows.reduce((sum, row) => sum + row.total, 0);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="shrink-0 text-sm font-semibold text-slate-600 dark:text-slate-300">
+    <Card className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="min-w-0 text-lg font-semibold">{title}</h2>
+        <span className="min-w-0 break-words text-right text-sm font-semibold text-slate-600 dark:text-slate-300">
           {money.format(total)}
         </span>
       </div>
 
       {rows.length > 0 ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(12rem,0.8fr)] md:items-center">
-          <div className="h-64 min-w-0 sm:h-72">
+        <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(12rem,0.8fr)] md:items-center">
+          <div className="h-64 min-w-0 overflow-hidden sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                 <Pie
@@ -185,11 +185,11 @@ function CategoryBreakdown({
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             {rows.map((row) => (
               <div
                 key={`${row.categoryId ?? row.displayName}-${row.type}-legend`}
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-sm"
+                className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_minmax(0,max-content)] items-center gap-2 text-sm"
               >
                 <span
                   className="h-3 w-3 rounded-full"
@@ -201,7 +201,7 @@ function CategoryBreakdown({
                 >
                   {row.displayName}
                 </span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                <span className="min-w-0 break-words text-right font-semibold text-slate-900 dark:text-slate-100">
                   {money.format(row.total)}
                 </span>
               </div>
@@ -238,7 +238,53 @@ function prepareCategoryRows(
     });
 }
 
-function renderPieLabel({ percent }: { percent?: number }) {
+function renderPieLabel({
+  cx,
+  cy,
+  innerRadius,
+  midAngle,
+  outerRadius,
+  percent
+}: {
+  cx?: number | string;
+  cy?: number | string;
+  innerRadius?: number | string;
+  midAngle?: number;
+  outerRadius?: number | string;
+  percent?: number;
+}) {
   if (!percent || percent < 0.08) return "";
-  return `${Math.round(percent * 100)}%`;
+
+  const centerX = Number(cx);
+  const centerY = Number(cy);
+  const inner = Number(innerRadius);
+  const outer = Number(outerRadius);
+  if (
+    !Number.isFinite(centerX) ||
+    !Number.isFinite(centerY) ||
+    !Number.isFinite(inner) ||
+    !Number.isFinite(outer) ||
+    typeof midAngle !== "number"
+  ) {
+    return "";
+  }
+
+  const radius = inner + (outer - inner) * 0.55;
+  const angle = -midAngle * (Math.PI / 180);
+  const x = centerX + radius * Math.cos(angle);
+  const y = centerY + radius * Math.sin(angle);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={12}
+      fontWeight={700}
+    >
+      {Math.round(percent * 100)}%
+    </text>
+  );
 }

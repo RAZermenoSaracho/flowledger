@@ -69,7 +69,7 @@ export function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 dark:bg-slate-950 lg:flex lg:pb-0">
+    <div className="min-h-screen bg-slate-50 pb-20 [--mobile-bottom-nav-height:4.0625rem] [--mobile-top-nav-height:5rem] dark:bg-slate-950 lg:flex lg:pb-0">
       <aside className="hidden h-screen w-72 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-0 lg:flex lg:flex-col">
         <div className="border-b border-slate-200 px-6 py-5 dark:border-slate-800">
           <BrandLink />
@@ -441,7 +441,7 @@ function MobileSidebarDrawer({
     <div className={`${isOpen ? "block" : "hidden"} lg:hidden`}>
       <button
         type="button"
-        className="fixed inset-x-0 bottom-20 top-0 z-30 cursor-default bg-slate-950/40"
+        className="fixed inset-x-0 bottom-[var(--mobile-bottom-nav-height)] top-[var(--mobile-top-nav-height)] z-30 cursor-default bg-slate-950/40"
         aria-label="Close sidebar"
         onClick={onClose}
       />
@@ -450,7 +450,7 @@ function MobileSidebarDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
-        className={`fixed bottom-20 top-0 z-40 flex w-[min(20rem,calc(100vw-2rem))] ${sideClasses} ${borderClasses} border-slate-200 bg-white shadow-xl transition-transform dark:border-slate-800 dark:bg-slate-900 ${
+        className={`fixed bottom-[var(--mobile-bottom-nav-height)] top-[var(--mobile-top-nav-height)] z-40 flex w-[min(20rem,calc(100vw-2rem))] overflow-hidden overscroll-contain ${sideClasses} ${borderClasses} border-slate-200 bg-white shadow-xl transition-transform dark:border-slate-800 dark:bg-slate-900 ${
           isOpen ? "translate-x-0" : closedTransform
         }`}
       >
