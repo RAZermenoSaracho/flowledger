@@ -151,7 +151,10 @@ export async function notifySharedExpenseParticipants(
     id: string;
     title: string;
     transactionId: string;
-    transaction: { type: "income" | "expense" | "transfer" };
+    transaction: {
+      type: "income" | "expense" | "transfer";
+      groupId?: string | null;
+    };
   },
   participants: {
     id: string;
@@ -174,7 +177,10 @@ export async function notifySharedExpenseParticipants(
     const metadata = {
       sharedExpenseId: sharedExpense.id,
       transactionId: sharedExpense.transactionId,
-      participantId: participant.id
+      participantId: participant.id,
+      ...(sharedExpense.transaction.groupId
+        ? { groupId: sharedExpense.transaction.groupId }
+        : {})
     };
     const base = [
       {

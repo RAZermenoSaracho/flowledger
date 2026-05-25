@@ -144,6 +144,7 @@ function NotificationsMenu({
 }: {
   queryClient: ReturnType<typeof useQueryClient>;
 }) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
@@ -164,6 +165,9 @@ function NotificationsMenu({
       apiRequest(`/notifications/${notificationId}/read`, { method: "PATCH" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"]
+      });
     }
   });
   const markAllRead = useMutation({
@@ -171,6 +175,9 @@ function NotificationsMenu({
       apiRequest("/notifications/read-all", { method: "PATCH" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"]
+      });
     }
   });
 
@@ -188,6 +195,18 @@ function NotificationsMenu({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isOpen]);
+
+  async function openNotification(notification: Notification) {
+    if (!notification.readAt) {
+      await markRead.mutateAsync(notification.id);
+    }
+
+    const target = notificationTarget(notification);
+    if (target) {
+      setIsOpen(false);
+      navigate(target);
+    }
+  }
 
   return (
     <div className="relative">
@@ -235,11 +254,20 @@ function NotificationsMenu({
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
+                    role="button"
+                    tabIndex={0}
                     className={`rounded-md border p-3 ${
                       notification.readAt
                         ? "border-slate-200 dark:border-slate-800"
                         : "border-pine bg-mint dark:border-emerald-600 dark:bg-emerald-950"
                     }`}
+                    onClick={() => void openNotification(notification)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        void openNotification(notification);
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -258,7 +286,10 @@ function NotificationsMenu({
                           type="button"
                           className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-pine transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 dark:text-emerald-300 dark:hover:bg-slate-900"
                           disabled={isActing}
-                          onClick={() => markRead.mutate(notification.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            markRead.mutate(notification.id);
+                          }}
                         >
                           Read
                         </button>
@@ -273,6 +304,81 @@ function NotificationsMenu({
       ) : null}
     </div>
   );
+}
+
+function metadataString(
+  metadata: Notification["metadata"],
+  key: string
+): string | null {
+  const value = metadata?.[key];
+  return typeof value === "string" && value ? value : null;
+}
+
+function notificationTarget(notification: Notification) {
+  const metadata = notification.metadata;
+  const params = new URLSearchParams();
+
+  if (notification.type === "group_member_added") {
+    const groupId = metadataString(metadata, "groupId");
+    return groupId
+      ? `${routes.groups}?groupId=${encodeURIComponent(groupId)}`
+      : routes.groups;
+  }
+
+  if (
+    notification.type === "debt_owes_money" ||
+    notification.type === "debt_owed_money"
+  ) {
+    const participantId = metadataString(metadata, "participantId");
+    if (participantId) params.set("debtId", participantId);
+    params.set(
+      "tab",
+      notification.type === "debt_owes_money" ? "iOwe" : "owedToMe"
+    );
+    return `${routes.debts}?${params.toString()}`;
+  }
+
+  if (
+    notification.type === "settlement_requested" ||
+    notification.type === "settlement_approved" ||
+    notification.type === "settlement_rejected" ||
+    notification.type === "settlement_payment_registration_needed"
+  ) {
+    const settlementRequestId = metadataString(
+      metadata,
+      "settlementRequestId"
+    );
+    const participantId = metadataString(metadata, "participantId");
+    if (participantId) params.set("debtId", participantId);
+    if (notification.type === "settlement_requested") {
+      if (settlementRequestId) {
+        params.set("settlementId", settlementRequestId);
+      }
+      params.set("tab", "pending");
+    }
+    return `${routes.debts}?${params.toString()}`;
+  }
+
+  if (notification.type === "shared_expense_added") {
+    const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
+    const participantId = metadataString(metadata, "participantId");
+    if (sharedExpenseId) params.set("sharedExpenseId", sharedExpenseId);
+    if (participantId) params.set("participantId", participantId);
+    return `${routes.sharedExpenses}?${params.toString()}`;
+  }
+
+  const transactionId =
+    metadataString(metadata, "transactionId") ||
+    metadataString(metadata, "debtorTransactionId") ||
+    metadataString(metadata, "creditorTransactionId");
+  if (transactionId) return `${routes.transactions}/${transactionId}`;
+
+  const groupId = metadataString(metadata, "groupId");
+  if (groupId) {
+    return `${routes.groups}?groupId=${encodeURIComponent(groupId)}`;
+  }
+
+  return null;
 }
 
 function BellIcon() {

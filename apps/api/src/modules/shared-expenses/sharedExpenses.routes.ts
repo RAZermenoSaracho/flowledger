@@ -22,7 +22,12 @@ sharedExpensesRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const sharedExpenses = await prisma.sharedExpense.findMany({
-      where: { ownerUserId: req.user!.id },
+      where: {
+        OR: [
+          { ownerUserId: req.user!.id },
+          { participants: { some: { userId: req.user!.id } } }
+        ]
+      },
       include: { transaction: true, participants: true },
       orderBy: { createdAt: "desc" }
     });
@@ -54,7 +59,13 @@ sharedExpensesRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const sharedExpense = await prisma.sharedExpense.findFirst({
-      where: { id: req.params.id, ownerUserId: req.user!.id },
+      where: {
+        id: req.params.id,
+        OR: [
+          { ownerUserId: req.user!.id },
+          { participants: { some: { userId: req.user!.id } } }
+        ]
+      },
       include: { transaction: true, participants: true }
     });
     if (!sharedExpense) throw notFound("Shared expense");
