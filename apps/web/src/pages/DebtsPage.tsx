@@ -1,13 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
-import type { Account, Category, Debt, SettlementRequest } from "../types/api";
+import type {
+  Account,
+  Category,
+  Debt,
+  Group,
+  SettlementRequest
+} from "../types/api";
 import { matchesSearch } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -129,14 +136,23 @@ function settlementRequestMatchesSearch(
 function DebtCard({
   debt,
   viewerUserId,
+  isHighlighted,
   children
 }: {
   debt: Debt;
   viewerUserId?: string;
+  isHighlighted?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+    <div
+      id={`debt-${debt.id}`}
+      className={`rounded-md border p-3 transition ${
+        isHighlighted
+          ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
+          : "border-slate-200 dark:border-slate-800"
+      }`}
+    >
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
         <div>
           <p className="font-semibold">{debtTitle(debt)}</p>
@@ -167,6 +183,9 @@ function EmptyState({ children }: { children: ReactNode }) {
 export function DebtsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const highlightedDebtId = searchParams.get("debtId");
+  const highlightedSettlementId = searchParams.get("settlementId");
   const [drafts, setDrafts] = useState<Record<string, SettlementDraft>>({});
   const [activeTab, setActiveTab] = useState<DebtsTab>("iOwe");
   const [iOweSearch, setIOweSearch] = useState("");
@@ -189,14 +208,23 @@ export function DebtsPage() {
     queryFn: async () =>
       (await apiRequest<{ categories: Category[] }>("/categories")).categories
   });
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () =>
+      (await apiRequest<{ groups: Group[] }>("/groups")).groups
+  });
 
   const debts = debtsQuery.data;
-  const expenseCategories = useMemo(
+  const privateExpenseCategories = useMemo(
     () =>
       (categoriesQuery.data ?? []).filter(
-        (category) => category.type === "expense"
+        (category) => category.type === "expense" && !category.groupId
       ),
     [categoriesQuery.data]
+  );
+  const groupById = useMemo(
+    () => new Map((groupsQuery.data ?? []).map((group) => [group.id, group])),
+    [groupsQuery.data]
   );
   const pendingForMe = useMemo(
     () =>
@@ -248,6 +276,48 @@ export function DebtsPage() {
     [auth.user?.id, debts?.settledDebts, settledSearch]
   );
 
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab") as DebtsTab | null;
+    if (requestedTab && debtsTabs.some((tab) => tab.id === requestedTab)) {
+      setActiveTab(requestedTab);
+      return;
+    }
+    if (highlightedSettlementId) {
+      setActiveTab("pending");
+      return;
+    }
+    if (!highlightedDebtId || !debts) return;
+    if (debts.iOwe.some((debt) => debt.id === highlightedDebtId)) {
+      setActiveTab("iOwe");
+    } else if (debts.owedToMe.some((debt) => debt.id === highlightedDebtId)) {
+      setActiveTab("owedToMe");
+    } else if (
+      debts.settledDebts.some((debt) => debt.id === highlightedDebtId)
+    ) {
+      setActiveTab("settled");
+    }
+  }, [debts, highlightedDebtId, highlightedSettlementId, searchParams]);
+
+  useEffect(() => {
+    const targetId = highlightedSettlementId
+      ? `settlement-${highlightedSettlementId}`
+      : highlightedDebtId
+        ? `debt-${highlightedDebtId}`
+        : null;
+    if (!targetId || debtsQuery.isLoading) return;
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(targetId)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [
+    activeTab,
+    debtsQuery.isLoading,
+    highlightedDebtId,
+    highlightedSettlementId
+  ]);
+
   const requestSettlement = useMutation({
     mutationFn: ({
       debtId,
@@ -290,35 +360,37 @@ export function DebtsPage() {
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
+  function defaultDraftFor(debt: Debt): SettlementDraft {
+    const originalGroupId = debt.sharedExpense.transaction?.groupId ?? "";
+    const originalCategoryId =
+      originalGroupId && debt.sharedExpense.transaction?.categoryId
+        ? debt.sharedExpense.transaction.categoryId
+        : "";
+    return {
+      amount: String(
+        Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount)
+      ),
+      accountId: accountsQuery.data?.[0]?.id ?? "",
+      categoryId:
+        originalCategoryId || (privateExpenseCategories[0]?.id ?? ""),
+      note: "",
+      paymentInfo: ""
+    };
+  }
+
   function draftFor(debt: Debt) {
-    return (
-      drafts[debt.id] ?? {
-        amount: String(
-          Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount)
-        ),
-        accountId: accountsQuery.data?.[0]?.id ?? "",
-        categoryId: expenseCategories[0]?.id ?? "",
-        note: "",
-        paymentInfo: ""
-      }
-    );
+    return drafts[debt.id] ?? defaultDraftFor(debt);
   }
 
   function updateDraft(
-    debtId: string,
+    debt: Debt,
     field: keyof SettlementDraft,
     value: string
   ) {
     setDrafts((current) => ({
       ...current,
-      [debtId]: {
-        ...(current[debtId] ?? {
-          amount: "",
-          accountId: accountsQuery.data?.[0]?.id ?? "",
-          categoryId: expenseCategories[0]?.id ?? "",
-          note: "",
-          paymentInfo: ""
-        }),
+      [debt.id]: {
+        ...(current[debt.id] ?? defaultDraftFor(debt)),
         [field]: value
       }
     }));
@@ -368,12 +440,23 @@ export function DebtsPage() {
               const draft = draftFor(debt);
               const availableAmount =
                 debt.outstandingAmount - debt.pendingSettlementAmount;
+              const originalGroupId =
+                debt.sharedExpense.transaction?.groupId ?? "";
+              const originalGroup = originalGroupId
+                ? groupById.get(originalGroupId)
+                : undefined;
+              const settlementCategoryOptions = originalGroup
+                ? originalGroup.categories.filter(
+                    (category) => category.type === "expense"
+                  )
+                : privateExpenseCategories;
 
               return (
                 <DebtCard
                   key={debt.id}
                   debt={debt}
                   viewerUserId={auth.user?.id}
+                  isHighlighted={highlightedDebtId === debt.id}
                 >
                   {availableAmount <= 0 ? (
                     <EmptyState>
@@ -392,7 +475,7 @@ export function DebtsPage() {
                         step="0.01"
                         value={draft.amount}
                         onChange={(event) =>
-                          updateDraft(debt.id, "amount", event.target.value)
+                          updateDraft(debt, "amount", event.target.value)
                         }
                         required
                       />
@@ -400,7 +483,7 @@ export function DebtsPage() {
                         label="Source account"
                         value={draft.accountId}
                         onChange={(event) =>
-                          updateDraft(debt.id, "accountId", event.target.value)
+                          updateDraft(debt, "accountId", event.target.value)
                         }
                         required
                       >
@@ -412,14 +495,32 @@ export function DebtsPage() {
                         ))}
                       </SelectField>
                       <SelectField
+                        label="Group"
+                        value={originalGroupId}
+                        onChange={() => undefined}
+                        disabled
+                      >
+                        {originalGroup ? (
+                          <option value={originalGroup.id}>
+                            {originalGroup.name}
+                          </option>
+                        ) : originalGroupId ? (
+                          <option value={originalGroupId}>
+                            Group unavailable
+                          </option>
+                        ) : (
+                          <option value="">None</option>
+                        )}
+                      </SelectField>
+                      <SelectField
                         label="Category"
                         value={draft.categoryId}
                         onChange={(event) =>
-                          updateDraft(debt.id, "categoryId", event.target.value)
+                          updateDraft(debt, "categoryId", event.target.value)
                         }
                       >
                         <option value="">No category</option>
-                        {expenseCategories.map((category) => (
+                        {settlementCategoryOptions.map((category) => (
                           <option key={category.id} value={category.id}>
                             {category.name}
                           </option>
@@ -429,7 +530,7 @@ export function DebtsPage() {
                         label="Note"
                         value={draft.note}
                         onChange={(event) =>
-                          updateDraft(debt.id, "note", event.target.value)
+                          updateDraft(debt, "note", event.target.value)
                         }
                         placeholder="Optional"
                       />
@@ -438,7 +539,7 @@ export function DebtsPage() {
                         value={draft.paymentInfo}
                         onChange={(event) =>
                           updateDraft(
-                            debt.id,
+                            debt,
                             "paymentInfo",
                             event.target.value
                           )
@@ -499,6 +600,7 @@ export function DebtsPage() {
                   key={debt.id}
                   debt={debt}
                   viewerUserId={auth.user?.id}
+                  isHighlighted={highlightedDebtId === debt.id}
                 >
                   <EmptyState>
                     {hasPendingRequest
@@ -551,7 +653,11 @@ export function DebtsPage() {
               <EmptyState>No requests match your search.</EmptyState>
             ) : (
               visiblePendingFromMe.map((request) => (
-                <SettlementRequestCard key={request.id} request={request} />
+                <SettlementRequestCard
+                  key={request.id}
+                  request={request}
+                  isHighlighted={highlightedSettlementId === request.id}
+                />
               ))
             )}
           </div>
@@ -577,6 +683,7 @@ export function DebtsPage() {
                 <SettlementRequestCard
                   key={request.id}
                   request={request}
+                  isHighlighted={highlightedSettlementId === request.id}
                   actions={
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
@@ -639,6 +746,7 @@ export function DebtsPage() {
                 key={debt.id}
                 debt={debt}
                 viewerUserId={auth.user?.id}
+                isHighlighted={highlightedDebtId === debt.id}
               />
             ))
           )}
@@ -700,15 +808,24 @@ export function DebtsPage() {
 
 function SettlementRequestCard({
   request,
+  isHighlighted,
   actions
 }: {
   request: SettlementRequest;
+  isHighlighted?: boolean;
   actions?: ReactNode;
 }) {
   const debt = request.sharedExpenseParticipant;
 
   return (
-    <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+    <div
+      id={`settlement-${request.id}`}
+      className={`rounded-md border p-3 transition ${
+        isHighlighted
+          ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
+          : "border-slate-200 dark:border-slate-800"
+      }`}
+    >
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
         <div>
           <p className="font-semibold">

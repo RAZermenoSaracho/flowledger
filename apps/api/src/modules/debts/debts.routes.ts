@@ -27,7 +27,9 @@ const publicTransactionSelect = {
   name: true,
   amount: true,
   type: true,
-  date: true
+  date: true,
+  categoryId: true,
+  groupId: true
 };
 
 const debtInclude = {
@@ -111,9 +113,26 @@ async function assertSettlementAccount(userId: string, accountId: string) {
 
 async function assertSettlementCategory(
   userId: string,
-  categoryId?: string | null
+  categoryId?: string | null,
+  groupId?: string | null
 ) {
   if (!categoryId) return;
+
+  if (groupId) {
+    const category = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        type: "expense",
+        groupId,
+        isArchived: false,
+        users: { some: { userId } }
+      }
+    });
+    if (!category) {
+      throw new HttpError(400, "Category does not exist or is archived");
+    }
+    return;
+  }
 
   const category = await prisma.category.findFirst({
     where: {
@@ -256,7 +275,11 @@ debtsRouter.post(
     const pendingAmount = pendingSettlementTotal(debt);
     const requestAmount = Number(req.body.amount);
     await assertSettlementAccount(req.user!.id, req.body.accountId);
-    await assertSettlementCategory(req.user!.id, req.body.categoryId);
+    await assertSettlementCategory(
+      req.user!.id,
+      req.body.categoryId,
+      debt.sharedExpense.transaction.groupId
+    );
 
     if (outstandingAmount <= 0) {
       throw new HttpError(400, "Debt is already settled");
@@ -308,7 +331,15 @@ debtsRouter.post(
           settlementRequestId: settlementRequest.id,
           sharedExpenseId:
             settlementRequest.sharedExpenseParticipant.sharedExpenseId,
-          participantId: settlementRequest.sharedExpenseParticipantId
+          participantId: settlementRequest.sharedExpenseParticipantId,
+          ...(settlementRequest.sharedExpenseParticipant.sharedExpense
+            .transaction.groupId
+            ? {
+                groupId:
+                  settlementRequest.sharedExpenseParticipant.sharedExpense
+                    .transaction.groupId
+              }
+            : {})
         }
       }
     ]);
@@ -364,7 +395,10 @@ debtsRouter.post(
             message: `Your settlement for ${debt.sharedExpense.title} was approved.`,
             metadata: {
               sharedExpenseId: debt.sharedExpenseId,
-              participantId: debt.id
+              participantId: debt.id,
+              ...(debt.sharedExpense.transaction.groupId
+                ? { groupId: debt.sharedExpense.transaction.groupId }
+                : {})
             }
           },
           {
@@ -374,7 +408,10 @@ debtsRouter.post(
             message: `Your settlement for ${debt.sharedExpense.title} was approved. Register the payment as a transaction when ready.`,
             metadata: {
               sharedExpenseId: debt.sharedExpenseId,
-              participantId: debt.id
+              participantId: debt.id,
+              ...(debt.sharedExpense.transaction.groupId
+                ? { groupId: debt.sharedExpense.transaction.groupId }
+                : {})
             }
           }
         ]);
@@ -493,6 +530,9 @@ settlementsRouter.post(
           date: transactionDate,
           accountId: settlementRequest.debtorAccountId,
           categoryId: settlementRequest.debtorCategoryId,
+          groupId:
+            approvedRequest.sharedExpenseParticipant.sharedExpense.transaction
+              .groupId,
           notes: notes || null
         }
       });
@@ -563,7 +603,15 @@ settlementsRouter.post(
             participantId:
               approvedRequestWithTransactions.sharedExpenseParticipantId,
             debtorTransactionId: debtorTransaction.id,
-            creditorTransactionId: creditorTransaction.id
+            creditorTransactionId: creditorTransaction.id,
+            ...(approvedRequestWithTransactions.sharedExpenseParticipant
+              .sharedExpense.transaction.groupId
+              ? {
+                  groupId:
+                    approvedRequestWithTransactions.sharedExpenseParticipant
+                      .sharedExpense.transaction.groupId
+                }
+              : {})
           }
         }
       ]);
@@ -623,7 +671,15 @@ settlementsRouter.post(
           settlementRequestId: rejectedRequest.id,
           sharedExpenseId:
             rejectedRequest.sharedExpenseParticipant.sharedExpenseId,
-          participantId: rejectedRequest.sharedExpenseParticipantId
+          participantId: rejectedRequest.sharedExpenseParticipantId,
+          ...(rejectedRequest.sharedExpenseParticipant.sharedExpense.transaction
+            .groupId
+            ? {
+                groupId:
+                  rejectedRequest.sharedExpenseParticipant.sharedExpense
+                    .transaction.groupId
+              }
+            : {})
         }
       }
     ]);

@@ -1,11 +1,13 @@
 import { SHARED_EXPENSE_STATUSES } from "@flowledger/shared";
 import type { SharedExpenseStatus } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
+import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { PublicUser, SharedExpense, Transaction } from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
@@ -43,7 +45,11 @@ function splitDirectionLabel(sharedExpense: SharedExpense) {
 }
 
 export function SharedExpensesPage() {
+  const auth = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const highlightedSharedExpenseId = searchParams.get("sharedExpenseId");
+  const highlightedParticipantId = searchParams.get("participantId");
   const [transactionId, setTransactionId] = useState("");
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<SharedExpenseStatus>("open");
@@ -115,6 +121,25 @@ export function SharedExpensesPage() {
       }),
     [search, sharedExpensesQuery.data, sortBy, sortDirection, statusFilter]
   );
+
+  useEffect(() => {
+    const targetId = highlightedParticipantId
+      ? `shared-participant-${highlightedParticipantId}`
+      : highlightedSharedExpenseId
+        ? `shared-expense-${highlightedSharedExpenseId}`
+        : null;
+    if (!targetId || sharedExpensesQuery.isLoading) return;
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(targetId)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [
+    highlightedParticipantId,
+    highlightedSharedExpenseId,
+    sharedExpensesQuery.isLoading
+  ]);
 
   const createSharedExpense = useMutation({
     mutationFn: () =>
@@ -516,8 +541,13 @@ export function SharedExpensesPage() {
         <div className="mt-4 grid gap-3">
           {visibleSharedExpenses.map((sharedExpense) => (
             <div
+              id={`shared-expense-${sharedExpense.id}`}
               key={sharedExpense.id}
-              className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
+              className={`rounded-md border p-3 transition ${
+                highlightedSharedExpenseId === sharedExpense.id
+                  ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
+                  : "border-slate-200 dark:border-slate-800"
+              }`}
             >
               <div className="flex flex-col justify-between gap-2 sm:flex-row">
                 <div>
@@ -532,20 +562,27 @@ export function SharedExpensesPage() {
                 </p>
               </div>
               <div className="mt-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="w-full sm:w-auto"
-                  onClick={() => editSharedExpense(sharedExpense)}
-                >
-                  Edit
-                </Button>
+                {sharedExpense.ownerUserId === auth.user?.id ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => editSharedExpense(sharedExpense)}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
               </div>
               <div className="mt-3 grid gap-2">
                 {sharedExpense.participants.map((participant) => (
                   <div
+                    id={`shared-participant-${participant.id}`}
                     key={participant.id}
-                    className="rounded-md bg-slate-50 p-2 text-sm dark:bg-slate-950"
+                    className={`rounded-md p-2 text-sm transition ${
+                      highlightedParticipantId === participant.id
+                        ? "bg-white ring-2 ring-pine dark:bg-slate-900 dark:ring-emerald-500"
+                        : "bg-slate-50 dark:bg-slate-950"
+                    }`}
                   >
                     <span className="font-medium">
                       {participant.userId ? "App user" : "Manual"}

@@ -1,7 +1,8 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput, TextArea } from "../components/FormField";
@@ -19,6 +20,8 @@ const money = new Intl.NumberFormat("en-US", {
 export function GroupsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const highlightedGroupId = searchParams.get("groupId");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -150,6 +153,22 @@ export function GroupsPage() {
     (member) => member.userId === auth.user?.id && member.role === "admin"
   );
   const canManageActive = Boolean(canManage && !selectedGroup?.isArchived);
+
+  useEffect(() => {
+    if (highlightedGroupId && highlightedGroupId !== selectedGroupId) {
+      setSelectedGroupId(highlightedGroupId);
+    }
+  }, [highlightedGroupId, selectedGroupId]);
+
+  useEffect(() => {
+    if (!highlightedGroupId || groupsQuery.isLoading) return;
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`group-${highlightedGroupId}`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  }, [groupsQuery.isLoading, highlightedGroupId]);
 
   const createGroup = useMutation({
     mutationFn: () =>
@@ -433,6 +452,7 @@ export function GroupsPage() {
           <div className="mt-4 grid max-h-[55vh] gap-3 overflow-y-auto pr-1">
             {visibleGroups.map((group) => (
               <button
+                id={`group-${group.id}`}
                 key={group.id}
                 type="button"
                 className={`rounded-md border p-3 text-left transition ${
