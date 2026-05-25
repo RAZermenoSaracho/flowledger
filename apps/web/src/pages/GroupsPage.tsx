@@ -362,8 +362,8 @@ export function GroupsPage() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,24rem)_1fr]">
-      <div className="grid gap-6 content-start">
+    <div className="grid gap-6 xl:grid-cols-[minmax(22rem,26rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
+      <div className="grid gap-6 content-start xl:sticky xl:top-6">
         <Card>
           {isCreateOpen ? (
             <>
@@ -409,6 +409,7 @@ export function GroupsPage() {
           <h2 className="text-lg font-semibold">Groups</h2>
           <div className="mt-4">
             <SearchComponent
+              layout="compact"
               searchValue={groupSearch}
               searchPlaceholder="Search groups"
               onSearchChange={setGroupSearch}
@@ -429,7 +430,7 @@ export function GroupsPage() {
               }}
             />
           </div>
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 grid max-h-[55vh] gap-3 overflow-y-auto pr-1">
             {visibleGroups.map((group) => (
               <button
                 key={group.id}
@@ -466,9 +467,9 @@ export function GroupsPage() {
           </div>
         </Card>
       </div>
-      <Card>
+      <Card className="lg:p-6">
         {selectedGroup ? (
-          <div className="grid gap-6">
+          <div className="grid gap-8">
             {isEditingGroup ? (
               <form className="grid gap-3" onSubmit={submitGroupEdit}>
                 <TextInput
@@ -498,8 +499,8 @@ export function GroupsPage() {
                 </div>
               </form>
             ) : (
-              <div className="flex flex-col justify-between gap-3 sm:flex-row">
-                <div>
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold">
                       {selectedGroup.name}
@@ -520,7 +521,7 @@ export function GroupsPage() {
                   </p>
                 </div>
                 {canManage ? (
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
                     <Button
                       type="button"
                       variant="secondary"
@@ -623,7 +624,7 @@ export function GroupsPage() {
             </section>
             <section>
               <h3 className="font-semibold">Group categories</h3>
-              <div className="mt-3">
+              <div className="mt-3 border-y border-slate-100 py-4 dark:border-slate-800">
                 <SearchComponent
                   searchValue={categorySearch}
                   searchPlaceholder="Search group categories"
@@ -660,11 +661,11 @@ export function GroupsPage() {
                   }}
                 />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
                 {visibleGroupCategories.map((category) => (
                   <div
                     key={category.id}
-                    className="rounded-md border border-slate-200 p-3 text-sm dark:border-slate-800"
+                    className="rounded-md border border-slate-200 p-4 text-sm dark:border-slate-800"
                   >
                     {editingCategoryId === category.id ? (
                       <form
@@ -721,7 +722,7 @@ export function GroupsPage() {
                         </div>
                       </form>
                     ) : (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-center">
                         <div className="flex min-w-0 items-center gap-3">
                           <span
                             className="h-4 w-4 shrink-0 rounded-full"
@@ -744,7 +745,7 @@ export function GroupsPage() {
                           </div>
                         </div>
                         {canManage ? (
-                          <div className="flex flex-col gap-2 sm:flex-row">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap 2xl:justify-end">
                             <Button
                               type="button"
                               variant="secondary"
@@ -801,7 +802,7 @@ export function GroupsPage() {
               </div>
               {canManageActive ? (
                 <form
-                  className="mt-4 grid gap-3 md:grid-cols-4"
+                  className="mt-5 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,12rem)_minmax(5rem,7rem)] 2xl:grid-cols-[minmax(18rem,1fr)_minmax(9rem,12rem)_minmax(5rem,7rem)_auto] 2xl:items-end"
                   onSubmit={submitCategory}
                 >
                   <TextInput
@@ -829,8 +830,12 @@ export function GroupsPage() {
                     value={categoryColor}
                     onChange={(event) => setCategoryColor(event.target.value)}
                   />
-                  <div className="flex items-end">
-                    <Button type="submit" disabled={addCategory.isPending}>
+                  <div className="flex items-end lg:col-span-3 2xl:col-span-1">
+                    <Button
+                      type="submit"
+                      className="w-full 2xl:w-auto"
+                      disabled={addCategory.isPending}
+                    >
                       Add category
                     </Button>
                   </div>
