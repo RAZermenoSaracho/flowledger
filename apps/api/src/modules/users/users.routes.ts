@@ -127,7 +127,9 @@ usersRouter.patch(
   asyncHandler(async (req, res) => {
     const input = req.body as UpdateUserPasswordInput;
     const user = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
-    const isCurrentPasswordValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    const isCurrentPasswordValid = user.passwordHash
+      ? await bcrypt.compare(input.currentPassword, user.passwordHash)
+      : false;
 
     if (!isCurrentPasswordValid) {
       throw new HttpError(401, "Current password is incorrect");

@@ -159,3 +159,5 @@ database/prisma/migrations/*
 !database/prisma/migrations/20260522200000_settlement_transactions/
 !database/prisma/migrations/20260522200000_settlement_transactions/migration.sql
 package-lock.json
+
+apps/web/.vite

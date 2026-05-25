@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 const TOKEN_KEY = "flowledger.token";
 
 export const tokenStore = {
@@ -16,6 +16,10 @@ type ApiOptions = {
 export function apiAssetUrl(path: string | null | undefined) {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
+  return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function apiUrl(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 

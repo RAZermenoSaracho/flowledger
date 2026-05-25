@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./index.css";
+import { routes } from "./constants/routes";
 import { AuthProvider } from "./hooks/useAuth";
 import { ThemeProvider } from "./hooks/useTheme";
 import { AppLayout } from "./layout/AppLayout";
@@ -13,6 +14,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DebtsPage } from "./pages/DebtsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { GroupsPage } from "./pages/GroupsPage";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -29,8 +31,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              <Route path={routes.login} element={<LoginPage />} />
+              <Route path={routes.register} element={<RegisterPage />} />
+              <Route path={routes.oauthCallback} element={<OAuthCallbackPage />} />
               <Route
                 element={
                   <ProtectedRoute>
