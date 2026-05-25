@@ -12,6 +12,27 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(128)
 });
 
+export const googleOAuthStartQuerySchema = z.object({
+  redirect: z
+    .string()
+    .trim()
+    .max(120)
+    .refine((value) => value.startsWith("/") && !value.startsWith("//"), "Redirect must be an app path")
+    .default("/")
+});
+
+export const googleOAuthCallbackQuerySchema = z.object({
+  code: z.string().min(1).optional(),
+  state: z.string().min(1),
+  error: z.string().optional(),
+  error_description: z.string().optional(),
+  scope: z.string().optional(),
+  authuser: z.string().optional(),
+  prompt: z.string().optional()
+}).refine((input) => Boolean(input.code || input.error), {
+  message: "OAuth callback must include a code or error"
+});
+
 export const updateUserProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255)
@@ -39,6 +60,8 @@ export const userSearchQuerySchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleOAuthStartQuery = z.infer<typeof googleOAuthStartQuerySchema>;
+export type GoogleOAuthCallbackQuery = z.infer<typeof googleOAuthCallbackQuerySchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type UpdateUserPasswordInput = z.infer<typeof updateUserPasswordSchema>;
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;

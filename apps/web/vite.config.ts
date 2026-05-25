@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootEnvDir, "");
 
   return {
+    envDir: rootEnvDir,
     plugins: [react()],
     server: {
       host: "0.0.0.0",

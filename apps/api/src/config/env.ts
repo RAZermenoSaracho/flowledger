@@ -44,6 +44,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
   API_PORT: z.coerce.number().int().positive().default(4000),
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  GOOGLE_CALLBACK_URL: z.string().url(),
+  WEB_APP_URL: z.string().url(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 

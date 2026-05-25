@@ -49,6 +49,13 @@ Required variables:
 - `API_PORT`: API port, default `4000`.
 - `WEB_PORT`: Vite dev server port, default `5173`.
 - `VITE_API_URL`: API URL used by the frontend.
+- `GOOGLE_CLIENT_ID`: Google OAuth web client ID.
+- `GOOGLE_CLIENT_SECRET`: Google OAuth web client secret. API only; never expose
+  this to the frontend.
+- `GOOGLE_CALLBACK_URL`: API callback URL registered in Google OAuth, for
+  example `http://localhost:4000/auth/google/callback`.
+- `WEB_APP_URL`: Public web app URL used after OAuth completes, for example
+  `http://localhost:5173`.
 - `NODE_ENV`: `development`, `test`, or `production`.
 
 Do not commit real `.env` files.
@@ -151,6 +158,8 @@ Auth:
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `GET /auth/google`
+- `GET /auth/google/callback`
 - `GET /auth/me`
 
 Accounts:

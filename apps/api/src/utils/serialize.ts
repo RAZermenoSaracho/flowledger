@@ -12,7 +12,7 @@ export function serialize<T>(value: T): T {
   ) as T;
 }
 
-export function publicUser<T extends { passwordHash?: string }>(user: T) {
+export function publicUser<T extends { passwordHash?: string | null }>(user: T) {
   const { passwordHash: _passwordHash, ...safeUser } = user;
   return safeUser;
 }
