@@ -7,15 +7,9 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
       - name: Deploy FlowLedger
         run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null razs@ssh.razs.dev "~/scripts/deploy-flowledger-prod.sh"
+          ~/scripts/deploy-flowledger-prod.sh
