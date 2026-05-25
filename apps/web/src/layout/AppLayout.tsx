@@ -7,12 +7,13 @@ import {
   useLocation,
   useNavigate
 } from "react-router-dom";
+import { BrandLogo } from "../components/BrandLogo";
+import { Button } from "../components/Button";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
 import { apiRequest, tokenStore } from "../services/api";
 import type { Notification, User } from "../types/api";
-import { Button } from "../components/Button";
 import type { MobileSidebarSide } from "../hooks/useMobileSidebarSide";
 
 const navItems = [
@@ -407,12 +408,8 @@ function BrandLink({ onNavigate }: { onNavigate?: () => void }) {
       className="inline-block rounded-md focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:focus:ring-offset-slate-950"
       aria-label="Go to Dashboard"
     >
-      <h1 className="text-xl font-bold text-ink dark:text-slate-100">
-        FlowLedger
-      </h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Personal finance workspace
-      </p>
+      <BrandLogo />
+      <h1 className="sr-only">FlowLedger</h1>
     </Link>
   );
 }

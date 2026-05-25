@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { BrandLogo } from "../components/BrandLogo";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { TextInput } from "../components/FormField";
@@ -29,6 +30,7 @@ export function LoginPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 px-4 dark:bg-slate-950">
       <Card className="w-full max-w-md">
+        <BrandLogo className="mb-6 h-12 w-auto" />
         <h1 className="text-2xl font-bold">Sign in</h1>
         <form className="mt-6 grid gap-4" onSubmit={submit}>
           <TextInput label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
