@@ -16,10 +16,6 @@ jobs:
           echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Add server to known_hosts
-        run: |
-          ssh-keyscan ssh.razs.dev >> ~/.ssh/known_hosts
-
       - name: Deploy FlowLedger
         run: |
-          ssh razs@ssh.razs.dev "~/scripts/deploy-flowledger-prod.sh"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null razs@ssh.razs.dev "~/scripts/deploy-flowledger-prod.sh"
