@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 64" role="img" aria-labelledby="title desc">
+  <title id="title">FlowLedger</title>
+  <desc id="desc">FlowLedger logo with a ledger and flowing balance mark.</desc>
+  <style>
+    .word{fill:#17211d}
+    .sub{fill:#64748b}
+    @media (prefers-color-scheme:dark){
+      .word{fill:#f8fafc}
+      .sub{fill:#94a3b8}
+    }
+  </style>
+  <rect width="52" height="52" x="6" y="6" rx="12" fill="#176b52"/>
+  <path fill="#dff8ea" d="M18 16a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4V16Z"/>
+  <path fill="#176b52" d="M25 22h14v4H25zM25 38h6v6h-6zM36 33h6v11h-6z"/>
+  <path fill="#f97359" d="M25 32c0-1.1.9-2 2-2h7.2a2 2 0 0 1 1.4.6l2 2a2 2 0 0 0 1.4.6h4v4h-5.4a2 2 0 0 1-1.4-.6l-2-2a2 2 0 0 0-1.4-.6H25v-2Z"/>
+  <text class="word" x="74" y="35" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="800" letter-spacing="0">FlowLedger</text>
+  <text class="sub" x="75" y="51" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="9" font-weight="600" letter-spacing=".2">Personal finance workspace</text>
+</svg>
