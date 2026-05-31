@@ -116,18 +116,19 @@ model Account {
 }
 
 model Category {
-  id           String         @id @default(cuid())
-  groupId      String?
-  name         String
-  type         CategoryType
-  color        String?
-  isArchived   Boolean        @default(false)
-  archivedAt   DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  group        Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  users        CategoryUser[]
-  transactions Transaction[]  @relation("TransactionCategory")
+  id                        String         @id @default(cuid())
+  groupId                   String?
+  name                      String
+  type                      CategoryType
+  color                     String?
+  isArchived                Boolean        @default(false)
+  archivedAt                DateTime?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  group                     Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  users                     CategoryUser[]
+  transactions              Transaction[]  @relation("TransactionCategory")
+  expenseOffsetTransactions Transaction[]  @relation("TransactionExpenseOffsetCategory")
 
   @@index([groupId])
   @@index([groupId, isArchived])
@@ -153,6 +154,7 @@ model Transaction {
   type                      TransactionType
   date                      DateTime
   categoryId                String?
+  expenseOffsetCategoryId   String?
   groupId                   String?
   accountId                 String?
   notes                     String?
@@ -160,6 +162,7 @@ model Transaction {
   updatedAt                 DateTime              @updatedAt
   user                      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   category                  Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  expenseOffsetCategory     Category?             @relation("TransactionExpenseOffsetCategory", fields: [expenseOffsetCategoryId], references: [id], onDelete: SetNull)
   group                     Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
   account                   Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
   relations                 TransactionRelation[] @relation("TransactionRelations")
@@ -170,6 +173,7 @@ model Transaction {
 
   @@index([userId, date])
   @@index([categoryId])
+  @@index([expenseOffsetCategoryId])
   @@index([groupId])
   @@index([accountId])
 }
@@ -264,6 +268,8 @@ model SettlementRequest {
   paymentInfo                String?
   debtorAccountId            String?
   debtorCategoryId           String?
+  creditorAccountId          String?
+  creditorCategoryId         String?
   debtorTransactionId        String?                  @unique
   creditorTransactionId      String?                  @unique
   createdAt                  DateTime                 @default(now())
@@ -280,6 +286,8 @@ model SettlementRequest {
   @@index([creditorUserId])
   @@index([debtorAccountId])
   @@index([debtorCategoryId])
+  @@index([creditorAccountId])
+  @@index([creditorCategoryId])
   @@index([status])
 }
 

@@ -20,13 +20,22 @@ export function DashboardPage() {
     queryFn: async () => (await apiRequest<{ transactions: Transaction[] }>("/transactions")).transactions.slice(0, 5)
   });
 
-  const summary = summaryQuery.data ?? { totalIncome: 0, totalExpenses: 0, currentBalance: 0 };
+  const summary = summaryQuery.data ?? {
+    totalIncome: 0,
+    totalGrossIncome: 0,
+    totalNetIncome: 0,
+    totalExpenses: 0,
+    totalGrossExpenses: 0,
+    totalExpenseReimbursements: 0,
+    totalNetExpenses: 0,
+    currentBalance: 0
+  };
 
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
         <Metric title="Total income" value={money.format(summary.totalIncome)} />
-        <Metric title="Total expenses" value={money.format(summary.totalExpenses)} />
+        <Metric title="Net expenses" value={money.format(summary.totalNetExpenses)} />
         <Metric title="Current balance" value={money.format(summary.currentBalance)} />
       </section>
 
