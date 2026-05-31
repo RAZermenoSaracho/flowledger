@@ -39,12 +39,6 @@ type SettlementDraft = {
   paymentInfo: string;
 };
 
-type BatchSettlementDraft = {
-  accountId: string;
-  note: string;
-  paymentInfo: string;
-};
-
 type SettlementApprovalDraft = {
   accountId: string;
   categoryId: string;
@@ -200,11 +194,6 @@ export function DebtsPage() {
   const [approvalDrafts, setApprovalDrafts] = useState<
     Record<string, SettlementApprovalDraft>
   >({});
-  const [batchDraft, setBatchDraft] = useState<BatchSettlementDraft>({
-    accountId: "",
-    note: "",
-    paymentInfo: ""
-  });
   const [activeTab, setActiveTab] = useState<DebtsTab>("balances");
   const [balanceSearch, setBalanceSearch] = useState("");
   const [pendingFromMeSearch, setPendingFromMeSearch] = useState("");
@@ -369,16 +358,6 @@ export function DebtsPage() {
   );
 
   useEffect(() => {
-    const defaultAccountId = accountsQuery.data?.[0]?.id;
-    if (!batchDraft.accountId && defaultAccountId) {
-      setBatchDraft((current) => ({
-        ...current,
-        accountId: defaultAccountId
-      }));
-    }
-  }, [accountsQuery.data, batchDraft.accountId]);
-
-  useEffect(() => {
     const requestedTab = searchParams.get("tab");
     if (requestedTab === "pending" || requestedTab === "settled") {
       setActiveTab(requestedTab);
@@ -461,23 +440,10 @@ export function DebtsPage() {
     }
   });
   const requestBatchSettlement = useMutation({
-    mutationFn: async ({
-      selectedDebts,
-      draft
-    }: {
-      selectedDebts: Debt[];
-      draft: BatchSettlementDraft;
-    }) => {
+    mutationFn: async ({ selectedDebts }: { selectedDebts: Debt[] }) => {
       await Promise.all(
         selectedDebts.map((debt) =>
-          createSettlementRequest(debt.id, {
-            ...defaultDraftFor(debt),
-            amount: String(availableSettlementAmount(debt)),
-            accountId: draft.accountId,
-            categoryId: defaultDraftFor(debt).categoryId,
-            note: draft.note,
-            paymentInfo: draft.paymentInfo
-          })
+          createSettlementRequest(debt.id, draftFor(debt))
         )
       );
     },
@@ -490,7 +456,6 @@ export function DebtsPage() {
         settledIds.forEach((id) => next.delete(id));
         return next;
       });
-      setBatchDraft((current) => ({ ...current, note: "", paymentInfo: "" }));
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
@@ -667,6 +632,18 @@ export function DebtsPage() {
     return drafts[debt.id] ?? defaultDraftFor(debt);
   }
 
+  function isSettlementDraftComplete(debt: Debt) {
+    const draft = draftFor(debt);
+    const amount = Number(draft.amount);
+    return (
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      amount <= availableSettlementAmount(debt) &&
+      Boolean(draft.accountId) &&
+      Boolean(draft.categoryId)
+    );
+  }
+
   function updateDraft(
     debt: Debt,
     field: keyof SettlementDraft,
@@ -711,9 +688,14 @@ export function DebtsPage() {
 
   async function submitBatchSettlement(event: FormEvent) {
     event.preventDefault();
+    if (
+      selectedIOweThem.length === 0 ||
+      !selectedIOweThem.every(isSettlementDraftComplete)
+    ) {
+      return;
+    }
     await requestBatchSettlement.mutateAsync({
-      selectedDebts: selectedIOweThem,
-      draft: batchDraft
+      selectedDebts: selectedIOweThem
     });
   }
 
@@ -855,19 +837,16 @@ export function DebtsPage() {
             viewerUserId={auth.user?.id}
             selectedDebtIds={selectedDebtIds}
             selectedIOweThem={selectedIOweThem}
-            batchDraft={batchDraft}
             accounts={accountsQuery.data ?? []}
             isActing={isActing}
             highlightedDebtId={highlightedDebtId}
             draftFor={draftFor}
+            isSettlementDraftComplete={isSettlementDraftComplete}
             updateDraft={updateDraft}
             categoryOptionsFor={categoryOptionsFor}
             onToggleDebt={toggleDebtSelection}
             onSelectDebts={setDetailSelection}
             onSubmitSettlement={submitSettlement}
-            onBatchDraftChange={(field, value) =>
-              setBatchDraft((current) => ({ ...current, [field]: value }))
-            }
             onSubmitBatchSettlement={submitBatchSettlement}
           />
         ) : null}
@@ -1128,28 +1107,27 @@ function PersonDebtDetail({
   viewerUserId,
   selectedDebtIds,
   selectedIOweThem,
-  batchDraft,
   accounts,
   isActing,
   highlightedDebtId,
   draftFor,
+  isSettlementDraftComplete,
   updateDraft,
   categoryOptionsFor,
   onToggleDebt,
   onSelectDebts,
   onSubmitSettlement,
-  onBatchDraftChange,
   onSubmitBatchSettlement
 }: {
   balance: PersonBalance;
   viewerUserId?: string;
   selectedDebtIds: Set<string>;
   selectedIOweThem: Debt[];
-  batchDraft: BatchSettlementDraft;
   accounts: Account[];
   isActing: boolean;
   highlightedDebtId?: string | null;
   draftFor: (debt: Debt) => SettlementDraft;
+  isSettlementDraftComplete: (debt: Debt) => boolean;
   updateDraft: (
     debt: Debt,
     field: keyof SettlementDraft,
@@ -1159,19 +1137,22 @@ function PersonDebtDetail({
   onToggleDebt: (debtId: string) => void;
   onSelectDebts: (debts: Debt[], selected: boolean) => void;
   onSubmitSettlement: (event: FormEvent, debt: Debt) => Promise<void>;
-  onBatchDraftChange: (
-    field: keyof BatchSettlementDraft,
-    value: string
-  ) => void;
   onSubmitBatchSettlement: (event: FormEvent) => Promise<void>;
 }) {
   const selectableIOweThem = balance.iOweThem.filter(
     (debt) => availableSettlementAmount(debt) > 0
   );
   const selectedBatchTotal = selectedIOweThem.reduce(
-    (total, debt) => total + availableSettlementAmount(debt),
+    (total, debt) => total + (Number(draftFor(debt).amount) || 0),
     0
   );
+  const selectedDraftsComplete =
+    selectedIOweThem.length > 0 &&
+    selectedIOweThem.every(isSettlementDraftComplete);
+  const batchValidationMessage =
+    selectedIOweThem.length > 0 && !selectedDraftsComplete
+      ? "Complete amount, account, and category for every selected debt before requesting settlement."
+      : "";
 
   return (
     <Card>
@@ -1226,37 +1207,39 @@ function PersonDebtDetail({
               </p>
             </div>
             <form
-              className="grid gap-3 md:grid-cols-[minmax(0,14rem)_auto]"
+              className="grid gap-2 sm:grid-cols-3"
               onSubmit={onSubmitBatchSettlement}
             >
-              <SelectField
-                label="Source account"
-                value={batchDraft.accountId}
-                onChange={(event) =>
-                  onBatchDraftChange("accountId", event.target.value)
-                }
-                required
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                disabled={selectableIOweThem.length === 0}
+                onClick={() => onSelectDebts(selectableIOweThem, true)}
               >
-                <option value="">Select account</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </SelectField>
-              <div className="flex items-end">
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={
-                    isActing ||
-                    selectedIOweThem.length === 0 ||
-                    !batchDraft.accountId
-                  }
-                >
-                  Request selected
-                </Button>
-              </div>
+                Select All
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                disabled={selectedIOweThem.length === 0}
+                onClick={() => onSelectDebts(selectableIOweThem, false)}
+              >
+                Clear Selection
+              </Button>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isActing || !selectedDraftsComplete}
+              >
+                Request Selected
+              </Button>
+              {batchValidationMessage ? (
+                <p className="text-sm text-coral dark:text-red-400 sm:col-span-3">
+                  {batchValidationMessage}
+                </p>
+              ) : null}
             </form>
           </div>
 
@@ -1317,8 +1300,9 @@ function PersonDebtDetail({
                     onChange={(event) =>
                       updateDraft(debt, "categoryId", event.target.value)
                     }
+                    required
                   >
-                    <option value="">No category</option>
+                    <option value="">Select category</option>
                     {settlementCategoryOptions.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
@@ -1385,7 +1369,7 @@ function DebtTable({
           disabled={selectableDebts.length === 0}
           onClick={() => onSelectDebts(selectableDebts, !allSelected)}
         >
-          {allSelected ? "Clear" : "Select all"}
+          {allSelected ? "Clear Selection" : "Select All"}
         </Button>
       </div>
       {debts.length === 0 ? (
