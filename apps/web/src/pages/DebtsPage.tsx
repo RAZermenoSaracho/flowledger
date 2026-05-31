@@ -972,25 +972,9 @@ export function DebtsPage() {
             </div>
             {pendingForMe.length > 0 ? (
               <form
-                className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                className="grid w-full max-w-md gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
                 onSubmit={submitBatchApproval}
               >
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full"
-                    disabled={visiblePendingForMe.length === 0}
-                    onClick={() =>
-                      setApprovalSelection(
-                        visiblePendingForMe,
-                        !allVisibleApprovalsSelected
-                      )
-                    }
-                  >
-                    {allVisibleApprovalsSelected ? "Clear" : "Select all"}
-                  </Button>
-                </div>
                 <SelectField
                   label="Deposit account"
                   value={batchApprovalDraft.accountId}
@@ -1044,7 +1028,21 @@ export function DebtsPage() {
                     </option>
                   ))}
                 </SelectField>
-                <div className="flex items-end">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={visiblePendingForMe.length === 0}
+                    onClick={() =>
+                      setApprovalSelection(
+                        visiblePendingForMe,
+                        !allVisibleApprovalsSelected
+                      )
+                    }
+                  >
+                    {allVisibleApprovalsSelected ? "Clear" : "Select all"}
+                  </Button>
                   <Button
                     type="submit"
                     className="w-full"
@@ -1606,7 +1604,7 @@ function ApprovalActions({
 
   return (
     <form
-      className="grid gap-2 lg:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto]"
+      className="grid w-full max-w-md gap-3"
       onSubmit={onApprove}
     >
       <SelectField
@@ -1650,7 +1648,7 @@ function ApprovalActions({
           </option>
         ))}
       </SelectField>
-      <div className="flex items-end">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Button
           type="submit"
           className="w-full"
@@ -1658,8 +1656,6 @@ function ApprovalActions({
         >
           Approve
         </Button>
-      </div>
-      <div className="flex items-end">
         <Button
           type="button"
           variant="danger"
