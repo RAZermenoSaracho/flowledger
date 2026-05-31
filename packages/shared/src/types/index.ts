@@ -30,5 +30,8 @@ export type PublicUser = {
 export type SummaryReport = {
   totalIncome: number;
   totalExpenses: number;
+  totalGrossExpenses: number;
+  totalExpenseReimbursements: number;
+  totalNetExpenses: number;
   currentBalance: number;
 };

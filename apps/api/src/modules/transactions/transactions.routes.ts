@@ -20,7 +20,12 @@ export const transactionsRouter = Router();
 
 async function assertOwnedRelations(
   userId: string,
-  input: { accountId?: string | null; categoryId?: string | null; groupId?: string | null }
+  input: {
+    accountId?: string | null;
+    categoryId?: string | null;
+    expenseOffsetCategoryId?: string | null;
+    groupId?: string | null;
+  }
 ) {
   if (input.accountId) {
     const account = await prisma.account.findFirst({
@@ -42,11 +47,33 @@ async function assertOwnedRelations(
     if (!category)
       throw new HttpError(400, "Category does not exist or is archived");
   }
+
+  if (input.expenseOffsetCategoryId && !input.groupId) {
+    const category = await prisma.category.findFirst({
+      where: {
+        id: input.expenseOffsetCategoryId,
+        type: "expense",
+        groupId: null,
+        isArchived: false,
+        users: { some: { userId } }
+      }
+    });
+    if (!category) {
+      throw new HttpError(
+        400,
+        "Expense offset category does not exist or is archived"
+      );
+    }
+  }
 }
 
 async function assertGroupRelations(
   userId: string,
-  input: { groupId?: string | null; categoryId?: string | null }
+  input: {
+    groupId?: string | null;
+    categoryId?: string | null;
+    expenseOffsetCategoryId?: string | null;
+  }
 ) {
   if (input.groupId) {
     await getGroupMembership(userId, input.groupId);
@@ -58,6 +85,33 @@ async function assertGroupRelations(
 
   if (input.groupId) {
     await assertCategory(userId, input.groupId, input.categoryId);
+
+    if (input.expenseOffsetCategoryId) {
+      const category = await prisma.category.findFirst({
+        where: {
+          id: input.expenseOffsetCategoryId,
+          type: "expense",
+          groupId: input.groupId,
+          isArchived: false,
+          users: { some: { userId } }
+        }
+      });
+      if (!category) {
+        throw new HttpError(
+          400,
+          "Expense offset category does not exist or is archived"
+        );
+      }
+    }
+  }
+}
+
+function assertExpenseOffsetAllowed(input: {
+  type?: "income" | "expense" | "transfer";
+  expenseOffsetCategoryId?: string | null;
+}) {
+  if (input.expenseOffsetCategoryId && input.type !== "income") {
+    throw new HttpError(400, "Expense offsets are only supported for income");
   }
 }
 
@@ -104,7 +158,8 @@ transactionsRouter.get(
       include: {
         account: true,
         category: true,
-        group: true,
+        expenseOffsetCategory: true,
+        group: true
       },
       orderBy: { date: "desc" }
     });
@@ -117,6 +172,7 @@ transactionsRouter.post(
   "/",
   validate(transactionSchema),
   asyncHandler(async (req, res) => {
+    assertExpenseOffsetAllowed(req.body);
     await assertOwnedRelations(req.user!.id, req.body);
     await assertGroupRelations(req.user!.id, req.body);
 
@@ -124,7 +180,7 @@ transactionsRouter.post(
     const transaction = await prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.transaction.create({
         data: { ...input, userId: req.user!.id, date: new Date(input.date) },
-        include: { account: true, category: true }
+        include: { account: true, category: true, expenseOffsetCategory: true }
       });
 
       if (sharedExpense) {
@@ -144,6 +200,7 @@ transactionsRouter.post(
         include: {
           account: true,
           category: true,
+          expenseOffsetCategory: true,
           group: true,
           sharedExpense: { include: { participants: true } }
         }
@@ -162,6 +219,7 @@ transactionsRouter.get(
       include: {
         account: true,
         category: true,
+        expenseOffsetCategory: true,
         group: true,
         relations: { include: { relatedTransaction: true } },
         relatedBy: { include: { transaction: true } },
@@ -183,15 +241,38 @@ transactionsRouter.put(
     });
     if (!existing) throw notFound("Transaction");
 
-    await assertOwnedRelations(req.user!.id, req.body);
-    await assertGroupRelations(req.user!.id, {
+    const relationInput = {
+      accountId:
+        req.body.accountId !== undefined
+          ? req.body.accountId
+          : existing.accountId,
       groupId:
         req.body.groupId !== undefined ? req.body.groupId : existing.groupId,
       categoryId:
         req.body.categoryId !== undefined
           ? req.body.categoryId
-          : existing.categoryId
+          : existing.categoryId,
+      expenseOffsetCategoryId:
+        req.body.expenseOffsetCategoryId !== undefined
+          ? req.body.expenseOffsetCategoryId
+          : existing.expenseOffsetCategoryId
+    };
+
+    assertExpenseOffsetAllowed({
+      type: req.body.type !== undefined ? req.body.type : existing.type,
+      expenseOffsetCategoryId: relationInput.expenseOffsetCategoryId
     });
+    await assertOwnedRelations(req.user!.id, {
+      accountId: req.body.accountId,
+      categoryId: req.body.categoryId,
+      expenseOffsetCategoryId:
+        req.body.expenseOffsetCategoryId !== undefined ||
+        req.body.groupId !== undefined
+          ? relationInput.expenseOffsetCategoryId
+          : undefined,
+      groupId: relationInput.groupId
+    });
+    await assertGroupRelations(req.user!.id, relationInput);
 
     const transaction = await prisma.$transaction(async (tx) => {
       const updatedTransaction = await tx.transaction.update({
@@ -203,7 +284,8 @@ transactionsRouter.put(
         include: {
           account: true,
           category: true,
-          group: true,
+          expenseOffsetCategory: true,
+          group: true
         }
       });
 

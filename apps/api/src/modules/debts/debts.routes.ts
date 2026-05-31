@@ -1,5 +1,6 @@
 import {
   directSettlementSchema,
+  settlementApprovalSchema,
   settlementRequestSchema
 } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
@@ -29,6 +30,7 @@ const publicTransactionSelect = {
   type: true,
   date: true,
   categoryId: true,
+  expenseOffsetCategoryId: true,
   groupId: true
 };
 
@@ -146,6 +148,60 @@ async function assertSettlementCategory(
   if (!category) {
     throw new HttpError(400, "Category does not exist or is archived");
   }
+}
+
+async function findSettlementExpenseOffsetCategory(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  categoryId?: string | null,
+  groupId?: string | null
+) {
+  if (!categoryId) return null;
+
+  return tx.category.findFirst({
+    where: {
+      id: categoryId,
+      type: "expense",
+      groupId: groupId ?? null,
+      isArchived: false,
+      users: { some: { userId } },
+      ...(groupId ? { group: { isArchived: false } } : {})
+    }
+  });
+}
+
+async function resolveSettlementExpenseOffsetCategoryId(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string;
+    requestedCategoryId?: string | null;
+    defaultCategoryId?: string | null;
+    groupId?: string | null;
+  }
+) {
+  if (input.requestedCategoryId !== undefined) {
+    const category = await findSettlementExpenseOffsetCategory(
+      tx,
+      input.userId,
+      input.requestedCategoryId,
+      input.groupId
+    );
+    if (input.requestedCategoryId && !category) {
+      throw new HttpError(
+        400,
+        "Expense offset category does not exist or is archived"
+      );
+    }
+    return category?.id ?? null;
+  }
+
+  const category = await findSettlementExpenseOffsetCategory(
+    tx,
+    input.userId,
+    input.defaultCategoryId,
+    input.groupId
+  );
+  return category?.id ?? null;
 }
 
 function settlementNotes(input: {
@@ -427,6 +483,7 @@ debtsRouter.post(
 
 settlementsRouter.post(
   "/:id/approve",
+  validate(settlementApprovalSchema),
   asyncHandler(async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const settlementRequest = await tx.settlementRequest.findFirst({
@@ -515,6 +572,19 @@ settlementsRouter.post(
         );
       }
 
+      const originalTransaction =
+        approvedRequest.sharedExpenseParticipant.sharedExpense.transaction;
+      const expenseOffsetCategoryId =
+        await resolveSettlementExpenseOffsetCategoryId(tx, {
+          userId: approvedRequest.creditorUserId,
+          requestedCategoryId: req.body.expenseOffsetCategoryId,
+          defaultCategoryId:
+            originalTransaction.type === "expense"
+              ? originalTransaction.categoryId
+              : null,
+          groupId: originalTransaction.groupId
+        });
+
       const transactionDate = approvedRequest.approvedAt ?? new Date();
       const transactionName = `Settlement: ${approvedRequest.sharedExpenseParticipant.sharedExpense.title}`;
       const notes = settlementNotes({
@@ -543,6 +613,7 @@ settlementsRouter.post(
           amount: approvedRequest.amount,
           type: "income",
           date: transactionDate,
+          expenseOffsetCategoryId,
           notes: notes || null
         }
       });

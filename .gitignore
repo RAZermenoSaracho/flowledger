@@ -158,6 +158,8 @@ database/prisma/migrations/*
 !database/prisma/migrations/20260522193000_archive_core_entities/migration.sql
 !database/prisma/migrations/20260522200000_settlement_transactions/
 !database/prisma/migrations/20260522200000_settlement_transactions/migration.sql
+!database/prisma/migrations/20260531120000_expense_reimbursement_offsets/
+!database/prisma/migrations/20260531120000_expense_reimbursement_offsets/migration.sql
 package-lock.json
 
 apps/web/.vite

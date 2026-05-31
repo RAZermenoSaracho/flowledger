@@ -76,6 +76,7 @@ export type Transaction = {
   type: TransactionType;
   date: string;
   categoryId?: string | null;
+  expenseOffsetCategoryId?: string | null;
   groupId?: string | null;
   accountId?: string | null;
   notes?: string | null;
@@ -83,6 +84,7 @@ export type Transaction = {
   updatedAt: string;
   account?: Account | null;
   category?: Category | null;
+  expenseOffsetCategory?: Category | null;
   group?: Group | null;
   sharedExpense?: SharedExpense | null;
 };
@@ -158,6 +160,9 @@ export type Notification = {
 export type Summary = {
   totalIncome: number;
   totalExpenses: number;
+  totalGrossExpenses: number;
+  totalExpenseReimbursements: number;
+  totalNetExpenses: number;
   currentBalance: number;
 };
 
@@ -168,11 +173,17 @@ export type CategoryReportRow = {
   categoryColor?: string | null;
   type: TransactionType;
   total: number;
+  grossExpenseTotal: number;
+  reimbursementTotal: number;
+  netExpenseTotal: number;
 };
 
 export type CashflowRow = {
   month: string;
   income: number;
   expenses: number;
+  grossExpenses: number;
+  expenseReimbursements: number;
+  netExpenses: number;
   balance: number;
 };

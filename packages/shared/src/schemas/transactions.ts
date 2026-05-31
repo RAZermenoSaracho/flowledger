@@ -17,6 +17,7 @@ export const transactionSchema = z.object({
     .datetime()
     .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   categoryId: z.string().min(1).optional().nullable(),
+  expenseOffsetCategoryId: z.string().min(1).optional().nullable(),
   groupId: z.string().min(1).optional().nullable(),
   accountId: z.string().min(1).optional().nullable(),
   notes: z.string().trim().max(2000).optional().nullable(),

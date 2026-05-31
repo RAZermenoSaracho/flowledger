@@ -20,7 +20,14 @@ export function DashboardPage() {
     queryFn: async () => (await apiRequest<{ transactions: Transaction[] }>("/transactions")).transactions.slice(0, 5)
   });
 
-  const summary = summaryQuery.data ?? { totalIncome: 0, totalExpenses: 0, currentBalance: 0 };
+  const summary = summaryQuery.data ?? {
+    totalIncome: 0,
+    totalExpenses: 0,
+    totalGrossExpenses: 0,
+    totalExpenseReimbursements: 0,
+    totalNetExpenses: 0,
+    currentBalance: 0
+  };
 
   return (
     <div className="grid gap-6">
