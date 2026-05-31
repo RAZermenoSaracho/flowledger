@@ -22,6 +22,8 @@ export function DashboardPage() {
 
   const summary = summaryQuery.data ?? {
     totalIncome: 0,
+    totalGrossIncome: 0,
+    totalNetIncome: 0,
     totalExpenses: 0,
     totalGrossExpenses: 0,
     totalExpenseReimbursements: 0,

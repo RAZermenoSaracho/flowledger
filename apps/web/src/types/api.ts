@@ -161,6 +161,8 @@ export type Notification = {
 
 export type Summary = {
   totalIncome: number;
+  totalGrossIncome: number;
+  totalNetIncome: number;
   totalExpenses: number;
   totalGrossExpenses: number;
   totalExpenseReimbursements: number;
@@ -175,6 +177,9 @@ export type CategoryReportRow = {
   categoryColor?: string | null;
   type: TransactionType;
   total: number;
+  grossIncomeTotal: number;
+  incomeOffsetTotal: number;
+  netIncomeTotal: number;
   grossExpenseTotal: number;
   reimbursementTotal: number;
   netExpenseTotal: number;
@@ -187,5 +192,8 @@ export type CashflowRow = {
   grossExpenses: number;
   expenseReimbursements: number;
   netExpenses: number;
+  grossIncome: number;
+  incomeOffsets: number;
+  netIncome: number;
   balance: number;
 };

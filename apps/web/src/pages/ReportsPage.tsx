@@ -43,16 +43,16 @@ type CategoryChartRow = CategoryReportRow & {
   displayTotal: number;
 };
 
-type ExpenseAmountMode = "net" | "gross";
+type ReportAmountMode = "net" | "gross";
 
-const expenseAmountModes: { value: ExpenseAmountMode; label: string }[] = [
+const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
   { value: "net", label: "Net" },
   { value: "gross", label: "Gross" }
 ];
 
 export function ReportsPage() {
-  const [expenseAmountMode, setExpenseAmountMode] =
-    useState<ExpenseAmountMode>("net");
+  const [reportAmountMode, setReportAmountMode] =
+    useState<ReportAmountMode>("net");
   const summaryQuery = useQuery({
     queryKey: ["summary"],
     queryFn: async () =>
@@ -80,20 +80,30 @@ export function ReportsPage() {
   const expenseCategories = prepareCategoryRows(
     categories,
     "expense",
-    expenseAmountMode
+    reportAmountMode
   );
-  const incomeCategories = prepareCategoryRows(categories, "income");
+  const incomeCategories = prepareCategoryRows(
+    categories,
+    "income",
+    reportAmountMode
+  );
   const summary = summaryQuery.data;
   const totalExpenses =
-    expenseAmountMode === "gross"
+    reportAmountMode === "gross"
       ? (summary?.totalGrossExpenses ?? 0)
       : (summary?.totalNetExpenses ?? 0);
-  const totalIncome = summary?.totalIncome ?? 0;
+  const totalIncome =
+    reportAmountMode === "gross"
+      ? (summary?.totalGrossIncome ?? summary?.totalIncome ?? 0)
+      : (summary?.totalNetIncome ?? summary?.totalIncome ?? 0);
   const reportBalance = totalIncome - totalExpenses;
   const cashflowRows = (cashflowQuery.data ?? []).map((row) => {
-    const income = row.income - row.expenseReimbursements;
+    const income =
+      reportAmountMode === "gross"
+        ? (row.grossIncome ?? row.income)
+        : (row.netIncome ?? row.income - row.expenseReimbursements);
     const expenses =
-      expenseAmountMode === "gross" ? row.grossExpenses : row.netExpenses;
+      reportAmountMode === "gross" ? row.grossExpenses : row.netExpenses;
 
     return {
       ...row,
@@ -101,20 +111,20 @@ export function ReportsPage() {
       reportExpenses: expenses
     };
   });
-  const expenseModeLabel = expenseAmountMode === "gross" ? "Gross" : "Net";
+  const reportModeLabel = reportAmountMode === "gross" ? "Gross" : "Net";
 
   return (
     <div className="grid gap-6">
       <div className="flex justify-end">
         <div className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-          <span>Expense amount</span>
+          <span>Report amount</span>
           <div
             className="grid grid-cols-2 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-700"
             role="group"
-            aria-label="Expense amount basis"
+            aria-label="Report amount basis"
           >
-            {expenseAmountModes.map((mode) => {
-              const isSelected = expenseAmountMode === mode.value;
+            {reportAmountModes.map((mode) => {
+              const isSelected = reportAmountMode === mode.value;
               return (
                 <button
                   key={mode.value}
@@ -125,7 +135,7 @@ export function ReportsPage() {
                       : "bg-white text-ink hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   }`}
                   aria-pressed={isSelected}
-                  onClick={() => setExpenseAmountMode(mode.value)}
+                  onClick={() => setReportAmountMode(mode.value)}
                 >
                   {mode.label}
                 </button>
@@ -141,10 +151,19 @@ export function ReportsPage() {
           <p className="mt-2 break-words text-xl font-bold text-pine dark:text-emerald-300 sm:text-2xl">
             {money.format(totalIncome)}
           </p>
+          {(summaryQuery.data?.totalExpenseReimbursements ?? 0) > 0 ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Gross {money.format(summaryQuery.data?.totalGrossIncome ?? 0)} |
+              Offset{" "}
+              {money.format(
+                -(summaryQuery.data?.totalExpenseReimbursements ?? 0)
+              )}
+            </p>
+          ) : null}
         </Card>
         <Card className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {expenseModeLabel} expenses
+            {reportModeLabel} expenses
           </p>
           <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
             {money.format(totalExpenses)}
@@ -205,7 +224,7 @@ export function ReportsPage() {
               />
               <Bar
                 dataKey="reportExpenses"
-                name={`${expenseModeLabel} expenses`}
+                name={`${reportModeLabel} expenses`}
                 fill="#f97359"
                 radius={[4, 4, 0, 0]}
               />
@@ -292,6 +311,13 @@ function CategoryBreakdown({
                     {money.format(row.netExpenseTotal)}
                   </span>
                 ) : null}
+                {type === "income" && row.incomeOffsetTotal > 0 ? (
+                  <span className="col-span-3 min-w-0 break-words pl-5 text-right text-xs text-slate-500 dark:text-slate-400">
+                    Gross {money.format(row.grossIncomeTotal)} | Offset{" "}
+                    {money.format(-row.incomeOffsetTotal)} | Net{" "}
+                    {money.format(row.netIncomeTotal)}
+                  </span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -308,16 +334,19 @@ function CategoryBreakdown({
 function prepareCategoryRows(
   rows: CategoryReportRow[],
   type: "income" | "expense",
-  expenseAmountMode: ExpenseAmountMode = "net"
+  reportAmountMode: ReportAmountMode = "net"
 ): CategoryChartRow[] {
   return rows
     .filter((row) => {
       if (row.type !== type) return false;
       if (type === "expense") {
-        if (expenseAmountMode === "gross") return row.grossExpenseTotal > 0;
+        if (reportAmountMode === "gross") return row.grossExpenseTotal > 0;
         return row.grossExpenseTotal > 0 || row.reimbursementTotal > 0;
       }
-      return row.total > 0;
+      if (reportAmountMode === "gross") {
+        return (row.grossIncomeTotal ?? row.total) > 0;
+      }
+      return (row.netIncomeTotal ?? row.total) > 0;
     })
     .map((row, index) => {
       const categoryMismatch =
@@ -325,10 +354,7 @@ function prepareCategoryRows(
       const displayName = categoryMismatch
         ? `${row.categoryName} (${row.categoryType} category)`
         : row.categoryName;
-      const displayTotal =
-        type === "expense" && expenseAmountMode === "gross"
-          ? row.grossExpenseTotal
-          : row.total;
+      const displayTotal = getCategoryDisplayTotal(row, type, reportAmountMode);
 
       return {
         ...row,
@@ -340,6 +366,20 @@ function prepareCategoryRows(
       };
     })
     .sort((a, b) => b.displayTotal - a.displayTotal);
+}
+
+function getCategoryDisplayTotal(
+  row: CategoryReportRow,
+  type: "income" | "expense",
+  reportAmountMode: ReportAmountMode
+) {
+  if (type === "expense") {
+    return reportAmountMode === "gross" ? row.grossExpenseTotal : row.total;
+  }
+
+  return reportAmountMode === "gross"
+    ? (row.grossIncomeTotal ?? row.total)
+    : (row.netIncomeTotal ?? row.total);
 }
 
 function renderPieLabel({
