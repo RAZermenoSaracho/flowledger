@@ -205,12 +205,6 @@ export function DebtsPage() {
     note: "",
     paymentInfo: ""
   });
-  const [batchApprovalDraft, setBatchApprovalDraft] =
-    useState<SettlementApprovalDraft>({
-      accountId: "",
-      categoryId: "",
-      expenseOffsetCategoryId: ""
-    });
   const [activeTab, setActiveTab] = useState<DebtsTab>("balances");
   const [balanceSearch, setBalanceSearch] = useState("");
   const [pendingFromMeSearch, setPendingFromMeSearch] = useState("");
@@ -382,25 +376,7 @@ export function DebtsPage() {
         accountId: defaultAccountId
       }));
     }
-    if (!batchApprovalDraft.accountId && defaultAccountId) {
-      setBatchApprovalDraft((current) => ({
-        ...current,
-        accountId: defaultAccountId
-      }));
-    }
-    if (!batchApprovalDraft.categoryId && privateIncomeCategories[0]?.id) {
-      setBatchApprovalDraft((current) => ({
-        ...current,
-        categoryId: privateIncomeCategories[0]?.id ?? ""
-      }));
-    }
-  }, [
-    accountsQuery.data,
-    batchApprovalDraft.accountId,
-    batchApprovalDraft.categoryId,
-    batchDraft.accountId,
-    privateIncomeCategories
-  ]);
+  }, [accountsQuery.data, batchDraft.accountId]);
 
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
@@ -540,15 +516,11 @@ export function DebtsPage() {
     }
   });
   const approveBatchSettlements = useMutation({
-    mutationFn: async ({
-      settlementIds,
-      draft
-    }: {
-      settlementIds: string[];
-      draft: SettlementApprovalDraft;
-    }) => {
+    mutationFn: async (
+      approvals: { settlementId: string; draft: SettlementApprovalDraft }[]
+    ) => {
       await Promise.all(
-        settlementIds.map((settlementId) =>
+        approvals.map(({ settlementId, draft }) =>
           apiRequest(`/settlements/${settlementId}/approve`, {
             method: "POST",
             body: {
@@ -561,7 +533,9 @@ export function DebtsPage() {
       );
     },
     onSuccess: async (_data, variables) => {
-      const approvedIds = new Set(variables.settlementIds);
+      const approvedIds = new Set(
+        variables.map((approval) => approval.settlementId)
+      );
       setSelectedApprovalIds((current) => {
         const next = new Set(current);
         approvedIds.forEach((id) => next.delete(id));
@@ -766,15 +740,13 @@ export function DebtsPage() {
     });
   }
 
-  async function submitBatchApproval(event: FormEvent) {
-    event.preventDefault();
-    const settlementIds = visiblePendingForMe
-      .filter((request) => selectedApprovalIds.has(request.id))
-      .map((request) => request.id);
-    await approveBatchSettlements.mutateAsync({
-      settlementIds,
-      draft: batchApprovalDraft
-    });
+  async function submitBatchApproval(requests: SettlementRequest[]) {
+    await approveBatchSettlements.mutateAsync(
+      requests.map((request) => ({
+        settlementId: request.id,
+        draft: approvalDraftFor(request)
+      }))
+    );
   }
 
   const isActing =
@@ -907,6 +879,16 @@ export function DebtsPage() {
     const selectedApprovalRequests = visiblePendingForMe.filter((request) =>
       selectedApprovalIds.has(request.id)
     );
+    const batchApprovalRequests =
+      selectedApprovalRequests.length > 0
+        ? selectedApprovalRequests
+        : visiblePendingForMe;
+    const canSubmitBatchApproval =
+      batchApprovalRequests.length > 0 &&
+      batchApprovalRequests.every((request) => {
+        const draft = approvalDraftFor(request);
+        return Boolean(draft.accountId && draft.categoryId);
+      });
     const allVisibleApprovalsSelected =
       visiblePendingForMe.length > 0 &&
       visiblePendingForMe.every((request) =>
@@ -971,92 +953,39 @@ export function DebtsPage() {
               </div>
             </div>
             {pendingForMe.length > 0 ? (
-              <form
-                className="grid w-full max-w-md gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
-                onSubmit={submitBatchApproval}
-              >
-                <SelectField
-                  label="Deposit account"
-                  value={batchApprovalDraft.accountId}
-                  onChange={(event) =>
-                    setBatchApprovalDraft((current) => ({
-                      ...current,
-                      accountId: event.target.value
-                    }))
+              <div className="grid w-full gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-800 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={
+                    visiblePendingForMe.length === 0 ||
+                    allVisibleApprovalsSelected
                   }
-                  required
+                  onClick={() => setApprovalSelection(visiblePendingForMe, true)}
                 >
-                  <option value="">Select account</option>
-                  {(accountsQuery.data ?? []).map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField
-                  label="Income category"
-                  value={batchApprovalDraft.categoryId}
-                  onChange={(event) =>
-                    setBatchApprovalDraft((current) => ({
-                      ...current,
-                      categoryId: event.target.value
-                    }))
-                  }
-                  required
+                  Select all
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={selectedApprovalIds.size === 0}
+                  onClick={() => setSelectedApprovalIds(new Set())}
                 >
-                  <option value="">Select category</option>
-                  {privateIncomeCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </SelectField>
-                <SelectField
-                  label="Offset category"
-                  value={batchApprovalDraft.expenseOffsetCategoryId}
-                  onChange={(event) =>
-                    setBatchApprovalDraft((current) => ({
-                      ...current,
-                      expenseOffsetCategoryId: event.target.value
-                    }))
-                  }
+                  Clear selection
+                </Button>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={isActing || !canSubmitBatchApproval}
+                  onClick={() => submitBatchApproval(batchApprovalRequests)}
                 >
-                  <option value="">No offset</option>
-                  {privateExpenseCategories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </SelectField>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full"
-                    disabled={visiblePendingForMe.length === 0}
-                    onClick={() =>
-                      setApprovalSelection(
-                        visiblePendingForMe,
-                        !allVisibleApprovalsSelected
-                      )
-                    }
-                  >
-                    {allVisibleApprovalsSelected ? "Clear" : "Select all"}
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={
-                      isActing ||
-                      selectedApprovalRequests.length === 0 ||
-                      !batchApprovalDraft.accountId ||
-                      !batchApprovalDraft.categoryId
-                    }
-                  >
-                    Approve selected
-                  </Button>
-                </div>
-              </form>
+                  {selectedApprovalRequests.length > 0
+                    ? "Settle selected"
+                    : "Settle all"}
+                </Button>
+              </div>
             ) : null}
             {pendingForMe.length === 0 ? (
               <EmptyState>No requests to review.</EmptyState>
