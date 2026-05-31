@@ -45,6 +45,12 @@ type BatchSettlementDraft = {
   paymentInfo: string;
 };
 
+type SettlementApprovalDraft = {
+  accountId: string;
+  categoryId: string;
+  expenseOffsetCategoryId: string;
+};
+
 type DebtsTab = "balances" | "pending" | "settled";
 
 type PersonBalance = {
@@ -61,7 +67,7 @@ type PersonBalance = {
 const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "balances", label: "Outstanding balances" },
   { id: "pending", label: "Pending settlement requests" },
-  { id: "settled", label: "Settled debts" }
+  { id: "settled", label: "Settled history" }
 ];
 
 function debtTitle(debt: Debt) {
@@ -191,11 +197,20 @@ export function DebtsPage() {
   const highlightedDebtId = searchParams.get("debtId");
   const highlightedSettlementId = searchParams.get("settlementId");
   const [drafts, setDrafts] = useState<Record<string, SettlementDraft>>({});
+  const [approvalDrafts, setApprovalDrafts] = useState<
+    Record<string, SettlementApprovalDraft>
+  >({});
   const [batchDraft, setBatchDraft] = useState<BatchSettlementDraft>({
     accountId: "",
     note: "",
     paymentInfo: ""
   });
+  const [batchApprovalDraft, setBatchApprovalDraft] =
+    useState<SettlementApprovalDraft>({
+      accountId: "",
+      categoryId: "",
+      expenseOffsetCategoryId: ""
+    });
   const [activeTab, setActiveTab] = useState<DebtsTab>("balances");
   const [balanceSearch, setBalanceSearch] = useState("");
   const [pendingFromMeSearch, setPendingFromMeSearch] = useState("");
@@ -205,6 +220,9 @@ export function DebtsPage() {
     null
   );
   const [selectedDebtIds, setSelectedDebtIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<Set<string>>(
     () => new Set()
   );
 
@@ -233,6 +251,13 @@ export function DebtsPage() {
     () =>
       (categoriesQuery.data ?? []).filter(
         (category) => category.type === "expense" && !category.groupId
+      ),
+    [categoriesQuery.data]
+  );
+  const privateIncomeCategories = useMemo(
+    () =>
+      (categoriesQuery.data ?? []).filter(
+        (category) => category.type === "income" && !category.groupId
       ),
     [categoriesQuery.data]
   );
@@ -357,7 +382,25 @@ export function DebtsPage() {
         accountId: defaultAccountId
       }));
     }
-  }, [accountsQuery.data, batchDraft.accountId]);
+    if (!batchApprovalDraft.accountId && defaultAccountId) {
+      setBatchApprovalDraft((current) => ({
+        ...current,
+        accountId: defaultAccountId
+      }));
+    }
+    if (!batchApprovalDraft.categoryId && privateIncomeCategories[0]?.id) {
+      setBatchApprovalDraft((current) => ({
+        ...current,
+        categoryId: privateIncomeCategories[0]?.id ?? ""
+      }));
+    }
+  }, [
+    accountsQuery.data,
+    batchApprovalDraft.accountId,
+    batchApprovalDraft.categoryId,
+    batchDraft.accountId,
+    privateIncomeCategories
+  ]);
 
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
@@ -455,6 +498,7 @@ export function DebtsPage() {
             ...defaultDraftFor(debt),
             amount: String(availableSettlementAmount(debt)),
             accountId: draft.accountId,
+            categoryId: defaultDraftFor(debt).categoryId,
             note: draft.note,
             paymentInfo: draft.paymentInfo
           })
@@ -462,7 +506,9 @@ export function DebtsPage() {
       );
     },
     onSuccess: async (_data, variables) => {
-      const settledIds = new Set(variables.selectedDebts.map((debt) => debt.id));
+      const settledIds = new Set(
+        variables.selectedDebts.map((debt) => debt.id)
+      );
       setSelectedDebtIds((current) => {
         const next = new Set(current);
         settledIds.forEach((id) => next.delete(id));
@@ -473,9 +519,54 @@ export function DebtsPage() {
     }
   });
   const approveSettlement = useMutation({
-    mutationFn: (settlementId: string) =>
-      apiRequest(`/settlements/${settlementId}/approve`, { method: "POST" }),
+    mutationFn: ({
+      settlementId,
+      draft
+    }: {
+      settlementId: string;
+      draft: SettlementApprovalDraft;
+    }) =>
+      apiRequest(`/settlements/${settlementId}/approve`, {
+        method: "POST",
+        body: {
+          accountId: draft.accountId,
+          categoryId: draft.categoryId,
+          expenseOffsetCategoryId: draft.expenseOffsetCategoryId || null
+        }
+      }),
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["debts"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+  const approveBatchSettlements = useMutation({
+    mutationFn: async ({
+      settlementIds,
+      draft
+    }: {
+      settlementIds: string[];
+      draft: SettlementApprovalDraft;
+    }) => {
+      await Promise.all(
+        settlementIds.map((settlementId) =>
+          apiRequest(`/settlements/${settlementId}/approve`, {
+            method: "POST",
+            body: {
+              accountId: draft.accountId,
+              categoryId: draft.categoryId,
+              expenseOffsetCategoryId: draft.expenseOffsetCategoryId || null
+            }
+          })
+        )
+      );
+    },
+    onSuccess: async (_data, variables) => {
+      const approvedIds = new Set(variables.settlementIds);
+      setSelectedApprovalIds((current) => {
+        const next = new Set(current);
+        approvedIds.forEach((id) => next.delete(id));
+        return next;
+      });
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
@@ -507,8 +598,80 @@ export function DebtsPage() {
       ? groupById.get(originalGroupId)
       : undefined;
     return originalGroup
-      ? originalGroup.categories.filter((category) => category.type === "expense")
+      ? originalGroup.categories.filter(
+          (category) => category.type === "expense"
+        )
       : privateExpenseCategories;
+  }
+
+  function incomeCategoryOptionsFor(request: SettlementRequest) {
+    const originalGroupId =
+      request.sharedExpenseParticipant?.sharedExpense.transaction?.groupId ??
+      "";
+    const originalGroup = originalGroupId
+      ? groupById.get(originalGroupId)
+      : undefined;
+    return originalGroup
+      ? originalGroup.categories.filter(
+          (category) => category.type === "income"
+        )
+      : privateIncomeCategories;
+  }
+
+  function expenseOffsetCategoryOptionsFor(request: SettlementRequest) {
+    const originalGroupId =
+      request.sharedExpenseParticipant?.sharedExpense.transaction?.groupId ??
+      "";
+    const originalGroup = originalGroupId
+      ? groupById.get(originalGroupId)
+      : undefined;
+    return originalGroup
+      ? originalGroup.categories.filter(
+          (category) => category.type === "expense"
+        )
+      : privateExpenseCategories;
+  }
+
+  function defaultApprovalDraftFor(
+    request?: SettlementRequest
+  ): SettlementApprovalDraft {
+    const incomeCategories = request
+      ? incomeCategoryOptionsFor(request)
+      : privateIncomeCategories;
+    const expenseOffsetCategories = request
+      ? expenseOffsetCategoryOptionsFor(request)
+      : privateExpenseCategories;
+    const originalCategoryId =
+      request?.sharedExpenseParticipant?.sharedExpense.transaction
+        ?.categoryId ?? "";
+
+    return {
+      accountId: accountsQuery.data?.[0]?.id ?? "",
+      categoryId: incomeCategories[0]?.id ?? "",
+      expenseOffsetCategoryId: expenseOffsetCategories.some(
+        (category) => category.id === originalCategoryId
+      )
+        ? originalCategoryId
+        : ""
+    };
+  }
+
+  function approvalDraftFor(request: SettlementRequest) {
+    return approvalDrafts[request.id] ?? defaultApprovalDraftFor(request);
+  }
+
+  function updateApprovalDraft(
+    request: SettlementRequest,
+    field: keyof SettlementApprovalDraft,
+    value: string
+  ) {
+    setApprovalDrafts((current) => ({
+      ...current,
+      [request.id]: {
+        ...(current[request.id] ?? defaultApprovalDraftFor(request)),
+        [field]: value
+      }
+    }));
   }
 
   function defaultDraftFor(debt: Debt): SettlementDraft {
@@ -580,10 +743,45 @@ export function DebtsPage() {
     });
   }
 
+  function toggleApprovalSelection(settlementId: string) {
+    setSelectedApprovalIds((current) => {
+      const next = new Set(current);
+      if (next.has(settlementId)) next.delete(settlementId);
+      else next.add(settlementId);
+      return next;
+    });
+  }
+
+  function setApprovalSelection(
+    requests: SettlementRequest[],
+    selected: boolean
+  ) {
+    setSelectedApprovalIds((current) => {
+      const next = new Set(current);
+      requests.forEach((request) => {
+        if (selected) next.add(request.id);
+        else next.delete(request.id);
+      });
+      return next;
+    });
+  }
+
+  async function submitBatchApproval(event: FormEvent) {
+    event.preventDefault();
+    const settlementIds = visiblePendingForMe
+      .filter((request) => selectedApprovalIds.has(request.id))
+      .map((request) => request.id);
+    await approveBatchSettlements.mutateAsync({
+      settlementIds,
+      draft: batchApprovalDraft
+    });
+  }
+
   const isActing =
     requestSettlement.isPending ||
     requestBatchSettlement.isPending ||
     approveSettlement.isPending ||
+    approveBatchSettlements.isPending ||
     rejectSettlement.isPending;
 
   function renderBalances() {
@@ -706,6 +904,15 @@ export function DebtsPage() {
   }
 
   function renderPendingRequests() {
+    const selectedApprovalRequests = visiblePendingForMe.filter((request) =>
+      selectedApprovalIds.has(request.id)
+    );
+    const allVisibleApprovalsSelected =
+      visiblePendingForMe.length > 0 &&
+      visiblePendingForMe.every((request) =>
+        selectedApprovalIds.has(request.id)
+      );
+
     return (
       <Card>
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
@@ -763,6 +970,96 @@ export function DebtsPage() {
                 />
               </div>
             </div>
+            {pendingForMe.length > 0 ? (
+              <form
+                className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+                onSubmit={submitBatchApproval}
+              >
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={visiblePendingForMe.length === 0}
+                    onClick={() =>
+                      setApprovalSelection(
+                        visiblePendingForMe,
+                        !allVisibleApprovalsSelected
+                      )
+                    }
+                  >
+                    {allVisibleApprovalsSelected ? "Clear" : "Select all"}
+                  </Button>
+                </div>
+                <SelectField
+                  label="Deposit account"
+                  value={batchApprovalDraft.accountId}
+                  onChange={(event) =>
+                    setBatchApprovalDraft((current) => ({
+                      ...current,
+                      accountId: event.target.value
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Select account</option>
+                  {(accountsQuery.data ?? []).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Income category"
+                  value={batchApprovalDraft.categoryId}
+                  onChange={(event) =>
+                    setBatchApprovalDraft((current) => ({
+                      ...current,
+                      categoryId: event.target.value
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Select category</option>
+                  {privateIncomeCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Offset category"
+                  value={batchApprovalDraft.expenseOffsetCategoryId}
+                  onChange={(event) =>
+                    setBatchApprovalDraft((current) => ({
+                      ...current,
+                      expenseOffsetCategoryId: event.target.value
+                    }))
+                  }
+                >
+                  <option value="">No offset</option>
+                  {privateExpenseCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <div className="flex items-end">
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={
+                      isActing ||
+                      selectedApprovalRequests.length === 0 ||
+                      !batchApprovalDraft.accountId ||
+                      !batchApprovalDraft.categoryId
+                    }
+                  >
+                    Approve selected
+                  </Button>
+                </div>
+              </form>
+            ) : null}
             {pendingForMe.length === 0 ? (
               <EmptyState>No requests to review.</EmptyState>
             ) : visiblePendingForMe.length === 0 ? (
@@ -773,26 +1070,31 @@ export function DebtsPage() {
                   key={request.id}
                   request={request}
                   isHighlighted={highlightedSettlementId === request.id}
+                  selectable
+                  isSelected={selectedApprovalIds.has(request.id)}
+                  onSelectedChange={() => toggleApprovalSelection(request.id)}
                   actions={
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        type="button"
-                        className="w-full sm:w-auto"
-                        disabled={isActing}
-                        onClick={() => approveSettlement.mutate(request.id)}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        className="w-full sm:w-auto"
-                        disabled={isActing}
-                        onClick={() => rejectSettlement.mutate(request.id)}
-                      >
-                        Reject
-                      </Button>
-                    </div>
+                    <ApprovalActions
+                      request={request}
+                      accounts={accountsQuery.data ?? []}
+                      incomeCategories={incomeCategoryOptionsFor(request)}
+                      expenseOffsetCategories={expenseOffsetCategoryOptionsFor(
+                        request
+                      )}
+                      draft={approvalDraftFor(request)}
+                      isActing={isActing}
+                      onDraftChange={(field, value) =>
+                        updateApprovalDraft(request, field, value)
+                      }
+                      onApprove={(event) => {
+                        event.preventDefault();
+                        approveSettlement.mutate({
+                          settlementId: request.id,
+                          draft: approvalDraftFor(request)
+                        });
+                      }}
+                      onReject={() => rejectSettlement.mutate(request.id)}
+                    />
                   }
                 />
               ))
@@ -808,7 +1110,7 @@ export function DebtsPage() {
       <Card>
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-lg font-semibold">Settled debts</h2>
+            <h2 className="text-lg font-semibold">Settled history</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Completed shared-expense debts.
             </p>
@@ -921,12 +1223,19 @@ function PersonDebtDetail({
   isActing: boolean;
   highlightedDebtId?: string | null;
   draftFor: (debt: Debt) => SettlementDraft;
-  updateDraft: (debt: Debt, field: keyof SettlementDraft, value: string) => void;
+  updateDraft: (
+    debt: Debt,
+    field: keyof SettlementDraft,
+    value: string
+  ) => void;
   categoryOptionsFor: (debt: Debt) => Category[];
   onToggleDebt: (debtId: string) => void;
   onSelectDebts: (debts: Debt[], selected: boolean) => void;
   onSubmitSettlement: (event: FormEvent, debt: Debt) => Promise<void>;
-  onBatchDraftChange: (field: keyof BatchSettlementDraft, value: string) => void;
+  onBatchDraftChange: (
+    field: keyof BatchSettlementDraft,
+    value: string
+  ) => void;
   onSubmitBatchSettlement: (event: FormEvent) => Promise<void>;
 }) {
   const selectableIOweThem = balance.iOweThem.filter(
@@ -948,13 +1257,17 @@ function PersonDebtDetail({
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm sm:text-right">
           <div>
-            <p className="font-semibold">{money.format(balance.theyOweMeTotal)}</p>
+            <p className="font-semibold">
+              {money.format(balance.theyOweMeTotal)}
+            </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               They owe me
             </p>
           </div>
           <div>
-            <p className="font-semibold">{money.format(balance.iOweThemTotal)}</p>
+            <p className="font-semibold">
+              {money.format(balance.iOweThemTotal)}
+            </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               I owe them
             </p>
@@ -1052,7 +1365,9 @@ function PersonDebtDetail({
               const settlementCategoryOptions = categoryOptionsFor(debt);
 
               return availableAmount <= 0 ? (
-                <EmptyState>A settlement request is waiting for approval.</EmptyState>
+                <EmptyState>
+                  A settlement request is waiting for approval.
+                </EmptyState>
               ) : (
                 <form
                   className="grid gap-2 lg:grid-cols-[minmax(0,8rem)_minmax(0,11rem)_minmax(0,11rem)_minmax(0,10rem)_minmax(0,10rem)_auto]"
@@ -1285,13 +1600,113 @@ function DebtSummaryCard({
   );
 }
 
+function ApprovalActions({
+  request,
+  accounts,
+  incomeCategories,
+  expenseOffsetCategories,
+  draft,
+  isActing,
+  onDraftChange,
+  onApprove,
+  onReject
+}: {
+  request: SettlementRequest;
+  accounts: Account[];
+  incomeCategories: Category[];
+  expenseOffsetCategories: Category[];
+  draft: SettlementApprovalDraft;
+  isActing: boolean;
+  onDraftChange: (field: keyof SettlementApprovalDraft, value: string) => void;
+  onApprove: (event: FormEvent) => void;
+  onReject: () => void;
+}) {
+  const originalType =
+    request.sharedExpenseParticipant?.sharedExpense.transaction?.type;
+
+  return (
+    <form
+      className="grid gap-2 lg:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto]"
+      onSubmit={onApprove}
+    >
+      <SelectField
+        label="Deposit account"
+        value={draft.accountId}
+        onChange={(event) => onDraftChange("accountId", event.target.value)}
+        required
+      >
+        <option value="">Select account</option>
+        {accounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.name}
+          </option>
+        ))}
+      </SelectField>
+      <SelectField
+        label="Income category"
+        value={draft.categoryId}
+        onChange={(event) => onDraftChange("categoryId", event.target.value)}
+        required
+      >
+        <option value="">Select category</option>
+        {incomeCategories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.name}
+          </option>
+        ))}
+      </SelectField>
+      <SelectField
+        label="Offset category"
+        value={draft.expenseOffsetCategoryId}
+        onChange={(event) =>
+          onDraftChange("expenseOffsetCategoryId", event.target.value)
+        }
+        disabled={originalType !== "expense"}
+      >
+        <option value="">No offset</option>
+        {expenseOffsetCategories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.name}
+          </option>
+        ))}
+      </SelectField>
+      <div className="flex items-end">
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={isActing || !draft.accountId || !draft.categoryId}
+        >
+          Approve
+        </Button>
+      </div>
+      <div className="flex items-end">
+        <Button
+          type="button"
+          variant="danger"
+          className="w-full"
+          disabled={isActing}
+          onClick={onReject}
+        >
+          Reject
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function SettlementRequestCard({
   request,
   isHighlighted,
+  selectable,
+  isSelected,
+  onSelectedChange,
   actions
 }: {
   request: SettlementRequest;
   isHighlighted?: boolean;
+  selectable?: boolean;
+  isSelected?: boolean;
+  onSelectedChange?: () => void;
   actions?: ReactNode;
 }) {
   const debt = request.sharedExpenseParticipant;
@@ -1306,14 +1721,25 @@ function SettlementRequestCard({
       }`}
     >
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
-        <div>
-          <p className="font-semibold">
-            {debt?.sharedExpense.title ?? "Settlement request"}
-          </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {request.debtor?.name ?? "Debtor"} requested{" "}
-            {money.format(request.amount)}
-          </p>
+        <div className="flex gap-3">
+          {selectable ? (
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-pine focus:ring-mint dark:border-slate-700"
+              checked={Boolean(isSelected)}
+              onChange={onSelectedChange}
+              aria-label={`Select ${debt?.sharedExpense.title ?? "settlement request"}`}
+            />
+          ) : null}
+          <div>
+            <p className="font-semibold">
+              {debt?.sharedExpense.title ?? "Settlement request"}
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {request.debtor?.name ?? "Debtor"} requested{" "}
+              {money.format(request.amount)}
+            </p>
+          </div>
         </div>
         <p className="text-sm font-semibold">{request.status}</p>
       </div>

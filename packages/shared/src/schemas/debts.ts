@@ -7,7 +7,7 @@ export const settlementRequestSchema = z.object({
     "Amount must be greater than 0"
   ),
   accountId: z.string().min(1, "Account is required"),
-  categoryId: z.string().min(1).optional().nullable(),
+  categoryId: z.string().min(1, "Category is required"),
   note: z.string().trim().max(500).optional().nullable(),
   paymentInfo: z.string().trim().max(500).optional().nullable()
 });
@@ -17,11 +17,21 @@ export const directSettlementSchema = z.object({
 });
 
 export const settlementApprovalSchema = z.object({
+  accountId: z.string().min(1, "Account is required"),
+  categoryId: z.string().min(1, "Category is required"),
+  expenseOffsetCategoryId: z.string().min(1).optional().nullable()
+});
+
+export const batchSettlementApprovalSchema = z.object({
+  settlementRequestIds: z.array(z.string().min(1)).min(1),
+  accountId: z.string().min(1, "Account is required"),
+  categoryId: z.string().min(1, "Category is required"),
   expenseOffsetCategoryId: z.string().min(1).optional().nullable()
 });
 
 export type SettlementRequestInput = z.infer<typeof settlementRequestSchema>;
 export type DirectSettlementInput = z.infer<typeof directSettlementSchema>;
-export type SettlementApprovalInput = z.infer<
-  typeof settlementApprovalSchema
+export type SettlementApprovalInput = z.infer<typeof settlementApprovalSchema>;
+export type BatchSettlementApprovalInput = z.infer<
+  typeof batchSettlementApprovalSchema
 >;

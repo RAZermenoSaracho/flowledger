@@ -109,6 +109,8 @@ export type SettlementRequest = {
   paymentInfo?: string | null;
   debtorAccountId?: string | null;
   debtorCategoryId?: string | null;
+  creditorAccountId?: string | null;
+  creditorCategoryId?: string | null;
   debtorTransactionId?: string | null;
   creditorTransactionId?: string | null;
   createdAt: string;

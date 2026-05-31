@@ -104,8 +104,12 @@ function participantStatus(shareAmount: number, paidAmount: number) {
   return "pending";
 }
 
-async function assertSettlementAccount(userId: string, accountId: string) {
-  const account = await prisma.account.findFirst({
+async function assertSettlementAccount(
+  client: Prisma.TransactionClient | typeof prisma,
+  userId: string,
+  accountId: string
+) {
+  const account = await client.account.findFirst({
     where: { id: accountId, userId, isArchived: false }
   });
   if (!account) {
@@ -114,17 +118,17 @@ async function assertSettlementAccount(userId: string, accountId: string) {
 }
 
 async function assertSettlementCategory(
+  client: Prisma.TransactionClient | typeof prisma,
   userId: string,
-  categoryId?: string | null,
+  categoryId: string,
+  type: "income" | "expense",
   groupId?: string | null
 ) {
-  if (!categoryId) return;
-
   if (groupId) {
-    const category = await prisma.category.findFirst({
+    const category = await client.category.findFirst({
       where: {
         id: categoryId,
-        type: "expense",
+        type,
         groupId,
         isArchived: false,
         users: { some: { userId } }
@@ -136,10 +140,10 @@ async function assertSettlementCategory(
     return;
   }
 
-  const category = await prisma.category.findFirst({
+  const category = await client.category.findFirst({
     where: {
       id: categoryId,
-      type: "expense",
+      type,
       groupId: null,
       isArchived: false,
       users: { some: { userId } }
@@ -330,10 +334,12 @@ debtsRouter.post(
     const outstandingAmount = debtOutstanding(debt);
     const pendingAmount = pendingSettlementTotal(debt);
     const requestAmount = Number(req.body.amount);
-    await assertSettlementAccount(req.user!.id, req.body.accountId);
+    await assertSettlementAccount(prisma, req.user!.id, req.body.accountId);
     await assertSettlementCategory(
+      prisma,
       req.user!.id,
       req.body.categoryId,
+      "expense",
       debt.sharedExpense.transaction.groupId
     );
 
@@ -344,6 +350,21 @@ debtsRouter.post(
       throw new HttpError(
         400,
         "Settlement request exceeds the outstanding balance"
+      );
+    }
+
+    const duplicateRequest = await prisma.settlementRequest.findFirst({
+      where: {
+        sharedExpenseParticipantId: debt.id,
+        debtorUserId: req.user!.id,
+        creditorUserId: direction.creditorUserId,
+        status: "pending"
+      }
+    });
+    if (duplicateRequest) {
+      throw new HttpError(
+        409,
+        "A pending settlement request already exists for this debt"
       );
     }
 
@@ -571,13 +592,34 @@ settlementsRouter.post(
           "Settlement request is missing a source account"
         );
       }
+      if (!settlementRequest.debtorCategoryId) {
+        throw new HttpError(
+          400,
+          "Settlement request is missing an expense category"
+        );
+      }
 
       const originalTransaction =
         approvedRequest.sharedExpenseParticipant.sharedExpense.transaction;
+      await assertSettlementAccount(
+        tx,
+        approvedRequest.creditorUserId,
+        req.body.accountId
+      );
+      await assertSettlementCategory(
+        tx,
+        approvedRequest.creditorUserId,
+        req.body.categoryId,
+        "income",
+        originalTransaction.groupId
+      );
       const expenseOffsetCategoryId =
         await resolveSettlementExpenseOffsetCategoryId(tx, {
           userId: approvedRequest.creditorUserId,
-          requestedCategoryId: req.body.expenseOffsetCategoryId,
+          requestedCategoryId:
+            originalTransaction.type === "expense"
+              ? req.body.expenseOffsetCategoryId
+              : null,
           defaultCategoryId:
             originalTransaction.type === "expense"
               ? originalTransaction.categoryId
@@ -612,7 +654,12 @@ settlementsRouter.post(
           name: transactionName,
           amount: approvedRequest.amount,
           type: "income",
+          accountId: req.body.accountId,
+          categoryId: req.body.categoryId,
           date: transactionDate,
+          groupId:
+            approvedRequest.sharedExpenseParticipant.sharedExpense.transaction
+              .groupId,
           expenseOffsetCategoryId,
           notes: notes || null
         }
@@ -637,6 +684,8 @@ settlementsRouter.post(
         {
           where: { id: approvedRequest.id },
           data: {
+            creditorAccountId: req.body.accountId,
+            creditorCategoryId: req.body.categoryId,
             debtorTransactionId: debtorTransaction.id,
             creditorTransactionId: creditorTransaction.id
           },
