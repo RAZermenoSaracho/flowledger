@@ -33,7 +33,7 @@ export function DashboardPage() {
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
         <Metric title="Total income" value={money.format(summary.totalIncome)} />
-        <Metric title="Total expenses" value={money.format(summary.totalExpenses)} />
+        <Metric title="Net expenses" value={money.format(summary.totalNetExpenses)} />
         <Metric title="Current balance" value={money.format(summary.currentBalance)} />
       </section>
 

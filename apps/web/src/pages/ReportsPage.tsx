@@ -38,6 +38,7 @@ const colors = [
 type CategoryChartRow = CategoryReportRow & {
   displayName: string;
   fill: string;
+  chartTotal: number;
 };
 
 export function ReportsPage() {
@@ -78,10 +79,21 @@ export function ReportsPage() {
           </p>
         </Card>
         <Card className="min-w-0">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Expenses</p>
-          <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
-            {money.format(summaryQuery.data?.totalExpenses ?? 0)}
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Net expenses
           </p>
+          <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
+            {money.format(summaryQuery.data?.totalNetExpenses ?? 0)}
+          </p>
+          {(summaryQuery.data?.totalExpenseReimbursements ?? 0) > 0 ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Gross {money.format(summaryQuery.data?.totalGrossExpenses ?? 0)} |
+              Offset{" "}
+              {money.format(
+                -(summaryQuery.data?.totalExpenseReimbursements ?? 0)
+              )}
+            </p>
+          ) : null}
         </Card>
         <Card className="min-w-0">
           <p className="text-sm text-slate-500 dark:text-slate-400">Balance</p>
@@ -96,11 +108,13 @@ export function ReportsPage() {
           title="Expenses by category"
           rows={expenseCategories}
           emptyText="No expense categories yet."
+          type="expense"
         />
         <CategoryBreakdown
           title="Income by category"
           rows={incomeCategories}
           emptyText="No income categories yet."
+          type="income"
         />
       </section>
 
@@ -142,13 +156,16 @@ export function ReportsPage() {
 function CategoryBreakdown({
   title,
   rows,
-  emptyText
+  emptyText,
+  type
 }: {
   title: string;
   rows: CategoryChartRow[];
   emptyText: string;
+  type: "income" | "expense";
 }) {
   const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const chartRows = rows.filter((row) => row.chartTotal > 0);
 
   return (
     <Card className="min-w-0">
@@ -165,8 +182,8 @@ function CategoryBreakdown({
             <ResponsiveContainer width="100%" height="100%">
               <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                 <Pie
-                  data={rows}
-                  dataKey="total"
+                  data={chartRows}
+                  dataKey="chartTotal"
                   nameKey="displayName"
                   innerRadius="48%"
                   outerRadius="78%"
@@ -174,7 +191,7 @@ function CategoryBreakdown({
                   labelLine={false}
                   label={renderPieLabel}
                 >
-                  {rows.map((row) => (
+                  {chartRows.map((row) => (
                     <Cell
                       key={`${row.categoryId ?? row.displayName}-${row.type}`}
                       fill={row.fill}
@@ -204,6 +221,13 @@ function CategoryBreakdown({
                 <span className="min-w-0 break-words text-right font-semibold text-slate-900 dark:text-slate-100">
                   {money.format(row.total)}
                 </span>
+                {type === "expense" && row.reimbursementTotal > 0 ? (
+                  <span className="col-span-3 min-w-0 break-words pl-5 text-right text-xs text-slate-500 dark:text-slate-400">
+                    Gross {money.format(row.grossExpenseTotal)} | Offset{" "}
+                    {money.format(-row.reimbursementTotal)} | Net{" "}
+                    {money.format(row.netExpenseTotal)}
+                  </span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -222,7 +246,13 @@ function prepareCategoryRows(
   type: "income" | "expense"
 ): CategoryChartRow[] {
   return rows
-    .filter((row) => row.type === type && row.total > 0)
+    .filter((row) => {
+      if (row.type !== type) return false;
+      if (type === "expense") {
+        return row.grossExpenseTotal > 0 || row.reimbursementTotal > 0;
+      }
+      return row.total > 0;
+    })
     .map((row, index) => {
       const categoryMismatch =
         row.categoryType && row.categoryType !== row.type;
@@ -233,6 +263,7 @@ function prepareCategoryRows(
       return {
         ...row,
         displayName,
+        chartTotal: type === "expense" ? Math.max(row.total, 0) : row.total,
         fill: row.categoryColor ?? colors[index % colors.length] ?? "#64748b"
       };
     });

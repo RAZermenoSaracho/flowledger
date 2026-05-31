@@ -10,7 +10,11 @@ reportsRouter.get(
   asyncHandler(async (req, res) => {
     const [income, expenses, expenseReimbursements] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { userId: req.user!.id, type: "income" },
+        where: {
+          userId: req.user!.id,
+          type: "income",
+          expenseOffsetCategoryId: null
+        },
         _sum: { amount: true }
       }),
       prisma.transaction.aggregate({
@@ -28,19 +32,21 @@ reportsRouter.get(
     ]);
 
     const totalIncome = income._sum.amount?.toNumber() ?? 0;
-    const totalExpenses = expenses._sum.amount?.toNumber() ?? 0;
+    const totalGrossExpenses = expenses._sum.amount?.toNumber() ?? 0;
     const totalExpenseReimbursements =
       expenseReimbursements._sum.amount?.toNumber() ?? 0;
-    const totalNetExpenses = totalExpenses - totalExpenseReimbursements;
+    const totalNetExpenses =
+      totalGrossExpenses - totalExpenseReimbursements;
 
     res.json({
       summary: {
         totalIncome,
-        totalExpenses,
-        totalGrossExpenses: totalExpenses,
+        totalExpenses: totalNetExpenses,
+        totalGrossExpenses,
         totalExpenseReimbursements,
         totalNetExpenses,
-        currentBalance: totalIncome - totalExpenses
+        currentBalance:
+          totalIncome + totalExpenseReimbursements - totalGrossExpenses
       }
     });
   })
@@ -52,7 +58,13 @@ reportsRouter.get(
     const [rows, reimbursementRows] = await Promise.all([
       prisma.transaction.groupBy({
         by: ["categoryId", "type"],
-        where: { userId: req.user!.id },
+        where: {
+          userId: req.user!.id,
+          OR: [
+            { type: { not: "income" } },
+            { expenseOffsetCategoryId: null }
+          ]
+        },
         _sum: { amount: true }
       }),
       prisma.transaction.groupBy({
@@ -111,7 +123,8 @@ reportsRouter.get(
             categoryType: category?.type ?? null,
             categoryColor: category?.color ?? null,
             type: row.type,
-            total,
+            total:
+              row.type === "expense" ? total - reimbursementTotal : total,
             grossExpenseTotal: row.type === "expense" ? total : 0,
             reimbursementTotal,
             netExpenseTotal:
