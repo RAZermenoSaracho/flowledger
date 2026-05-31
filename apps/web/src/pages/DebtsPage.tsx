@@ -1299,7 +1299,7 @@ function PersonDebtDetail({
               </p>
             </div>
             <form
-              className="grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,1fr)_auto]"
+              className="grid gap-3 md:grid-cols-[minmax(0,14rem)_auto]"
               onSubmit={onSubmitBatchSettlement}
             >
               <SelectField
@@ -1317,22 +1317,6 @@ function PersonDebtDetail({
                   </option>
                 ))}
               </SelectField>
-              <TextInput
-                label="Note"
-                value={batchDraft.note}
-                onChange={(event) =>
-                  onBatchDraftChange("note", event.target.value)
-                }
-                placeholder="Optional"
-              />
-              <TextInput
-                label="Payment info"
-                value={batchDraft.paymentInfo}
-                onChange={(event) =>
-                  onBatchDraftChange("paymentInfo", event.target.value)
-                }
-                placeholder="Optional"
-              />
               <div className="flex items-end">
                 <Button
                   type="submit"
@@ -1370,7 +1354,7 @@ function PersonDebtDetail({
                 </EmptyState>
               ) : (
                 <form
-                  className="grid gap-2 lg:grid-cols-[minmax(0,8rem)_minmax(0,11rem)_minmax(0,11rem)_minmax(0,10rem)_minmax(0,10rem)_auto]"
+                  className="grid min-w-0 gap-2"
                   onSubmit={(event) => onSubmitSettlement(event, debt)}
                 >
                   <TextInput
@@ -1414,29 +1398,13 @@ function PersonDebtDetail({
                       </option>
                     ))}
                   </SelectField>
-                  <TextInput
-                    label="Note"
-                    value={draft.note}
-                    onChange={(event) =>
-                      updateDraft(debt, "note", event.target.value)
-                    }
-                    placeholder="Optional"
-                  />
-                  <TextInput
-                    label="Payment info"
-                    value={draft.paymentInfo}
-                    onChange={(event) =>
-                      updateDraft(debt, "paymentInfo", event.target.value)
-                    }
-                    placeholder="Optional"
-                  />
                   <div className="flex items-end">
                     <Button
                       type="submit"
                       className="w-full"
                       disabled={isActing}
                     >
-                      Request
+                      Request settlement
                     </Button>
                   </div>
                 </form>
@@ -1496,35 +1464,38 @@ function DebtTable({
       {debts.length === 0 ? (
         <EmptyState>{emptyText}</EmptyState>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-800">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+        <div className="rounded-md border border-slate-200 dark:border-slate-800">
+          <table className="block w-full text-left text-sm lg:table">
+            <thead className="hidden bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950 dark:text-slate-400 lg:table-header-group">
               <tr>
                 <th className="w-10 px-3 py-2 font-semibold">Select</th>
                 <th className="px-3 py-2 font-semibold">Debt</th>
-                <th className="px-3 py-2 text-right font-semibold">
+                <th className="w-32 px-3 py-2 text-right font-semibold">
                   Outstanding
                 </th>
-                <th className="px-3 py-2 font-semibold">Status</th>
+                <th className="w-36 px-3 py-2 font-semibold">Status</th>
                 {renderAction ? (
-                  <th className="px-3 py-2 font-semibold">Settlement</th>
+                  <th className="w-80 px-3 py-2 font-semibold">Settlement</th>
                 ) : null}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="grid gap-3 p-3 lg:table-row-group lg:divide-y lg:divide-slate-100 lg:p-0 dark:lg:divide-slate-800">
               {debts.map((debt) => {
                 const isSelectable = selectableIds.has(debt.id);
                 return (
                   <tr
                     key={debt.id}
                     id={`debt-${debt.id}`}
-                    className={
+                    className={`block rounded-md border transition lg:table-row lg:rounded-none lg:border-0 ${
                       highlightedDebtId === debt.id
-                        ? "bg-mint dark:bg-emerald-950"
-                        : ""
-                    }
+                        ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
+                        : "border-slate-200 dark:border-slate-800"
+                    }`}
                   >
-                    <td className="px-3 py-3 align-top">
+                    <td className="block px-3 pt-3 align-top lg:table-cell lg:py-3">
+                      <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
+                        Select
+                      </span>
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-slate-300 text-pine focus:ring-mint disabled:opacity-50 dark:border-slate-700"
@@ -1534,20 +1505,29 @@ function DebtTable({
                         aria-label={`Select ${debtTitle(debt)}`}
                       />
                     </td>
-                    <td className="px-3 py-3 align-top">
+                    <td className="block px-3 py-3 align-top lg:table-cell">
                       <p className="font-semibold">{debtTitle(debt)}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {debtDescription(debt, viewerUserId)}
                       </p>
                     </td>
-                    <td className="px-3 py-3 text-right align-top font-semibold">
+                    <td className="block px-3 py-2 align-top font-semibold lg:table-cell lg:py-3 lg:text-right">
+                      <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
+                        Outstanding
+                      </span>
                       {money.format(debt.outstandingAmount)}
                     </td>
-                    <td className="px-3 py-3 align-top text-slate-500 dark:text-slate-400">
+                    <td className="block px-3 py-2 align-top text-slate-500 lg:table-cell lg:py-3 dark:text-slate-400">
+                      <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
+                        Status
+                      </span>
                       {statusLabel(debt)}
                     </td>
                     {renderAction ? (
-                      <td className="min-w-[60rem] px-3 py-3 align-top">
+                      <td className="block px-3 pb-3 pt-2 align-top lg:table-cell lg:py-3">
+                        <span className="mb-2 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
+                          Settlement
+                        </span>
                         {renderAction(debt)}
                       </td>
                     ) : null}
