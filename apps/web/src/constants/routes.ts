@@ -8,7 +8,6 @@ export const routes = {
   categories: "/categories",
   groups: "/groups",
   reports: "/reports",
-  sharedExpenses: "/shared-expenses",
   debts: "/debts",
   profile: "/profile"
 } as const;

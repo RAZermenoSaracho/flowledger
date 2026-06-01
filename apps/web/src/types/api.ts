@@ -65,6 +65,11 @@ export type Group = {
   members: GroupMember[];
   categories: Category[];
   transactions?: Transaction[];
+  summary?: {
+    totalIncome: number;
+    totalExpenses: number;
+    balance: number;
+  };
   createdAt: string;
   updatedAt: string;
 };

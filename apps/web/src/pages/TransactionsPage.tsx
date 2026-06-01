@@ -2,6 +2,7 @@ import { TRANSACTION_TYPES } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronDown } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
@@ -9,6 +10,10 @@ import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
+import {
+  parseTransactionAmount,
+  summarizeTransactions
+} from "../utils/transactions";
 import type {
   Account,
   Category,
@@ -58,6 +63,20 @@ const emptyForm: TransactionForm = {
   sharedTitle: ""
 };
 
+const emptyFilters = {
+  search: "",
+  type: "",
+  accountId: "",
+  categoryId: "",
+  groupId: "",
+  transactionFilterType: "",
+  dateFrom: "",
+  dateTo: "",
+  amountFrom: "",
+  amountTo: "",
+  classification: ""
+};
+
 function needsClassification(transaction: Transaction) {
   return !transaction.accountId || !transaction.categoryId;
 }
@@ -66,15 +85,7 @@ export function TransactionsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<TransactionForm>(emptyForm);
-  const [filters, setFilters] = useState({
-    search: "",
-    type: "",
-    accountId: "",
-    categoryId: "",
-    groupId: "",
-    dateFrom: "",
-    dateTo: ""
-  });
+  const [filters, setFilters] = useState(emptyFilters);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [areAdvancedFiltersOpen, setAreAdvancedFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("date");
@@ -133,10 +144,17 @@ export function TransactionsPage() {
         date: (transaction) => dateSortValue(transaction.date),
         createdAt: (transaction) => dateSortValue(transaction.createdAt),
         name: (transaction) => transaction.name,
-        amount: (transaction) => transaction.amount
+        amount: (transaction) => parseTransactionAmount(transaction.amount)
       }
     });
   }, [sortBy, sortDirection, transactionsQuery.data]);
+  const transactionSummary = useMemo(
+    () => summarizeTransactions(visibleTransactions),
+    [visibleTransactions]
+  );
+  const transactionBalance =
+    transactionSummary.income - transactionSummary.expenses;
+  const hasActiveFilters = Object.values(filters).some(Boolean);
   const selectedGroupCategories = selectedGroup?.categories ?? [];
   const categoryOptions = form.groupId
     ? selectedGroupCategories
@@ -470,16 +488,17 @@ export function TransactionsPage() {
                       <Button
                         type="button"
                         variant="secondary"
-                        className="w-full sm:w-auto"
+                        className="flex w-full items-center justify-center gap-2 sm:w-auto"
                         aria-expanded={areSharedFieldsOpen}
-                        onClick={() =>
-                          setAreSharedFieldsOpen((value) => !value)
-                        }
+                        onClick={() => setAreSharedFieldsOpen((value) => !value)}
                       >
-                        Participants{" "}
-                        <span aria-hidden="true">
-                          {areSharedFieldsOpen ? "^" : "v"}
-                        </span>
+                        <span>Participants</span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`h-4 w-4 transition-transform ${
+                            areSharedFieldsOpen ? "rotate-180" : ""
+                          }`}
+                        />
                       </Button>
                     ) : null}
                   </div>
@@ -712,14 +731,17 @@ export function TransactionsPage() {
             <Button
               type="button"
               variant="secondary"
-              className="w-full sm:w-auto"
+              className="flex w-full items-center justify-center gap-2 sm:w-auto"
               aria-expanded={areAdvancedFiltersOpen}
               onClick={() => setAreAdvancedFiltersOpen((value) => !value)}
             >
-              Filters{" "}
-              <span aria-hidden="true">
-                {areAdvancedFiltersOpen ? "^" : "v"}
-              </span>
+              <span>Filters</span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`h-4 w-4 transition-transform ${
+                  areAdvancedFiltersOpen ? "rotate-180" : ""
+                }`}
+              />
             </Button>
             {areAdvancedFiltersOpen ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -737,6 +759,26 @@ export function TransactionsPage() {
                   value={filters.dateTo}
                   onChange={(event) =>
                     setFilters({ ...filters, dateTo: event.target.value })
+                  }
+                />
+                <TextInput
+                  label="Minimum amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={filters.amountFrom}
+                  onChange={(event) =>
+                    setFilters({ ...filters, amountFrom: event.target.value })
+                  }
+                />
+                <TextInput
+                  label="Maximum amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={filters.amountTo}
+                  onChange={(event) =>
+                    setFilters({ ...filters, amountTo: event.target.value })
                   }
                 />
                 <SelectField
@@ -821,10 +863,99 @@ export function TransactionsPage() {
                     </option>
                   ))}
                 </SelectField>
+                <SelectField
+                  label="Transaction group"
+                  value={filters.transactionFilterType}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      transactionFilterType: event.target.value
+                    })
+                  }
+                >
+                  <option value="">All transactions</option>
+                  <option value="normal">Normal transactions</option>
+                  <option value="settlement">Settlement transactions</option>
+                  <option value="expenseOffset">
+                    Expense reimbursement/offset transactions
+                  </option>
+                </SelectField>
+                <SelectField
+                  label="Classification"
+                  value={filters.classification}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      classification: event.target.value
+                    })
+                  }
+                >
+                  <option value="">All</option>
+                  <option value="complete">Complete</option>
+                  <option value="needsClassification">
+                    Needs classification
+                  </option>
+                </SelectField>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setFilters(emptyFilters)}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
               </div>
             ) : null}
           </SearchComponent>
         </Card>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Total income
+            </p>
+            <p className="mt-2 text-2xl font-bold text-pine dark:text-emerald-300">
+              {money.format(transactionSummary.income)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {hasActiveFilters
+                ? "Filtered transactions"
+                : "Visible transactions"}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Total expenses
+            </p>
+            <p className="mt-2 text-2xl font-bold text-coral dark:text-orange-300">
+              {money.format(transactionSummary.expenses)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {hasActiveFilters
+                ? "Filtered transactions"
+                : "Visible transactions"}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Balance
+            </p>
+            <p
+              className={`mt-2 text-2xl font-bold ${
+                transactionBalance >= 0
+                  ? "text-pine dark:text-emerald-300"
+                  : "text-coral dark:text-orange-300"
+              }`}
+            >
+              {money.format(transactionBalance)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {visibleTransactions.length} transaction
+              {visibleTransactions.length === 1 ? "" : "s"}
+            </p>
+          </Card>
+        </div>
         <Card>
           <h2 className="text-lg font-semibold">Transactions</h2>
           <div className="mt-4 grid gap-3">
@@ -871,7 +1002,7 @@ export function TransactionsPage() {
                         : "font-semibold text-coral dark:text-orange-300"
                     }
                   >
-                    {money.format(transaction.amount)}
+                    {money.format(parseTransactionAmount(transaction.amount))}
                   </span>
                   <div className="flex flex-wrap gap-2 md:justify-end">
                     <Button

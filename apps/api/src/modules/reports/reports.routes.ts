@@ -1,40 +1,115 @@
+import { reportFiltersSchema, type ReportFilters } from "@flowledger/shared";
+import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
+import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { serialize } from "../../utils/serialize.js";
 
 export const reportsRouter = Router();
 
+function dateRangeWhere(filters: ReportFilters): Prisma.DateTimeFilter | null {
+  if (!filters.dateFrom && !filters.dateTo) return null;
+  const dateTo =
+    filters.dateTo && /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo)
+      ? new Date(new Date(filters.dateTo).getTime() + 24 * 60 * 60 * 1000)
+      : filters.dateTo
+        ? new Date(filters.dateTo)
+        : null;
+
+  return {
+    ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+    ...(dateTo
+      ? /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo ?? "")
+        ? { lt: dateTo }
+        : { lte: dateTo }
+      : {})
+  };
+}
+
+function baseReportWhere(
+  userId: string,
+  filters: ReportFilters
+): Prisma.TransactionWhereInput {
+  const date = dateRangeWhere(filters);
+
+  return {
+    userId,
+    ...(filters.groupId ? { groupId: filters.groupId } : {}),
+    ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(date ? { date } : {})
+  };
+}
+
+function offsetReportWhere(
+  userId: string,
+  filters: ReportFilters
+): Prisma.TransactionWhereInput {
+  const date = dateRangeWhere(filters);
+
+  return {
+    userId,
+    type: "income",
+    expenseOffsetCategoryId: filters.categoryId
+      ? filters.categoryId
+      : { not: null },
+    ...(filters.groupId ? { groupId: filters.groupId } : {}),
+    ...(date ? { date } : {})
+  };
+}
+
+function cashflowReportWhere(
+  userId: string,
+  filters: ReportFilters
+): Prisma.TransactionWhereInput {
+  const date = dateRangeWhere(filters);
+
+  return {
+    userId,
+    type: { in: ["income", "expense"] },
+    ...(filters.groupId ? { groupId: filters.groupId } : {}),
+    ...(filters.categoryId
+      ? {
+          OR: [
+            { categoryId: filters.categoryId },
+            { expenseOffsetCategoryId: filters.categoryId }
+          ]
+        }
+      : {}),
+    ...(date ? { date } : {})
+  };
+}
+
 reportsRouter.get(
   "/summary",
+  validate(reportFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
+    const filters = req.query as ReportFilters;
+    const baseWhere = baseReportWhere(req.user!.id, filters);
+    const offsetWhere = offsetReportWhere(req.user!.id, filters);
     const [income, netIncome, expenses, expenseReimbursements] =
       await Promise.all([
         prisma.transaction.aggregate({
           where: {
-            userId: req.user!.id,
+            ...baseWhere,
             type: "income"
           },
           _sum: { amount: true }
         }),
         prisma.transaction.aggregate({
           where: {
-            userId: req.user!.id,
+            ...baseWhere,
             type: "income",
             expenseOffsetCategoryId: null
           },
           _sum: { amount: true }
         }),
         prisma.transaction.aggregate({
-          where: { userId: req.user!.id, type: "expense" },
+          where: { ...baseWhere, type: "expense" },
           _sum: { amount: true }
         }),
         prisma.transaction.aggregate({
-          where: {
-            userId: req.user!.id,
-            type: "income",
-            expenseOffsetCategoryId: { not: null }
-          },
+          where: offsetWhere,
           _sum: { amount: true }
         })
       ]);
@@ -63,30 +138,30 @@ reportsRouter.get(
 
 reportsRouter.get(
   "/by-category",
+  validate(reportFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
+    const filters = req.query as ReportFilters;
+    const baseWhere = baseReportWhere(req.user!.id, filters);
+    const offsetWhere = offsetReportWhere(req.user!.id, filters);
     const [rows, expenseReimbursementRows, incomeOffsetRows] =
       await Promise.all([
         prisma.transaction.groupBy({
           by: ["categoryId", "type"],
           where: {
-            userId: req.user!.id,
+            ...baseWhere,
             type: { in: ["income", "expense"] }
           },
           _sum: { amount: true }
         }),
         prisma.transaction.groupBy({
           by: ["expenseOffsetCategoryId"],
-          where: {
-            userId: req.user!.id,
-            type: "income",
-            expenseOffsetCategoryId: { not: null }
-          },
+          where: offsetWhere,
           _sum: { amount: true }
         }),
         prisma.transaction.groupBy({
           by: ["categoryId"],
           where: {
-            userId: req.user!.id,
+            ...baseWhere,
             type: "income",
             expenseOffsetCategoryId: { not: null }
           },
@@ -95,7 +170,11 @@ reportsRouter.get(
       ]);
 
     const categories = await prisma.category.findMany({
-      where: { users: { some: { userId: req.user!.id } } }
+      where: {
+        users: { some: { userId: req.user!.id } },
+        ...(filters.groupId ? { groupId: filters.groupId } : {}),
+        ...(filters.categoryId ? { id: filters.categoryId } : {})
+      }
     });
     const categoryById = new Map(
       categories.map((category) => [category.id, category])
@@ -172,13 +251,16 @@ reportsRouter.get(
 
 reportsRouter.get(
   "/monthly-cashflow",
+  validate(reportFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
+    const filters = req.query as ReportFilters;
     const transactions = await prisma.transaction.findMany({
-      where: { userId: req.user!.id, type: { in: ["income", "expense"] } },
+      where: cashflowReportWhere(req.user!.id, filters),
       select: {
         date: true,
         type: true,
         amount: true,
+        categoryId: true,
         expenseOffsetCategoryId: true
       },
       orderBy: { date: "asc" }
@@ -215,19 +297,31 @@ reportsRouter.get(
         balance: 0
       };
       const amount = transaction.amount.toNumber();
+      const matchesCategory =
+        !filters.categoryId || transaction.categoryId === filters.categoryId;
+      const matchesOffsetCategory =
+        !filters.categoryId ||
+        transaction.expenseOffsetCategoryId === filters.categoryId;
 
-      if (transaction.type === "income") {
+      if (transaction.type === "income" && matchesCategory) {
         row.income += amount;
         row.grossIncome += amount;
       }
       if (
         transaction.type === "income" &&
-        transaction.expenseOffsetCategoryId
+        transaction.expenseOffsetCategoryId &&
+        matchesOffsetCategory
       ) {
         row.expenseReimbursements += amount;
+      }
+      if (
+        transaction.type === "income" &&
+        transaction.expenseOffsetCategoryId &&
+        matchesCategory
+      ) {
         row.incomeOffsets += amount;
       }
-      if (transaction.type === "expense") {
+      if (transaction.type === "expense" && matchesCategory) {
         row.expenses += amount;
         row.grossExpenses += amount;
       }

@@ -115,6 +115,39 @@ function assertExpenseOffsetAllowed(input: {
   }
 }
 
+const settlementTransactionWhere: Prisma.TransactionWhereInput = {
+  OR: [
+    { debtorSettlementRequest: { isNot: null } },
+    { creditorSettlementRequest: { isNot: null } },
+    { relations: { some: { relationType: "settlement_payment" } } },
+    { relatedBy: { some: { relationType: "settlement_payment" } } }
+  ]
+};
+
+const expenseOffsetTransactionWhere: Prisma.TransactionWhereInput = {
+  expenseOffsetCategoryId: { not: null }
+};
+
+function transactionFilterTypeWhere(
+  transactionFilterType?: "normal" | "settlement" | "expenseOffset"
+): Prisma.TransactionWhereInput | null {
+  if (transactionFilterType === "settlement") {
+    return settlementTransactionWhere;
+  }
+
+  if (transactionFilterType === "expenseOffset") {
+    return expenseOffsetTransactionWhere;
+  }
+
+  if (transactionFilterType === "normal") {
+    return {
+      NOT: [settlementTransactionWhere, expenseOffsetTransactionWhere]
+    };
+  }
+
+  return null;
+}
+
 transactionsRouter.get(
   "/",
   validate(transactionFiltersSchema, "query"),
@@ -122,12 +155,32 @@ transactionsRouter.get(
     const filters = req.query as {
       dateFrom?: string;
       dateTo?: string;
+      amountFrom?: number;
+      amountTo?: number;
       categoryId?: string;
       groupId?: string;
       accountId?: string;
       type?: "income" | "expense" | "transfer";
+      transactionFilterType?: "normal" | "settlement" | "expenseOffset";
+      classification?: "complete" | "needsClassification";
       search?: string;
     };
+    const andFilters: Prisma.TransactionWhereInput[] = [];
+    const transactionFilterType = transactionFilterTypeWhere(
+      filters.transactionFilterType
+    );
+
+    if (transactionFilterType) {
+      andFilters.push(transactionFilterType);
+    }
+
+    if (filters.classification === "needsClassification") {
+      andFilters.push({ OR: [{ accountId: null }, { categoryId: null }] });
+    }
+
+    if (filters.classification === "complete") {
+      andFilters.push({ accountId: { not: null }, categoryId: { not: null } });
+    }
 
     const where: Prisma.TransactionWhereInput = {
       userId: req.user!.id,
@@ -135,12 +188,25 @@ transactionsRouter.get(
       ...(filters.groupId ? { groupId: filters.groupId } : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
+      ...(andFilters.length > 0 ? { AND: andFilters } : {}),
       ...(filters.search
         ? {
             OR: [
               { name: { contains: filters.search, mode: "insensitive" } },
               { notes: { contains: filters.search, mode: "insensitive" } }
             ]
+          }
+        : {}),
+      ...(filters.amountFrom !== undefined || filters.amountTo !== undefined
+        ? {
+            amount: {
+              ...(filters.amountFrom !== undefined
+                ? { gte: filters.amountFrom }
+                : {}),
+              ...(filters.amountTo !== undefined
+                ? { lte: filters.amountTo }
+                : {})
+            }
           }
         : {}),
       ...(filters.dateFrom || filters.dateTo
@@ -322,8 +388,9 @@ transactionsRouter.delete(
 
     const sharedExpenseId = existing.sharedExpense?.id;
     const participantIds =
-      existing.sharedExpense?.participants.map((participant) => participant.id) ??
-      [];
+      existing.sharedExpense?.participants.map(
+        (participant) => participant.id
+      ) ?? [];
     const settlementRequestIds =
       existing.sharedExpense?.participants.flatMap((participant) =>
         participant.settlementRequests.map((request) => request.id)

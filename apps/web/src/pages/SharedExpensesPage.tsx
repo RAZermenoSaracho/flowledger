@@ -199,6 +199,7 @@ export function SharedExpensesPage() {
   async function refreshAfterSave() {
     closeForm();
     await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
+    await queryClient.invalidateQueries({ queryKey: ["debts"] });
     await queryClient.invalidateQueries({ queryKey: ["transactions"] });
   }
 
