@@ -98,6 +98,11 @@ export function GroupsPage() {
   const selectedGroup =
     selectedGroupQuery.data ??
     (groupsQuery.data ?? []).find((group) => group.id === selectedGroupId);
+  const groupSummary = selectedGroup?.summary ?? {
+    totalIncome: 0,
+    totalExpenses: 0,
+    balance: 0
+  };
   const visibleGroups = useMemo(() => {
     return applyCollectionControls(groupsQuery.data ?? [], {
       search: groupSearch,
@@ -863,7 +868,42 @@ export function GroupsPage() {
               ) : null}
             </section>
             <section>
-              <h3 className="font-semibold">Recent group transactions</h3>
+              <h3 className="font-semibold">Group summary</h3>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="rounded-md bg-slate-50 p-4 dark:bg-slate-950">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Total income
+                  </p>
+                  <p className="mt-2 break-words text-xl font-bold text-pine dark:text-emerald-300 sm:text-2xl">
+                    {money.format(groupSummary.totalIncome)}
+                  </p>
+                </div>
+                <div className="rounded-md bg-slate-50 p-4 dark:bg-slate-950">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Total expenses
+                  </p>
+                  <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
+                    {money.format(groupSummary.totalExpenses)}
+                  </p>
+                </div>
+                <div className="rounded-md bg-slate-50 p-4 dark:bg-slate-950">
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Balance
+                  </p>
+                  <p
+                    className={`mt-2 break-words text-xl font-bold sm:text-2xl ${
+                      groupSummary.balance >= 0
+                        ? "text-pine dark:text-emerald-300"
+                        : "text-coral dark:text-orange-300"
+                    }`}
+                  >
+                    {money.format(groupSummary.balance)}
+                  </p>
+                </div>
+              </div>
+            </section>
+            <section>
+              <h3 className="font-semibold">Latest Group Transactions</h3>
               <div className="mt-3 grid gap-2">
                 {(selectedGroup.transactions ?? []).map((transaction) => (
                   <div

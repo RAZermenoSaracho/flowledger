@@ -147,21 +147,51 @@ groupsRouter.get(
     const includeArchivedCategories =
       req.query.includeArchivedCategories === "true";
 
-    const group = await prisma.group.findUnique({
-      where: { id: req.params.id },
-      include: {
-        ...groupInclude(req.user!.id, includeArchivedCategories),
-        transactions: {
-          where: { userId: req.user!.id },
-          include: { account: true, category: true },
-          orderBy: { date: "desc" },
-          take: 25
+    const [group, transactionTotals] = await Promise.all([
+      prisma.group.findUnique({
+        where: { id: req.params.id },
+        include: {
+          ...groupInclude(req.user!.id, includeArchivedCategories),
+          transactions: {
+            where: { userId: req.user!.id },
+            include: { account: true, category: true },
+            orderBy: { date: "desc" },
+            take: 25
+          }
         }
-      }
-    });
+      }),
+      prisma.transaction.groupBy({
+        by: ["type"],
+        where: {
+          userId: req.user!.id,
+          groupId: req.params.id,
+          type: { in: ["income", "expense"] }
+        },
+        _sum: { amount: true }
+      })
+    ]);
 
     if (!group) throw notFound("Group");
-    res.json({ group: serialize(group) });
+
+    const summary = transactionTotals.reduce(
+      (totals, row) => {
+        const amount = row._sum.amount?.toNumber() ?? 0;
+        if (row.type === "income") totals.totalIncome += amount;
+        if (row.type === "expense") totals.totalExpenses += amount;
+        return totals;
+      },
+      { totalIncome: 0, totalExpenses: 0 }
+    );
+
+    res.json({
+      group: serialize({
+        ...group,
+        summary: {
+          ...summary,
+          balance: summary.totalIncome - summary.totalExpenses
+        }
+      })
+    });
   })
 );
 
