@@ -147,7 +147,10 @@ function assertTransferAllowed(input: {
     }
 
     if (input.accountId === input.transferToAccountId) {
-      throw new HttpError(400, "Transfer accounts must be different");
+      throw new HttpError(
+        400,
+        "Source and destination accounts must be different"
+      );
     }
 
     if (input.categoryId || input.expenseOffsetCategoryId || input.groupId) {

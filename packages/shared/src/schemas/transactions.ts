@@ -64,7 +64,7 @@ export const transactionSchema = baseTransactionSchema.superRefine(
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["transferToAccountId"],
-          message: "Transfer accounts must be different"
+          message: "Source and destination accounts must be different"
         });
       }
 

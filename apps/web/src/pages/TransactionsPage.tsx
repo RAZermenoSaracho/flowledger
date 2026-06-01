@@ -27,6 +27,9 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD"
 });
 
+const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
+  "Source and destination accounts must be different";
+
 type TransactionForm = {
   id?: string;
   name: string;
@@ -190,6 +193,26 @@ export function TransactionsPage() {
     : 0;
   const shouldSaveSharedTransaction =
     !form.id && canShareTransaction && form.isShared;
+  const transferAccountsInvalid =
+    form.type === "transfer" &&
+    Boolean(
+      !form.accountId ||
+      !form.transferToAccountId ||
+      form.accountId === form.transferToAccountId
+    );
+  const transferAccountsMatch =
+    form.type === "transfer" &&
+    Boolean(
+      form.accountId &&
+      form.transferToAccountId &&
+      form.accountId === form.transferToAccountId
+    );
+  const sourceAccountOptions = (accountsQuery.data ?? []).filter(
+    (account) => account.id !== form.transferToAccountId
+  );
+  const destinationAccountOptions = (accountsQuery.data ?? []).filter(
+    (account) => account.id !== form.accountId
+  );
 
   const saveTransaction = useMutation({
     mutationFn: () => {
@@ -251,6 +274,8 @@ export function TransactionsPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (transferAccountsInvalid) return;
+
     await saveTransaction.mutateAsync();
   }
 
@@ -418,7 +443,11 @@ export function TransactionsPage() {
                           categoryId: "",
                           groupId: "",
                           isShared: false,
-                          sharedTitle: ""
+                          sharedTitle: "",
+                          transferToAccountId:
+                            form.accountId === form.transferToAccountId
+                              ? ""
+                              : form.transferToAccountId
                         }
                       : {})
                   });
@@ -445,39 +474,63 @@ export function TransactionsPage() {
               <SelectField
                 label={form.type === "transfer" ? "From account" : "Account"}
                 value={form.accountId}
-                onChange={(event) =>
-                  setForm({ ...form, accountId: event.target.value })
-                }
+                onChange={(event) => {
+                  const accountId = event.target.value;
+                  setForm({
+                    ...form,
+                    accountId,
+                    transferToAccountId:
+                      accountId && accountId === form.transferToAccountId
+                        ? ""
+                        : form.transferToAccountId
+                  });
+                }}
                 required={form.type === "transfer"}
               >
                 <option value="">
                   {form.type === "transfer" ? "Select account" : "None"}
                 </option>
-                {(accountsQuery.data ?? []).map((account) => (
+                {(form.type === "transfer"
+                  ? sourceAccountOptions
+                  : (accountsQuery.data ?? [])
+                ).map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name}
                   </option>
                 ))}
               </SelectField>
               {form.type === "transfer" ? (
-                <SelectField
-                  label="To account"
-                  value={form.transferToAccountId}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      transferToAccountId: event.target.value
-                    })
-                  }
-                  required
-                >
-                  <option value="">Select account</option>
-                  {(accountsQuery.data ?? []).map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </SelectField>
+                <div className="grid gap-1">
+                  <SelectField
+                    label="To account"
+                    value={form.transferToAccountId}
+                    onChange={(event) => {
+                      const transferToAccountId = event.target.value;
+                      setForm({
+                        ...form,
+                        accountId:
+                          transferToAccountId &&
+                          transferToAccountId === form.accountId
+                            ? ""
+                            : form.accountId,
+                        transferToAccountId
+                      });
+                    }}
+                    required
+                  >
+                    <option value="">Select account</option>
+                    {destinationAccountOptions.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  {transferAccountsMatch ? (
+                    <p className="text-sm text-coral dark:text-orange-300">
+                      {TRANSFER_ACCOUNT_VALIDATION_MESSAGE}
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <>
                   <SelectField
@@ -760,10 +813,7 @@ export function TransactionsPage() {
                   type="submit"
                   disabled={
                     saveTransaction.isPending ||
-                    (form.type === "transfer" &&
-                      (!form.accountId ||
-                        !form.transferToAccountId ||
-                        form.accountId === form.transferToAccountId)) ||
+                    transferAccountsInvalid ||
                     (shouldSaveSharedTransaction &&
                       (participants.length === 0 || remainingSharedAmount < 0))
                   }
