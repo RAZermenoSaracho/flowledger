@@ -2,6 +2,7 @@ import { TRANSACTION_TYPES } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ChevronDown } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
@@ -487,16 +488,17 @@ export function TransactionsPage() {
                       <Button
                         type="button"
                         variant="secondary"
-                        className="w-full sm:w-auto"
+                        className="flex w-full items-center justify-center gap-2 sm:w-auto"
                         aria-expanded={areSharedFieldsOpen}
-                        onClick={() =>
-                          setAreSharedFieldsOpen((value) => !value)
-                        }
+                        onClick={() => setAreSharedFieldsOpen((value) => !value)}
                       >
-                        Participants{" "}
-                        <span aria-hidden="true">
-                          {areSharedFieldsOpen ? "^" : "v"}
-                        </span>
+                        <span>Participants</span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`h-4 w-4 transition-transform ${
+                            areSharedFieldsOpen ? "rotate-180" : ""
+                          }`}
+                        />
                       </Button>
                     ) : null}
                   </div>
@@ -729,14 +731,17 @@ export function TransactionsPage() {
             <Button
               type="button"
               variant="secondary"
-              className="w-full sm:w-auto"
+              className="flex w-full items-center justify-center gap-2 sm:w-auto"
               aria-expanded={areAdvancedFiltersOpen}
               onClick={() => setAreAdvancedFiltersOpen((value) => !value)}
             >
-              Filters{" "}
-              <span aria-hidden="true">
-                {areAdvancedFiltersOpen ? "^" : "v"}
-              </span>
+              <span>Filters</span>
+              <ChevronDown
+                aria-hidden="true"
+                className={`h-4 w-4 transition-transform ${
+                  areAdvancedFiltersOpen ? "rotate-180" : ""
+                }`}
+              />
             </Button>
             {areAdvancedFiltersOpen ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
