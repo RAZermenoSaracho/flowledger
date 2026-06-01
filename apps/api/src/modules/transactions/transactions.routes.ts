@@ -122,10 +122,13 @@ transactionsRouter.get(
     const filters = req.query as {
       dateFrom?: string;
       dateTo?: string;
+      amountFrom?: number;
+      amountTo?: number;
       categoryId?: string;
       groupId?: string;
       accountId?: string;
       type?: "income" | "expense" | "transfer";
+      classification?: "complete" | "needsClassification";
       search?: string;
     };
 
@@ -135,12 +138,30 @@ transactionsRouter.get(
       ...(filters.groupId ? { groupId: filters.groupId } : {}),
       ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
+      ...(filters.classification === "needsClassification"
+        ? { AND: [{ OR: [{ accountId: null }, { categoryId: null }] }] }
+        : {}),
+      ...(filters.classification === "complete"
+        ? { accountId: { not: null }, categoryId: { not: null } }
+        : {}),
       ...(filters.search
         ? {
             OR: [
               { name: { contains: filters.search, mode: "insensitive" } },
               { notes: { contains: filters.search, mode: "insensitive" } }
             ]
+          }
+        : {}),
+      ...(filters.amountFrom !== undefined || filters.amountTo !== undefined
+        ? {
+            amount: {
+              ...(filters.amountFrom !== undefined
+                ? { gte: filters.amountFrom }
+                : {}),
+              ...(filters.amountTo !== undefined
+                ? { lte: filters.amountTo }
+                : {})
+            }
           }
         : {}),
       ...(filters.dateFrom || filters.dateTo
@@ -322,8 +343,9 @@ transactionsRouter.delete(
 
     const sharedExpenseId = existing.sharedExpense?.id;
     const participantIds =
-      existing.sharedExpense?.participants.map((participant) => participant.id) ??
-      [];
+      existing.sharedExpense?.participants.map(
+        (participant) => participant.id
+      ) ?? [];
     const settlementRequestIds =
       existing.sharedExpense?.participants.flatMap((participant) =>
         participant.settlementRequests.map((request) => request.id)

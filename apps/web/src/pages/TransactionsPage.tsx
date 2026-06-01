@@ -58,6 +58,19 @@ const emptyForm: TransactionForm = {
   sharedTitle: ""
 };
 
+const emptyFilters = {
+  search: "",
+  type: "",
+  accountId: "",
+  categoryId: "",
+  groupId: "",
+  dateFrom: "",
+  dateTo: "",
+  amountFrom: "",
+  amountTo: "",
+  classification: ""
+};
+
 function needsClassification(transaction: Transaction) {
   return !transaction.accountId || !transaction.categoryId;
 }
@@ -66,15 +79,7 @@ export function TransactionsPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<TransactionForm>(emptyForm);
-  const [filters, setFilters] = useState({
-    search: "",
-    type: "",
-    accountId: "",
-    categoryId: "",
-    groupId: "",
-    dateFrom: "",
-    dateTo: ""
-  });
+  const [filters, setFilters] = useState(emptyFilters);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [areAdvancedFiltersOpen, setAreAdvancedFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("date");
@@ -137,6 +142,25 @@ export function TransactionsPage() {
       }
     });
   }, [sortBy, sortDirection, transactionsQuery.data]);
+  const transactionSummary = useMemo(
+    () =>
+      visibleTransactions.reduce(
+        (summary, transaction) => {
+          if (transaction.type === "income") {
+            summary.income += transaction.amount;
+          }
+          if (transaction.type === "expense") {
+            summary.expenses += transaction.amount;
+          }
+          return summary;
+        },
+        { income: 0, expenses: 0 }
+      ),
+    [visibleTransactions]
+  );
+  const transactionBalance =
+    transactionSummary.income - transactionSummary.expenses;
+  const hasActiveFilters = Object.values(filters).some(Boolean);
   const selectedGroupCategories = selectedGroup?.categories ?? [];
   const categoryOptions = form.groupId
     ? selectedGroupCategories
@@ -739,6 +763,26 @@ export function TransactionsPage() {
                     setFilters({ ...filters, dateTo: event.target.value })
                   }
                 />
+                <TextInput
+                  label="Minimum amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={filters.amountFrom}
+                  onChange={(event) =>
+                    setFilters({ ...filters, amountFrom: event.target.value })
+                  }
+                />
+                <TextInput
+                  label="Maximum amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={filters.amountTo}
+                  onChange={(event) =>
+                    setFilters({ ...filters, amountTo: event.target.value })
+                  }
+                />
                 <SelectField
                   label="Category"
                   value={filters.categoryId}
@@ -821,10 +865,82 @@ export function TransactionsPage() {
                     </option>
                   ))}
                 </SelectField>
+                <SelectField
+                  label="Classification"
+                  value={filters.classification}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      classification: event.target.value
+                    })
+                  }
+                >
+                  <option value="">All</option>
+                  <option value="complete">Complete</option>
+                  <option value="needsClassification">
+                    Needs classification
+                  </option>
+                </SelectField>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setFilters(emptyFilters)}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
               </div>
             ) : null}
           </SearchComponent>
         </Card>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Total income
+            </p>
+            <p className="mt-2 text-2xl font-bold text-pine dark:text-emerald-300">
+              {money.format(transactionSummary.income)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {hasActiveFilters
+                ? "Filtered transactions"
+                : "Visible transactions"}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Total expenses
+            </p>
+            <p className="mt-2 text-2xl font-bold text-coral dark:text-orange-300">
+              {money.format(transactionSummary.expenses)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {hasActiveFilters
+                ? "Filtered transactions"
+                : "Visible transactions"}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Balance
+            </p>
+            <p
+              className={`mt-2 text-2xl font-bold ${
+                transactionBalance >= 0
+                  ? "text-pine dark:text-emerald-300"
+                  : "text-coral dark:text-orange-300"
+              }`}
+            >
+              {money.format(transactionBalance)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {visibleTransactions.length} transaction
+              {visibleTransactions.length === 1 ? "" : "s"}
+            </p>
+          </Card>
+        </div>
         <Card>
           <h2 className="text-lg font-semibold">Transactions</h2>
           <div className="mt-4 grid gap-3">

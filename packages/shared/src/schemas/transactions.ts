@@ -31,10 +31,13 @@ export const updateTransactionSchema = transactionSchema
 export const transactionFiltersSchema = z.object({
   dateFrom: optionalDateStringSchema,
   dateTo: optionalDateStringSchema,
+  amountFrom: moneySchema.optional(),
+  amountTo: moneySchema.optional(),
   categoryId: z.string().min(1).optional(),
   groupId: z.string().min(1).optional(),
   accountId: z.string().min(1).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),
+  classification: z.enum(["complete", "needsClassification"]).optional(),
   search: z.string().trim().max(120).optional()
 });
 
