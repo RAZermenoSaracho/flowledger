@@ -145,25 +145,6 @@ keys/
 *.pem
 *.key
 
-database/prisma/migrations/*
-!database/prisma/migrations/20260522120000_unify_household_categories/
-!database/prisma/migrations/20260522120000_unify_household_categories/migration.sql
-!database/prisma/migrations/20260522150000_add_notifications/
-!database/prisma/migrations/20260522150000_add_notifications/migration.sql
-!database/prisma/migrations/20260522170000_category_user_memberships/
-!database/prisma/migrations/20260522170000_category_user_memberships/migration.sql
-!database/prisma/migrations/20260522180000_rename_households_to_groups/
-!database/prisma/migrations/20260522180000_rename_households_to_groups/migration.sql
-!database/prisma/migrations/20260522193000_archive_core_entities/
-!database/prisma/migrations/20260522193000_archive_core_entities/migration.sql
-!database/prisma/migrations/20260522200000_settlement_transactions/
-!database/prisma/migrations/20260522200000_settlement_transactions/migration.sql
-!database/prisma/migrations/20260531120000_expense_reimbursement_offsets/
-!database/prisma/migrations/20260531120000_expense_reimbursement_offsets/migration.sql
-!database/prisma/migrations/20260531130000_complete_settlement_workflow/
-!database/prisma/migrations/20260531130000_complete_settlement_workflow/migration.sql
-!database/prisma/migrations/20260601130000_add_account_initial_balance/
-!database/prisma/migrations/20260601130000_add_account_initial_balance/migration.sql
 package-lock.json
 
 apps/web/.vite
