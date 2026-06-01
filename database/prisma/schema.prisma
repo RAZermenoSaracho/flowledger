@@ -99,17 +99,19 @@ model UserAuthAccount {
 }
 
 model Account {
-  id           String        @id @default(cuid())
-  userId       String
-  name         String
-  type         AccountType
-  identifier   String?
-  isArchived   Boolean       @default(false)
-  archivedAt   DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  id                              String        @id @default(cuid())
+  userId                          String
+  name                            String
+  type                            AccountType
+  identifier                      String?
+  initialBalance                  Decimal       @default(0) @db.Decimal(12, 2)
+  isArchived                      Boolean       @default(false)
+  archivedAt                      DateTime?
+  createdAt                       DateTime      @default(now())
+  updatedAt                       DateTime      @updatedAt
+  user                            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions                    Transaction[] @relation("TransactionAccount")
+  transferDestinationTransactions Transaction[] @relation("TransactionTransferToAccount")
 
   @@index([userId])
   @@index([userId, isArchived])
@@ -157,6 +159,7 @@ model Transaction {
   expenseOffsetCategoryId   String?
   groupId                   String?
   accountId                 String?
+  transferToAccountId       String?
   notes                     String?
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @updatedAt
@@ -164,7 +167,8 @@ model Transaction {
   category                  Category?             @relation("TransactionCategory", fields: [categoryId], references: [id], onDelete: SetNull)
   expenseOffsetCategory     Category?             @relation("TransactionExpenseOffsetCategory", fields: [expenseOffsetCategoryId], references: [id], onDelete: SetNull)
   group                     Group?                @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  account                   Account?              @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  account                   Account?              @relation("TransactionAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  transferToAccount         Account?              @relation("TransactionTransferToAccount", fields: [transferToAccountId], references: [id], onDelete: SetNull)
   relations                 TransactionRelation[] @relation("TransactionRelations")
   relatedBy                 TransactionRelation[] @relation("RelatedTransactionRelations")
   sharedExpense             SharedExpense?
@@ -176,6 +180,7 @@ model Transaction {
   @@index([expenseOffsetCategoryId])
   @@index([groupId])
   @@index([accountId])
+  @@index([transferToAccountId])
 }
 
 model Group {

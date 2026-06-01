@@ -5,6 +5,10 @@ import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { serialize } from "../../utils/serialize.js";
+import {
+  calculateMonthlyCashflow,
+  REPORT_TRANSACTION_TYPES
+} from "../transactions/transactionCalculations.js";
 
 export const reportsRouter = Router();
 
@@ -66,7 +70,7 @@ function cashflowReportWhere(
 
   return {
     userId,
-    type: { in: ["income", "expense"] },
+    type: { in: [...REPORT_TRANSACTION_TYPES] },
     ...(filters.groupId ? { groupId: filters.groupId } : {}),
     ...(filters.categoryId
       ? {
@@ -266,71 +270,8 @@ reportsRouter.get(
       orderBy: { date: "asc" }
     });
 
-    const monthly = new Map<
-      string,
-      {
-        month: string;
-        income: number;
-        expenses: number;
-        grossExpenses: number;
-        expenseReimbursements: number;
-        netExpenses: number;
-        grossIncome: number;
-        incomeOffsets: number;
-        netIncome: number;
-        balance: number;
-      }
-    >();
-
-    for (const transaction of transactions) {
-      const month = transaction.date.toISOString().slice(0, 7);
-      const row = monthly.get(month) ?? {
-        month,
-        income: 0,
-        expenses: 0,
-        grossExpenses: 0,
-        expenseReimbursements: 0,
-        netExpenses: 0,
-        grossIncome: 0,
-        incomeOffsets: 0,
-        netIncome: 0,
-        balance: 0
-      };
-      const amount = transaction.amount.toNumber();
-      const matchesCategory =
-        !filters.categoryId || transaction.categoryId === filters.categoryId;
-      const matchesOffsetCategory =
-        !filters.categoryId ||
-        transaction.expenseOffsetCategoryId === filters.categoryId;
-
-      if (transaction.type === "income" && matchesCategory) {
-        row.income += amount;
-        row.grossIncome += amount;
-      }
-      if (
-        transaction.type === "income" &&
-        transaction.expenseOffsetCategoryId &&
-        matchesOffsetCategory
-      ) {
-        row.expenseReimbursements += amount;
-      }
-      if (
-        transaction.type === "income" &&
-        transaction.expenseOffsetCategoryId &&
-        matchesCategory
-      ) {
-        row.incomeOffsets += amount;
-      }
-      if (transaction.type === "expense" && matchesCategory) {
-        row.expenses += amount;
-        row.grossExpenses += amount;
-      }
-      row.netExpenses = row.grossExpenses - row.expenseReimbursements;
-      row.netIncome = row.grossIncome - row.incomeOffsets;
-      row.balance = row.income - row.expenses;
-      monthly.set(month, row);
-    }
-
-    res.json({ cashflow: serialize([...monthly.values()]) });
+    res.json({
+      cashflow: serialize(calculateMonthlyCashflow(transactions, filters))
+    });
   })
 );

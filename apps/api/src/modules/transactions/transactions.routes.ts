@@ -22,6 +22,7 @@ async function assertOwnedRelations(
   userId: string,
   input: {
     accountId?: string | null;
+    transferToAccountId?: string | null;
     categoryId?: string | null;
     expenseOffsetCategoryId?: string | null;
     groupId?: string | null;
@@ -33,6 +34,18 @@ async function assertOwnedRelations(
     });
     if (!account)
       throw new HttpError(400, "Account does not exist or is archived");
+  }
+
+  if (input.transferToAccountId) {
+    const account = await prisma.account.findFirst({
+      where: { id: input.transferToAccountId, userId, isArchived: false }
+    });
+    if (!account) {
+      throw new HttpError(
+        400,
+        "Destination account does not exist or is archived"
+      );
+    }
   }
 
   if (input.categoryId && !input.groupId) {
@@ -115,6 +128,88 @@ function assertExpenseOffsetAllowed(input: {
   }
 }
 
+function assertTransferAllowed(input: {
+  type?: "income" | "expense" | "transfer";
+  accountId?: string | null;
+  transferToAccountId?: string | null;
+  categoryId?: string | null;
+  expenseOffsetCategoryId?: string | null;
+  groupId?: string | null;
+  sharedExpense?: unknown;
+}) {
+  if (input.type === "transfer") {
+    if (!input.accountId) {
+      throw new HttpError(400, "From account is required for transfers");
+    }
+
+    if (!input.transferToAccountId) {
+      throw new HttpError(400, "To account is required for transfers");
+    }
+
+    if (input.accountId === input.transferToAccountId) {
+      throw new HttpError(
+        400,
+        "Source and destination accounts must be different"
+      );
+    }
+
+    if (input.categoryId || input.expenseOffsetCategoryId || input.groupId) {
+      throw new HttpError(
+        400,
+        "Transfers cannot have category, expense offset, or group fields"
+      );
+    }
+
+    if (input.sharedExpense) {
+      throw new HttpError(400, "Transfers cannot be shared transactions");
+    }
+  }
+
+  if (input.type !== "transfer" && input.transferToAccountId) {
+    throw new HttpError(
+      400,
+      "Destination account is only supported for transfers"
+    );
+  }
+}
+
+async function deleteSharedTransactionData(
+  tx: Prisma.TransactionClient,
+  sharedExpense:
+    | {
+        id: string;
+        participants: {
+          id: string;
+          settlementRequests: { id: string }[];
+        }[];
+      }
+    | null
+    | undefined
+) {
+  if (!sharedExpense) return;
+
+  await tx.notification.deleteMany({
+    where: {
+      OR: [
+        { metadata: { path: ["sharedExpenseId"], equals: sharedExpense.id } },
+        ...sharedExpense.participants.map((participant) => ({
+          metadata: { path: ["participantId"], equals: participant.id }
+        })),
+        ...sharedExpense.participants.flatMap((participant) =>
+          participant.settlementRequests.map((settlementRequest) => ({
+            metadata: {
+              path: ["settlementRequestId"],
+              equals: settlementRequest.id
+            }
+          }))
+        )
+      ]
+    }
+  });
+
+  await tx.sharedExpense.delete({ where: { id: sharedExpense.id } });
+}
+
 const settlementTransactionWhere: Prisma.TransactionWhereInput = {
   OR: [
     { debtorSettlementRequest: { isNot: null } },
@@ -175,18 +270,50 @@ transactionsRouter.get(
     }
 
     if (filters.classification === "needsClassification") {
-      andFilters.push({ OR: [{ accountId: null }, { categoryId: null }] });
+      andFilters.push({
+        OR: [
+          {
+            type: "transfer",
+            OR: [{ accountId: null }, { transferToAccountId: null }]
+          },
+          {
+            type: { not: "transfer" },
+            OR: [{ accountId: null }, { categoryId: null }]
+          }
+        ]
+      });
     }
 
     if (filters.classification === "complete") {
-      andFilters.push({ accountId: { not: null }, categoryId: { not: null } });
+      andFilters.push({
+        OR: [
+          {
+            type: "transfer",
+            accountId: { not: null },
+            transferToAccountId: { not: null }
+          },
+          {
+            type: { not: "transfer" },
+            accountId: { not: null },
+            categoryId: { not: null }
+          }
+        ]
+      });
+    }
+
+    if (filters.accountId) {
+      andFilters.push({
+        OR: [
+          { accountId: filters.accountId },
+          { transferToAccountId: filters.accountId }
+        ]
+      });
     }
 
     const where: Prisma.TransactionWhereInput = {
       userId: req.user!.id,
       ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
       ...(filters.groupId ? { groupId: filters.groupId } : {}),
-      ...(filters.accountId ? { accountId: filters.accountId } : {}),
       ...(filters.type ? { type: filters.type } : {}),
       ...(andFilters.length > 0 ? { AND: andFilters } : {}),
       ...(filters.search
@@ -223,6 +350,7 @@ transactionsRouter.get(
       where,
       include: {
         account: true,
+        transferToAccount: true,
         category: true,
         expenseOffsetCategory: true,
         group: true
@@ -239,6 +367,7 @@ transactionsRouter.post(
   validate(transactionSchema),
   asyncHandler(async (req, res) => {
     assertExpenseOffsetAllowed(req.body);
+    assertTransferAllowed(req.body);
     await assertOwnedRelations(req.user!.id, req.body);
     await assertGroupRelations(req.user!.id, req.body);
 
@@ -246,7 +375,12 @@ transactionsRouter.post(
     const transaction = await prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.transaction.create({
         data: { ...input, userId: req.user!.id, date: new Date(input.date) },
-        include: { account: true, category: true, expenseOffsetCategory: true }
+        include: {
+          account: true,
+          transferToAccount: true,
+          category: true,
+          expenseOffsetCategory: true
+        }
       });
 
       if (sharedExpense) {
@@ -265,6 +399,7 @@ transactionsRouter.post(
         where: { id: createdTransaction.id },
         include: {
           account: true,
+          transferToAccount: true,
           category: true,
           expenseOffsetCategory: true,
           group: true,
@@ -284,6 +419,7 @@ transactionsRouter.get(
       where: { id: req.params.id, userId: req.user!.id },
       include: {
         account: true,
+        transferToAccount: true,
         category: true,
         expenseOffsetCategory: true,
         group: true,
@@ -303,7 +439,16 @@ transactionsRouter.put(
   validate(updateTransactionSchema),
   asyncHandler(async (req, res) => {
     const existing = await prisma.transaction.findFirst({
-      where: { id: req.params.id, userId: req.user!.id }
+      where: { id: req.params.id, userId: req.user!.id },
+      include: {
+        sharedExpense: {
+          include: {
+            participants: {
+              include: { settlementRequests: true }
+            }
+          }
+        }
+      }
     });
     if (!existing) throw notFound("Transaction");
 
@@ -312,6 +457,10 @@ transactionsRouter.put(
         req.body.accountId !== undefined
           ? req.body.accountId
           : existing.accountId,
+      transferToAccountId:
+        req.body.transferToAccountId !== undefined
+          ? req.body.transferToAccountId
+          : existing.transferToAccountId,
       groupId:
         req.body.groupId !== undefined ? req.body.groupId : existing.groupId,
       categoryId:
@@ -328,8 +477,17 @@ transactionsRouter.put(
       type: req.body.type !== undefined ? req.body.type : existing.type,
       expenseOffsetCategoryId: relationInput.expenseOffsetCategoryId
     });
+    assertTransferAllowed({
+      type: req.body.type !== undefined ? req.body.type : existing.type,
+      accountId: relationInput.accountId,
+      transferToAccountId: relationInput.transferToAccountId,
+      categoryId: relationInput.categoryId,
+      expenseOffsetCategoryId: relationInput.expenseOffsetCategoryId,
+      groupId: relationInput.groupId
+    });
     await assertOwnedRelations(req.user!.id, {
       accountId: req.body.accountId,
+      transferToAccountId: req.body.transferToAccountId,
       categoryId: req.body.categoryId,
       expenseOffsetCategoryId:
         req.body.expenseOffsetCategoryId !== undefined ||
@@ -349,6 +507,7 @@ transactionsRouter.put(
         },
         include: {
           account: true,
+          transferToAccount: true,
           category: true,
           expenseOffsetCategory: true,
           group: true
@@ -360,6 +519,10 @@ transactionsRouter.put(
           where: { transactionId: existing.id },
           data: { totalAmount: updatedTransaction.amount }
         });
+      }
+
+      if (updatedTransaction.type === "transfer") {
+        await deleteSharedTransactionData(tx, existing.sharedExpense);
       }
 
       return updatedTransaction;

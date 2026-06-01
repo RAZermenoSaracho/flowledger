@@ -27,6 +27,9 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD"
 });
 
+const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
+  "Source and destination accounts must be different";
+
 type TransactionForm = {
   id?: string;
   name: string;
@@ -34,6 +37,7 @@ type TransactionForm = {
   type: "income" | "expense" | "transfer";
   date: string;
   accountId: string;
+  transferToAccountId: string;
   categoryId: string;
   groupId: string;
   notes: string;
@@ -56,6 +60,7 @@ const emptyForm: TransactionForm = {
   type: "expense",
   date: new Date().toISOString().slice(0, 10),
   accountId: "",
+  transferToAccountId: "",
   categoryId: "",
   groupId: "",
   notes: "",
@@ -78,7 +83,21 @@ const emptyFilters = {
 };
 
 function needsClassification(transaction: Transaction) {
+  if (transaction.type === "transfer") {
+    return !transaction.accountId || !transaction.transferToAccountId;
+  }
+
   return !transaction.accountId || !transaction.categoryId;
+}
+
+function transactionAccountLabel(transaction: Transaction) {
+  if (transaction.type === "transfer") {
+    return `${transaction.account?.name ?? "No from account"} -> ${
+      transaction.transferToAccount?.name ?? "No to account"
+    }`;
+  }
+
+  return transaction.account?.name ?? "No account";
 }
 
 export function TransactionsPage() {
@@ -95,6 +114,7 @@ export function TransactionsPage() {
   const [userSearch, setUserSearch] = useState("");
   const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
   const trimmedUserSearch = userSearch.trim();
+  const canShareTransaction = form.type === "income" || form.type === "expense";
 
   const accountsQuery = useQuery({
     queryKey: ["accounts"],
@@ -123,7 +143,11 @@ export function TransactionsPage() {
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
     enabled:
-      isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
+      isFormOpen &&
+      canShareTransaction &&
+      form.isShared &&
+      !form.id &&
+      trimmedUserSearch.length > 1,
     queryFn: async () =>
       (
         await apiRequest<{ users: PublicUser[] }>("/users/search", {
@@ -167,6 +191,28 @@ export function TransactionsPage() {
   const remainingSharedAmount = Number.isFinite(transactionAmount)
     ? transactionAmount - participantShareTotal
     : 0;
+  const shouldSaveSharedTransaction =
+    !form.id && canShareTransaction && form.isShared;
+  const transferAccountsInvalid =
+    form.type === "transfer" &&
+    Boolean(
+      !form.accountId ||
+      !form.transferToAccountId ||
+      form.accountId === form.transferToAccountId
+    );
+  const transferAccountsMatch =
+    form.type === "transfer" &&
+    Boolean(
+      form.accountId &&
+      form.transferToAccountId &&
+      form.accountId === form.transferToAccountId
+    );
+  const sourceAccountOptions = (accountsQuery.data ?? []).filter(
+    (account) => account.id !== form.transferToAccountId
+  );
+  const destinationAccountOptions = (accountsQuery.data ?? []).filter(
+    (account) => account.id !== form.accountId
+  );
 
   const saveTransaction = useMutation({
     mutationFn: () => {
@@ -176,10 +222,12 @@ export function TransactionsPage() {
         type: form.type,
         date: form.date,
         accountId: form.accountId || null,
-        categoryId: form.categoryId || null,
-        groupId: form.groupId || null,
+        transferToAccountId:
+          form.type === "transfer" ? form.transferToAccountId || null : null,
+        categoryId: form.type === "transfer" ? null : form.categoryId || null,
+        groupId: form.type === "transfer" ? null : form.groupId || null,
         notes: form.notes || null,
-        ...(!form.id && form.isShared
+        ...(shouldSaveSharedTransaction
           ? {
               sharedExpense: {
                 title: form.sharedTitle || form.name,
@@ -202,6 +250,7 @@ export function TransactionsPage() {
       setForm(emptyForm);
       setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
@@ -213,6 +262,7 @@ export function TransactionsPage() {
       apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
@@ -224,12 +274,14 @@ export function TransactionsPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (transferAccountsInvalid) return;
+
     await saveTransaction.mutateAsync();
   }
 
   async function confirmDeleteTransaction(transaction: Transaction) {
     const confirmed = window.confirm(
-      `Delete "${transaction.name}" permanently? This will also remove any attached shared expense, participants, debts, settlements, and related notifications.`
+      `Delete "${transaction.name}" permanently? This will also remove any attached shared transaction, participants, debts, settlements, and related notifications.`
     );
     if (!confirmed) return;
 
@@ -243,6 +295,12 @@ export function TransactionsPage() {
     setParticipants([]);
     setAreSharedFieldsOpen(true);
     setIsFormOpen(false);
+  }
+
+  function clearSharedTransactionDrafts() {
+    setParticipantName("");
+    setUserSearch("");
+    setParticipants([]);
   }
 
   function suggestEqualGroupSplit(group: Group, amountValue = form.amount) {
@@ -376,10 +434,26 @@ export function TransactionsPage() {
                 label="Type"
                 value={form.type}
                 onChange={(event) => {
+                  const type = event.target.value as typeof form.type;
                   setForm({
                     ...form,
-                    type: event.target.value as typeof form.type
+                    type,
+                    ...(type === "transfer"
+                      ? {
+                          categoryId: "",
+                          groupId: "",
+                          isShared: false,
+                          sharedTitle: "",
+                          transferToAccountId:
+                            form.accountId === form.transferToAccountId
+                              ? ""
+                              : form.transferToAccountId
+                        }
+                      : {})
                   });
+                  if (type === "transfer") {
+                    clearSharedTransactionDrafts();
+                  }
                 }}
               >
                 {TRANSACTION_TYPES.map((item) => (
@@ -398,64 +472,116 @@ export function TransactionsPage() {
                 required
               />
               <SelectField
-                label="Account"
+                label={form.type === "transfer" ? "From account" : "Account"}
                 value={form.accountId}
-                onChange={(event) =>
-                  setForm({ ...form, accountId: event.target.value })
-                }
+                onChange={(event) => {
+                  const accountId = event.target.value;
+                  setForm({
+                    ...form,
+                    accountId,
+                    transferToAccountId:
+                      accountId && accountId === form.transferToAccountId
+                        ? ""
+                        : form.transferToAccountId
+                  });
+                }}
+                required={form.type === "transfer"}
               >
-                <option value="">None</option>
-                {(accountsQuery.data ?? []).map((account) => (
+                <option value="">
+                  {form.type === "transfer" ? "Select account" : "None"}
+                </option>
+                {(form.type === "transfer"
+                  ? sourceAccountOptions
+                  : (accountsQuery.data ?? [])
+                ).map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name}
                   </option>
                 ))}
               </SelectField>
-              <SelectField
-                label="Category"
-                value={selectedCategoryId}
-                onChange={(event) => {
-                  setForm({
-                    ...form,
-                    categoryId: event.target.value
-                  });
-                }}
-              >
-                <option value="">None</option>
-                {categoryOptions.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField
-                label="Group"
-                value={form.groupId}
-                onChange={(event) => {
-                  const groupId = event.target.value;
-                  const group = (groupsQuery.data ?? []).find(
-                    (item) => item.id === groupId
-                  );
-                  setForm({
-                    ...form,
-                    groupId,
-                    categoryId: groupId ? "" : form.categoryId,
-                    isShared: groupId
-                      ? form.isShared || !form.id
-                      : form.isShared
-                  });
-                  if (group && !form.id) {
-                    suggestEqualGroupSplit(group);
-                  }
-                }}
-              >
-                <option value="">None</option>
-                {(groupsQuery.data ?? []).map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </SelectField>
+              {form.type === "transfer" ? (
+                <div className="grid gap-1">
+                  <SelectField
+                    label="To account"
+                    value={form.transferToAccountId}
+                    onChange={(event) => {
+                      const transferToAccountId = event.target.value;
+                      setForm({
+                        ...form,
+                        accountId:
+                          transferToAccountId &&
+                          transferToAccountId === form.accountId
+                            ? ""
+                            : form.accountId,
+                        transferToAccountId
+                      });
+                    }}
+                    required
+                  >
+                    <option value="">Select account</option>
+                    {destinationAccountOptions.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  {transferAccountsMatch ? (
+                    <p className="text-sm text-coral dark:text-orange-300">
+                      {TRANSFER_ACCOUNT_VALIDATION_MESSAGE}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <SelectField
+                    label="Category"
+                    value={selectedCategoryId}
+                    onChange={(event) => {
+                      setForm({
+                        ...form,
+                        categoryId: event.target.value
+                      });
+                    }}
+                  >
+                    <option value="">None</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <SelectField
+                    label="Group"
+                    value={form.groupId}
+                    onChange={(event) => {
+                      const groupId = event.target.value;
+                      const group = (groupsQuery.data ?? []).find(
+                        (item) => item.id === groupId
+                      );
+                      setForm({
+                        ...form,
+                        groupId,
+                        categoryId: groupId ? "" : form.categoryId,
+                        isShared: canShareTransaction
+                          ? groupId
+                            ? form.isShared || !form.id
+                            : form.isShared
+                          : false
+                      });
+                      if (group && !form.id && canShareTransaction) {
+                        suggestEqualGroupSplit(group);
+                      }
+                    }}
+                  >
+                    <option value="">None</option>
+                    {(groupsQuery.data ?? []).map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </>
+              )}
               <div className="md:col-span-2 xl:col-span-3">
                 <TextArea
                   label="Notes"
@@ -464,8 +590,14 @@ export function TransactionsPage() {
                     setForm({ ...form, notes: event.target.value })
                   }
                 />
+                {form.type === "transfer" ? (
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    Transfers move money between your own accounts, so they
+                    cannot be shared or split.
+                  </p>
+                ) : null}
               </div>
-              {!form.id ? (
+              {!form.id && canShareTransaction ? (
                 <div className="grid gap-3 rounded-md border border-slate-200 p-3 md:col-span-2 xl:col-span-3 dark:border-slate-800">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -476,13 +608,11 @@ export function TransactionsPage() {
                         onChange={(event) => {
                           setForm({ ...form, isShared: event.target.checked });
                           if (!event.target.checked) {
-                            setParticipantName("");
-                            setUserSearch("");
-                            setParticipants([]);
+                            clearSharedTransactionDrafts();
                           }
                         }}
                       />
-                      Shared expense
+                      Shared transaction
                     </label>
                     {form.isShared ? (
                       <Button
@@ -490,7 +620,9 @@ export function TransactionsPage() {
                         variant="secondary"
                         className="flex w-full items-center justify-center gap-2 sm:w-auto"
                         aria-expanded={areSharedFieldsOpen}
-                        onClick={() => setAreSharedFieldsOpen((value) => !value)}
+                        onClick={() =>
+                          setAreSharedFieldsOpen((value) => !value)
+                        }
                       >
                         <span>Participants</span>
                         <ChevronDown
@@ -505,7 +637,7 @@ export function TransactionsPage() {
                   {form.isShared && areSharedFieldsOpen ? (
                     <div className="grid gap-3">
                       <TextInput
-                        label="Split title"
+                        label="Shared transaction title"
                         value={form.sharedTitle}
                         onChange={(event) =>
                           setForm({ ...form, sharedTitle: event.target.value })
@@ -668,7 +800,7 @@ export function TransactionsPage() {
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">
                             Add an app user or manual participant to create a
-                            split.
+                            shared transaction split.
                           </p>
                         )}
                       </div>
@@ -681,7 +813,8 @@ export function TransactionsPage() {
                   type="submit"
                   disabled={
                     saveTransaction.isPending ||
-                    (form.isShared &&
+                    transferAccountsInvalid ||
+                    (shouldSaveSharedTransaction &&
                       (participants.length === 0 || remainingSharedAmount < 0))
                   }
                 >
@@ -979,8 +1112,10 @@ export function TransactionsPage() {
                     </Link>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       {new Date(transaction.date).toLocaleDateString()} ·{" "}
-                      {transaction.category?.name ?? "Uncategorized"} ·{" "}
-                      {transaction.account?.name ?? "No account"}
+                      {transaction.type === "transfer"
+                        ? "Transfer"
+                        : (transaction.category?.name ?? "Uncategorized")}{" "}
+                      · {transactionAccountLabel(transaction)}
                       {transaction.group
                         ? ` · ${transaction.group.name}${
                             transaction.category
@@ -991,7 +1126,9 @@ export function TransactionsPage() {
                     </p>
                     {isPendingClassification ? (
                       <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                        Pending classification: add a category and account.
+                        {transaction.type === "transfer"
+                          ? "Pending classification: add from and to accounts."
+                          : "Pending classification: add a category and account."}
                       </p>
                     ) : null}
                   </div>
@@ -999,7 +1136,9 @@ export function TransactionsPage() {
                     className={
                       transaction.type === "income"
                         ? "font-semibold text-pine dark:text-emerald-300"
-                        : "font-semibold text-coral dark:text-orange-300"
+                        : transaction.type === "transfer"
+                          ? "font-semibold text-slate-700 dark:text-slate-200"
+                          : "font-semibold text-coral dark:text-orange-300"
                     }
                   >
                     {money.format(parseTransactionAmount(transaction.amount))}
@@ -1016,6 +1155,8 @@ export function TransactionsPage() {
                           type: transaction.type,
                           date: transaction.date.slice(0, 10),
                           accountId: transaction.accountId ?? "",
+                          transferToAccountId:
+                            transaction.transferToAccountId ?? "",
                           categoryId: transaction.categoryId ?? "",
                           groupId: transaction.groupId ?? "",
                           notes: transaction.notes ?? "",

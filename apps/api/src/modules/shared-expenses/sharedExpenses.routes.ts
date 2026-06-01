@@ -9,6 +9,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
 import {
+  assertShareableTransaction,
   createSharedExpenseForTransaction,
   getOwnedTransaction,
   notifySharedExpenseParticipants,
@@ -88,6 +89,9 @@ sharedExpensesRouter.put(
       req.user!.id,
       req.body.transactionId
     );
+    if (transaction) {
+      assertShareableTransaction(transaction);
+    }
 
     const { participants, ...input } = req.body;
     const normalizedParticipants = participants

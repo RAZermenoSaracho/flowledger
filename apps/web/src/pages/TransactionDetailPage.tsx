@@ -17,7 +17,17 @@ function splitDirectionLabel(type: Transaction["type"]) {
 }
 
 function needsClassification(transaction: Transaction) {
+  if (transaction.type === "transfer") {
+    return !transaction.accountId || !transaction.transferToAccountId;
+  }
+
   return !transaction.accountId || !transaction.categoryId;
+}
+
+function transferDirection(transaction: Transaction) {
+  return `${transaction.account?.name ?? "No from account"} -> ${
+    transaction.transferToAccount?.name ?? "No to account"
+  }`;
 }
 
 export function TransactionDetailPage() {
@@ -36,6 +46,7 @@ export function TransactionDetailPage() {
       apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
       await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
@@ -84,7 +95,9 @@ export function TransactionDetailPage() {
         <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
         {isPendingClassification ? (
           <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-            Pending classification: add a category and account.
+            {transaction.type === "transfer"
+              ? "Pending classification: add from and to accounts."
+              : "Pending classification: add a category and account."}
           </p>
         ) : null}
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -95,18 +108,40 @@ export function TransactionDetailPage() {
             value={new Date(transaction.date).toLocaleDateString()}
           />
           <Detail
-            label="Account"
-            value={transaction.account?.name ?? "No account"}
+            label={transaction.type === "transfer" ? "From account" : "Account"}
+            value={
+              transaction.type === "transfer"
+                ? (transaction.account?.name ?? "No from account")
+                : (transaction.account?.name ?? "No account")
+            }
           />
-          <Detail
-            label="Category"
-            value={transaction.category?.name ?? "Uncategorized"}
-          />
-          <Detail label="Group" value={transaction.group?.name ?? "No group"} />
-          <Detail
-            label="Group category"
-            value={transaction.category?.name ?? "No group category"}
-          />
+          {transaction.type === "transfer" ? (
+            <>
+              <Detail
+                label="To account"
+                value={transaction.transferToAccount?.name ?? "No to account"}
+              />
+              <Detail
+                label="Direction"
+                value={transferDirection(transaction)}
+              />
+            </>
+          ) : (
+            <>
+              <Detail
+                label="Category"
+                value={transaction.category?.name ?? "Uncategorized"}
+              />
+              <Detail
+                label="Group"
+                value={transaction.group?.name ?? "No group"}
+              />
+              <Detail
+                label="Group category"
+                value={transaction.category?.name ?? "No group category"}
+              />
+            </>
+          )}
           <Detail label="Notes" value={transaction.notes ?? "No notes"} />
         </dl>
       </Card>

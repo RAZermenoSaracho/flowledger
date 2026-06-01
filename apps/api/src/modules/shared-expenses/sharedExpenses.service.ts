@@ -34,6 +34,17 @@ export async function getOwnedTransaction(
   return transaction;
 }
 
+export function assertShareableTransaction(
+  transaction: Pick<Transaction, "type">
+) {
+  if (transaction.type === "transfer") {
+    throw new HttpError(
+      400,
+      "Shared transactions are only supported for income and expense transactions"
+    );
+  }
+}
+
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
   participants: SharedExpenseInput["participants"] = [],
@@ -48,7 +59,7 @@ export async function normalizeSharedExpenseParticipants(
   if (participantUserIds.includes(ownerUserId)) {
     throw new HttpError(
       400,
-      "Shared expense participants cannot include the owner"
+      "Shared transaction participants cannot include the owner"
     );
   }
 
@@ -112,9 +123,14 @@ export function validateSharedExpenseParticipants(
 export async function createSharedExpenseForTransaction(
   tx: Prisma.TransactionClient,
   ownerUserId: string,
-  transaction: Pick<Transaction, "id" | "amount" | "name" | "groupId">,
+  transaction: Pick<
+    Transaction,
+    "id" | "amount" | "name" | "groupId" | "type"
+  >,
   input: Omit<SharedExpenseInput, "transactionId"> & { transactionId?: string }
 ) {
+  assertShareableTransaction(transaction);
+
   const participants = await normalizeSharedExpenseParticipants(
     ownerUserId,
     input.participants,
