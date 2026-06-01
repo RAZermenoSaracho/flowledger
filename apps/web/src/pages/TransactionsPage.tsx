@@ -9,6 +9,10 @@ import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
+import {
+  parseTransactionAmount,
+  summarizeTransactions
+} from "../utils/transactions";
 import type {
   Account,
   Category,
@@ -139,24 +143,12 @@ export function TransactionsPage() {
         date: (transaction) => dateSortValue(transaction.date),
         createdAt: (transaction) => dateSortValue(transaction.createdAt),
         name: (transaction) => transaction.name,
-        amount: (transaction) => transaction.amount
+        amount: (transaction) => parseTransactionAmount(transaction.amount)
       }
     });
   }, [sortBy, sortDirection, transactionsQuery.data]);
   const transactionSummary = useMemo(
-    () =>
-      visibleTransactions.reduce(
-        (summary, transaction) => {
-          if (transaction.type === "income") {
-            summary.income += transaction.amount;
-          }
-          if (transaction.type === "expense") {
-            summary.expenses += transaction.amount;
-          }
-          return summary;
-        },
-        { income: 0, expenses: 0 }
-      ),
+    () => summarizeTransactions(visibleTransactions),
     [visibleTransactions]
   );
   const transactionBalance =
@@ -1005,7 +997,7 @@ export function TransactionsPage() {
                         : "font-semibold text-coral dark:text-orange-300"
                     }
                   >
-                    {money.format(transaction.amount)}
+                    {money.format(parseTransactionAmount(transaction.amount))}
                   </span>
                   <div className="flex flex-wrap gap-2 md:justify-end">
                     <Button
