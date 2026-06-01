@@ -23,7 +23,6 @@ const navItems = [
   ["Categories", routes.categories],
   ["Groups", routes.groups],
   ["Reports", routes.reports],
-  ["Shared Expenses", routes.sharedExpenses],
   ["Debts", routes.debts]
 ] as const;
 
@@ -363,9 +362,10 @@ function notificationTarget(notification: Notification) {
   if (notification.type === "shared_expense_added") {
     const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
     const participantId = metadataString(metadata, "participantId");
+    params.set("tab", "sharedExpenses");
     if (sharedExpenseId) params.set("sharedExpenseId", sharedExpenseId);
     if (participantId) params.set("participantId", participantId);
-    return `${routes.sharedExpenses}?${params.toString()}`;
+    return `${routes.debts}?${params.toString()}`;
   }
 
   const transactionId =

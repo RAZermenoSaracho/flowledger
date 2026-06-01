@@ -8,6 +8,7 @@ import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
+import { SharedExpensesPage } from "./SharedExpensesPage";
 import type {
   Account,
   Category,
@@ -45,7 +46,7 @@ type SettlementApprovalDraft = {
   expenseOffsetCategoryId: string;
 };
 
-type DebtsTab = "balances" | "pending" | "settled";
+type DebtsTab = "balances" | "pending" | "settled" | "sharedExpenses";
 
 type PersonBalance = {
   key: string;
@@ -59,9 +60,10 @@ type PersonBalance = {
 };
 
 const debtsTabs: { id: DebtsTab; label: string }[] = [
-  { id: "balances", label: "Outstanding balances" },
-  { id: "pending", label: "Pending settlement requests" },
-  { id: "settled", label: "Settled history" }
+  { id: "balances", label: "Outstanding Balances" },
+  { id: "pending", label: "Pending Settlement Requests" },
+  { id: "settled", label: "Settled History" },
+  { id: "sharedExpenses", label: "Shared Expenses" }
 ];
 
 function debtTitle(debt: Debt) {
@@ -359,7 +361,11 @@ export function DebtsPage() {
 
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
-    if (requestedTab === "pending" || requestedTab === "settled") {
+    if (
+      requestedTab === "pending" ||
+      requestedTab === "settled" ||
+      requestedTab === "sharedExpenses"
+    ) {
       setActiveTab(requestedTab);
       return;
     }
@@ -1056,7 +1062,7 @@ export function DebtsPage() {
     <div className="grid gap-6">
       <div className="grid gap-4">
         <div
-          className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
           role="tablist"
           aria-label="Debt views"
         >
@@ -1085,6 +1091,7 @@ export function DebtsPage() {
           {activeTab === "balances" ? renderBalances() : null}
           {activeTab === "pending" ? renderPendingRequests() : null}
           {activeTab === "settled" ? renderSettledDebts() : null}
+          {activeTab === "sharedExpenses" ? <SharedExpensesPage /> : null}
         </div>
       </div>
 

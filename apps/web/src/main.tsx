@@ -18,7 +18,6 @@ import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { SharedExpensesPage } from "./pages/SharedExpensesPage";
 import { TransactionDetailPage } from "./pages/TransactionDetailPage";
 import { TransactionsPage } from "./pages/TransactionsPage";
 
@@ -53,7 +52,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route
                   path="/shared-expenses"
-                  element={<SharedExpensesPage />}
+                  element={<Navigate to="/debts?tab=sharedExpenses" replace />}
                 />
                 <Route path="/debts" element={<DebtsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
