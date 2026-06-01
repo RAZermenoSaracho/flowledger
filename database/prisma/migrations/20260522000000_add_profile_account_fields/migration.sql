@@ -1,0 +1,3 @@
+ALTER TABLE "User"
+ADD COLUMN "avatarUrl" TEXT,
+ADD COLUMN "planType" TEXT NOT NULL DEFAULT 'free';
