@@ -64,6 +64,7 @@ const emptyFilters = {
   accountId: "",
   categoryId: "",
   groupId: "",
+  transactionFilterType: "",
   dateFrom: "",
   dateTo: "",
   amountFrom: "",
@@ -864,6 +865,23 @@ export function TransactionsPage() {
                       {item}
                     </option>
                   ))}
+                </SelectField>
+                <SelectField
+                  label="Transaction group"
+                  value={filters.transactionFilterType}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      transactionFilterType: event.target.value
+                    })
+                  }
+                >
+                  <option value="">All transactions</option>
+                  <option value="normal">Normal transactions</option>
+                  <option value="settlement">Settlement transactions</option>
+                  <option value="expenseOffset">
+                    Expense reimbursement/offset transactions
+                  </option>
                 </SelectField>
                 <SelectField
                   label="Classification"

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { TRANSACTION_TYPES } from "../constants/index.js";
+import {
+  TRANSACTION_FILTER_TYPES,
+  TRANSACTION_TYPES
+} from "../constants/index.js";
 import { moneySchema, optionalDateStringSchema } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
@@ -37,6 +40,7 @@ export const transactionFiltersSchema = z.object({
   groupId: z.string().min(1).optional(),
   accountId: z.string().min(1).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),
+  transactionFilterType: z.enum(TRANSACTION_FILTER_TYPES).optional(),
   classification: z.enum(["complete", "needsClassification"]).optional(),
   search: z.string().trim().max(120).optional()
 });

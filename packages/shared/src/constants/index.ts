@@ -1,4 +1,9 @@
 export const TRANSACTION_TYPES = ["income", "expense", "transfer"] as const;
+export const TRANSACTION_FILTER_TYPES = [
+  "normal",
+  "settlement",
+  "expenseOffset"
+] as const;
 export const CATEGORY_TYPES = ["income", "expense"] as const;
 export const SHARED_EXPENSE_STATUSES = [
   "open",
