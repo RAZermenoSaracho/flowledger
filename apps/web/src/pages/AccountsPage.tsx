@@ -10,6 +10,11 @@ import { apiRequest } from "../services/api";
 import type { Account } from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 
+const money = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD"
+});
+
 export function AccountsPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -334,6 +339,15 @@ export function AccountsPage() {
                     </div>
                     <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
                       {account.type.replace("_", " ")}
+                    </p>
+                    <p
+                      className={`text-sm font-semibold ${
+                        (account.currentBalance ?? 0) >= 0
+                          ? "text-pine dark:text-emerald-300"
+                          : "text-coral dark:text-orange-300"
+                      }`}
+                    >
+                      Balance {money.format(account.currentBalance ?? 0)}
                     </p>
                     {account.identifier ? (
                       <p className="text-sm text-slate-500 dark:text-slate-400">

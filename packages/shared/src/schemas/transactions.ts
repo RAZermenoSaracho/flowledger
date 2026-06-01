@@ -23,6 +23,7 @@ const baseTransactionSchema = z.object({
   expenseOffsetCategoryId: z.string().min(1).optional().nullable(),
   groupId: z.string().min(1).optional().nullable(),
   accountId: z.string().min(1).optional().nullable(),
+  transferToAccountId: z.string().min(1).optional().nullable(),
   notes: z.string().trim().max(2000).optional().nullable(),
   sharedExpense: transactionSharedExpenseSchema.optional()
 });
@@ -35,6 +36,68 @@ export const transactionSchema = baseTransactionSchema.superRefine(
         path: ["sharedExpense"],
         message:
           "Shared transactions are only supported for income and expense transactions"
+      });
+    }
+
+    if (transaction.type === "transfer") {
+      if (!transaction.accountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["accountId"],
+          message: "From account is required for transfers"
+        });
+      }
+
+      if (!transaction.transferToAccountId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["transferToAccountId"],
+          message: "To account is required for transfers"
+        });
+      }
+
+      if (
+        transaction.accountId &&
+        transaction.transferToAccountId &&
+        transaction.accountId === transaction.transferToAccountId
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["transferToAccountId"],
+          message: "Transfer accounts must be different"
+        });
+      }
+
+      if (transaction.categoryId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["categoryId"],
+          message: "Transfers cannot have a category"
+        });
+      }
+
+      if (transaction.groupId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["groupId"],
+          message: "Transfers cannot belong to a group"
+        });
+      }
+
+      if (transaction.expenseOffsetCategoryId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["expenseOffsetCategoryId"],
+          message: "Transfers cannot have expense offsets"
+        });
+      }
+    }
+
+    if (transaction.type !== "transfer" && transaction.transferToAccountId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["transferToAccountId"],
+        message: "Destination account is only supported for transfers"
       });
     }
   }

@@ -64,7 +64,9 @@ export function DashboardPage() {
                   className={
                     transaction.type === "income"
                       ? "font-semibold text-pine dark:text-emerald-300"
-                      : "font-semibold text-coral dark:text-orange-300"
+                      : transaction.type === "transfer"
+                        ? "font-semibold text-slate-700 dark:text-slate-200"
+                        : "font-semibold text-coral dark:text-orange-300"
                   }
                 >
                   {money.format(transaction.amount)}

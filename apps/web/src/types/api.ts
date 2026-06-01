@@ -27,6 +27,7 @@ export type Account = {
   name: string;
   type: AccountType;
   identifier?: string | null;
+  currentBalance?: number;
   isArchived: boolean;
   archivedAt?: string | null;
   createdAt: string;
@@ -84,10 +85,12 @@ export type Transaction = {
   expenseOffsetCategoryId?: string | null;
   groupId?: string | null;
   accountId?: string | null;
+  transferToAccountId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
   account?: Account | null;
+  transferToAccount?: Account | null;
   category?: Category | null;
   expenseOffsetCategory?: Category | null;
   group?: Group | null;

@@ -3,6 +3,7 @@ import {
   accountSchema,
   updateAccountSchema
 } from "@flowledger/shared";
+import type { Account, Transaction } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
@@ -11,19 +12,72 @@ import { notFound } from "../../utils/httpError.js";
 
 export const accountsRouter = Router();
 
+function accountBalance(
+  accountId: string,
+  transactions: Pick<
+    Transaction,
+    "accountId" | "transferToAccountId" | "type" | "amount"
+  >[]
+) {
+  return transactions.reduce((balance, transaction) => {
+    const amount = transaction.amount.toNumber();
+
+    if (transaction.accountId === accountId) {
+      if (transaction.type === "income") return balance + amount;
+      if (transaction.type === "expense" || transaction.type === "transfer") {
+        return balance - amount;
+      }
+    }
+
+    if (
+      transaction.type === "transfer" &&
+      transaction.transferToAccountId === accountId
+    ) {
+      return balance + amount;
+    }
+
+    return balance;
+  }, 0);
+}
+
+function withBalances(
+  accounts: Account[],
+  transactions: Pick<
+    Transaction,
+    "accountId" | "transferToAccountId" | "type" | "amount"
+  >[]
+) {
+  return accounts.map((account) => ({
+    ...account,
+    currentBalance: accountBalance(account.id, transactions)
+  }));
+}
+
 accountsRouter.get(
   "/",
   validate(accountFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
     const filters = req.query as { includeArchived?: string };
-    const accounts = await prisma.account.findMany({
-      where: {
-        userId: req.user!.id,
-        ...(filters.includeArchived === "true" ? {} : { isArchived: false })
-      },
-      orderBy: { createdAt: "desc" }
-    });
-    res.json({ accounts });
+    const [accounts, transactions] = await Promise.all([
+      prisma.account.findMany({
+        where: {
+          userId: req.user!.id,
+          ...(filters.includeArchived === "true" ? {} : { isArchived: false })
+        },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.transaction.findMany({
+        where: { userId: req.user!.id },
+        select: {
+          accountId: true,
+          transferToAccountId: true,
+          type: true,
+          amount: true
+        }
+      })
+    ]);
+
+    res.json({ accounts: withBalances(accounts, transactions) });
   })
 );
 
