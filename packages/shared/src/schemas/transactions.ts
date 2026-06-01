@@ -11,7 +11,7 @@ export const transactionSharedExpenseSchema = z.object({
   participants: z.array(sharedExpenseParticipantSchema).min(1)
 });
 
-export const transactionSchema = z.object({
+const baseTransactionSchema = z.object({
   name: z.string().trim().min(1).max(160),
   amount: moneySchema,
   type: z.enum(TRANSACTION_TYPES),
@@ -27,7 +27,20 @@ export const transactionSchema = z.object({
   sharedExpense: transactionSharedExpenseSchema.optional()
 });
 
-export const updateTransactionSchema = transactionSchema
+export const transactionSchema = baseTransactionSchema.superRefine(
+  (transaction, ctx) => {
+    if (transaction.type === "transfer" && transaction.sharedExpense) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sharedExpense"],
+        message:
+          "Shared transactions are only supported for income and expense transactions"
+      });
+    }
+  }
+);
+
+export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
   .partial();
 

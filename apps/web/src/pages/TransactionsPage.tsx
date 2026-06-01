@@ -95,6 +95,7 @@ export function TransactionsPage() {
   const [userSearch, setUserSearch] = useState("");
   const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
   const trimmedUserSearch = userSearch.trim();
+  const canShareTransaction = form.type === "income" || form.type === "expense";
 
   const accountsQuery = useQuery({
     queryKey: ["accounts"],
@@ -123,7 +124,11 @@ export function TransactionsPage() {
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
     enabled:
-      isFormOpen && form.isShared && !form.id && trimmedUserSearch.length > 1,
+      isFormOpen &&
+      canShareTransaction &&
+      form.isShared &&
+      !form.id &&
+      trimmedUserSearch.length > 1,
     queryFn: async () =>
       (
         await apiRequest<{ users: PublicUser[] }>("/users/search", {
@@ -167,6 +172,8 @@ export function TransactionsPage() {
   const remainingSharedAmount = Number.isFinite(transactionAmount)
     ? transactionAmount - participantShareTotal
     : 0;
+  const shouldSaveSharedTransaction =
+    !form.id && canShareTransaction && form.isShared;
 
   const saveTransaction = useMutation({
     mutationFn: () => {
@@ -179,7 +186,7 @@ export function TransactionsPage() {
         categoryId: form.categoryId || null,
         groupId: form.groupId || null,
         notes: form.notes || null,
-        ...(!form.id && form.isShared
+        ...(shouldSaveSharedTransaction
           ? {
               sharedExpense: {
                 title: form.sharedTitle || form.name,
@@ -229,7 +236,7 @@ export function TransactionsPage() {
 
   async function confirmDeleteTransaction(transaction: Transaction) {
     const confirmed = window.confirm(
-      `Delete "${transaction.name}" permanently? This will also remove any attached shared expense, participants, debts, settlements, and related notifications.`
+      `Delete "${transaction.name}" permanently? This will also remove any attached shared transaction, participants, debts, settlements, and related notifications.`
     );
     if (!confirmed) return;
 
@@ -243,6 +250,12 @@ export function TransactionsPage() {
     setParticipants([]);
     setAreSharedFieldsOpen(true);
     setIsFormOpen(false);
+  }
+
+  function clearSharedTransactionDrafts() {
+    setParticipantName("");
+    setUserSearch("");
+    setParticipants([]);
   }
 
   function suggestEqualGroupSplit(group: Group, amountValue = form.amount) {
@@ -376,10 +389,17 @@ export function TransactionsPage() {
                 label="Type"
                 value={form.type}
                 onChange={(event) => {
+                  const type = event.target.value as typeof form.type;
                   setForm({
                     ...form,
-                    type: event.target.value as typeof form.type
+                    type,
+                    ...(type === "transfer"
+                      ? { isShared: false, sharedTitle: "" }
+                      : {})
                   });
+                  if (type === "transfer") {
+                    clearSharedTransactionDrafts();
+                  }
                 }}
               >
                 {TRANSACTION_TYPES.map((item) => (
@@ -440,11 +460,13 @@ export function TransactionsPage() {
                     ...form,
                     groupId,
                     categoryId: groupId ? "" : form.categoryId,
-                    isShared: groupId
-                      ? form.isShared || !form.id
-                      : form.isShared
+                    isShared: canShareTransaction
+                      ? groupId
+                        ? form.isShared || !form.id
+                        : form.isShared
+                      : false
                   });
-                  if (group && !form.id) {
+                  if (group && !form.id && canShareTransaction) {
                     suggestEqualGroupSplit(group);
                   }
                 }}
@@ -464,8 +486,14 @@ export function TransactionsPage() {
                     setForm({ ...form, notes: event.target.value })
                   }
                 />
+                {form.type === "transfer" ? (
+                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    Transfers move money between your own accounts, so they
+                    cannot be shared or split.
+                  </p>
+                ) : null}
               </div>
-              {!form.id ? (
+              {!form.id && canShareTransaction ? (
                 <div className="grid gap-3 rounded-md border border-slate-200 p-3 md:col-span-2 xl:col-span-3 dark:border-slate-800">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -476,13 +504,11 @@ export function TransactionsPage() {
                         onChange={(event) => {
                           setForm({ ...form, isShared: event.target.checked });
                           if (!event.target.checked) {
-                            setParticipantName("");
-                            setUserSearch("");
-                            setParticipants([]);
+                            clearSharedTransactionDrafts();
                           }
                         }}
                       />
-                      Shared expense
+                      Shared transaction
                     </label>
                     {form.isShared ? (
                       <Button
@@ -505,7 +531,7 @@ export function TransactionsPage() {
                   {form.isShared && areSharedFieldsOpen ? (
                     <div className="grid gap-3">
                       <TextInput
-                        label="Split title"
+                        label="Shared transaction title"
                         value={form.sharedTitle}
                         onChange={(event) =>
                           setForm({ ...form, sharedTitle: event.target.value })
@@ -668,7 +694,7 @@ export function TransactionsPage() {
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">
                             Add an app user or manual participant to create a
-                            split.
+                            shared transaction split.
                           </p>
                         )}
                       </div>
@@ -681,7 +707,7 @@ export function TransactionsPage() {
                   type="submit"
                   disabled={
                     saveTransaction.isPending ||
-                    (form.isShared &&
+                    (shouldSaveSharedTransaction &&
                       (participants.length === 0 || remainingSharedAmount < 0))
                   }
                 >

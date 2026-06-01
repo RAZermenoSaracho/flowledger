@@ -115,6 +115,43 @@ function assertExpenseOffsetAllowed(input: {
   }
 }
 
+async function deleteSharedTransactionData(
+  tx: Prisma.TransactionClient,
+  sharedExpense:
+    | {
+        id: string;
+        participants: {
+          id: string;
+          settlementRequests: { id: string }[];
+        }[];
+      }
+    | null
+    | undefined
+) {
+  if (!sharedExpense) return;
+
+  await tx.notification.deleteMany({
+    where: {
+      OR: [
+        { metadata: { path: ["sharedExpenseId"], equals: sharedExpense.id } },
+        ...sharedExpense.participants.map((participant) => ({
+          metadata: { path: ["participantId"], equals: participant.id }
+        })),
+        ...sharedExpense.participants.flatMap((participant) =>
+          participant.settlementRequests.map((settlementRequest) => ({
+            metadata: {
+              path: ["settlementRequestId"],
+              equals: settlementRequest.id
+            }
+          }))
+        )
+      ]
+    }
+  });
+
+  await tx.sharedExpense.delete({ where: { id: sharedExpense.id } });
+}
+
 const settlementTransactionWhere: Prisma.TransactionWhereInput = {
   OR: [
     { debtorSettlementRequest: { isNot: null } },
@@ -303,7 +340,16 @@ transactionsRouter.put(
   validate(updateTransactionSchema),
   asyncHandler(async (req, res) => {
     const existing = await prisma.transaction.findFirst({
-      where: { id: req.params.id, userId: req.user!.id }
+      where: { id: req.params.id, userId: req.user!.id },
+      include: {
+        sharedExpense: {
+          include: {
+            participants: {
+              include: { settlementRequests: true }
+            }
+          }
+        }
+      }
     });
     if (!existing) throw notFound("Transaction");
 
@@ -360,6 +406,10 @@ transactionsRouter.put(
           where: { transactionId: existing.id },
           data: { totalAmount: updatedTransaction.amount }
         });
+      }
+
+      if (updatedTransaction.type === "transfer") {
+        await deleteSharedTransactionData(tx, existing.sharedExpense);
       }
 
       return updatedTransaction;
