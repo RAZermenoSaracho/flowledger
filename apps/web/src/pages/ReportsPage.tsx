@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { SelectField, TextInput } from "../components/FormField";
+import { TextInput } from "../components/FormField";
 import { apiRequest } from "../services/api";
 import type {
   CashflowRow,
@@ -55,8 +55,8 @@ type ReportAmountMode = "net" | "gross";
 type ReportFilters = {
   dateFrom: string;
   dateTo: string;
-  groupId: string;
-  categoryId: string;
+  groupIds: string[];
+  categoryIds: string[];
 };
 
 const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
@@ -66,8 +66,8 @@ const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
 const emptyFilters: ReportFilters = {
   dateFrom: "",
   dateTo: "",
-  groupId: "",
-  categoryId: ""
+  groupIds: [],
+  categoryIds: []
 };
 
 export function ReportsPage() {
@@ -113,13 +113,32 @@ export function ReportsPage() {
         )
       ).cashflow
   });
-  const selectedGroup = (groupsQuery.data ?? []).find(
-    (group) => group.id === filters.groupId
+  const groups = groupsQuery.data ?? [];
+  const personalCategories = categoriesQuery.data ?? [];
+  const allCategoriesById = new Map<string, Category>();
+  for (const category of personalCategories) {
+    allCategoriesById.set(category.id, category);
+  }
+  for (const group of groups) {
+    for (const category of group.categories) {
+      allCategoriesById.set(category.id, category);
+    }
+  }
+  const allCategories = [...allCategoriesById.values()];
+  const selectedGroupIds = new Set(filters.groupIds);
+  const categoryOptions = filters.groupIds.length
+    ? groups
+        .filter((group) => selectedGroupIds.has(group.id))
+        .flatMap((group) => group.categories)
+    : allCategories;
+  const availableCategoryIds = new Set(
+    categoryOptions.map((category) => category.id)
   );
-  const categoryOptions = filters.groupId
-    ? (selectedGroup?.categories ?? [])
-    : (categoriesQuery.data ?? []);
-  const hasActiveFilters = Object.values(filters).some(Boolean);
+  const hasActiveFilters =
+    Boolean(filters.dateFrom) ||
+    Boolean(filters.dateTo) ||
+    filters.groupIds.length > 0 ||
+    filters.categoryIds.length > 0;
   const categories = categoryQuery.data ?? [];
   const expenseCategories = prepareCategoryRows(
     categories,
@@ -156,6 +175,27 @@ export function ReportsPage() {
     };
   });
   const reportModeLabel = reportAmountMode === "gross" ? "Gross" : "Net";
+  const setGroupIds = (groupIds: string[]) => {
+    const nextCategoryIds = groupIds.length
+      ? filters.categoryIds.filter((categoryId) =>
+          groups
+            .filter((group) => groupIds.includes(group.id))
+            .some((group) =>
+              group.categories.some((category) => category.id === categoryId)
+            )
+        )
+      : filters.categoryIds;
+
+    setFilters({ ...filters, groupIds, categoryIds: nextCategoryIds });
+  };
+  const setCategoryIds = (categoryIds: string[]) => {
+    setFilters({
+      ...filters,
+      categoryIds: categoryIds.filter((categoryId) =>
+        availableCategoryIds.has(categoryId)
+      )
+    });
+  };
 
   return (
     <div className="grid gap-6">
@@ -178,38 +218,28 @@ export function ReportsPage() {
                 setFilters({ ...filters, dateTo: event.target.value })
               }
             />
-            <SelectField
-              label="Group"
-              value={filters.groupId}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  groupId: event.target.value,
-                  categoryId: ""
-                })
-              }
-            >
-              <option value="">All groups</option>
-              {(groupsQuery.data ?? []).map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </SelectField>
-            <SelectField
-              label="Category"
-              value={filters.categoryId}
-              onChange={(event) =>
-                setFilters({ ...filters, categoryId: event.target.value })
-              }
-            >
-              <option value="">All categories</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </SelectField>
+            <CheckboxFilterList
+              label="Groups"
+              options={groups.map((group) => ({
+                id: group.id,
+                label: group.name
+              }))}
+              selectedIds={filters.groupIds}
+              allLabel="All groups"
+              emptyText="No groups yet."
+              onChange={setGroupIds}
+            />
+            <CheckboxFilterList
+              label="Categories"
+              options={categoryOptions.map((category) => ({
+                id: category.id,
+                label: category.name
+              }))}
+              selectedIds={filters.categoryIds}
+              allLabel="All categories"
+              emptyText="No categories yet."
+              onChange={setCategoryIds}
+            />
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row xl:items-end">
@@ -342,6 +372,95 @@ export function ReportsPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function CheckboxFilterList({
+  label,
+  options,
+  selectedIds,
+  allLabel,
+  emptyText,
+  onChange
+}: {
+  label: string;
+  options: { id: string; label: string }[];
+  selectedIds: string[];
+  allLabel: string;
+  emptyText: string;
+  onChange: (selectedIds: string[]) => void;
+}) {
+  const optionIds = options.map((option) => option.id);
+  const selectedOptionCount = selectedIds.filter((id) =>
+    optionIds.includes(id)
+  ).length;
+  const selectionLabel = selectedOptionCount
+    ? `${selectedOptionCount} selected`
+    : allLabel;
+
+  const toggleOption = (id: string) => {
+    onChange(
+      selectedIds.includes(id)
+        ? selectedIds.filter((selectedId) => selectedId !== id)
+        : [...selectedIds, id]
+    );
+  };
+
+  return (
+    <fieldset className="grid min-w-0 gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <legend className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          {label}
+        </legend>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {selectionLabel}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <button
+          type="button"
+          className="font-semibold text-pine hover:underline dark:text-emerald-300"
+          onClick={() => onChange(optionIds)}
+          disabled={!options.length}
+        >
+          Select all
+        </button>
+        <button
+          type="button"
+          className="font-semibold text-slate-500 hover:underline disabled:text-slate-300 dark:text-slate-400 dark:disabled:text-slate-700"
+          onClick={() => onChange([])}
+          disabled={!selectedIds.length}
+        >
+          Clear
+        </button>
+      </div>
+      <div className="max-h-36 min-w-0 overflow-auto rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+        {options.length ? (
+          <div className="grid min-w-0 gap-1">
+            {options.map((option) => (
+              <label
+                key={option.id}
+                className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-pine focus:ring-pine dark:border-slate-600 dark:bg-slate-950"
+                  checked={selectedIds.includes(option.id)}
+                  onChange={() => toggleOption(option.id)}
+                />
+                <span className="min-w-0 truncate" title={option.label}>
+                  {option.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="px-2 py-1.5 text-sm text-slate-500 dark:text-slate-400">
+            {emptyText}
+          </p>
+        )}
+      </div>
+    </fieldset>
   );
 }
 

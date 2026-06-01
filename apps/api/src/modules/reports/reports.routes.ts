@@ -31,16 +31,34 @@ function dateRangeWhere(filters: ReportFilters): Prisma.DateTimeFilter | null {
   };
 }
 
+function selectedGroupIds(filters: ReportFilters) {
+  return filters.groupIds?.length
+    ? filters.groupIds
+    : filters.groupId
+      ? [filters.groupId]
+      : [];
+}
+
+function selectedCategoryIds(filters: ReportFilters) {
+  return filters.categoryIds?.length
+    ? filters.categoryIds
+    : filters.categoryId
+      ? [filters.categoryId]
+      : [];
+}
+
 function baseReportWhere(
   userId: string,
   filters: ReportFilters
 ): Prisma.TransactionWhereInput {
   const date = dateRangeWhere(filters);
+  const groupIds = selectedGroupIds(filters);
+  const categoryIds = selectedCategoryIds(filters);
 
   return {
     userId,
-    ...(filters.groupId ? { groupId: filters.groupId } : {}),
-    ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(groupIds.length ? { groupId: { in: groupIds } } : {}),
+    ...(categoryIds.length ? { categoryId: { in: categoryIds } } : {}),
     ...(date ? { date } : {})
   };
 }
@@ -50,14 +68,16 @@ function offsetReportWhere(
   filters: ReportFilters
 ): Prisma.TransactionWhereInput {
   const date = dateRangeWhere(filters);
+  const groupIds = selectedGroupIds(filters);
+  const categoryIds = selectedCategoryIds(filters);
 
   return {
     userId,
     type: "income",
-    expenseOffsetCategoryId: filters.categoryId
-      ? filters.categoryId
+    expenseOffsetCategoryId: categoryIds.length
+      ? { in: categoryIds }
       : { not: null },
-    ...(filters.groupId ? { groupId: filters.groupId } : {}),
+    ...(groupIds.length ? { groupId: { in: groupIds } } : {}),
     ...(date ? { date } : {})
   };
 }
@@ -67,16 +87,18 @@ function cashflowReportWhere(
   filters: ReportFilters
 ): Prisma.TransactionWhereInput {
   const date = dateRangeWhere(filters);
+  const groupIds = selectedGroupIds(filters);
+  const categoryIds = selectedCategoryIds(filters);
 
   return {
     userId,
     type: { in: [...REPORT_TRANSACTION_TYPES] },
-    ...(filters.groupId ? { groupId: filters.groupId } : {}),
-    ...(filters.categoryId
+    ...(groupIds.length ? { groupId: { in: groupIds } } : {}),
+    ...(categoryIds.length
       ? {
           OR: [
-            { categoryId: filters.categoryId },
-            { expenseOffsetCategoryId: filters.categoryId }
+            { categoryId: { in: categoryIds } },
+            { expenseOffsetCategoryId: { in: categoryIds } }
           ]
         }
       : {}),
@@ -147,6 +169,8 @@ reportsRouter.get(
     const filters = req.query as ReportFilters;
     const baseWhere = baseReportWhere(req.user!.id, filters);
     const offsetWhere = offsetReportWhere(req.user!.id, filters);
+    const groupIds = selectedGroupIds(filters);
+    const categoryIds = selectedCategoryIds(filters);
     const [rows, expenseReimbursementRows, incomeOffsetRows] =
       await Promise.all([
         prisma.transaction.groupBy({
@@ -176,8 +200,8 @@ reportsRouter.get(
     const categories = await prisma.category.findMany({
       where: {
         users: { some: { userId: req.user!.id } },
-        ...(filters.groupId ? { groupId: filters.groupId } : {}),
-        ...(filters.categoryId ? { id: filters.categoryId } : {})
+        ...(groupIds.length ? { groupId: { in: groupIds } } : {}),
+        ...(categoryIds.length ? { id: { in: categoryIds } } : {})
       }
     });
     const categoryById = new Map(
@@ -271,7 +295,11 @@ reportsRouter.get(
     });
 
     res.json({
-      cashflow: serialize(calculateMonthlyCashflow(transactions, filters))
+      cashflow: serialize(
+        calculateMonthlyCashflow(transactions, {
+          categoryIds: selectedCategoryIds(filters)
+        })
+      )
     });
   })
 );
