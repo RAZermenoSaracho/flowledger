@@ -131,3 +131,49 @@ assert.deepEqual(foodCashflow, [
     balance: -250
   }
 ]);
+
+const multiCategoryCashflow = calculateMonthlyCashflow(
+  [
+    {
+      date: new Date("2026-06-01T00:00:00.000Z"),
+      type: "income" as const,
+      amount: amount(1000),
+      categoryId: "salary"
+    },
+    {
+      date: new Date("2026-06-02T00:00:00.000Z"),
+      type: "expense" as const,
+      amount: amount(250),
+      categoryId: "food"
+    },
+    {
+      date: new Date("2026-06-03T00:00:00.000Z"),
+      type: "income" as const,
+      amount: amount(25),
+      categoryId: "settlement",
+      expenseOffsetCategoryId: "food"
+    },
+    {
+      date: new Date("2026-06-04T00:00:00.000Z"),
+      type: "expense" as const,
+      amount: amount(25),
+      categoryId: "settlement"
+    }
+  ],
+  { categoryIds: ["food", "settlement"] }
+);
+
+assert.deepEqual(multiCategoryCashflow, [
+  {
+    month: "2026-06",
+    income: 25,
+    expenses: 275,
+    grossExpenses: 275,
+    expenseReimbursements: 25,
+    netExpenses: 250,
+    grossIncome: 25,
+    incomeOffsets: 25,
+    netIncome: 0,
+    balance: -250
+  }
+]);

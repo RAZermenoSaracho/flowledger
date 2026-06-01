@@ -58,10 +58,7 @@ export function calculateAccountBalance(
 
 export function withAccountBalances<
   TAccount extends { id: string; initialBalance?: AmountValue }
->(
-  accounts: TAccount[],
-  transactions: AccountBalanceTransaction[]
-) {
+>(accounts: TAccount[], transactions: AccountBalanceTransaction[]) {
   return accounts.map((account) => ({
     ...account,
     currentBalance: calculateAccountBalance(
@@ -74,8 +71,15 @@ export function withAccountBalances<
 
 export function calculateMonthlyCashflow(
   transactions: CashflowTransaction[],
-  filters: { categoryId?: string | null } = {}
+  filters: { categoryId?: string | null; categoryIds?: string[] | null } = {}
 ) {
+  const categoryIds =
+    filters.categoryIds && filters.categoryIds.length
+      ? filters.categoryIds
+      : filters.categoryId
+        ? [filters.categoryId]
+        : [];
+  const categoryIdSet = new Set(categoryIds);
   const monthly = new Map<
     string,
     {
@@ -112,10 +116,15 @@ export function calculateMonthlyCashflow(
     };
     const amount = amountToNumber(transaction.amount);
     const matchesCategory =
-      !filters.categoryId || transaction.categoryId === filters.categoryId;
+      !categoryIdSet.size ||
+      (transaction.categoryId
+        ? categoryIdSet.has(transaction.categoryId)
+        : false);
     const matchesOffsetCategory =
-      !filters.categoryId ||
-      transaction.expenseOffsetCategoryId === filters.categoryId;
+      !categoryIdSet.size ||
+      (transaction.expenseOffsetCategoryId
+        ? categoryIdSet.has(transaction.expenseOffsetCategoryId)
+        : false);
 
     if (transaction.type === "income" && matchesCategory) {
       row.income += amount;

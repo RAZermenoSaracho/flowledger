@@ -10,7 +10,7 @@ export const tokenStore = {
 type ApiOptions = {
   method?: string;
   body?: unknown;
-  query?: Record<string, string | undefined>;
+  query?: Record<string, string | string[] | undefined>;
 };
 
 export function apiAssetUrl(path: string | null | undefined) {
@@ -23,17 +23,31 @@ export function apiUrl(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  options: ApiOptions = {}
+): Promise<T> {
   const url = new URL(`${API_URL}${path}`);
 
   for (const [key, value] of Object.entries(options.query ?? {})) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item) url.searchParams.append(key, item);
+      }
+      continue;
+    }
+
     if (value) url.searchParams.set(key, value);
   }
 
   const token = tokenStore.get();
   const isFormData = options.body instanceof FormData;
   const requestBody: BodyInit | undefined =
-    options.body instanceof FormData ? options.body : options.body ? JSON.stringify(options.body) : undefined;
+    options.body instanceof FormData
+      ? options.body
+      : options.body
+        ? JSON.stringify(options.body)
+        : undefined;
   const response = await fetch(url, {
     method: options.method ?? "GET",
     headers: {
@@ -44,7 +58,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   });
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    const errorBody = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
     throw new Error(errorBody?.message ?? "Request failed");
   }
 
