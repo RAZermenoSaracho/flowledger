@@ -34,6 +34,10 @@ const accountTransactions = [
 ];
 
 assert.equal(calculateAccountBalance("checking", accountTransactions), 700);
+assert.equal(
+  calculateAccountBalance("checking", accountTransactions, amount(25)),
+  725
+);
 assert.equal(calculateAccountBalance("savings", accountTransactions), 200);
 assert.equal(calculateAccountBalance("cash", accountTransactions), -50);
 

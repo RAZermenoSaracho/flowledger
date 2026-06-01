@@ -104,6 +104,7 @@ model Account {
   name                            String
   type                            AccountType
   identifier                      String?
+  initialBalance                  Decimal       @default(0) @db.Decimal(12, 2)
   isArchived                      Boolean       @default(false)
   archivedAt                      DateTime?
   createdAt                       DateTime      @default(now())

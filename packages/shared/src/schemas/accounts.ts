@@ -4,7 +4,8 @@ import { ACCOUNT_TYPES } from "../constants/index.js";
 export const accountSchema = z.object({
   name: z.string().trim().min(1).max(120),
   type: z.enum(ACCOUNT_TYPES),
-  identifier: z.string().trim().max(120).optional().nullable()
+  identifier: z.string().trim().max(120).optional().nullable(),
+  initialBalance: z.coerce.number().finite().default(0)
 });
 
 export const updateAccountSchema = accountSchema.partial();

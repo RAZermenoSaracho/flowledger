@@ -27,6 +27,7 @@ export type Account = {
   name: string;
   type: AccountType;
   identifier?: string | null;
+  initialBalance: number;
   currentBalance?: number;
   isArchived: boolean;
   archivedAt?: string | null;

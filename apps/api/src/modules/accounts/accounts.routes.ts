@@ -8,6 +8,7 @@ import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
+import { serialize } from "../../utils/serialize.js";
 import { withAccountBalances } from "../transactions/transactionCalculations.js";
 
 export const accountsRouter = Router();
@@ -36,7 +37,9 @@ accountsRouter.get(
       })
     ]);
 
-    res.json({ accounts: withAccountBalances(accounts, transactions) });
+    res.json({
+      accounts: serialize(withAccountBalances(accounts, transactions))
+    });
   })
 );
 
@@ -47,7 +50,7 @@ accountsRouter.post(
     const account = await prisma.account.create({
       data: { ...req.body, userId: req.user!.id }
     });
-    res.status(201).json({ account });
+    res.status(201).json({ account: serialize(account) });
   })
 );
 
@@ -55,11 +58,16 @@ accountsRouter.put(
   "/:id",
   validate(updateAccountSchema),
   asyncHandler(async (req, res) => {
-    const existing = await prisma.account.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
+    const existing = await prisma.account.findFirst({
+      where: { id: req.params.id, userId: req.user!.id }
+    });
     if (!existing) throw notFound("Account");
 
-    const account = await prisma.account.update({ where: { id: existing.id }, data: req.body });
-    res.json({ account });
+    const account = await prisma.account.update({
+      where: { id: existing.id },
+      data: req.body
+    });
+    res.json({ account: serialize(account) });
   })
 );
 
@@ -75,7 +83,7 @@ accountsRouter.post(
       where: { id: existing.id },
       data: { isArchived: true, archivedAt: new Date() }
     });
-    res.json({ account });
+    res.json({ account: serialize(account) });
   })
 );
 
@@ -91,14 +99,16 @@ accountsRouter.post(
       where: { id: existing.id },
       data: { isArchived: false, archivedAt: null }
     });
-    res.json({ account });
+    res.json({ account: serialize(account) });
   })
 );
 
 accountsRouter.delete(
   "/:id",
   asyncHandler(async (req, res) => {
-    const existing = await prisma.account.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
+    const existing = await prisma.account.findFirst({
+      where: { id: req.params.id, userId: req.user!.id }
+    });
     if (!existing) throw notFound("Account");
 
     await prisma.account.delete({ where: { id: existing.id } });

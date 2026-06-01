@@ -162,6 +162,8 @@ database/prisma/migrations/*
 !database/prisma/migrations/20260531120000_expense_reimbursement_offsets/migration.sql
 !database/prisma/migrations/20260531130000_complete_settlement_workflow/
 !database/prisma/migrations/20260531130000_complete_settlement_workflow/migration.sql
+!database/prisma/migrations/20260601130000_add_account_initial_balance/
+!database/prisma/migrations/20260601130000_add_account_initial_balance/migration.sql
 package-lock.json
 
 apps/web/.vite

@@ -32,7 +32,8 @@ function isReportTransactionType(
 
 export function calculateAccountBalance(
   accountId: string,
-  transactions: AccountBalanceTransaction[]
+  transactions: AccountBalanceTransaction[],
+  initialBalance: AmountValue = 0
 ) {
   return transactions.reduce((balance, transaction) => {
     const amount = amountToNumber(transaction.amount);
@@ -52,16 +53,22 @@ export function calculateAccountBalance(
     }
 
     return balance;
-  }, 0);
+  }, amountToNumber(initialBalance));
 }
 
-export function withAccountBalances<TAccount extends { id: string }>(
+export function withAccountBalances<
+  TAccount extends { id: string; initialBalance?: AmountValue }
+>(
   accounts: TAccount[],
   transactions: AccountBalanceTransaction[]
 ) {
   return accounts.map((account) => ({
     ...account,
-    currentBalance: calculateAccountBalance(account.id, transactions)
+    currentBalance: calculateAccountBalance(
+      account.id,
+      transactions,
+      account.initialBalance ?? 0
+    )
   }));
 }
 

@@ -20,6 +20,7 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
   const [identifier, setIdentifier] = useState("");
+  const [initialBalance, setInitialBalance] = useState("0");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
     "active"
@@ -32,6 +33,7 @@ export function AccountsPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
   const [editIdentifier, setEditIdentifier] = useState("");
+  const [editInitialBalance, setEditInitialBalance] = useState("0");
 
   const accountsQuery = useQuery({
     queryKey: ["accounts", archiveMode],
@@ -79,11 +81,17 @@ export function AccountsPage() {
     mutationFn: () =>
       apiRequest("/accounts", {
         method: "POST",
-        body: { name, type, identifier: identifier || null }
+        body: {
+          name,
+          type,
+          identifier: identifier || null,
+          initialBalance: Number(initialBalance || 0)
+        }
       }),
     onSuccess: async () => {
       setName("");
       setIdentifier("");
+      setInitialBalance("0");
       setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
     }
@@ -95,13 +103,15 @@ export function AccountsPage() {
       name: string;
       type: AccountType;
       identifier: string;
+      initialBalance: number;
     }) =>
       apiRequest(`/accounts/${account.id}`, {
         method: "PUT",
         body: {
           name: account.name,
           type: account.type,
-          identifier: account.identifier || null
+          identifier: account.identifier || null,
+          initialBalance: account.initialBalance
         }
       }),
     onSuccess: async () => {
@@ -149,7 +159,8 @@ export function AccountsPage() {
       id: editingAccountId,
       name: editName,
       type: editType,
-      identifier: editIdentifier
+      identifier: editIdentifier,
+      initialBalance: Number(editInitialBalance || 0)
     });
   }
 
@@ -157,6 +168,7 @@ export function AccountsPage() {
     setName("");
     setType("checking");
     setIdentifier("");
+    setInitialBalance("0");
     setIsFormOpen(false);
   }
 
@@ -165,6 +177,7 @@ export function AccountsPage() {
     setEditName(account.name);
     setEditType(account.type);
     setEditIdentifier(account.identifier ?? "");
+    setEditInitialBalance(String(account.initialBalance ?? 0));
   }
 
   function closeEditForm() {
@@ -172,6 +185,7 @@ export function AccountsPage() {
     setEditName("");
     setEditType("checking");
     setEditIdentifier("");
+    setEditInitialBalance("0");
   }
 
   async function confirmDelete(account: Account) {
@@ -198,7 +212,7 @@ export function AccountsPage() {
                 Cancel
               </Button>
             </div>
-            <form className="mt-4 grid gap-4 md:grid-cols-3" onSubmit={submit}>
+            <form className="mt-4 grid gap-4 md:grid-cols-4" onSubmit={submit}>
               <TextInput
                 label="Name"
                 value={name}
@@ -221,7 +235,14 @@ export function AccountsPage() {
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
               />
-              <div className="md:col-span-3">
+              <TextInput
+                label="Initial balance"
+                type="number"
+                step="0.01"
+                value={initialBalance}
+                onChange={(event) => setInitialBalance(event.target.value)}
+              />
+              <div className="md:col-span-4">
                 <Button type="submit" disabled={createAccount.isPending}>
                   Save account
                 </Button>
@@ -291,7 +312,7 @@ export function AccountsPage() {
                     onChange={(event) => setEditName(event.target.value)}
                     required
                   />
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <SelectField
                       label="Type"
                       value={editType}
@@ -310,6 +331,15 @@ export function AccountsPage() {
                       value={editIdentifier}
                       onChange={(event) =>
                         setEditIdentifier(event.target.value)
+                      }
+                    />
+                    <TextInput
+                      label="Initial balance"
+                      type="number"
+                      step="0.01"
+                      value={editInitialBalance}
+                      onChange={(event) =>
+                        setEditInitialBalance(event.target.value)
                       }
                     />
                   </div>
