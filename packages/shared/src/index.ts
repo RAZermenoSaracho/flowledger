@@ -6,6 +6,7 @@ export * from "./schemas/common.js";
 export * from "./schemas/debts.js";
 export * from "./schemas/groups.js";
 export * from "./schemas/notifications.js";
+export * from "./schemas/reports.js";
 export * from "./schemas/sharedExpenses.js";
 export * from "./schemas/transactions.js";
 export * from "./types/index.js";

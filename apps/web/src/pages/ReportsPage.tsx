@@ -11,9 +11,17 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { SelectField, TextInput } from "../components/FormField";
 import { apiRequest } from "../services/api";
-import type { CashflowRow, CategoryReportRow, Summary } from "../types/api";
+import type {
+  CashflowRow,
+  Category,
+  CategoryReportRow,
+  Group,
+  Summary
+} from "../types/api";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -44,38 +52,74 @@ type CategoryChartRow = CategoryReportRow & {
 };
 
 type ReportAmountMode = "net" | "gross";
+type ReportFilters = {
+  dateFrom: string;
+  dateTo: string;
+  groupId: string;
+  categoryId: string;
+};
 
 const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
   { value: "net", label: "Net" },
   { value: "gross", label: "Gross" }
 ];
+const emptyFilters: ReportFilters = {
+  dateFrom: "",
+  dateTo: "",
+  groupId: "",
+  categoryId: ""
+};
 
 export function ReportsPage() {
   const [reportAmountMode, setReportAmountMode] =
     useState<ReportAmountMode>("net");
-  const summaryQuery = useQuery({
-    queryKey: ["summary"],
+  const [filters, setFilters] = useState<ReportFilters>(emptyFilters);
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
     queryFn: async () =>
-      (await apiRequest<{ summary: Summary }>("/reports/summary")).summary
+      (await apiRequest<{ categories: Category[] }>("/categories")).categories
+  });
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () =>
+      (await apiRequest<{ groups: Group[] }>("/groups")).groups
+  });
+  const summaryQuery = useQuery({
+    queryKey: ["summary", filters],
+    queryFn: async () =>
+      (
+        await apiRequest<{ summary: Summary }>("/reports/summary", {
+          query: filters
+        })
+      ).summary
   });
   const categoryQuery = useQuery({
-    queryKey: ["category-report"],
+    queryKey: ["category-report", filters],
     queryFn: async () =>
       (
         await apiRequest<{ categories: CategoryReportRow[] }>(
-          "/reports/by-category"
+          "/reports/by-category",
+          { query: filters }
         )
       ).categories
   });
   const cashflowQuery = useQuery({
-    queryKey: ["cashflow"],
+    queryKey: ["cashflow", filters],
     queryFn: async () =>
       (
         await apiRequest<{ cashflow: CashflowRow[] }>(
-          "/reports/monthly-cashflow"
+          "/reports/monthly-cashflow",
+          { query: filters }
         )
       ).cashflow
   });
+  const selectedGroup = (groupsQuery.data ?? []).find(
+    (group) => group.id === filters.groupId
+  );
+  const categoryOptions = filters.groupId
+    ? (selectedGroup?.categories ?? [])
+    : (categoriesQuery.data ?? []);
+  const hasActiveFilters = Object.values(filters).some(Boolean);
   const categories = categoryQuery.data ?? [];
   const expenseCategories = prepareCategoryRows(
     categories,
@@ -115,35 +159,100 @@ export function ReportsPage() {
 
   return (
     <div className="grid gap-6">
-      <div className="flex justify-end">
-        <div className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-          <span>Report amount</span>
-          <div
-            className="grid grid-cols-2 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-700"
-            role="group"
-            aria-label="Report amount basis"
-          >
-            {reportAmountModes.map((mode) => {
-              const isSelected = reportAmountMode === mode.value;
-              return (
-                <button
-                  key={mode.value}
-                  type="button"
-                  className={`min-h-10 px-4 py-2 text-sm font-semibold transition ${
-                    isSelected
-                      ? "bg-pine text-white dark:bg-emerald-700"
-                      : "bg-white text-ink hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                  }`}
-                  aria-pressed={isSelected}
-                  onClick={() => setReportAmountMode(mode.value)}
-                >
-                  {mode.label}
-                </button>
-              );
-            })}
+      <Card>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <TextInput
+              label="From"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) =>
+                setFilters({ ...filters, dateFrom: event.target.value })
+              }
+            />
+            <TextInput
+              label="To"
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) =>
+                setFilters({ ...filters, dateTo: event.target.value })
+              }
+            />
+            <SelectField
+              label="Group"
+              value={filters.groupId}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  groupId: event.target.value,
+                  categoryId: ""
+                })
+              }
+            >
+              <option value="">All groups</option>
+              {(groupsQuery.data ?? []).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              label="Category"
+              value={filters.categoryId}
+              onChange={(event) =>
+                setFilters({ ...filters, categoryId: event.target.value })
+              }
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row xl:items-end">
+            {hasActiveFilters ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => setFilters(emptyFilters)}
+              >
+                Reset filters
+              </Button>
+            ) : null}
+            <div className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span>Report amount</span>
+              <div
+                className="grid grid-cols-2 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-700"
+                role="group"
+                aria-label="Report amount basis"
+              >
+                {reportAmountModes.map((mode) => {
+                  const isSelected = reportAmountMode === mode.value;
+                  return (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      className={`min-h-10 px-4 py-2 text-sm font-semibold transition ${
+                        isSelected
+                          ? "bg-pine text-white dark:bg-emerald-700"
+                          : "bg-white text-ink hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                      aria-pressed={isSelected}
+                      onClick={() => setReportAmountMode(mode.value)}
+                    >
+                      {mode.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card className="min-w-0">
