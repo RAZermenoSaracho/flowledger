@@ -117,7 +117,8 @@ providersRouter.post(
     const flowInput = {
       providerUserId: userId,
       externalUserId: userId,
-      institutionId: institution.institutionId
+      institutionId: institution.institutionId,
+      metadata: { institution }
     };
     const flow = provider.createConnectionFlow
       ? await provider.createConnectionFlow(flowInput)
@@ -136,7 +137,8 @@ providersRouter.post(
         institutionName: institution.name,
         flowId: "flowId" in flow ? flow.flowId : undefined,
         token: flow.token,
-        url: "url" in flow ? flow.url : undefined
+        url: "url" in flow ? flow.url : undefined,
+        widget: "widget" in flow ? flow.widget : undefined
       }
     });
   })

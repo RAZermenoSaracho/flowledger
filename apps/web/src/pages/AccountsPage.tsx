@@ -15,6 +15,74 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD"
 });
 
+const syncfyWidgetElementId = "syncfy-widget";
+
+type SyncfyWidgetConstructor = new (params: {
+  token: string;
+  element: string | Element;
+  config: Record<string, unknown>;
+}) => {
+  open?: () => void;
+};
+
+type SyncfyWidgetModule = {
+  default?: SyncfyWidgetConstructor;
+  SyncWidget?: SyncfyWidgetConstructor;
+};
+
+function ensureStylesheet(id: string, href: string) {
+  if (document.getElementById(id)) return;
+
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+function ensureSyncfyWidgetElement() {
+  const existingElement = document.getElementById(syncfyWidgetElementId);
+  if (existingElement) return existingElement;
+
+  const element = document.createElement("div");
+  element.id = syncfyWidgetElementId;
+  document.body.appendChild(element);
+
+  return element;
+}
+
+async function openSyncfyWidget(
+  widget: NonNullable<ProviderConnectionFlow["widget"]>
+) {
+  if (widget.styleUrl) {
+    ensureStylesheet("syncfy-widget-styles", widget.styleUrl);
+  }
+
+  const widgetModule = widget.scriptUrl
+    ? ((await import(
+        /* @vite-ignore */ widget.scriptUrl
+      )) as SyncfyWidgetModule)
+    : ({} as SyncfyWidgetModule);
+  const SyncWidget =
+    widgetModule.default ??
+    widgetModule.SyncWidget ??
+    (window as typeof window & { SyncWidget?: SyncfyWidgetConstructor })
+      .SyncWidget;
+
+  if (!SyncWidget) {
+    throw new Error("Syncfy widget could not be loaded");
+  }
+
+  const element = ensureSyncfyWidgetElement();
+  const syncWidget = new SyncWidget({
+    token: widget.token,
+    element,
+    config: widget.config
+  });
+
+  syncWidget.open?.();
+}
+
 export function AccountsPage() {
   const queryClient = useQueryClient();
   const [addMode, setAddMode] = useState<"manual" | "sync" | null>(null);
@@ -39,6 +107,9 @@ export function AccountsPage() {
   >(null);
   const [activeConnection, setActiveConnection] =
     useState<ProviderConnectionFlow | null>(null);
+  const [syncfyWidgetError, setSyncfyWidgetError] = useState<string | null>(
+    null
+  );
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
@@ -172,10 +243,20 @@ export function AccountsPage() {
           }
         }
       ),
-    onSuccess: ({ connection }) => {
+    onSuccess: async ({ connection }) => {
       setActiveConnection(connection);
+      setSyncfyWidgetError(null);
       if (connection.url) {
         window.location.assign(connection.url);
+        return;
+      }
+
+      if (connection.widget) {
+        try {
+          await openSyncfyWidget(connection.widget);
+        } catch {
+          setSyncfyWidgetError("Could not load the Syncfy widget.");
+        }
       }
     }
   });
@@ -258,6 +339,7 @@ export function AccountsPage() {
     setInstitutionCountryFilter("");
     setSelectedInstitutionId(null);
     setActiveConnection(null);
+    setSyncfyWidgetError(null);
     setIsFormOpen(false);
   }
 
@@ -437,6 +519,7 @@ export function AccountsPage() {
                         onClick={() => {
                           setSelectedInstitutionId(institutionKey);
                           setActiveConnection(null);
+                          setSyncfyWidgetError(null);
                           startInstitutionConnection.mutate(institution);
                         }}
                       >
@@ -505,12 +588,19 @@ export function AccountsPage() {
                     Could not start the connection flow.
                   </p>
                 ) : null}
-                {activeConnection && !activeConnection.url ? (
-                  <p className="text-sm font-semibold text-pine dark:text-emerald-300">
-                    Connection flow started for{" "}
-                    {activeConnection.institutionName}.
+                {syncfyWidgetError ? (
+                  <p className="text-sm text-coral dark:text-orange-300">
+                    {syncfyWidgetError}
                   </p>
                 ) : null}
+                {activeConnection && !activeConnection.url ? (
+                  <p className="text-sm font-semibold text-pine dark:text-emerald-300">
+                    {activeConnection.widget
+                      ? `Syncfy widget opened for ${activeConnection.institutionName}.`
+                      : `Connection flow started for ${activeConnection.institutionName}.`}
+                  </p>
+                ) : null}
+                <div id={syncfyWidgetElementId} />
                 <div>
                   <Button
                     type="button"

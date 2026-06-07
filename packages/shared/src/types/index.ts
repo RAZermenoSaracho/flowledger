@@ -63,4 +63,10 @@ export type ProviderConnectionFlow = {
   flowId?: string;
   token?: string;
   url?: string;
+  widget?: {
+    token: string;
+    config: Record<string, unknown>;
+    scriptUrl?: string;
+    styleUrl?: string;
+  };
 };

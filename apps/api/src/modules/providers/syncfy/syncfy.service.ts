@@ -57,6 +57,13 @@ export type NormalizedSyncfyInstitution = {
   rawData: JsonRecord;
 };
 
+export type SyncfyUser = {
+  idUser: string;
+  externalUserId?: string;
+  name?: string;
+  rawData: JsonRecord;
+};
+
 export type SyncfyProcessingSummary = {
   status: "processed" | "ignored";
   importedTransactions: number;
@@ -189,6 +196,27 @@ function extractSyncfyInstitutions(responseBody: unknown): unknown[] {
   return [];
 }
 
+function extractSyncfyUsers(responseBody: unknown): unknown[] {
+  if (Array.isArray(responseBody)) return responseBody;
+
+  const body = getJsonObject(responseBody);
+  const response = body?.response;
+
+  if (Array.isArray(response)) return response;
+  const responseObject = getJsonObject(response);
+  if (Array.isArray(responseObject?.users)) return responseObject.users;
+  if (Array.isArray(body?.users)) return body.users;
+
+  return [];
+}
+
+function extractSyncfyUser(responseBody: unknown): unknown {
+  const body = getJsonObject(responseBody);
+  const response = getJsonObject(body?.response);
+
+  return response ?? body ?? responseBody;
+}
+
 function getFirstTransactionEndpoint(endpoints: unknown) {
   if (!endpoints || typeof endpoints !== "object" || Array.isArray(endpoints)) {
     return undefined;
@@ -251,6 +279,122 @@ export async function createSyncfySession(idUser: string) {
   }
 
   return { token };
+}
+
+function normalizeSyncfyUser(user: unknown): SyncfyUser {
+  const rawData = getJsonObject(user);
+  if (!rawData) {
+    throw new HttpError(502, "Syncfy user payload is not an object");
+  }
+
+  return {
+    idUser: requiredString(rawData, ["id_user", "id"], "id_user"),
+    externalUserId: getString(rawData.id_external),
+    name: getString(rawData.name),
+    rawData
+  };
+}
+
+export async function fetchSyncfyUserByExternalId(externalUserId: string) {
+  const url = buildSyncfyApiUrl("/v1/users");
+  url.searchParams.set("id_external", externalUserId);
+
+  const body = await fetchJson(url);
+  const [user] = extractSyncfyUsers(body).map((item) =>
+    normalizeSyncfyUser(item)
+  );
+
+  return user;
+}
+
+export async function createSyncfyUser(input: {
+  externalUserId: string;
+  name: string;
+}) {
+  const url = buildSyncfyApiUrl("/v1/users");
+  const body = await fetchJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id_external: input.externalUserId,
+      name: input.name
+    })
+  });
+
+  return normalizeSyncfyUser(extractSyncfyUser(body));
+}
+
+async function saveSyncfyUserMapping(input: {
+  flowLedgerUserId: string;
+  email: string;
+  syncfyUser: SyncfyUser;
+}) {
+  await prisma.userAuthAccount.upsert({
+    where: {
+      provider_providerAccountId: {
+        provider: "syncfy",
+        providerAccountId: input.syncfyUser.idUser
+      }
+    },
+    create: {
+      userId: input.flowLedgerUserId,
+      provider: "syncfy",
+      providerAccountId: input.syncfyUser.idUser,
+      email: input.email
+    },
+    update: {
+      userId: input.flowLedgerUserId,
+      email: input.email
+    }
+  });
+}
+
+export async function getOrCreateSyncfyUserForFlowLedgerUser(
+  flowLedgerUserId: string
+) {
+  const flowLedgerUser = await prisma.user.findUnique({
+    where: { id: flowLedgerUserId },
+    select: { id: true, email: true, name: true }
+  });
+
+  if (!flowLedgerUser) {
+    throw new HttpError(404, "FlowLedger user was not found");
+  }
+
+  const existingMapping = await prisma.userAuthAccount.findFirst({
+    where: {
+      userId: flowLedgerUser.id,
+      provider: "syncfy"
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  if (existingMapping) {
+    return {
+      idUser: existingMapping.providerAccountId,
+      externalUserId: flowLedgerUser.id,
+      name: flowLedgerUser.name,
+      rawData: {}
+    } satisfies SyncfyUser;
+  }
+
+  const existingSyncfyUser = await fetchSyncfyUserByExternalId(
+    flowLedgerUser.id
+  );
+  const syncfyUser =
+    existingSyncfyUser ??
+    (await createSyncfyUser({
+      externalUserId: flowLedgerUser.id,
+      name: flowLedgerUser.name
+    }));
+
+  await saveSyncfyUserMapping({
+    flowLedgerUserId: flowLedgerUser.id,
+    email: flowLedgerUser.email,
+    syncfyUser
+  });
+
+  return syncfyUser;
 }
 
 function normalizeInstitutionCategory(rawData: JsonRecord) {

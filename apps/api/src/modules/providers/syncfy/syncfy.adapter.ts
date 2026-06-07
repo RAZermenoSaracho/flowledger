@@ -5,6 +5,7 @@ import {
   fetchSyncfyAccounts,
   fetchSyncfyInstitutions,
   fetchSyncfyTransactions,
+  getOrCreateSyncfyUserForFlowLedgerUser,
   markSyncfyWebhookEventFailed,
   normalizeSyncfyAccount,
   normalizeSyncfyTransaction,
@@ -14,6 +15,54 @@ import {
 
 function unsupported(capability: string): never {
   throw new HttpError(501, `Syncfy does not support ${capability} yet`);
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function getCountryCode(
+  rawData: Record<string, unknown> | undefined,
+  fallbackCountry: unknown
+) {
+  const country = getRecord(rawData?.country);
+  const value =
+    getString(rawData?.country_code) ??
+    getString(country?.code) ??
+    getString(fallbackCountry) ??
+    getString(rawData?.country);
+
+  return value && value.length <= 3 ? value.toUpperCase() : undefined;
+}
+
+function buildSyncfyWidgetConfig(input: {
+  institutionId?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const institution = getRecord(input.metadata?.institution);
+  const rawData = getRecord(institution?.rawData);
+  const country = getCountryCode(rawData, institution?.country);
+  const entrypoint = {
+    ...(country ? { country } : {}),
+    ...(input.institutionId ? { site: input.institutionId } : {})
+  };
+
+  return {
+    locale: "en",
+    ...(Object.keys(entrypoint).length > 0 ? { entrypoint } : {}),
+    navigation: {
+      enableBackNavigation: !input.institutionId,
+      hideSelectCountry: Boolean(country),
+      oneSiteFlow: Boolean(input.institutionId),
+      displayStatusInToast: false
+    }
+  };
 }
 
 export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
@@ -35,7 +84,16 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         }))
       ),
 
-    createUser: async () => unsupported("user creation"),
+    createUser: async ({ externalUserId }) => {
+      const user = await getOrCreateSyncfyUserForFlowLedgerUser(externalUserId);
+
+      return {
+        provider: "syncfy",
+        providerUserId: user.idUser,
+        externalUserId: user.externalUserId,
+        rawData: user.rawData
+      };
+    },
 
     createSession: async ({ providerUserId, externalUserId }) => {
       const idUser = providerUserId || externalUserId;
@@ -50,7 +108,41 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
       };
     },
 
-    createConnectionFlow: async () => unsupported("connection flow creation"),
+    createConnectionFlow: async ({
+      providerUserId,
+      externalUserId,
+      ...input
+    }) => {
+      const flowLedgerUserId = providerUserId || externalUserId;
+      if (!flowLedgerUserId) {
+        throw new HttpError(
+          400,
+          "Syncfy connection requires a FlowLedger user"
+        );
+      }
+
+      const syncfyUser =
+        await getOrCreateSyncfyUserForFlowLedgerUser(flowLedgerUserId);
+      const session = await createSyncfySession(syncfyUser.idUser);
+      const config = buildSyncfyWidgetConfig(input);
+
+      return {
+        provider: "syncfy",
+        token: session.token,
+        widget: {
+          token: session.token,
+          config,
+          scriptUrl: "https://cdn.skypack.dev/@paybook/sync-widget",
+          styleUrl:
+            "https://cdn.jsdelivr.net/npm/@paybook/sync-widget/dist/widget.css"
+        },
+        rawData: {
+          syncfyUserId: syncfyUser.idUser,
+          syncfyExternalUserId: syncfyUser.externalUserId,
+          widgetConfig: config
+        }
+      };
+    },
 
     handleWebhook: async ({ eventId, payload }) => {
       if (!eventId) {
