@@ -55,3 +55,12 @@ export type ProviderInstitution = {
   supportedAccountTypes: string[];
   rawData: Record<string, unknown>;
 };
+
+export type ProviderConnectionFlow = {
+  provider: string;
+  institutionId: string;
+  institutionName: string;
+  flowId?: string;
+  token?: string;
+  url?: string;
+};

@@ -15,3 +15,8 @@ export const institutionCatalogQuerySchema = z.object({
   country: z.string().trim().min(1).max(20).optional(),
   category: z.enum(institutionCategories).optional()
 });
+
+export const createProviderConnectionSchema = z.object({
+  institutionId: z.string().trim().min(1).max(100),
+  provider: z.string().trim().min(1).max(50).optional()
+});
