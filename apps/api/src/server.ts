@@ -21,7 +21,7 @@ import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
-import syncfyRoutes from "./modules/syncfy/syncfy.routes.js";
+import syncfyRoutes from "./modules/providers/syncfy/syncfy.routes.js";
 
 const app = express();
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));

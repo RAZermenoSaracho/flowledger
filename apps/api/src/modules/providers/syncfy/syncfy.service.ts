@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
-import { env } from "../../config/env.js";
-import { prisma } from "../../db/prisma.js";
-import { HttpError } from "../../utils/httpError.js";
+import { env } from "../../../config/env.js";
+import { prisma } from "../../../db/prisma.js";
+import { HttpError } from "../../../utils/httpError.js";
 
 const syncfyApiBaseUrl = "https://api.syncfy.com";
 const syncfyDataBaseUrl = "https://sync.paybook.com";
@@ -37,7 +37,18 @@ export type NormalizedSyncfyTransaction = {
   rawData: JsonRecord;
 };
 
+export type NormalizedSyncfyAccount = {
+  syncfyAccountId: string;
+  syncfyCredentialId?: string;
+  name: string;
+  type?: string;
+  currency?: string;
+  balance?: number;
+  rawData: JsonRecord;
+};
+
 export type SyncfyProcessingSummary = {
+  status: "processed" | "ignored";
   importedTransactions: number;
 };
 
@@ -118,6 +129,22 @@ function extractSyncfyTransactions(responseBody: unknown): unknown[] {
   return [];
 }
 
+function extractSyncfyAccounts(responseBody: unknown): unknown[] {
+  if (Array.isArray(responseBody)) return responseBody;
+
+  const body = getJsonObject(responseBody);
+  const response = body?.response;
+
+  if (Array.isArray(response)) return response;
+  const responseObject = getJsonObject(response);
+  if (Array.isArray(responseObject?.accounts)) {
+    return responseObject.accounts;
+  }
+  if (Array.isArray(body?.accounts)) return body.accounts;
+
+  return [];
+}
+
 function getFirstTransactionEndpoint(endpoints: unknown) {
   if (!endpoints || typeof endpoints !== "object" || Array.isArray(endpoints)) {
     return undefined;
@@ -177,6 +204,33 @@ export async function createSyncfySession(idUser: string) {
   return { token };
 }
 
+export function normalizeSyncfyAccount(
+  account: unknown,
+  fallbackCredentialId?: string
+): NormalizedSyncfyAccount {
+  const rawData = getJsonObject(account);
+  if (!rawData) {
+    throw new HttpError(502, "Syncfy account payload is not an object");
+  }
+
+  const name =
+    getString(rawData.name) ??
+    getString(rawData.description) ??
+    getString(rawData.number) ??
+    "Syncfy account";
+
+  return {
+    syncfyAccountId: requiredString(rawData, ["id_account", "id"], "id_account"),
+    syncfyCredentialId:
+      getString(rawData.id_credential) ?? fallbackCredentialId,
+    name,
+    type: getString(rawData.type) ?? getString(rawData.account_type),
+    currency: getString(rawData.currency),
+    balance: getNumber(rawData.balance),
+    rawData
+  };
+}
+
 export function normalizeSyncfyTransaction(
   transaction: unknown,
   fallbackCredentialId?: string
@@ -218,6 +272,19 @@ export function normalizeSyncfyTransaction(
   };
 }
 
+export async function fetchSyncfyAccounts(
+  endpoint: string,
+  token: string,
+  fallbackCredentialId?: string
+) {
+  const url = buildSyncfyDataUrl(endpoint, token);
+  const body = await fetchJson(url);
+
+  return extractSyncfyAccounts(body).map((account) =>
+    normalizeSyncfyAccount(account, fallbackCredentialId)
+  );
+}
+
 export async function fetchSyncfyTransactions(
   endpoint: string,
   token: string,
@@ -244,7 +311,7 @@ export async function processSyncfyWebhookEvent(
       }
     });
 
-    return { importedTransactions: 0 };
+    return { status: "ignored", importedTransactions: 0 };
   }
 
   const idUser = event.header.user.id_user;
@@ -260,7 +327,7 @@ export async function processSyncfyWebhookEvent(
       }
     });
 
-    return { importedTransactions: 0 };
+    return { status: "processed", importedTransactions: 0 };
   }
 
   const { token } = await createSyncfySession(idUser);
@@ -306,7 +373,7 @@ export async function processSyncfyWebhookEvent(
     }
   });
 
-  return { importedTransactions: transactions.length };
+  return { status: "processed", importedTransactions: transactions.length };
 }
 
 export async function markSyncfyWebhookEventFailed(

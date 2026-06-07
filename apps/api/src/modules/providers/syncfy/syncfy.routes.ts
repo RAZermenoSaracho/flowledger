@@ -2,13 +2,10 @@ import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { env } from "../../config/env.js";
-import { prisma } from "../../db/prisma.js";
-import { asyncHandler } from "../../utils/asyncHandler.js";
-import {
-  markSyncfyWebhookEventFailed,
-  processSyncfyWebhookEvent
-} from "./syncfy.service.js";
+import { env } from "../../../config/env.js";
+import { prisma } from "../../../db/prisma.js";
+import { asyncHandler } from "../../../utils/asyncHandler.js";
+import { syncfyProvider } from "./syncfy.adapter.js";
 
 const router = Router();
 
@@ -99,9 +96,11 @@ async function recordInvalidSyncfyWebhook(
 }
 
 function processRecordedEvent(eventId: string, event: SyncfyWebhookEvent) {
-  void processSyncfyWebhookEvent(eventId, event).catch(async (error: unknown) => {
-    await markSyncfyWebhookEventFailed(eventId, error).catch(() => undefined);
-  });
+  if (!syncfyProvider.handleWebhook) return;
+
+  void syncfyProvider.handleWebhook({ eventId, payload: event }).catch(
+    () => undefined
+  );
 }
 
 /**
