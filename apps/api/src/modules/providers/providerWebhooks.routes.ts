@@ -13,7 +13,7 @@ import { verifySyncfyWebhookSignature } from "./syncfy/syncfy.webhookSecurity.js
 
 export const providerWebhooksRouter = Router();
 
-const syncfyWebhookEventSchema = z.object({
+export const syncfyWebhookEventSchema = z.object({
   header: z.object({
     event: z.object({
       eid: z.string().optional(),
@@ -32,7 +32,7 @@ const syncfyWebhookEventSchema = z.object({
     .passthrough()
 });
 
-const syncfyWebhookSchema = z.object({
+export const syncfyWebhookSchema = z.object({
   rid: z.string().optional(),
   events: z.array(syncfyWebhookEventSchema).default([])
 });
@@ -47,7 +47,7 @@ function rawBodyString(rawBody: Buffer | undefined) {
   return rawBody?.toString("utf8") ?? "";
 }
 
-function generatedEventEid(
+export function generatedSyncfyEventEid(
   rid: string | undefined,
   event: SyncfyWebhookEvent,
   index: number
@@ -103,26 +103,26 @@ async function recordInvalidWebhook(input: {
   });
 }
 
-async function recordSyncfyEvent(input: {
+export function isPrismaUniqueConstraintError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
+export function buildSyncfyWebhookEventRecordData(input: {
+  providerEventId: string;
+  userId?: string;
   rid?: string;
   event: SyncfyWebhookEvent;
   rawHeaders: Prisma.InputJsonValue;
   rawBody: string;
-  index: number;
 }) {
-  const provider = "syncfy";
-  const providerEventId =
-    input.event.header.event.eid ??
-    generatedEventEid(input.rid, input.event, input.index);
-  const userId = await findFlowLedgerUserId(
-    provider,
-    input.event.header.user.id_user
-  );
-  const data = {
-    userId,
-    provider,
+  return {
+    userId: input.userId,
+    provider: "syncfy",
     rid: input.rid,
-    providerEventId,
+    providerEventId: input.providerEventId,
     eventName: input.event.header.event.name ?? "unknown",
     providerUserId: input.event.header.user.id_user,
     providerExternalId: input.event.header.user.id_external,
@@ -134,23 +134,52 @@ async function recordSyncfyEvent(input: {
     processedAt: null,
     errorMessage: null
   };
+}
+
+export async function recordSyncfyEventWithDependencies(input: {
+  rid?: string;
+  event: SyncfyWebhookEvent;
+  rawHeaders: Prisma.InputJsonValue;
+  rawBody: string;
+  index: number;
+  findFlowLedgerUserId: (
+    provider: string,
+    providerUserId?: string
+  ) => Promise<string | undefined>;
+  createProviderWebhookEvent: (
+    data: ReturnType<typeof buildSyncfyWebhookEventRecordData>
+  ) => Promise<{ id: string }>;
+  findProviderWebhookEvent: (filters: {
+    provider: string;
+    providerEventId: string;
+  }) => Promise<{ id: string } | null>;
+}) {
+  const provider = "syncfy";
+  const providerEventId =
+    input.event.header.event.eid ??
+    generatedSyncfyEventEid(input.rid, input.event, input.index);
+  const userId = await input.findFlowLedgerUserId(
+    provider,
+    input.event.header.user.id_user
+  );
+  const data = buildSyncfyWebhookEventRecordData({
+    providerEventId,
+    userId,
+    rid: input.rid,
+    event: input.event,
+    rawHeaders: input.rawHeaders,
+    rawBody: input.rawBody
+  });
 
   try {
-    const recordedEvent = await prisma.providerWebhookEvent.create({ data });
+    const recordedEvent = await input.createProviderWebhookEvent(data);
 
     return { recordedEvent, shouldProcess: true };
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      const recordedEvent = await prisma.providerWebhookEvent.findUnique({
-        where: {
-          provider_providerEventId: {
-            provider,
-            providerEventId
-          }
-        }
+    if (isPrismaUniqueConstraintError(error)) {
+      const recordedEvent = await input.findProviderWebhookEvent({
+        provider,
+        providerEventId
       });
 
       if (recordedEvent) return { recordedEvent, shouldProcess: false };
@@ -158,6 +187,30 @@ async function recordSyncfyEvent(input: {
 
     throw error;
   }
+}
+
+async function recordSyncfyEvent(input: {
+  rid?: string;
+  event: SyncfyWebhookEvent;
+  rawHeaders: Prisma.InputJsonValue;
+  rawBody: string;
+  index: number;
+}) {
+  return recordSyncfyEventWithDependencies({
+    ...input,
+    findFlowLedgerUserId,
+    createProviderWebhookEvent: (data) =>
+      prisma.providerWebhookEvent.create({ data }),
+    findProviderWebhookEvent: ({ provider, providerEventId }) =>
+      prisma.providerWebhookEvent.findUnique({
+        where: {
+          provider_providerEventId: {
+            provider,
+            providerEventId
+          }
+        }
+      })
+  });
 }
 
 function processRecordedEvent(input: {

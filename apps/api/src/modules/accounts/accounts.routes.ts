@@ -53,7 +53,7 @@ function getNumber(value: unknown): number | null {
   return null;
 }
 
-function providerAccountSyncSummary(
+export function providerAccountSyncSummary(
   providerAccount: ProviderAccountWithConnection
 ) {
   const metadata = getRecord(providerAccount.accountMetadata);
@@ -76,6 +76,19 @@ function providerAccountSyncSummary(
       null,
     createdAt: providerAccount.createdAt,
     updatedAt: providerAccount.updatedAt
+  };
+}
+
+export function accountListItemWithSyncSummary<
+  TAccount extends { providerAccounts: ProviderAccountWithConnection[] }
+>(account: TAccount) {
+  const sync = account.providerAccounts.map(providerAccountSyncSummary);
+  const { providerAccounts: _providerAccounts, ...safeAccount } = account;
+
+  return {
+    ...safeAccount,
+    source: sync.length > 0 ? "synced" : "manual",
+    sync
   };
 }
 
@@ -121,17 +134,9 @@ accountsRouter.get(
 
     res.json({
       accounts: serialize(
-        withAccountBalances(accounts, transactions).map((account) => {
-          const sync = account.providerAccounts.map(providerAccountSyncSummary);
-          const { providerAccounts: _providerAccounts, ...safeAccount } =
-            account;
-
-          return {
-            ...safeAccount,
-            source: sync.length > 0 ? "synced" : "manual",
-            sync
-          };
-        })
+        withAccountBalances(accounts, transactions).map(
+          accountListItemWithSyncSummary
+        )
       )
     });
   })
