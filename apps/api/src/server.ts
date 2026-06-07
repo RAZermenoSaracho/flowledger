@@ -30,7 +30,14 @@ const uploadDir = path.resolve(moduleDir, "../uploads");
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = Buffer.from(buf);
+    }
+  })
+);
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/uploads", express.static(uploadDir));
 

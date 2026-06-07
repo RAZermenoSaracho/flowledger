@@ -58,6 +58,13 @@ Required variables:
   `http://localhost:5173`.
 - `NODE_ENV`: `development`, `test`, or `production`.
 
+Optional provider integration variables:
+
+- `SYNCFY_API_KEY`: Syncfy API key for provider integration calls.
+- `SYNCFY_WEBHOOK_SIGNATURE_KEY`: Syncfy webhook signature key. When configured,
+  `POST /syncfy/webhook` validates the `request-signature` header before
+  processing. Leave unset only for local development bypass.
+
 Do not commit real `.env` files.
 
 ## Local PostgreSQL Setup

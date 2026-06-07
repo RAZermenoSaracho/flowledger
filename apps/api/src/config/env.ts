@@ -49,6 +49,7 @@ const envSchema = z.object({
   GOOGLE_CALLBACK_URL: z.string().url(),
   WEB_APP_URL: z.string().url(),
   SYNCFY_API_KEY: z.string().min(1).optional(),
+  SYNCFY_WEBHOOK_SIGNATURE_KEY: z.string().min(1).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 

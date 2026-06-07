@@ -418,6 +418,7 @@ model ProviderWebhookEvent {
   eventName            String
   rawPayload           Json
   rawHeaders           Json
+  rawBody              String
   receivedAt           DateTime  @default(now())
   processedAt          DateTime?
   status               String    @default("received")

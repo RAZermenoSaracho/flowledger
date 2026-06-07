@@ -802,6 +802,22 @@ export async function processSyncfyWebhookEvent(
   eventId: string,
   event: SyncfyWebhookEventInput
 ): Promise<SyncfyProcessingSummary> {
+  const claimResult = await prisma.providerWebhookEvent.updateMany({
+    where: {
+      id: eventId,
+      status: "received"
+    },
+    data: {
+      status: "processing",
+      processedAt: null,
+      errorMessage: null
+    }
+  });
+
+  if (claimResult.count === 0) {
+    return { status: "ignored", importedAccounts: 0, importedTransactions: 0 };
+  }
+
   if (event.header.event.name !== "credentials.refreshed") {
     await prisma.providerWebhookEvent.update({
       where: { id: eventId },
