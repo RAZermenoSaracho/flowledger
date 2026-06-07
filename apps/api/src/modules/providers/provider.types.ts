@@ -1,12 +1,22 @@
 export type ProviderKey = "syncfy" | (string & {});
 
+export type InstitutionCategory =
+  | "bank"
+  | "broker"
+  | "exchange"
+  | "wallet"
+  | "government"
+  | "other";
+
 export type ProviderInstitution = {
   provider: ProviderKey;
-  providerInstitutionId: string;
+  institutionId: string;
   name: string;
-  country?: string;
-  type?: string;
-  rawData?: Record<string, unknown>;
+  logoUrl: string | null;
+  country: string | null;
+  category: InstitutionCategory;
+  supportedAccountTypes: string[];
+  rawData: Record<string, unknown>;
 };
 
 export type CreateProviderUserInput = {

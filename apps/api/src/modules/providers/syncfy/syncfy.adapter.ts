@@ -3,6 +3,7 @@ import type { FinancialProviderAdapter } from "../provider.types.js";
 import {
   createSyncfySession,
   fetchSyncfyAccounts,
+  fetchSyncfyInstitutions,
   fetchSyncfyTransactions,
   markSyncfyWebhookEventFailed,
   normalizeSyncfyAccount,
@@ -20,7 +21,19 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
     key: "syncfy",
     displayName: "Syncfy",
 
-    listInstitutions: async () => unsupported("institution listing"),
+    listInstitutions: async () =>
+      fetchSyncfyInstitutions().then((institutions) =>
+        institutions.map((institution) => ({
+          provider: "syncfy",
+          institutionId: institution.syncfyInstitutionId,
+          name: institution.name,
+          logoUrl: institution.logoUrl,
+          country: institution.country,
+          category: institution.category,
+          supportedAccountTypes: institution.supportedAccountTypes,
+          rawData: institution.rawData
+        }))
+      ),
 
     createUser: async () => unsupported("user creation"),
 

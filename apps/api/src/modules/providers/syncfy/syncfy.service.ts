@@ -47,6 +47,16 @@ export type NormalizedSyncfyAccount = {
   rawData: JsonRecord;
 };
 
+export type NormalizedSyncfyInstitution = {
+  syncfyInstitutionId: string;
+  name: string;
+  logoUrl: string | null;
+  country: string | null;
+  category: "bank" | "broker" | "exchange" | "wallet" | "government" | "other";
+  supportedAccountTypes: string[];
+  rawData: JsonRecord;
+};
+
 export type SyncfyProcessingSummary = {
   status: "processed" | "ignored";
   importedTransactions: number;
@@ -70,6 +80,21 @@ function getNumber(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function getStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => getString(item))
+      .filter((item): item is string => Boolean(item));
+  }
+
+  const stringValue = getString(value);
+  return stringValue ? [stringValue] : [];
+}
+
+function uniq(values: string[]) {
+  return Array.from(new Set(values));
 }
 
 function requiredString(record: JsonRecord, keys: string[], fieldName: string) {
@@ -96,7 +121,8 @@ function unixTimestampToDate(value: unknown, fieldName: string) {
     throw new HttpError(502, `Syncfy transaction is missing ${fieldName}`);
   }
 
-  const milliseconds = timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
+  const milliseconds =
+    timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
   const date = new Date(milliseconds);
   if (Number.isNaN(date.getTime())) {
     throw new HttpError(502, `Syncfy transaction has invalid ${fieldName}`);
@@ -145,6 +171,24 @@ function extractSyncfyAccounts(responseBody: unknown): unknown[] {
   return [];
 }
 
+function extractSyncfyInstitutions(responseBody: unknown): unknown[] {
+  if (Array.isArray(responseBody)) return responseBody;
+
+  const body = getJsonObject(responseBody);
+  const response = body?.response;
+
+  if (Array.isArray(response)) return response;
+  const responseObject = getJsonObject(response);
+  if (Array.isArray(responseObject?.sites)) return responseObject.sites;
+  if (Array.isArray(responseObject?.institutions)) {
+    return responseObject.institutions;
+  }
+  if (Array.isArray(body?.sites)) return body.sites;
+  if (Array.isArray(body?.institutions)) return body.institutions;
+
+  return [];
+}
+
 function getFirstTransactionEndpoint(endpoints: unknown) {
   if (!endpoints || typeof endpoints !== "object" || Array.isArray(endpoints)) {
     return undefined;
@@ -168,6 +212,16 @@ function buildSyncfyDataUrl(endpoint: string, token: string) {
   return url;
 }
 
+function buildSyncfyApiUrl(pathname: string) {
+  if (!env.SYNCFY_API_KEY) {
+    throw new HttpError(500, "Syncfy API key is not configured");
+  }
+
+  const url = new URL(pathname, syncfyApiBaseUrl);
+  url.searchParams.set("api_key", env.SYNCFY_API_KEY);
+  return url;
+}
+
 async function fetchJson(url: URL, init?: RequestInit) {
   const response = await fetch(url, init);
   const body = (await response.json().catch(() => null)) as unknown;
@@ -183,12 +237,7 @@ async function fetchJson(url: URL, init?: RequestInit) {
 }
 
 export async function createSyncfySession(idUser: string) {
-  if (!env.SYNCFY_API_KEY) {
-    throw new HttpError(500, "Syncfy API key is not configured");
-  }
-
-  const url = new URL("/v1/sessions", syncfyApiBaseUrl);
-  url.searchParams.set("api_key", env.SYNCFY_API_KEY);
+  const url = buildSyncfyApiUrl("/v1/sessions");
 
   const body = await fetchJson(url, {
     method: "POST",
@@ -202,6 +251,75 @@ export async function createSyncfySession(idUser: string) {
   }
 
   return { token };
+}
+
+function normalizeInstitutionCategory(rawData: JsonRecord) {
+  const values = [
+    getString(rawData.type),
+    getString(rawData.category),
+    getString(rawData.classification),
+    getString(rawData.kind),
+    getString(rawData.name)
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  if (/\b(bank|banco|banking)\b/.test(values)) return "bank";
+  if (/\b(broker|brokerage|inversion|investment)\b/.test(values)) {
+    return "broker";
+  }
+  if (/\b(exchange|crypto|cripto|bitcoin)\b/.test(values)) return "exchange";
+  if (/\b(wallet|digital wallet|billetera)\b/.test(values)) return "wallet";
+  if (/\b(government|fiscal|tax|sat|afip)\b/.test(values)) {
+    return "government";
+  }
+
+  return "other";
+}
+
+export function normalizeSyncfyInstitution(
+  institution: unknown
+): NormalizedSyncfyInstitution {
+  const rawData = getJsonObject(institution);
+  if (!rawData) {
+    throw new HttpError(502, "Syncfy institution payload is not an object");
+  }
+
+  const country = getJsonObject(rawData.country);
+
+  return {
+    syncfyInstitutionId: requiredString(
+      rawData,
+      ["id_site", "id_institution", "institution_id", "id"],
+      "id_site"
+    ),
+    name:
+      getString(rawData.name) ??
+      getString(rawData.display_name) ??
+      "Syncfy institution",
+    logoUrl:
+      getString(rawData.logo) ??
+      getString(rawData.logo_url) ??
+      getString(rawData.image) ??
+      getString(rawData.icon) ??
+      null,
+    country:
+      getString(rawData.country) ??
+      getString(rawData.country_code) ??
+      getString(country?.code) ??
+      getString(country?.name) ??
+      null,
+    category: normalizeInstitutionCategory(rawData),
+    supportedAccountTypes: uniq([
+      ...getStringList(rawData.account_types),
+      ...getStringList(rawData.accountTypes),
+      ...getStringList(rawData.supported_account_types),
+      ...getStringList(rawData.products),
+      ...getStringList(rawData.type)
+    ]),
+    rawData
+  };
 }
 
 export function normalizeSyncfyAccount(
@@ -220,7 +338,11 @@ export function normalizeSyncfyAccount(
     "Syncfy account";
 
   return {
-    syncfyAccountId: requiredString(rawData, ["id_account", "id"], "id_account"),
+    syncfyAccountId: requiredString(
+      rawData,
+      ["id_account", "id"],
+      "id_account"
+    ),
     syncfyCredentialId:
       getString(rawData.id_credential) ?? fallbackCredentialId,
     name,
@@ -270,6 +392,15 @@ export function normalizeSyncfyTransaction(
     refreshDate: unixTimestampToDate(rawData.dt_refresh, "dt_refresh"),
     rawData
   };
+}
+
+export async function fetchSyncfyInstitutions() {
+  const url = buildSyncfyApiUrl("/v1/catalogues/sites");
+  const body = await fetchJson(url);
+
+  return extractSyncfyInstitutions(body).map((institution) =>
+    normalizeSyncfyInstitution(institution)
+  );
 }
 
 export async function fetchSyncfyAccounts(

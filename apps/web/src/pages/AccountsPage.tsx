@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES } from "@flowledger/shared";
+import { ACCOUNT_TYPES, institutionCategories } from "@flowledger/shared";
 import type { AccountType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useMemo, useState } from "react";
@@ -7,7 +7,7 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
-import type { Account } from "../types/api";
+import type { Account, Institution } from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -29,6 +29,10 @@ export function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [institutionSearch, setInstitutionSearch] = useState("");
+  const [institutionCategoryFilter, setInstitutionCategoryFilter] =
+    useState("");
+  const [institutionCountryFilter, setInstitutionCountryFilter] = useState("");
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
@@ -46,6 +50,58 @@ export function AccountsPage() {
         })
       ).accounts
   });
+
+  const institutionsQuery = useQuery({
+    queryKey: ["provider-institutions"],
+    queryFn: async () =>
+      (
+        await apiRequest<{ institutions: Institution[] }>(
+          "/providers/institutions"
+        )
+      ).institutions
+  });
+
+  const institutionCountries = useMemo(() => {
+    return Array.from(
+      new Set(
+        (institutionsQuery.data ?? [])
+          .map((institution) => institution.country)
+          .filter((country): country is string => Boolean(country))
+      )
+    ).sort((left, right) => left.localeCompare(right));
+  }, [institutionsQuery.data]);
+
+  const visibleInstitutions = useMemo(() => {
+    return applyCollectionControls(institutionsQuery.data ?? [], {
+      search: institutionSearch,
+      searchFields: (institution) => [
+        institution.name,
+        institution.country,
+        institution.category,
+        ...institution.supportedAccountTypes
+      ],
+      filters: [
+        (institution) =>
+          institutionCategoryFilter
+            ? institution.category === institutionCategoryFilter
+            : true,
+        (institution) =>
+          institutionCountryFilter
+            ? institution.country === institutionCountryFilter
+            : true
+      ],
+      sortBy: "name",
+      sortDirection: "asc",
+      sorters: {
+        name: (institution) => institution.name
+      }
+    }).slice(0, 24);
+  }, [
+    institutionCategoryFilter,
+    institutionCountryFilter,
+    institutionSearch,
+    institutionsQuery.data
+  ]);
 
   const visibleAccounts = useMemo(() => {
     return applyCollectionControls(accountsQuery.data ?? [], {
@@ -258,6 +314,110 @@ export function AccountsPage() {
             Add account
           </Button>
         )}
+      </Card>
+      <Card>
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Institution catalog</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Search supported banks, brokers, exchanges, wallets, and public
+              institutions.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4">
+          <SearchComponent
+            searchValue={institutionSearch}
+            searchPlaceholder="Search institutions"
+            onSearchChange={setInstitutionSearch}
+            filters={[
+              {
+                id: "category",
+                label: "Category",
+                value: institutionCategoryFilter,
+                onChange: setInstitutionCategoryFilter,
+                options: [
+                  { label: "All categories", value: "" },
+                  ...institutionCategories.map((item) => ({
+                    label: item,
+                    value: item
+                  }))
+                ]
+              },
+              {
+                id: "country",
+                label: "Country",
+                value: institutionCountryFilter,
+                onChange: setInstitutionCountryFilter,
+                options: [
+                  { label: "All countries", value: "" },
+                  ...institutionCountries.map((country) => ({
+                    label: country,
+                    value: country
+                  }))
+                ]
+              }
+            ]}
+          />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {visibleInstitutions.map((institution) => (
+            <div
+              key={`${institution.provider}:${institution.institutionId}`}
+              className="flex min-w-0 gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800"
+            >
+              {institution.logoUrl ? (
+                <img
+                  src={institution.logoUrl}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded border border-slate-200 object-contain dark:border-slate-800"
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{institution.name}</p>
+                <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
+                  {[institution.category, institution.country]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                {institution.supportedAccountTypes.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {institution.supportedAccountTypes
+                      .slice(0, 4)
+                      .map((item) => (
+                        <span
+                          key={item}
+                          className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+        {institutionsQuery.isLoading ? (
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            Loading institutions.
+          </p>
+        ) : null}
+        {institutionsQuery.isError ? (
+          <p className="mt-4 text-sm text-coral dark:text-orange-300">
+            Institution catalog is unavailable.
+          </p>
+        ) : null}
+        {!institutionsQuery.isLoading &&
+        !institutionsQuery.isError &&
+        visibleInstitutions.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            No institutions found.
+          </p>
+        ) : null}
       </Card>
       <Card>
         <h2 className="text-lg font-semibold">Accounts</h2>
