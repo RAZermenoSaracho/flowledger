@@ -56,9 +56,21 @@ export type ProviderInstitution = {
   rawData: Record<string, unknown>;
 };
 
+export type ProviderConnector = {
+  provider: string;
+  connectorId: string;
+  title: string;
+  description: string;
+  helperText?: string;
+  country: string | null;
+  category: InstitutionCategory;
+  coverageLabel: string;
+};
+
 export type ProviderConnectionFlow = {
   provider: string;
-  institutionId: string;
+  connectorId?: string;
+  institutionId?: string;
   institutionName: string;
   flowId?: string;
   token?: string;

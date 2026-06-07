@@ -62,23 +62,61 @@ function buildSyncfyWidgetConfig(input: {
   };
 }
 
+const syncfyDemoInstitutionPatterns = [
+  /\bacme\b/i,
+  /\bsandbox\b/i,
+  /\bnormal auth\b/i,
+  /\btoken 2fa\b/i,
+  /\bcaptcha\b/i,
+  /\bmultiple image\b/i,
+  /\bmultiple text\b/i
+];
+
+function isSyncfyDemoInstitution(institution: {
+  syncfyInstitutionId: string;
+  name: string;
+}) {
+  const value = `${institution.syncfyInstitutionId} ${institution.name}`;
+
+  return syncfyDemoInstitutionPatterns.some((pattern) => pattern.test(value));
+}
+
 export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
   {
     key: "syncfy",
     displayName: "Syncfy",
 
+    listConnectors: async () => [
+      {
+        provider: "syncfy",
+        connectorId: "syncfy-mx",
+        title: "Syncfy México",
+        description: "Mexican banks and financial institutions",
+        helperText:
+          "If your bank is in Mexico, it is probably available through Syncfy.",
+        country: "MX",
+        category: "bank",
+        coverageLabel: "Mexico",
+        metadata: {
+          coverage: "mexico"
+        }
+      }
+    ],
+
     listInstitutions: async () =>
       fetchSyncfyInstitutions().then((institutions) =>
-        institutions.map((institution) => ({
-          provider: "syncfy",
-          institutionId: institution.syncfyInstitutionId,
-          name: institution.name,
-          logoUrl: institution.logoUrl,
-          country: institution.country,
-          category: institution.category,
-          supportedAccountTypes: institution.supportedAccountTypes,
-          rawData: institution.rawData
-        }))
+        institutions
+          .filter((institution) => !isSyncfyDemoInstitution(institution))
+          .map((institution) => ({
+            provider: "syncfy",
+            institutionId: institution.syncfyInstitutionId,
+            name: institution.name,
+            logoUrl: institution.logoUrl,
+            country: institution.country,
+            category: institution.category,
+            supportedAccountTypes: institution.supportedAccountTypes,
+            rawData: institution.rawData
+          }))
       ),
 
     createUser: async ({ externalUserId }) => {

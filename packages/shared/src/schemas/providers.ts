@@ -16,10 +16,15 @@ export const institutionCatalogQuerySchema = z.object({
   category: z.enum(institutionCategories).optional()
 });
 
-export const createProviderConnectionSchema = z.object({
-  institutionId: z.string().trim().min(1).max(100),
-  provider: z.string().trim().min(1).max(50).optional()
-});
+export const createProviderConnectionSchema = z
+  .object({
+    institutionId: z.string().trim().min(1).max(100).optional(),
+    provider: z.string().trim().min(1).max(50).optional()
+  })
+  .refine((value) => value.institutionId || value.provider, {
+    message: "Provider or institution is required",
+    path: ["provider"]
+  });
 
 export const providerConnectionParamsSchema = z.object({
   id: z.string().trim().min(1)

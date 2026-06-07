@@ -9,6 +9,7 @@ import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
 import type {
   Account,
+  Connector,
   Institution,
   ProviderImportedAccount
 } from "../types/api";
@@ -164,6 +165,13 @@ export function AccountsPage() {
       ).institutions
   });
 
+  const connectorsQuery = useQuery({
+    queryKey: ["provider-connectors"],
+    queryFn: async () =>
+      (await apiRequest<{ connectors: Connector[] }>("/providers/connectors"))
+        .connectors
+  });
+
   const providerAccountsQuery = useQuery({
     queryKey: ["provider-accounts", "unlinked"],
     queryFn: async () =>
@@ -295,14 +303,14 @@ export function AccountsPage() {
   });
 
   const startInstitutionConnection = useMutation({
-    mutationFn: (institution: Institution) =>
+    mutationFn: (target: { provider: string; institutionId?: string }) =>
       apiRequest<{ connection: ProviderConnectionFlow }>(
         "/providers/connections",
         {
           method: "POST",
           body: {
-            institutionId: institution.institutionId,
-            provider: institution.provider
+            institutionId: target.institutionId,
+            provider: target.provider
           }
         }
       ),
@@ -489,13 +497,7 @@ export function AccountsPage() {
     setSyncfyWidgetError(null);
     startInstitutionConnection.mutate({
       provider: sync.provider,
-      institutionId: sync.institutionId,
-      name: sync.institutionName ?? "Connected institution",
-      logoUrl: null,
-      country: null,
-      category: "other",
-      supportedAccountTypes: [],
-      rawData: {}
+      institutionId: sync.institutionId
     });
   }
 
@@ -602,102 +604,164 @@ export function AccountsPage() {
 
             {addMode === "sync" ? (
               <div className="mt-4 grid gap-4">
-                <SearchComponent
-                  searchValue={institutionSearch}
-                  searchPlaceholder="Search banks, brokers, institutions"
-                  onSearchChange={setInstitutionSearch}
-                  filters={[
-                    {
-                      id: "category",
-                      label: "Category",
-                      value: institutionCategoryFilter,
-                      onChange: setInstitutionCategoryFilter,
-                      options: [
-                        { label: "All categories", value: "" },
-                        ...institutionCategories.map((item) => ({
-                          label: item,
-                          value: item
-                        }))
-                      ]
-                    },
-                    {
-                      id: "country",
-                      label: "Country",
-                      value: institutionCountryFilter,
-                      onChange: setInstitutionCountryFilter,
-                      options: [
-                        { label: "All countries", value: "" },
-                        ...institutionCountries.map((country) => ({
-                          label: country,
-                          value: country
-                        }))
-                      ]
-                    }
-                  ]}
-                />
                 <div className="grid gap-3 md:grid-cols-2">
-                  {visibleInstitutions.map((institution) => {
-                    const institutionKey = `${institution.provider}:${institution.institutionId}`;
+                  {(connectorsQuery.data ?? []).map((connector) => {
+                    const connectorKey = `connector:${connector.provider}:${connector.connectorId}`;
                     const isStarting =
-                      selectedInstitutionId === institutionKey &&
+                      selectedInstitutionId === connectorKey &&
                       startInstitutionConnection.isPending;
 
                     return (
                       <button
-                        key={institutionKey}
+                        key={connectorKey}
                         type="button"
-                        className="flex min-w-0 gap-3 rounded-md border border-slate-200 p-3 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
+                        className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
                         disabled={startInstitutionConnection.isPending}
                         onClick={() => {
-                          setSelectedInstitutionId(institutionKey);
+                          setSelectedInstitutionId(connectorKey);
                           setActiveConnection(null);
                           setSyncfyWidgetError(null);
-                          startInstitutionConnection.mutate(institution);
+                          startInstitutionConnection.mutate({
+                            provider: connector.provider
+                          });
                         }}
                       >
-                        {institution.logoUrl ? (
-                          <img
-                            src={institution.logoUrl}
-                            alt=""
-                            className="h-10 w-10 shrink-0 rounded border border-slate-200 object-contain dark:border-slate-800"
-                            onError={(event) => {
-                              event.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : null}
-                        <span className="min-w-0">
-                          <span className="block truncate font-semibold">
-                            {institution.name}
-                          </span>
-                          <span className="block text-sm capitalize text-slate-500 dark:text-slate-400">
-                            {[institution.category, institution.country]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                          {institution.supportedAccountTypes.length > 0 ? (
-                            <span className="mt-2 flex flex-wrap gap-1">
-                              {institution.supportedAccountTypes
-                                .slice(0, 4)
-                                .map((item) => (
-                                  <span
-                                    key={item}
-                                    className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                  >
-                                    {item}
-                                  </span>
-                                ))}
-                            </span>
-                          ) : null}
-                          {isStarting ? (
-                            <span className="mt-2 block text-sm font-semibold text-pine dark:text-emerald-300">
-                              Starting connection...
-                            </span>
-                          ) : null}
+                        <span className="block text-xs font-semibold uppercase tracking-wide text-pine dark:text-emerald-300">
+                          {connector.coverageLabel} · {connector.category}
                         </span>
+                        <span className="mt-1 block font-semibold">
+                          {connector.title}
+                        </span>
+                        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
+                          {connector.description}
+                        </span>
+                        {connector.helperText ? (
+                          <span className="mt-3 block text-sm text-slate-600 dark:text-slate-300">
+                            {connector.helperText}
+                          </span>
+                        ) : null}
+                        {isStarting ? (
+                          <span className="mt-3 block text-sm font-semibold text-pine dark:text-emerald-300">
+                            Starting connection...
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
+                {connectorsQuery.isLoading ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Loading connection options.
+                  </p>
+                ) : null}
+                {connectorsQuery.isError ? (
+                  <p className="text-sm text-coral dark:text-orange-300">
+                    Connection options are unavailable.
+                  </p>
+                ) : null}
+                {(institutionsQuery.data ?? []).length > 0 ? (
+                  <>
+                    <SearchComponent
+                      searchValue={institutionSearch}
+                      searchPlaceholder="Search banks, brokers, institutions"
+                      onSearchChange={setInstitutionSearch}
+                      filters={[
+                        {
+                          id: "category",
+                          label: "Category",
+                          value: institutionCategoryFilter,
+                          onChange: setInstitutionCategoryFilter,
+                          options: [
+                            { label: "All categories", value: "" },
+                            ...institutionCategories.map((item) => ({
+                              label: item,
+                              value: item
+                            }))
+                          ]
+                        },
+                        {
+                          id: "country",
+                          label: "Country",
+                          value: institutionCountryFilter,
+                          onChange: setInstitutionCountryFilter,
+                          options: [
+                            { label: "All countries", value: "" },
+                            ...institutionCountries.map((country) => ({
+                              label: country,
+                              value: country
+                            }))
+                          ]
+                        }
+                      ]}
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {visibleInstitutions.map((institution) => {
+                        const institutionKey = `${institution.provider}:${institution.institutionId}`;
+                        const isStarting =
+                          selectedInstitutionId === institutionKey &&
+                          startInstitutionConnection.isPending;
+
+                        return (
+                          <button
+                            key={institutionKey}
+                            type="button"
+                            className="flex min-w-0 gap-3 rounded-md border border-slate-200 p-3 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
+                            disabled={startInstitutionConnection.isPending}
+                            onClick={() => {
+                              setSelectedInstitutionId(institutionKey);
+                              setActiveConnection(null);
+                              setSyncfyWidgetError(null);
+                              startInstitutionConnection.mutate({
+                                provider: institution.provider,
+                                institutionId: institution.institutionId
+                              });
+                            }}
+                          >
+                            {institution.logoUrl ? (
+                              <img
+                                src={institution.logoUrl}
+                                alt=""
+                                className="h-10 w-10 shrink-0 rounded border border-slate-200 object-contain dark:border-slate-800"
+                                onError={(event) => {
+                                  event.currentTarget.style.display = "none";
+                                }}
+                              />
+                            ) : null}
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold">
+                                {institution.name}
+                              </span>
+                              <span className="block text-sm capitalize text-slate-500 dark:text-slate-400">
+                                {[institution.category, institution.country]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                              {institution.supportedAccountTypes.length > 0 ? (
+                                <span className="mt-2 flex flex-wrap gap-1">
+                                  {institution.supportedAccountTypes
+                                    .slice(0, 4)
+                                    .map((item) => (
+                                      <span
+                                        key={item}
+                                        className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                      >
+                                        {item}
+                                      </span>
+                                    ))}
+                                </span>
+                              ) : null}
+                              {isStarting ? (
+                                <span className="mt-2 block text-sm font-semibold text-pine dark:text-emerald-300">
+                                  Starting connection...
+                                </span>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
                 {institutionsQuery.isLoading ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Loading institutions.
@@ -710,7 +774,8 @@ export function AccountsPage() {
                 ) : null}
                 {!institutionsQuery.isLoading &&
                 !institutionsQuery.isError &&
-                visibleInstitutions.length === 0 ? (
+                visibleInstitutions.length === 0 &&
+                (institutionsQuery.data ?? []).length > 0 ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     No institutions found.
                   </p>

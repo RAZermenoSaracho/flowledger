@@ -9,7 +9,10 @@ import type {
   SharedExpenseStatus,
   TransactionType
 } from "@flowledger/shared";
-import type { ProviderInstitution } from "@flowledger/shared";
+import type {
+  ProviderConnector,
+  ProviderInstitution
+} from "@flowledger/shared";
 
 export type User = {
   id: string;
@@ -56,6 +59,7 @@ export type AccountSync = {
 };
 
 export type Institution = ProviderInstitution;
+export type Connector = ProviderConnector;
 
 export type ProviderImportedAccount = {
   id: string;

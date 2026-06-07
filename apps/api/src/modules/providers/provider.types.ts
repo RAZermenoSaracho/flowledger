@@ -19,6 +19,18 @@ export type ProviderInstitution = {
   rawData: Record<string, unknown>;
 };
 
+export type ProviderConnector = {
+  provider: ProviderKey;
+  connectorId: string;
+  title: string;
+  description: string;
+  helperText?: string;
+  country: string | null;
+  category: InstitutionCategory;
+  coverageLabel: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type CreateProviderUserInput = {
   externalUserId: string;
   metadata?: Record<string, unknown>;
@@ -132,6 +144,10 @@ export interface ProviderInstitutionsAdapter {
   listInstitutions(): Promise<ProviderInstitution[]>;
 }
 
+export interface ProviderConnectorsAdapter {
+  listConnectors(): Promise<ProviderConnector[]>;
+}
+
 export interface ProviderUserAdapter {
   createUser(input: CreateProviderUserInput): Promise<ProviderUser>;
 }
@@ -170,6 +186,7 @@ export type FinancialProviderAdapter<TWebhookPayload = unknown> = {
   key: ProviderKey;
   displayName: string;
 } & Partial<ProviderInstitutionsAdapter> &
+  Partial<ProviderConnectorsAdapter> &
   Partial<ProviderUserAdapter> &
   Partial<ProviderSessionAdapter> &
   Partial<ProviderConnectionFlowAdapter> &
