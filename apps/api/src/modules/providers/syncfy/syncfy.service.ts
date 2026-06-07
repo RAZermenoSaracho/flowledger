@@ -349,6 +349,20 @@ async function saveSyncfyUserMapping(input: {
   });
 }
 
+async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId: string) {
+  const mapping = await prisma.userAuthAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: "syncfy",
+        providerAccountId: syncfyUserId
+      }
+    },
+    select: { userId: true }
+  });
+
+  return mapping?.userId;
+}
+
 export async function getOrCreateSyncfyUserForFlowLedgerUser(
   flowLedgerUserId: string
 ) {
@@ -578,7 +592,7 @@ export async function processSyncfyWebhookEvent(
   event: SyncfyWebhookEventInput
 ): Promise<SyncfyProcessingSummary> {
   if (event.header.event.name !== "credentials.refreshed") {
-    await prisma.syncfyWebhookEvent.update({
+    await prisma.providerWebhookEvent.update({
       where: { id: eventId },
       data: {
         status: "ignored",
@@ -592,9 +606,10 @@ export async function processSyncfyWebhookEvent(
   const idUser = event.header.user.id_user;
   if (!idUser) throw new HttpError(400, "Syncfy event is missing id_user");
 
+  const userId = await findFlowLedgerUserIdForSyncfyUser(idUser);
   const endpoint = getFirstTransactionEndpoint(event.payload.endpoints);
   if (!endpoint) {
-    await prisma.syncfyWebhookEvent.update({
+    await prisma.providerWebhookEvent.update({
       where: { id: eventId },
       data: {
         status: "processed",
@@ -613,33 +628,47 @@ export async function processSyncfyWebhookEvent(
   );
 
   for (const transaction of transactions) {
-    await prisma.syncfyImportedTransaction.upsert({
-      where: { syncfyTransactionId: transaction.syncfyTransactionId },
+    await prisma.providerImportedTransaction.upsert({
+      where: {
+        provider_providerTransactionId: {
+          provider: "syncfy",
+          providerTransactionId: transaction.syncfyTransactionId
+        }
+      },
       create: {
-        syncfyTransactionId: transaction.syncfyTransactionId,
-        syncfyCredentialId: transaction.syncfyCredentialId,
-        syncfyAccountId: transaction.syncfyAccountId,
+        userId,
+        provider: "syncfy",
+        providerUserId: idUser,
+        providerTransactionId: transaction.syncfyTransactionId,
+        providerCredentialId: transaction.syncfyCredentialId,
+        providerAccountId: transaction.syncfyAccountId,
         description: transaction.description,
         amount: new Prisma.Decimal(transaction.amount),
         currency: transaction.currency,
         transactionDate: transaction.transactionDate,
         refreshDate: transaction.refreshDate,
+        status: "imported",
+        errorMessage: null,
         rawData: transaction.rawData as Prisma.InputJsonObject
       },
       update: {
-        syncfyCredentialId: transaction.syncfyCredentialId,
-        syncfyAccountId: transaction.syncfyAccountId,
+        userId,
+        providerUserId: idUser,
+        providerCredentialId: transaction.syncfyCredentialId,
+        providerAccountId: transaction.syncfyAccountId,
         description: transaction.description,
         amount: new Prisma.Decimal(transaction.amount),
         currency: transaction.currency,
         transactionDate: transaction.transactionDate,
         refreshDate: transaction.refreshDate,
+        status: "imported",
+        errorMessage: null,
         rawData: transaction.rawData as Prisma.InputJsonObject
       }
     });
   }
 
-  await prisma.syncfyWebhookEvent.update({
+  await prisma.providerWebhookEvent.update({
     where: { id: eventId },
     data: {
       status: "processed",
@@ -657,7 +686,7 @@ export async function markSyncfyWebhookEventFailed(
 ) {
   const message = error instanceof Error ? error.message : "Unknown error";
 
-  await prisma.syncfyWebhookEvent.update({
+  await prisma.providerWebhookEvent.update({
     where: { id: eventId },
     data: {
       status: "failed",

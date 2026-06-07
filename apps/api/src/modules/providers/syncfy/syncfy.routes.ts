@@ -49,6 +49,22 @@ function generatedEventEid(rid: string | undefined, index: number) {
   return `generated:${rid ?? "no-rid"}:${index}:${randomUUID()}`;
 }
 
+async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId?: string) {
+  if (!syncfyUserId) return undefined;
+
+  const mapping = await prisma.userAuthAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: "syncfy",
+        providerAccountId: syncfyUserId
+      }
+    },
+    select: { userId: true }
+  });
+
+  return mapping?.userId;
+}
+
 async function recordSyncfyEvent(
   rid: string | undefined,
   event: SyncfyWebhookEvent,
@@ -56,13 +72,18 @@ async function recordSyncfyEvent(
   index: number
 ) {
   const eventEid = event.header.event.eid ?? generatedEventEid(rid, index);
+  const userId = await findFlowLedgerUserIdForSyncfyUser(
+    event.header.user.id_user
+  );
   const data = {
+    userId,
+    provider: "syncfy",
     rid,
-    eventEid,
+    providerEventId: eventEid,
     eventName: event.header.event.name ?? "unknown",
-    syncfyUserId: event.header.user.id_user,
-    syncfyExternalId: event.header.user.id_external,
-    syncfyCredentialId: event.payload.id_credential,
+    providerUserId: event.header.user.id_user,
+    providerExternalId: event.header.user.id_external,
+    providerCredentialId: event.payload.id_credential,
     rawPayload: toJsonValue(event),
     rawHeaders,
     status: "received",
@@ -70,8 +91,13 @@ async function recordSyncfyEvent(
     errorMessage: null
   };
 
-  return prisma.syncfyWebhookEvent.upsert({
-    where: { eventEid },
+  return prisma.providerWebhookEvent.upsert({
+    where: {
+      provider_providerEventId: {
+        provider: "syncfy",
+        providerEventId: eventEid
+      }
+    },
     create: data,
     update: data
   });
@@ -82,9 +108,10 @@ async function recordInvalidSyncfyWebhook(
   rawHeaders: Prisma.InputJsonValue,
   error: z.ZodError
 ) {
-  return prisma.syncfyWebhookEvent.create({
+  return prisma.providerWebhookEvent.create({
     data: {
-      eventEid: `invalid:${randomUUID()}`,
+      provider: "syncfy",
+      providerEventId: `invalid:${randomUUID()}`,
       eventName: "invalid",
       rawPayload: toJsonValue(rawBody),
       rawHeaders,
@@ -98,9 +125,9 @@ async function recordInvalidSyncfyWebhook(
 function processRecordedEvent(eventId: string, event: SyncfyWebhookEvent) {
   if (!syncfyProvider.handleWebhook) return;
 
-  void syncfyProvider.handleWebhook({ eventId, payload: event }).catch(
-    () => undefined
-  );
+  void syncfyProvider
+    .handleWebhook({ eventId, payload: event })
+    .catch(() => undefined);
 }
 
 /**
@@ -152,9 +179,7 @@ router.post(
       }))
     );
     const recordedEvents = recordResults.flatMap((result) =>
-      result.status === "fulfilled"
-        ? [result.value]
-        : []
+      result.status === "fulfilled" ? [result.value] : []
     );
 
     res.status(200).json({
