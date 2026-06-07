@@ -62,24 +62,25 @@ enum NotificationType {
 }
 
 model User {
-  id                          String                     @id @default(cuid())
+  id                          String                      @id @default(cuid())
   name                        String
-  email                       String                     @unique
+  email                       String                      @unique
   passwordHash                String?
   avatarUrl                   String?
-  planType                    String                     @default("free")
-  createdAt                   DateTime                   @default(now())
-  updatedAt                   DateTime                   @updatedAt
+  planType                    String                      @default("free")
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
   authAccounts                UserAuthAccount[]
   accounts                    Account[]
   categoryMemberships         CategoryUser[]
   transactions                Transaction[]
-  ownedSharedExpenses         SharedExpense[]            @relation("OwnedSharedExpenses")
+  syncfyImportedTransactions  SyncfyImportedTransaction[]
+  ownedSharedExpenses         SharedExpense[]             @relation("OwnedSharedExpenses")
   sharedExpenseParticipations SharedExpenseParticipant[]
-  settlementRequestsMade      SettlementRequest[]        @relation("SettlementDebtor")
-  settlementRequestsReceived  SettlementRequest[]        @relation("SettlementCreditor")
+  settlementRequestsMade      SettlementRequest[]         @relation("SettlementDebtor")
+  settlementRequestsReceived  SettlementRequest[]         @relation("SettlementCreditor")
   groupMemberships            GroupMember[]
-  ownedGroups                 Group[]                    @relation("OwnedGroups")
+  ownedGroups                 Group[]                     @relation("OwnedGroups")
   notifications               Notification[]
 }
 
@@ -311,4 +312,48 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@index([type])
+}
+
+model SyncfyWebhookEvent {
+  id                 String    @id @default(cuid())
+  rid                String?
+  eventEid           String    @unique
+  eventName          String
+  syncfyUserId       String?
+  syncfyExternalId   String?
+  syncfyCredentialId String?
+  rawPayload         Json
+  rawHeaders         Json
+  receivedAt         DateTime  @default(now())
+  processedAt        DateTime?
+  status             String    @default("received")
+  errorMessage       String?
+
+  @@index([syncfyUserId])
+  @@index([syncfyExternalId])
+  @@index([syncfyCredentialId])
+  @@index([status])
+  @@index([receivedAt])
+}
+
+model SyncfyImportedTransaction {
+  id                  String   @id @default(cuid())
+  syncfyTransactionId String   @unique
+  syncfyCredentialId  String
+  syncfyAccountId     String
+  userId              String?
+  description         String
+  amount              Decimal  @db.Decimal(12, 2)
+  currency            String
+  transactionDate     DateTime
+  refreshDate         DateTime
+  rawData             Json
+  createdAt           DateTime @default(now())
+  user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([syncfyCredentialId])
+  @@index([syncfyAccountId])
+  @@index([userId])
+  @@index([transactionDate])
+  @@index([refreshDate])
 }
