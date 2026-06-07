@@ -13,10 +13,6 @@ import {
   type SyncfyWebhookEventInput
 } from "./syncfy.service.js";
 
-function unsupported(capability: string): never {
-  throw new HttpError(501, `Syncfy does not support ${capability} yet`);
-}
-
 function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
@@ -153,6 +149,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         const summary = await processSyncfyWebhookEvent(eventId, payload);
         return {
           status: summary.status,
+          importedAccounts: summary.importedAccounts,
           importedTransactions: summary.importedTransactions
         };
       } catch (error) {
