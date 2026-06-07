@@ -13,6 +13,72 @@ import { withAccountBalances } from "../transactions/transactionCalculations.js"
 
 export const accountsRouter = Router();
 
+type ProviderAccountWithConnection = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  accountMetadata: unknown;
+  status: string;
+  lastSyncAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  connection: {
+    id: string;
+    institutionId: string | null;
+    institutionName: string | null;
+    status: string;
+    lastSyncAt: Date | null;
+  } | null;
+};
+
+function getRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function getNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function providerAccountSyncSummary(
+  providerAccount: ProviderAccountWithConnection
+) {
+  const metadata = getRecord(providerAccount.accountMetadata);
+
+  return {
+    id: providerAccount.id,
+    provider: providerAccount.provider,
+    providerAccountId: providerAccount.providerAccountId,
+    institutionId: providerAccount.connection?.institutionId ?? null,
+    institutionName: providerAccount.connection?.institutionName ?? null,
+    accountName: getString(metadata.name),
+    accountType: getString(metadata.type),
+    currency: getString(metadata.currency),
+    externalBalance: getNumber(metadata.balance),
+    status: providerAccount.status,
+    connectionStatus: providerAccount.connection?.status ?? null,
+    lastSyncAt:
+      providerAccount.lastSyncAt ??
+      providerAccount.connection?.lastSyncAt ??
+      null,
+    createdAt: providerAccount.createdAt,
+    updatedAt: providerAccount.updatedAt
+  };
+}
+
 accountsRouter.get(
   "/",
   validate(accountFiltersSchema, "query"),
@@ -23,6 +89,22 @@ accountsRouter.get(
         where: {
           userId: req.user!.id,
           ...(filters.includeArchived === "true" ? {} : { isArchived: false })
+        },
+        include: {
+          providerAccounts: {
+            include: {
+              connection: {
+                select: {
+                  id: true,
+                  institutionId: true,
+                  institutionName: true,
+                  status: true,
+                  lastSyncAt: true
+                }
+              }
+            },
+            orderBy: { updatedAt: "desc" }
+          }
         },
         orderBy: { createdAt: "desc" }
       }),
@@ -38,7 +120,19 @@ accountsRouter.get(
     ]);
 
     res.json({
-      accounts: serialize(withAccountBalances(accounts, transactions))
+      accounts: serialize(
+        withAccountBalances(accounts, transactions).map((account) => {
+          const sync = account.providerAccounts.map(providerAccountSyncSummary);
+          const { providerAccounts: _providerAccounts, ...safeAccount } =
+            account;
+
+          return {
+            ...safeAccount,
+            source: sync.length > 0 ? "synced" : "manual",
+            sync
+          };
+        })
+      )
     });
   })
 );

@@ -19,6 +19,11 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD"
 });
 
+const dateTime = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short"
+});
+
 const syncfyWidgetElementId = "syncfy-widget";
 
 type SyncfyWidgetConstructor = new (params: {
@@ -53,6 +58,17 @@ function ensureSyncfyWidgetElement() {
   document.body.appendChild(element);
 
   return element;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Unknown" : dateTime.format(date);
+}
+
+function formatStatus(value: string | null | undefined) {
+  return value ? value.replace("_", " ") : "unknown";
 }
 
 async function openSyncfyWidget(
@@ -225,7 +241,15 @@ export function AccountsPage() {
       searchFields: (account) => [
         account.name,
         account.type,
-        account.identifier
+        account.identifier,
+        account.source,
+        ...(account.sync ?? []).flatMap((sync) => [
+          sync.provider,
+          sync.institutionName,
+          sync.accountName,
+          sync.status,
+          sync.connectionStatus
+        ])
       ],
       filters: [
         (account) =>
@@ -375,6 +399,18 @@ export function AccountsPage() {
     }
   });
 
+  const resyncProviderAccount = useMutation({
+    mutationFn: (providerAccountId: string) =>
+      apiRequest(`/providers/accounts/${providerAccountId}/resync`, {
+        method: "POST"
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      await queryClient.invalidateQueries({ queryKey: ["provider-accounts"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    }
+  });
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     await createAccount.mutateAsync();
@@ -440,6 +476,27 @@ export function AccountsPage() {
         ? accountIds.filter((accountId) => accountId !== providerAccountId)
         : [...accountIds, providerAccountId]
     );
+  }
+
+  function reconnectSyncedAccount(account: Account, syncId: string) {
+    const sync = account.sync?.find((item) => item.id === syncId);
+    if (!sync?.institutionId) return;
+
+    setIsFormOpen(true);
+    setAddMode("sync");
+    setSelectedInstitutionId(`${sync.provider}:${sync.institutionId}`);
+    setActiveConnection(null);
+    setSyncfyWidgetError(null);
+    startInstitutionConnection.mutate({
+      provider: sync.provider,
+      institutionId: sync.institutionId,
+      name: sync.institutionName ?? "Connected institution",
+      logoUrl: null,
+      country: null,
+      category: "other",
+      supportedAccountTypes: [],
+      rawData: {}
+    });
   }
 
   return (
@@ -943,70 +1000,164 @@ export function AccountsPage() {
                   </div>
                 </form>
               ) : (
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{account.name}</p>
-                      {account.isArchived ? (
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          Archived
+                <div className="grid gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{account.name}</p>
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {account.source === "synced" ? "Synced" : "Manual"}
                         </span>
+                        {account.isArchived ? (
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            Archived
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
+                        {account.type.replace("_", " ")}
+                      </p>
+                      <p
+                        className={`text-sm font-semibold ${
+                          (account.currentBalance ?? 0) >= 0
+                            ? "text-pine dark:text-emerald-300"
+                            : "text-coral dark:text-orange-300"
+                        }`}
+                      >
+                        FlowLedger balance{" "}
+                        {money.format(account.currentBalance ?? 0)}
+                      </p>
+                      {account.identifier ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {account.identifier}
+                        </p>
                       ) : null}
                     </div>
-                    <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
-                      {account.type.replace("_", " ")}
-                    </p>
-                    <p
-                      className={`text-sm font-semibold ${
-                        (account.currentBalance ?? 0) >= 0
-                          ? "text-pine dark:text-emerald-300"
-                          : "text-coral dark:text-orange-300"
-                      }`}
-                    >
-                      Balance {money.format(account.currentBalance ?? 0)}
-                    </p>
-                    {account.identifier ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {account.identifier}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => openEditForm(account)}
-                    >
-                      Edit
-                    </Button>
-                    {account.isArchived ? (
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
                         type="button"
                         variant="secondary"
-                        disabled={restoreAccount.isPending}
-                        onClick={() => restoreAccount.mutate(account.id)}
+                        onClick={() => openEditForm(account)}
                       >
-                        Restore
+                        Edit
                       </Button>
-                    ) : (
+                      {account.isArchived ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={restoreAccount.isPending}
+                          onClick={() => restoreAccount.mutate(account.id)}
+                        >
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={archiveAccount.isPending}
+                          onClick={() => archiveAccount.mutate(account.id)}
+                        >
+                          Archive
+                        </Button>
+                      )}
                       <Button
                         type="button"
-                        variant="secondary"
-                        disabled={archiveAccount.isPending}
-                        onClick={() => archiveAccount.mutate(account.id)}
+                        variant="danger"
+                        disabled={deleteAccount.isPending}
+                        onClick={() => confirmDelete(account)}
                       >
-                        Archive
+                        Delete
                       </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="danger"
-                      disabled={deleteAccount.isPending}
-                      onClick={() => confirmDelete(account)}
-                    >
-                      Delete
-                    </Button>
+                    </div>
                   </div>
+                  {account.source === "synced" && account.sync?.length ? (
+                    <div className="grid gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                      {account.sync.map((sync) => (
+                        <div
+                          key={sync.id}
+                          className="grid gap-3 rounded-md bg-slate-50 p-3 dark:bg-slate-900 md:grid-cols-[minmax(0,1fr)_auto]"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold capitalize">
+                                {sync.provider}
+                              </p>
+                              <span className="rounded bg-white px-2 py-0.5 text-xs font-semibold capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                {formatStatus(sync.status)}
+                              </span>
+                              {sync.connectionStatus ? (
+                                <span className="rounded bg-white px-2 py-0.5 text-xs font-semibold capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                  Connection{" "}
+                                  {formatStatus(sync.connectionStatus)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                              {[
+                                sync.institutionName,
+                                sync.accountName,
+                                sync.accountType,
+                                sync.currency
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "Provider metadata unavailable"}
+                            </p>
+                            <div className="mt-2 grid gap-1 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+                              <p>
+                                Last sync{" "}
+                                <span className="font-semibold">
+                                  {formatDateTime(sync.lastSyncAt)}
+                                </span>
+                              </p>
+                              <p>
+                                External balance{" "}
+                                <span className="font-semibold">
+                                  {sync.externalBalance !== null &&
+                                  sync.externalBalance !== undefined
+                                    ? money.format(sync.externalBalance)
+                                    : "Unavailable"}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={
+                                resyncProviderAccount.isPending ||
+                                account.isArchived
+                              }
+                              onClick={() =>
+                                resyncProviderAccount.mutate(sync.id)
+                              }
+                            >
+                              Resync
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={
+                                startInstitutionConnection.isPending ||
+                                account.isArchived ||
+                                !sync.institutionId
+                              }
+                              onClick={() =>
+                                reconnectSyncedAccount(account, sync.id)
+                              }
+                            >
+                              Reconnect
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {resyncProviderAccount.isError ? (
+                        <p className="text-sm text-coral dark:text-orange-300">
+                          Could not resync the selected account.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

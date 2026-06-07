@@ -30,8 +30,27 @@ export type Account = {
   identifier?: string | null;
   initialBalance: number;
   currentBalance?: number;
+  source?: "manual" | "synced";
+  sync?: AccountSync[];
   isArchived: boolean;
   archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountSync = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  institutionId?: string | null;
+  institutionName?: string | null;
+  accountName?: string | null;
+  accountType?: string | null;
+  currency?: string | null;
+  externalBalance?: number | null;
+  status: string;
+  connectionStatus?: string | null;
+  lastSyncAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

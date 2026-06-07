@@ -5,6 +5,7 @@ import {
 } from "@flowledger/shared";
 import { AccountType, Prisma } from "@prisma/client";
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
@@ -99,6 +100,10 @@ function getNumber(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
 function normalizeAccountType(value: unknown): AccountType {
@@ -296,6 +301,85 @@ providersRouter.get(
     res.json({
       accounts: serialize(accounts.map(providerAccountSummary))
     });
+  })
+);
+
+providersRouter.post(
+  "/accounts/:id/resync",
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const providerAccount = await prisma.providerAccount.findFirst({
+      where: {
+        id: req.params.id,
+        userId,
+        accountId: { not: null }
+      },
+      include: { connection: true }
+    });
+
+    if (!providerAccount) {
+      throw new HttpError(404, "Synced account was not found");
+    }
+    if (!providerAccount.connection) {
+      throw new HttpError(409, "Synced account is missing a connection");
+    }
+
+    const provider = getProvider(providerAccount.provider);
+    if (!provider.handleWebhook) {
+      throw new HttpError(501, "Provider resync is not configured");
+    }
+
+    const rawConnectionData = getRecord(providerAccount.connection.rawData);
+    if (!rawConnectionData.endpoints) {
+      throw new HttpError(409, "Provider connection has no sync endpoints");
+    }
+    const providerUserId =
+      providerAccount.providerUserId ?? providerAccount.connection.providerUserId;
+    if (!providerUserId) {
+      throw new HttpError(409, "Provider account is missing a user mapping");
+    }
+
+    const event = {
+      header: {
+        event: {
+          eid: `manual-resync:${randomUUID()}`,
+          name: "credentials.refreshed"
+        },
+        user: {
+          id_user: providerUserId,
+          id_external: userId
+        }
+      },
+      payload: {
+        id_credential: providerAccount.providerCredentialId,
+        endpoints: rawConnectionData.endpoints
+      }
+    };
+    const recordedEvent = await prisma.providerWebhookEvent.create({
+      data: {
+        userId,
+        provider: providerAccount.provider,
+        providerUserId,
+        providerExternalId: userId,
+        providerCredentialId: providerAccount.providerCredentialId,
+        providerEventId: event.header.event.eid,
+        eventName: event.header.event.name,
+        rawPayload: toJsonValue(event),
+        rawHeaders: toJsonValue({ source: "manual-resync" }),
+        rawBody: JSON.stringify(event),
+        status: "received"
+      }
+    });
+    const result = await provider.handleWebhook({
+      eventId: recordedEvent.id,
+      payload: event
+    });
+
+    res.json({ resync: serialize(result) });
   })
 );
 
