@@ -1,4 +1,5 @@
 import { HttpError } from "../../../utils/httpError.js";
+import { env } from "../../../config/env.js";
 import type { FinancialProviderAdapter } from "../provider.types.js";
 import {
   createSyncfySession,
@@ -128,9 +129,8 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         widget: {
           token: session.token,
           config,
-          scriptUrl: "https://cdn.skypack.dev/@paybook/sync-widget",
-          styleUrl:
-            "https://cdn.jsdelivr.net/npm/@paybook/sync-widget/dist/widget.css"
+          scriptUrl: env.SYNCFY_WIDGET_SCRIPT_URL,
+          styleUrl: env.SYNCFY_WIDGET_STYLE_URL
         },
         rawData: {
           syncfyUserId: syncfyUser.idUser,

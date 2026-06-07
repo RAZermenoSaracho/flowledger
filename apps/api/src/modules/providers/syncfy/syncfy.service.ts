@@ -3,8 +3,8 @@ import { env } from "../../../config/env.js";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
 
-const syncfyApiBaseUrl = "https://api.syncfy.com";
-const syncfyDataBaseUrl = "https://sync.paybook.com";
+const syncfyApiBaseUrl = env.SYNCFY_API_BASE_URL;
+const syncfyDataBaseUrl = env.SYNCFY_DATA_BASE_URL;
 
 type JsonRecord = Record<string, unknown>;
 
