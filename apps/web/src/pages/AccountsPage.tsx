@@ -1,13 +1,17 @@
 import { ACCOUNT_TYPES, institutionCategories } from "@flowledger/shared";
 import type { AccountType, ProviderConnectionFlow } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
-import type { Account, Institution } from "../types/api";
+import type {
+  Account,
+  Institution,
+  ProviderImportedAccount
+} from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -110,6 +114,12 @@ export function AccountsPage() {
   const [syncfyWidgetError, setSyncfyWidgetError] = useState<string | null>(
     null
   );
+  const [selectedProviderAccountIds, setSelectedProviderAccountIds] = useState<
+    string[]
+  >([]);
+  const [providerAccountLinkTargets, setProviderAccountLinkTargets] = useState<
+    Record<string, string>
+  >({});
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
@@ -137,6 +147,35 @@ export function AccountsPage() {
         )
       ).institutions
   });
+
+  const providerAccountsQuery = useQuery({
+    queryKey: ["provider-accounts", "unlinked"],
+    queryFn: async () =>
+      (
+        await apiRequest<{ accounts: ProviderImportedAccount[] }>(
+          "/providers/accounts",
+          {
+            query: { status: "unlinked" }
+          }
+        )
+      ).accounts,
+    enabled: addMode === "sync",
+    refetchInterval: activeConnection ? 5000 : false
+  });
+
+  useEffect(() => {
+    setSelectedProviderAccountIds((existingIds) => {
+      const knownIds = new Set(
+        (providerAccountsQuery.data ?? []).map((account) => account.id)
+      );
+      const keptIds = existingIds.filter((id) => knownIds.has(id));
+      const missingIds = (providerAccountsQuery.data ?? [])
+        .map((account) => account.id)
+        .filter((id) => !keptIds.includes(id));
+
+      return [...keptIds, ...missingIds];
+    });
+  }, [providerAccountsQuery.data]);
 
   const institutionCountries = useMemo(() => {
     return Array.from(
@@ -246,6 +285,7 @@ export function AccountsPage() {
     onSuccess: async ({ connection }) => {
       setActiveConnection(connection);
       setSyncfyWidgetError(null);
+      await providerAccountsQuery.refetch();
       if (connection.url) {
         window.location.assign(connection.url);
         return;
@@ -310,6 +350,31 @@ export function AccountsPage() {
     }
   });
 
+  const confirmProviderAccounts = useMutation({
+    mutationFn: () =>
+      apiRequest<{ accounts: ProviderImportedAccount[] }>(
+        "/providers/accounts/confirm",
+        {
+          method: "POST",
+          body: {
+            accounts: selectedProviderAccountIds.map((providerAccountId) => ({
+              providerAccountId,
+              accountId:
+                providerAccountLinkTargets[providerAccountId] || undefined
+            }))
+          }
+        }
+      ),
+    onSuccess: async () => {
+      setSelectedProviderAccountIds([]);
+      setProviderAccountLinkTargets({});
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["provider-accounts"]
+      });
+    }
+  });
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     await createAccount.mutateAsync();
@@ -340,6 +405,8 @@ export function AccountsPage() {
     setSelectedInstitutionId(null);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
+    setSelectedProviderAccountIds([]);
+    setProviderAccountLinkTargets({});
     setIsFormOpen(false);
   }
 
@@ -365,6 +432,14 @@ export function AccountsPage() {
     );
     if (!confirmed) return;
     await deleteAccount.mutateAsync(account.id);
+  }
+
+  function toggleProviderAccount(providerAccountId: string) {
+    setSelectedProviderAccountIds((accountIds) =>
+      accountIds.includes(providerAccountId)
+        ? accountIds.filter((accountId) => accountId !== providerAccountId)
+        : [...accountIds, providerAccountId]
+    );
   }
 
   return (
@@ -601,6 +676,149 @@ export function AccountsPage() {
                   </p>
                 ) : null}
                 <div id={syncfyWidgetElementId} />
+                <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                    <div>
+                      <p className="font-semibold">
+                        Confirm discovered accounts
+                      </p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Select the accounts, cards, or investment accounts to
+                        add to FlowLedger after Syncfy imports them.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={providerAccountsQuery.isFetching}
+                      onClick={() => providerAccountsQuery.refetch()}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {(providerAccountsQuery.data ?? []).map(
+                      (providerAccount) => {
+                        const isSelected = selectedProviderAccountIds.includes(
+                          providerAccount.id
+                        );
+
+                        return (
+                          <div
+                            key={providerAccount.id}
+                            className="grid gap-3 rounded-md border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]"
+                          >
+                            <label className="flex min-w-0 gap-3">
+                              <input
+                                type="checkbox"
+                                className="mt-1 h-4 w-4 shrink-0"
+                                checked={isSelected}
+                                onChange={() =>
+                                  toggleProviderAccount(providerAccount.id)
+                                }
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold">
+                                  {providerAccount.name}
+                                </span>
+                                <span className="block text-sm capitalize text-slate-500 dark:text-slate-400">
+                                  {[
+                                    providerAccount.type.replace("_", " "),
+                                    providerAccount.currency,
+                                    providerAccount.institutionName
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                                {providerAccount.balance !== null &&
+                                providerAccount.balance !== undefined ? (
+                                  <span className="block text-sm font-semibold text-pine dark:text-emerald-300">
+                                    Balance{" "}
+                                    {money.format(providerAccount.balance)}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </label>
+                            <SelectField
+                              label="FlowLedger account"
+                              value={
+                                providerAccountLinkTargets[
+                                  providerAccount.id
+                                ] ?? ""
+                              }
+                              onChange={(event) =>
+                                setProviderAccountLinkTargets((targets) => ({
+                                  ...targets,
+                                  [providerAccount.id]: event.target.value
+                                }))
+                              }
+                              disabled={!isSelected}
+                            >
+                              <option value="">Create new account</option>
+                              {(accountsQuery.data ?? [])
+                                .filter((account) => !account.isArchived)
+                                .map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    Link to {account.name}
+                                  </option>
+                                ))}
+                            </SelectField>
+                          </div>
+                        );
+                      }
+                    )}
+                    {providerAccountsQuery.isLoading ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Waiting for discovered accounts.
+                      </p>
+                    ) : null}
+                    {providerAccountsQuery.isError ? (
+                      <p className="text-sm text-coral dark:text-orange-300">
+                        Could not load discovered accounts.
+                      </p>
+                    ) : null}
+                    {!providerAccountsQuery.isLoading &&
+                    !providerAccountsQuery.isError &&
+                    (providerAccountsQuery.data ?? []).length === 0 ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No discovered accounts yet. Complete the Syncfy flow,
+                        then refresh this list.
+                      </p>
+                    ) : null}
+                  </div>
+                  {(providerAccountsQuery.data ?? []).length > 0 ? (
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        disabled={
+                          confirmProviderAccounts.isPending ||
+                          selectedProviderAccountIds.length === 0
+                        }
+                        onClick={() => confirmProviderAccounts.mutate()}
+                      >
+                        Add selected accounts
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() =>
+                          setSelectedProviderAccountIds(
+                            (providerAccountsQuery.data ?? []).map(
+                              (account) => account.id
+                            )
+                          )
+                        }
+                      >
+                        Select all
+                      </Button>
+                    </div>
+                  ) : null}
+                  {confirmProviderAccounts.isError ? (
+                    <p className="mt-3 text-sm text-coral dark:text-orange-300">
+                      Could not add selected accounts.
+                    </p>
+                  ) : null}
+                </div>
                 <div>
                   <Button
                     type="button"

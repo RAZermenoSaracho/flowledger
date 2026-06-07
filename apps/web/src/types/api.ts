@@ -38,6 +38,22 @@ export type Account = {
 
 export type Institution = ProviderInstitution;
 
+export type ProviderImportedAccount = {
+  id: string;
+  provider: string;
+  institutionName?: string | null;
+  name: string;
+  type: AccountType;
+  providerType?: string | null;
+  currency?: string | null;
+  balance?: number | null;
+  status: string;
+  linkedAccountId?: string | null;
+  linkedAccount?: Pick<Account, "id" | "name" | "type"> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Category = {
   id: string;
   groupId?: string | null;

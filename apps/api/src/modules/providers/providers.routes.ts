@@ -1,11 +1,15 @@
 import {
+  confirmProviderAccountsSchema,
   createProviderConnectionSchema,
   institutionCatalogQuerySchema
 } from "@flowledger/shared";
+import { AccountType, Prisma } from "@prisma/client";
 import { Router } from "express";
+import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError } from "../../utils/httpError.js";
+import { serialize } from "../../utils/serialize.js";
 import type { ProviderInstitution } from "./provider.types.js";
 import { getProvider, listProviders } from "./providerRegistry.js";
 
@@ -75,6 +79,130 @@ function findSelectedInstitution(
   );
 }
 
+function getRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function getNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function normalizeAccountType(value: unknown): AccountType {
+  const rawType = getString(value)?.toLowerCase() ?? "";
+  if (/credit|card|tarjeta/.test(rawType)) return AccountType.credit_card;
+  if (/saving|ahorro/.test(rawType)) return AccountType.savings;
+  if (/checking|debit|bank|cuenta/.test(rawType)) return AccountType.checking;
+  if (/broker|invest|inversion/.test(rawType)) return AccountType.investment;
+  if (/cash|efectivo/.test(rawType)) return AccountType.cash;
+
+  return AccountType.other;
+}
+
+function providerAccountSummary(
+  providerAccount: Prisma.ProviderAccountGetPayload<{
+    include: { account: true; connection: true };
+  }>
+) {
+  const metadata = getRecord(providerAccount.accountMetadata);
+
+  return {
+    id: providerAccount.id,
+    provider: providerAccount.provider,
+    institutionName: providerAccount.connection?.institutionName ?? null,
+    name: getString(metadata.name) ?? "Imported account",
+    type: normalizeAccountType(metadata.type),
+    providerType: getString(metadata.type) ?? null,
+    currency: getString(metadata.currency) ?? null,
+    balance: getNumber(metadata.balance) ?? null,
+    status: providerAccount.status,
+    linkedAccountId: providerAccount.accountId,
+    linkedAccount: providerAccount.account
+      ? {
+          id: providerAccount.account.id,
+          name: providerAccount.account.name,
+          type: providerAccount.account.type
+        }
+      : null,
+    createdAt: providerAccount.createdAt,
+    updatedAt: providerAccount.updatedAt
+  };
+}
+
+async function assertUserAccount(userId: string, accountId: string) {
+  const account = await prisma.account.findFirst({
+    where: { id: accountId, userId },
+    select: { id: true }
+  });
+
+  if (!account) {
+    throw new HttpError(404, "FlowLedger account was not found");
+  }
+}
+
+async function createOrLinkProviderAccount(input: {
+  userId: string;
+  providerAccountId: string;
+  accountId?: string;
+}) {
+  const providerAccount = await prisma.providerAccount.findFirst({
+    where: {
+      id: input.providerAccountId,
+      userId: input.userId
+    },
+    include: {
+      account: true,
+      connection: true
+    }
+  });
+
+  if (!providerAccount) {
+    throw new HttpError(404, "Imported provider account was not found");
+  }
+
+  if (providerAccount.accountId) return providerAccount;
+
+  if (input.accountId) {
+    await assertUserAccount(input.userId, input.accountId);
+
+    return prisma.providerAccount.update({
+      where: { id: providerAccount.id },
+      data: { accountId: input.accountId },
+      include: { account: true, connection: true }
+    });
+  }
+
+  const metadata = getRecord(providerAccount.accountMetadata);
+  const account = await prisma.account.create({
+    data: {
+      userId: input.userId,
+      name: getString(metadata.name) ?? "Synced account",
+      type: normalizeAccountType(metadata.type),
+      identifier: null,
+      initialBalance: new Prisma.Decimal(getNumber(metadata.balance) ?? 0)
+    }
+  });
+
+  return prisma.providerAccount.update({
+    where: { id: providerAccount.id },
+    data: { accountId: account.id },
+    include: { account: true, connection: true }
+  });
+}
+
 providersRouter.get(
   "/institutions",
   validate(institutionCatalogQuerySchema, "query"),
@@ -140,6 +268,62 @@ providersRouter.post(
         url: "url" in flow ? flow.url : undefined,
         widget: "widget" in flow ? flow.widget : undefined
       }
+    });
+  })
+);
+
+providersRouter.get(
+  "/accounts",
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const accounts = await prisma.providerAccount.findMany({
+      where: {
+        userId,
+        ...(req.query.status === "unlinked" ? { accountId: null } : {})
+      },
+      include: {
+        account: true,
+        connection: true
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50
+    });
+
+    res.json({
+      accounts: serialize(accounts.map(providerAccountSummary))
+    });
+  })
+);
+
+providersRouter.post(
+  "/accounts/confirm",
+  validate(confirmProviderAccountsSchema),
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const confirmedAccounts = [];
+    for (const account of req.body.accounts as {
+      providerAccountId: string;
+      accountId?: string;
+    }[]) {
+      confirmedAccounts.push(
+        await createOrLinkProviderAccount({
+          userId,
+          providerAccountId: account.providerAccountId,
+          accountId: account.accountId
+        })
+      );
+    }
+
+    res.status(201).json({
+      accounts: serialize(confirmedAccounts.map(providerAccountSummary))
     });
   })
 );

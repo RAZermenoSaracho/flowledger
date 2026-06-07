@@ -103,19 +103,20 @@ model UserAuthAccount {
 }
 
 model Account {
-  id                              String        @id @default(cuid())
+  id                              String            @id @default(cuid())
   userId                          String
   name                            String
   type                            AccountType
   identifier                      String?
-  initialBalance                  Decimal       @default(0) @db.Decimal(12, 2)
-  isArchived                      Boolean       @default(false)
+  initialBalance                  Decimal           @default(0) @db.Decimal(12, 2)
+  isArchived                      Boolean           @default(false)
   archivedAt                      DateTime?
-  createdAt                       DateTime      @default(now())
-  updatedAt                       DateTime      @updatedAt
-  user                            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions                    Transaction[] @relation("TransactionAccount")
-  transferDestinationTransactions Transaction[] @relation("TransactionTransferToAccount")
+  createdAt                       DateTime          @default(now())
+  updatedAt                       DateTime          @updatedAt
+  user                            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions                    Transaction[]     @relation("TransactionAccount")
+  transferDestinationTransactions Transaction[]     @relation("TransactionTransferToAccount")
+  providerAccounts                ProviderAccount[]
 
   @@index([userId])
   @@index([userId, isArchived])
@@ -345,6 +346,7 @@ model ProviderAccount {
   id                   String                        @id @default(cuid())
   userId               String
   connectionId         String?
+  accountId            String?
   provider             String
   providerUserId       String?
   providerCredentialId String
@@ -358,11 +360,13 @@ model ProviderAccount {
   updatedAt            DateTime                      @updatedAt
   user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection           ProviderConnection?           @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  account              Account?                      @relation(fields: [accountId], references: [id], onDelete: SetNull)
   importedTransactions ProviderImportedTransaction[]
 
   @@unique([provider, providerCredentialId, providerAccountId])
   @@index([userId])
   @@index([connectionId])
+  @@index([accountId])
   @@index([provider, providerUserId])
   @@index([provider, status])
 }

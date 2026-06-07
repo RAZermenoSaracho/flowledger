@@ -20,3 +20,15 @@ export const createProviderConnectionSchema = z.object({
   institutionId: z.string().trim().min(1).max(100),
   provider: z.string().trim().min(1).max(50).optional()
 });
+
+export const confirmProviderAccountsSchema = z.object({
+  accounts: z
+    .array(
+      z.object({
+        providerAccountId: z.string().trim().min(1),
+        accountId: z.string().trim().min(1).optional()
+      })
+    )
+    .min(1)
+    .max(50)
+});
