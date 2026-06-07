@@ -1,7 +1,8 @@
 import {
   confirmProviderAccountsSchema,
   createProviderConnectionSchema,
-  institutionCatalogQuerySchema
+  institutionCatalogQuerySchema,
+  providerConnectionParamsSchema
 } from "@flowledger/shared";
 import { AccountType, Prisma } from "@prisma/client";
 import { Router } from "express";
@@ -208,6 +209,61 @@ async function createOrLinkProviderAccount(input: {
   });
 }
 
+async function triggerConnectionResync(input: {
+  userId: string;
+  connection: Prisma.ProviderConnectionGetPayload<object>;
+}) {
+  const provider = getProvider(input.connection.provider);
+  if (!provider.handleWebhook) {
+    throw new HttpError(501, "Provider resync is not configured");
+  }
+
+  const rawConnectionData = getRecord(input.connection.rawData);
+  if (!rawConnectionData.endpoints) {
+    throw new HttpError(409, "Provider connection has no sync endpoints");
+  }
+  if (!input.connection.providerUserId) {
+    throw new HttpError(409, "Provider connection is missing a user mapping");
+  }
+
+  const event = {
+    header: {
+      event: {
+        eid: `manual-resync:${randomUUID()}`,
+        name: "credentials.refreshed"
+      },
+      user: {
+        id_user: input.connection.providerUserId,
+        id_external: input.userId
+      }
+    },
+    payload: {
+      id_credential: input.connection.providerCredentialId,
+      endpoints: rawConnectionData.endpoints
+    }
+  };
+  const recordedEvent = await prisma.providerWebhookEvent.create({
+    data: {
+      userId: input.userId,
+      provider: input.connection.provider,
+      providerUserId: input.connection.providerUserId,
+      providerExternalId: input.userId,
+      providerCredentialId: input.connection.providerCredentialId,
+      providerEventId: event.header.event.eid,
+      eventName: event.header.event.name,
+      rawPayload: toJsonValue(event),
+      rawHeaders: toJsonValue({ source: "manual-resync" }),
+      rawBody: JSON.stringify(event),
+      status: "received"
+    }
+  });
+
+  return provider.handleWebhook({
+    eventId: recordedEvent.id,
+    payload: event
+  });
+}
+
 providersRouter.get(
   "/institutions",
   validate(institutionCatalogQuerySchema, "query"),
@@ -278,6 +334,94 @@ providersRouter.post(
 );
 
 providersRouter.get(
+  "/connections/:id/status",
+  validate(providerConnectionParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const connection = await prisma.providerConnection.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      },
+      include: {
+        _count: {
+          select: {
+            accounts: true,
+            importedTransactions: true
+          }
+        }
+      }
+    });
+
+    if (!connection) {
+      throw new HttpError(404, "Provider connection was not found");
+    }
+
+    const latestWebhookEvent = await prisma.providerWebhookEvent.findFirst({
+      where: {
+        provider: connection.provider,
+        providerCredentialId: connection.providerCredentialId
+      },
+      orderBy: { receivedAt: "desc" },
+      select: {
+        id: true,
+        eventName: true,
+        status: true,
+        errorMessage: true,
+        receivedAt: true,
+        processedAt: true
+      }
+    });
+
+    res.json({
+      connection: serialize({
+        id: connection.id,
+        provider: connection.provider,
+        institutionId: connection.institutionId,
+        institutionName: connection.institutionName,
+        status: connection.status,
+        lastSyncAt: connection.lastSyncAt,
+        createdAt: connection.createdAt,
+        updatedAt: connection.updatedAt,
+        accountsCount: connection._count.accounts,
+        importedTransactionsCount: connection._count.importedTransactions,
+        latestWebhookEvent
+      })
+    });
+  })
+);
+
+providersRouter.post(
+  "/connections/:id/resync",
+  validate(providerConnectionParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const connection = await prisma.providerConnection.findFirst({
+      where: {
+        id: req.params.id,
+        userId
+      }
+    });
+
+    if (!connection) {
+      throw new HttpError(404, "Provider connection was not found");
+    }
+
+    const result = await triggerConnectionResync({ userId, connection });
+
+    res.json({ resync: serialize(result) });
+  })
+);
+
+providersRouter.get(
   "/accounts",
   asyncHandler(async (req, res) => {
     const userId = req.user?.id;
@@ -328,55 +472,14 @@ providersRouter.post(
       throw new HttpError(409, "Synced account is missing a connection");
     }
 
-    const provider = getProvider(providerAccount.provider);
-    if (!provider.handleWebhook) {
-      throw new HttpError(501, "Provider resync is not configured");
-    }
-
-    const rawConnectionData = getRecord(providerAccount.connection.rawData);
-    if (!rawConnectionData.endpoints) {
-      throw new HttpError(409, "Provider connection has no sync endpoints");
-    }
-    const providerUserId =
-      providerAccount.providerUserId ?? providerAccount.connection.providerUserId;
-    if (!providerUserId) {
-      throw new HttpError(409, "Provider account is missing a user mapping");
-    }
-
-    const event = {
-      header: {
-        event: {
-          eid: `manual-resync:${randomUUID()}`,
-          name: "credentials.refreshed"
-        },
-        user: {
-          id_user: providerUserId,
-          id_external: userId
-        }
-      },
-      payload: {
-        id_credential: providerAccount.providerCredentialId,
-        endpoints: rawConnectionData.endpoints
+    const result = await triggerConnectionResync({
+      userId,
+      connection: {
+        ...providerAccount.connection,
+        providerUserId:
+          providerAccount.providerUserId ??
+          providerAccount.connection.providerUserId
       }
-    };
-    const recordedEvent = await prisma.providerWebhookEvent.create({
-      data: {
-        userId,
-        provider: providerAccount.provider,
-        providerUserId,
-        providerExternalId: userId,
-        providerCredentialId: providerAccount.providerCredentialId,
-        providerEventId: event.header.event.eid,
-        eventName: event.header.event.name,
-        rawPayload: toJsonValue(event),
-        rawHeaders: toJsonValue({ source: "manual-resync" }),
-        rawBody: JSON.stringify(event),
-        status: "received"
-      }
-    });
-    const result = await provider.handleWebhook({
-      eventId: recordedEvent.id,
-      payload: event
     });
 
     res.json({ resync: serialize(result) });

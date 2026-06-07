@@ -1,0 +1,316 @@
+import { providerWebhookParamsSchema } from "@flowledger/shared";
+import { Prisma } from "@prisma/client";
+import { Router } from "express";
+import { createHmac, randomUUID } from "node:crypto";
+import { z } from "zod";
+import { env } from "../../config/env.js";
+import { prisma } from "../../db/prisma.js";
+import { validate } from "../../middleware/validate.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
+import type { ProviderKey } from "./provider.types.js";
+import { getProvider } from "./providerRegistry.js";
+import { verifySyncfyWebhookSignature } from "./syncfy/syncfy.webhookSecurity.js";
+
+export const providerWebhooksRouter = Router();
+
+const syncfyWebhookEventSchema = z.object({
+  header: z.object({
+    event: z.object({
+      eid: z.string().optional(),
+      name: z.string().optional()
+    }),
+    user: z.object({
+      id_user: z.string().optional(),
+      id_external: z.string().optional()
+    })
+  }),
+  payload: z
+    .object({
+      id_credential: z.string().optional(),
+      endpoints: z.unknown().optional()
+    })
+    .passthrough()
+});
+
+const syncfyWebhookSchema = z.object({
+  rid: z.string().optional(),
+  events: z.array(syncfyWebhookEventSchema).default([])
+});
+
+type SyncfyWebhookEvent = z.infer<typeof syncfyWebhookEventSchema>;
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
+}
+
+function rawBodyString(rawBody: Buffer | undefined) {
+  return rawBody?.toString("utf8") ?? "";
+}
+
+function generatedEventEid(
+  rid: string | undefined,
+  event: SyncfyWebhookEvent,
+  index: number
+) {
+  const hash = createHmac("sha256", "flowledger-provider-generated-eid")
+    .update(JSON.stringify(event))
+    .digest("hex")
+    .slice(0, 16);
+
+  return `generated:${rid ?? "no-rid"}:${index}:${hash}`;
+}
+
+function getHeaderString(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+async function findFlowLedgerUserId(provider: string, providerUserId?: string) {
+  if (!providerUserId) return undefined;
+
+  const mapping = await prisma.userAuthAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider,
+        providerAccountId: providerUserId
+      }
+    },
+    select: { userId: true }
+  });
+
+  return mapping?.userId;
+}
+
+async function recordInvalidWebhook(input: {
+  provider: string;
+  rawBody: unknown;
+  rawHeaders: Prisma.InputJsonValue;
+  rawBodyText: string;
+  eventName: string;
+  errorMessage: string;
+}) {
+  return prisma.providerWebhookEvent.create({
+    data: {
+      provider: input.provider,
+      providerEventId: `invalid:${randomUUID()}`,
+      eventName: input.eventName,
+      rawPayload: toJsonValue(input.rawBody),
+      rawHeaders: input.rawHeaders,
+      rawBody: input.rawBodyText,
+      status: "failed",
+      processedAt: new Date(),
+      errorMessage: input.errorMessage.slice(0, 1000)
+    }
+  });
+}
+
+async function recordSyncfyEvent(input: {
+  rid?: string;
+  event: SyncfyWebhookEvent;
+  rawHeaders: Prisma.InputJsonValue;
+  rawBody: string;
+  index: number;
+}) {
+  const provider = "syncfy";
+  const providerEventId =
+    input.event.header.event.eid ??
+    generatedEventEid(input.rid, input.event, input.index);
+  const userId = await findFlowLedgerUserId(
+    provider,
+    input.event.header.user.id_user
+  );
+  const data = {
+    userId,
+    provider,
+    rid: input.rid,
+    providerEventId,
+    eventName: input.event.header.event.name ?? "unknown",
+    providerUserId: input.event.header.user.id_user,
+    providerExternalId: input.event.header.user.id_external,
+    providerCredentialId: input.event.payload.id_credential,
+    rawPayload: toJsonValue(input.event),
+    rawHeaders: input.rawHeaders,
+    rawBody: input.rawBody,
+    status: "received",
+    processedAt: null,
+    errorMessage: null
+  };
+
+  try {
+    const recordedEvent = await prisma.providerWebhookEvent.create({ data });
+
+    return { recordedEvent, shouldProcess: true };
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const recordedEvent = await prisma.providerWebhookEvent.findUnique({
+        where: {
+          provider_providerEventId: {
+            provider,
+            providerEventId
+          }
+        }
+      });
+
+      if (recordedEvent) return { recordedEvent, shouldProcess: false };
+    }
+
+    throw error;
+  }
+}
+
+function processRecordedEvent(input: {
+  provider: ReturnType<typeof getProvider>;
+  eventId: string;
+  event: SyncfyWebhookEvent;
+}) {
+  if (!input.provider.handleWebhook) return;
+
+  void input.provider
+    .handleWebhook({ eventId: input.eventId, payload: input.event })
+    .catch(() => undefined);
+}
+
+providerWebhooksRouter.post(
+  "/:provider",
+  validate(providerWebhookParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const providerParam = req.params.provider;
+    if (!providerParam) {
+      res.status(400).json({ message: "Provider is required" });
+      return;
+    }
+
+    const providerKey = providerParam as ProviderKey;
+    const provider = getProvider(providerKey);
+    const rawHeaders = toJsonValue(req.headers);
+    const rawBody = rawBodyString(req.rawBody);
+
+    if (providerKey !== "syncfy") {
+      const eventId = `generic:${randomUUID()}`;
+      const recordedEvent = await prisma.providerWebhookEvent.create({
+        data: {
+          provider: providerParam,
+          providerEventId: eventId,
+          eventName: "webhook",
+          rawPayload: toJsonValue(req.body),
+          rawHeaders,
+          rawBody,
+          status: "received"
+        }
+      });
+
+      const result = provider.handleWebhook
+        ? await provider.handleWebhook({
+            eventId: recordedEvent.id,
+            payload: req.body,
+            headers: req.headers
+          })
+        : { status: "ignored" as const };
+
+      res.status(200).json({
+        success: true,
+        acceptedEvents: 1,
+        result
+      });
+      return;
+    }
+
+    const signatureVerification = verifySyncfyWebhookSignature({
+      rawBody: req.rawBody,
+      signature: getHeaderString(req.headers["request-signature"]),
+      signatureKey: env.SYNCFY_WEBHOOK_SIGNATURE_KEY
+    });
+
+    if (signatureVerification === "invalid") {
+      await recordInvalidWebhook({
+        provider: providerParam,
+        rawBody: req.body,
+        rawHeaders,
+        rawBodyText: rawBody,
+        eventName: "invalid_signature",
+        errorMessage: "Syncfy webhook request-signature validation failed."
+      }).catch(() => undefined);
+
+      res.status(200).json({
+        success: true,
+        acceptedEvents: 0
+      });
+      return;
+    }
+
+    const parsedWebhook = syncfyWebhookSchema.safeParse(req.body);
+
+    if (!parsedWebhook.success) {
+      await recordInvalidWebhook({
+        provider: providerParam,
+        rawBody: req.body,
+        rawHeaders,
+        rawBodyText: rawBody,
+        eventName: "invalid",
+        errorMessage: parsedWebhook.error.message
+      }).catch(() => undefined);
+
+      res.status(200).json({
+        success: true,
+        acceptedEvents: 0
+      });
+      return;
+    }
+
+    const webhook = parsedWebhook.data;
+    const recordResults = await Promise.allSettled(
+      webhook.events.map(async (event, index) => ({
+        event,
+        recordedEventResult: await recordSyncfyEvent({
+          rid: webhook.rid,
+          event,
+          rawHeaders,
+          rawBody,
+          index
+        })
+      }))
+    );
+    const recordedEvents = recordResults.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
+    );
+
+    res.status(200).json({
+      success: true,
+      rid: webhook.rid,
+      signatureVerification,
+      acceptedEvents: recordedEvents.length
+    });
+
+    recordedEvents.forEach(({ event, recordedEventResult }) => {
+      if (!recordedEventResult.shouldProcess) return;
+
+      processRecordedEvent({
+        provider,
+        eventId: recordedEventResult.recordedEvent.id,
+        event
+      });
+    });
+  })
+);
+
+providerWebhooksRouter.get(
+  "/:provider",
+  validate(providerWebhookParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const providerParam = req.params.provider;
+    if (!providerParam) {
+      res.status(400).json({ message: "Provider is required" });
+      return;
+    }
+
+    getProvider(providerParam as ProviderKey);
+
+    res.status(200).json({
+      success: true,
+      provider: providerParam,
+      message: "Provider webhook endpoint is alive. Use POST for events."
+    });
+  })
+);

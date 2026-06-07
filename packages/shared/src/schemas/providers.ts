@@ -21,6 +21,10 @@ export const createProviderConnectionSchema = z.object({
   provider: z.string().trim().min(1).max(50).optional()
 });
 
+export const providerConnectionParamsSchema = z.object({
+  id: z.string().trim().min(1)
+});
+
 export const confirmProviderAccountsSchema = z.object({
   accounts: z
     .array(
@@ -31,4 +35,8 @@ export const confirmProviderAccountsSchema = z.object({
     )
     .min(1)
     .max(50)
+});
+
+export const providerWebhookParamsSchema = z.object({
+  provider: z.string().trim().min(1).max(50)
 });

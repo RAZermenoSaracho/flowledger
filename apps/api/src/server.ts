@@ -17,6 +17,7 @@ import {
 } from "./modules/debts/debts.routes.js";
 import { groupsRouter } from "./modules/groups/groups.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
+import { providerWebhooksRouter } from "./modules/providers/providerWebhooks.routes.js";
 import { providersRouter } from "./modules/providers/providers.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
@@ -51,6 +52,7 @@ app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);
 app.use("/groups", requireAuth, groupsRouter);
 app.use("/notifications", requireAuth, notificationsRouter);
+app.use("/providers/webhooks", providerWebhooksRouter);
 app.use("/providers", requireAuth, providersRouter);
 app.use("/debts", requireAuth, debtsRouter);
 app.use("/settlements", requireAuth, settlementsRouter);
