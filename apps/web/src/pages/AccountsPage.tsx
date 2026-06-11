@@ -1,4 +1,4 @@
-import { ACCOUNT_TYPES, institutionCategories } from "@flowledger/shared";
+import { ACCOUNT_TYPES } from "@flowledger/shared";
 import type { AccountType, ProviderConnectionFlow } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -7,13 +7,9 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
-import type {
-  Account,
-  Connector,
-  Institution,
-  ProviderImportedAccount
-} from "../types/api";
+import type { Account, Connector, ProviderImportedAccount } from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
+import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -25,40 +21,67 @@ const dateTime = new Intl.DateTimeFormat("en-US", {
   timeStyle: "short"
 });
 
-const syncfyWidgetElementId = "syncfy-widget";
-
 type SyncfyWidgetConstructor = new (params: {
   token: string;
-  element: string | Element;
   config: Record<string, unknown>;
 }) => {
-  open?: () => void;
+  open: () => void;
 };
 
-type SyncfyWidgetModule = {
-  default?: SyncfyWidgetConstructor;
-  SyncWidget?: SyncfyWidgetConstructor;
-};
-
-function ensureStylesheet(id: string, href: string) {
-  if (document.getElementById(id)) return;
-
-  const link = document.createElement("link");
-  link.id = id;
-  link.rel = "stylesheet";
-  link.href = href;
-  document.head.appendChild(link);
-}
-
-function ensureSyncfyWidgetElement() {
-  const existingElement = document.getElementById(syncfyWidgetElementId);
-  if (existingElement) return existingElement;
+function resetSyncfyWidgetContainer() {
+  const existing = document.getElementById("widget");
+  existing?.remove();
 
   const element = document.createElement("div");
-  element.id = syncfyWidgetElementId;
+  element.id = "widget";
   document.body.appendChild(element);
 
   return element;
+}
+
+async function openSyncfyWidget(
+  widget: NonNullable<ProviderConnectionFlow["widget"]>
+) {
+  if (typeof (globalThis as any).global === "undefined") {
+    (globalThis as any).global = globalThis;
+  }
+
+  resetSyncfyWidgetContainer();
+
+  const module = (await import("@syncfy/authentication-widget")) as {
+    default: SyncfyWidgetConstructor;
+  };
+
+  const syncfyWidget = new module.default({
+    token: widget.token,
+    config: widget.config
+  });
+
+  syncfyWidget.open();
+
+  // Fallback cleanup: when user closes the widget with X,
+  // Syncfy hides/removes UI but may leave Vue mounted.
+  const observer = new MutationObserver(() => {
+    const widgetElement = document.getElementById("widget");
+
+    if (!widgetElement) {
+      observer.disconnect();
+      resetSyncfyWidgetContainer();
+      return;
+    }
+
+    const hasVisibleWidgetContent = widgetElement.children.length > 0;
+
+    if (!hasVisibleWidgetContent) {
+      observer.disconnect();
+      resetSyncfyWidgetContainer();
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -72,46 +95,17 @@ function formatStatus(value: string | null | undefined) {
   return value ? value.replace("_", " ") : "unknown";
 }
 
-async function openSyncfyWidget(
-  widget: NonNullable<ProviderConnectionFlow["widget"]>
-) {
-  if (widget.styleUrl) {
-    ensureStylesheet("syncfy-widget-styles", widget.styleUrl);
-  }
-
-  const widgetModule = widget.scriptUrl
-    ? ((await import(
-        /* @vite-ignore */ widget.scriptUrl
-      )) as SyncfyWidgetModule)
-    : ({} as SyncfyWidgetModule);
-  const SyncWidget =
-    widgetModule.default ??
-    widgetModule.SyncWidget ??
-    (window as typeof window & { SyncWidget?: SyncfyWidgetConstructor })
-      .SyncWidget;
-
-  if (!SyncWidget) {
-    throw new Error("Syncfy widget could not be loaded");
-  }
-
-  const element = ensureSyncfyWidgetElement();
-  const syncWidget = new SyncWidget({
-    token: widget.token,
-    element,
-    config: widget.config
-  });
-
-  syncWidget.open?.();
-}
-
 export function AccountsPage() {
   const queryClient = useQueryClient();
+
   const [addMode, setAddMode] = useState<"manual" | "sync" | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
   const [identifier, setIdentifier] = useState("");
   const [initialBalance, setInitialBalance] = useState("0");
-  const [isFormOpen, setIsFormOpen] = useState(false);
+
   const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
     "active"
   );
@@ -119,24 +113,23 @@ export function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [institutionSearch, setInstitutionSearch] = useState("");
-  const [institutionCategoryFilter, setInstitutionCategoryFilter] =
-    useState("");
-  const [institutionCountryFilter, setInstitutionCountryFilter] = useState("");
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState<
-    string | null
-  >(null);
+
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
+    null
+  );
   const [activeConnection, setActiveConnection] =
     useState<ProviderConnectionFlow | null>(null);
   const [syncfyWidgetError, setSyncfyWidgetError] = useState<string | null>(
     null
   );
+
   const [selectedProviderAccountIds, setSelectedProviderAccountIds] = useState<
     string[]
   >([]);
   const [providerAccountLinkTargets, setProviderAccountLinkTargets] = useState<
     Record<string, string>
   >({});
+
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
@@ -153,16 +146,6 @@ export function AccountsPage() {
           }
         })
       ).accounts
-  });
-
-  const institutionsQuery = useQuery({
-    queryKey: ["provider-institutions"],
-    queryFn: async () =>
-      (
-        await apiRequest<{ institutions: Institution[] }>(
-          "/providers/institutions"
-        )
-      ).institutions
   });
 
   const connectorsQuery = useQuery({
@@ -200,48 +183,6 @@ export function AccountsPage() {
       return [...keptIds, ...missingIds];
     });
   }, [providerAccountsQuery.data]);
-
-  const institutionCountries = useMemo(() => {
-    return Array.from(
-      new Set(
-        (institutionsQuery.data ?? [])
-          .map((institution) => institution.country)
-          .filter((country): country is string => Boolean(country))
-      )
-    ).sort((left, right) => left.localeCompare(right));
-  }, [institutionsQuery.data]);
-
-  const visibleInstitutions = useMemo(() => {
-    return applyCollectionControls(institutionsQuery.data ?? [], {
-      search: institutionSearch,
-      searchFields: (institution) => [
-        institution.name,
-        institution.country,
-        institution.category,
-        ...institution.supportedAccountTypes
-      ],
-      filters: [
-        (institution) =>
-          institutionCategoryFilter
-            ? institution.category === institutionCategoryFilter
-            : true,
-        (institution) =>
-          institutionCountryFilter
-            ? institution.country === institutionCountryFilter
-            : true
-      ],
-      sortBy: "name",
-      sortDirection: "asc",
-      sorters: {
-        name: (institution) => institution.name
-      }
-    }).slice(0, 24);
-  }, [
-    institutionCategoryFilter,
-    institutionCountryFilter,
-    institutionSearch,
-    institutionsQuery.data
-  ]);
 
   const visibleAccounts = useMemo(() => {
     return applyCollectionControls(accountsQuery.data ?? [], {
@@ -302,14 +243,13 @@ export function AccountsPage() {
     }
   });
 
-  const startInstitutionConnection = useMutation({
-    mutationFn: (target: { provider: string; institutionId?: string }) =>
+  const startProviderConnection = useMutation({
+    mutationFn: (target: { provider: string }) =>
       apiRequest<{ connection: ProviderConnectionFlow }>(
         "/providers/connections",
         {
           method: "POST",
           body: {
-            institutionId: target.institutionId,
             provider: target.provider
           }
         }
@@ -318,6 +258,7 @@ export function AccountsPage() {
       setActiveConnection(connection);
       setSyncfyWidgetError(null);
       await providerAccountsQuery.refetch();
+
       if (connection.url) {
         window.location.assign(connection.url);
         return;
@@ -401,9 +342,7 @@ export function AccountsPage() {
       setSelectedProviderAccountIds([]);
       setProviderAccountLinkTargets({});
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      await queryClient.invalidateQueries({
-        queryKey: ["provider-accounts"]
-      });
+      await queryClient.invalidateQueries({ queryKey: ["provider-accounts"] });
     }
   });
 
@@ -443,10 +382,7 @@ export function AccountsPage() {
     setIdentifier("");
     setInitialBalance("0");
     setAddMode(null);
-    setInstitutionSearch("");
-    setInstitutionCategoryFilter("");
-    setInstitutionCountryFilter("");
-    setSelectedInstitutionId(null);
+    setSelectedConnectorId(null);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
     setSelectedProviderAccountIds([]);
@@ -488,16 +424,16 @@ export function AccountsPage() {
 
   function reconnectSyncedAccount(account: Account, syncId: string) {
     const sync = account.sync?.find((item) => item.id === syncId);
-    if (!sync?.institutionId) return;
+    if (!sync?.provider) return;
 
     setIsFormOpen(true);
     setAddMode("sync");
-    setSelectedInstitutionId(`${sync.provider}:${sync.institutionId}`);
+    setSelectedConnectorId(`connector:${sync.provider}`);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
-    startInstitutionConnection.mutate({
-      provider: sync.provider,
-      institutionId: sync.institutionId
+
+    startProviderConnection.mutate({
+      provider: sync.provider
     });
   }
 
@@ -544,8 +480,8 @@ export function AccountsPage() {
                 >
                   <p className="font-semibold">Sync accounts</p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Pick a bank, broker, or institution and FlowLedger will
-                    start the matching connection flow.
+                    Choose a provider. The provider widget will open so you can
+                    select and connect your institution securely.
                   </p>
                 </button>
               </div>
@@ -608,20 +544,20 @@ export function AccountsPage() {
                   {(connectorsQuery.data ?? []).map((connector) => {
                     const connectorKey = `connector:${connector.provider}:${connector.connectorId}`;
                     const isStarting =
-                      selectedInstitutionId === connectorKey &&
-                      startInstitutionConnection.isPending;
+                      selectedConnectorId === connectorKey &&
+                      startProviderConnection.isPending;
 
                     return (
                       <button
                         key={connectorKey}
                         type="button"
                         className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
-                        disabled={startInstitutionConnection.isPending}
+                        disabled={startProviderConnection.isPending}
                         onClick={() => {
-                          setSelectedInstitutionId(connectorKey);
+                          setSelectedConnectorId(connectorKey);
                           setActiveConnection(null);
                           setSyncfyWidgetError(null);
-                          startInstitutionConnection.mutate({
+                          startProviderConnection.mutate({
                             provider: connector.provider
                           });
                         }}
@@ -649,155 +585,39 @@ export function AccountsPage() {
                     );
                   })}
                 </div>
+
                 {connectorsQuery.isLoading ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Loading connection options.
                   </p>
                 ) : null}
+
                 {connectorsQuery.isError ? (
                   <p className="text-sm text-coral dark:text-orange-300">
                     Connection options are unavailable.
                   </p>
                 ) : null}
-                {(institutionsQuery.data ?? []).length > 0 ? (
-                  <>
-                    <SearchComponent
-                      searchValue={institutionSearch}
-                      searchPlaceholder="Search banks, brokers, institutions"
-                      onSearchChange={setInstitutionSearch}
-                      filters={[
-                        {
-                          id: "category",
-                          label: "Category",
-                          value: institutionCategoryFilter,
-                          onChange: setInstitutionCategoryFilter,
-                          options: [
-                            { label: "All categories", value: "" },
-                            ...institutionCategories.map((item) => ({
-                              label: item,
-                              value: item
-                            }))
-                          ]
-                        },
-                        {
-                          id: "country",
-                          label: "Country",
-                          value: institutionCountryFilter,
-                          onChange: setInstitutionCountryFilter,
-                          options: [
-                            { label: "All countries", value: "" },
-                            ...institutionCountries.map((country) => ({
-                              label: country,
-                              value: country
-                            }))
-                          ]
-                        }
-                      ]}
-                    />
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {visibleInstitutions.map((institution) => {
-                        const institutionKey = `${institution.provider}:${institution.institutionId}`;
-                        const isStarting =
-                          selectedInstitutionId === institutionKey &&
-                          startInstitutionConnection.isPending;
 
-                        return (
-                          <button
-                            key={institutionKey}
-                            type="button"
-                            className="flex min-w-0 gap-3 rounded-md border border-slate-200 p-3 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
-                            disabled={startInstitutionConnection.isPending}
-                            onClick={() => {
-                              setSelectedInstitutionId(institutionKey);
-                              setActiveConnection(null);
-                              setSyncfyWidgetError(null);
-                              startInstitutionConnection.mutate({
-                                provider: institution.provider,
-                                institutionId: institution.institutionId
-                              });
-                            }}
-                          >
-                            {institution.logoUrl ? (
-                              <img
-                                src={institution.logoUrl}
-                                alt=""
-                                className="h-10 w-10 shrink-0 rounded border border-slate-200 object-contain dark:border-slate-800"
-                                onError={(event) => {
-                                  event.currentTarget.style.display = "none";
-                                }}
-                              />
-                            ) : null}
-                            <span className="min-w-0">
-                              <span className="block truncate font-semibold">
-                                {institution.name}
-                              </span>
-                              <span className="block text-sm capitalize text-slate-500 dark:text-slate-400">
-                                {[institution.category, institution.country]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </span>
-                              {institution.supportedAccountTypes.length > 0 ? (
-                                <span className="mt-2 flex flex-wrap gap-1">
-                                  {institution.supportedAccountTypes
-                                    .slice(0, 4)
-                                    .map((item) => (
-                                      <span
-                                        key={item}
-                                        className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                                      >
-                                        {item}
-                                      </span>
-                                    ))}
-                                </span>
-                              ) : null}
-                              {isStarting ? (
-                                <span className="mt-2 block text-sm font-semibold text-pine dark:text-emerald-300">
-                                  Starting connection...
-                                </span>
-                              ) : null}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : null}
-                {institutionsQuery.isLoading ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Loading institutions.
-                  </p>
-                ) : null}
-                {institutionsQuery.isError ? (
-                  <p className="text-sm text-coral dark:text-orange-300">
-                    Institution picker is unavailable.
-                  </p>
-                ) : null}
-                {!institutionsQuery.isLoading &&
-                !institutionsQuery.isError &&
-                visibleInstitutions.length === 0 &&
-                (institutionsQuery.data ?? []).length > 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No institutions found.
-                  </p>
-                ) : null}
-                {startInstitutionConnection.isError ? (
+                {startProviderConnection.isError ? (
                   <p className="text-sm text-coral dark:text-orange-300">
                     Could not start the connection flow.
                   </p>
                 ) : null}
+
                 {syncfyWidgetError ? (
                   <p className="text-sm text-coral dark:text-orange-300">
                     {syncfyWidgetError}
                   </p>
                 ) : null}
+
                 {activeConnection && !activeConnection.url ? (
                   <p className="text-sm font-semibold text-pine dark:text-emerald-300">
                     {activeConnection.widget
-                      ? `Syncfy widget opened for ${activeConnection.institutionName}.`
-                      : `Connection flow started for ${activeConnection.institutionName}.`}
+                      ? "Provider widget opened. Complete the connection there, then refresh discovered accounts."
+                      : "Connection flow started."}
                   </p>
                 ) : null}
-                <div id={syncfyWidgetElementId} />
+
                 <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
                   <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                     <div>
@@ -806,7 +626,7 @@ export function AccountsPage() {
                       </p>
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         Select the accounts, cards, or investment accounts to
-                        add to FlowLedger after Syncfy imports them.
+                        add to FlowLedger after the provider imports them.
                       </p>
                     </div>
                     <Button
@@ -818,6 +638,7 @@ export function AccountsPage() {
                       Refresh
                     </Button>
                   </div>
+
                   <div className="mt-3 grid gap-3">
                     {(providerAccountsQuery.data ?? []).map(
                       (providerAccount) => {
@@ -861,6 +682,7 @@ export function AccountsPage() {
                                 ) : null}
                               </span>
                             </label>
+
                             <SelectField
                               label="FlowLedger account"
                               value={
@@ -889,25 +711,29 @@ export function AccountsPage() {
                         );
                       }
                     )}
+
                     {providerAccountsQuery.isLoading ? (
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         Waiting for discovered accounts.
                       </p>
                     ) : null}
+
                     {providerAccountsQuery.isError ? (
                       <p className="text-sm text-coral dark:text-orange-300">
                         Could not load discovered accounts.
                       </p>
                     ) : null}
+
                     {!providerAccountsQuery.isLoading &&
                     !providerAccountsQuery.isError &&
                     (providerAccountsQuery.data ?? []).length === 0 ? (
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        No discovered accounts yet. Complete the Syncfy flow,
+                        No discovered accounts yet. Complete the provider flow,
                         then refresh this list.
                       </p>
                     ) : null}
                   </div>
+
                   {(providerAccountsQuery.data ?? []).length > 0 ? (
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Button
@@ -935,18 +761,20 @@ export function AccountsPage() {
                       </Button>
                     </div>
                   ) : null}
+
                   {confirmProviderAccounts.isError ? (
                     <p className="mt-3 text-sm text-coral dark:text-orange-300">
                       Could not add selected accounts.
                     </p>
                   ) : null}
                 </div>
+
                 <div>
                   <Button
                     type="button"
                     variant="secondary"
                     onClick={() => setAddMode(null)}
-                    disabled={startInstitutionConnection.isPending}
+                    disabled={startProviderConnection.isPending}
                   >
                     Back
                   </Button>
@@ -967,6 +795,7 @@ export function AccountsPage() {
           </Button>
         )}
       </Card>
+
       <Card>
         <h2 className="text-lg font-semibold">Accounts</h2>
         <div className="mt-4">
@@ -1006,6 +835,7 @@ export function AccountsPage() {
             }}
           />
         </div>
+
         <div className="mt-4 grid gap-3">
           {visibleAccounts.map((account) => (
             <div
@@ -1098,6 +928,7 @@ export function AccountsPage() {
                         </p>
                       ) : null}
                     </div>
+
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
                         type="button"
@@ -1135,6 +966,7 @@ export function AccountsPage() {
                       </Button>
                     </div>
                   </div>
+
                   {account.source === "synced" && account.sync?.length ? (
                     <div className="grid gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
                       {account.sync.map((sync) => (
@@ -1185,6 +1017,7 @@ export function AccountsPage() {
                               </p>
                             </div>
                           </div>
+
                           <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
                             <Button
                               type="button"
@@ -1203,9 +1036,9 @@ export function AccountsPage() {
                               type="button"
                               variant="secondary"
                               disabled={
-                                startInstitutionConnection.isPending ||
+                                startProviderConnection.isPending ||
                                 account.isArchived ||
-                                !sync.institutionId
+                                !sync.provider
                               }
                               onClick={() =>
                                 reconnectSyncedAccount(account, sync.id)
@@ -1216,6 +1049,7 @@ export function AccountsPage() {
                           </div>
                         </div>
                       ))}
+
                       {resyncProviderAccount.isError ? (
                         <p className="text-sm text-coral dark:text-orange-300">
                           Could not resync the selected account.
@@ -1227,6 +1061,7 @@ export function AccountsPage() {
               )}
             </div>
           ))}
+
           {visibleAccounts.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">
               No accounts found.

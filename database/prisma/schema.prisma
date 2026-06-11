@@ -59,6 +59,7 @@ enum NotificationType {
   settlement_approved
   settlement_rejected
   settlement_payment_registration_needed
+  provider_transactions_pending
 }
 
 model User {
@@ -386,7 +387,7 @@ model ProviderImportedTransaction {
   currency              String
   transactionDate       DateTime
   refreshDate           DateTime?
-  status                String              @default("imported")
+  status                String              @default("pending")
   errorMessage          String?
   rawData               Json
   createdAt             DateTime            @default(now())

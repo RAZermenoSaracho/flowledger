@@ -47,16 +47,6 @@ export type NormalizedSyncfyAccount = {
   rawData: JsonRecord;
 };
 
-export type NormalizedSyncfyInstitution = {
-  syncfyInstitutionId: string;
-  name: string;
-  logoUrl: string | null;
-  country: string | null;
-  category: "bank" | "broker" | "exchange" | "wallet" | "government" | "other";
-  supportedAccountTypes: string[];
-  rawData: JsonRecord;
-};
-
 export type SyncfyUser = {
   idUser: string;
   externalUserId?: string;
@@ -82,6 +72,7 @@ function getString(value: unknown): string | undefined {
 
 function getNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+
   if (typeof value === "string" && value.trim().length > 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
@@ -90,28 +81,13 @@ function getNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-function getStringList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => getString(item))
-      .filter((item): item is string => Boolean(item));
-  }
-
-  const stringValue = getString(value);
-  return stringValue ? [stringValue] : [];
-}
-
-function uniq(values: string[]) {
-  return Array.from(new Set(values));
-}
-
 function requiredString(record: JsonRecord, keys: string[], fieldName: string) {
   for (const key of keys) {
     const value = getString(record[key]);
     if (value) return value;
   }
 
-  throw new HttpError(502, `Syncfy transaction is missing ${fieldName}`);
+  throw new HttpError(502, `Syncfy payload is missing ${fieldName}`);
 }
 
 function requiredNumber(record: JsonRecord, keys: string[], fieldName: string) {
@@ -120,20 +96,23 @@ function requiredNumber(record: JsonRecord, keys: string[], fieldName: string) {
     if (value !== undefined) return value;
   }
 
-  throw new HttpError(502, `Syncfy transaction is missing ${fieldName}`);
+  throw new HttpError(502, `Syncfy payload is missing ${fieldName}`);
 }
 
 function unixTimestampToDate(value: unknown, fieldName: string) {
   const timestamp = getNumber(value);
+
   if (timestamp === undefined) {
-    throw new HttpError(502, `Syncfy transaction is missing ${fieldName}`);
+    throw new HttpError(502, `Syncfy payload is missing ${fieldName}`);
   }
 
   const milliseconds =
     timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
+
   const date = new Date(milliseconds);
+
   if (Number.isNaN(date.getTime())) {
-    throw new HttpError(502, `Syncfy transaction has invalid ${fieldName}`);
+    throw new HttpError(502, `Syncfy payload has invalid ${fieldName}`);
   }
 
   return date;
@@ -142,71 +121,21 @@ function unixTimestampToDate(value: unknown, fieldName: string) {
 function extractSyncfyToken(responseBody: unknown) {
   const body = getJsonObject(responseBody);
   const response = getJsonObject(body?.response);
-  const token = body?.token ?? response?.token;
-
-  return getString(token);
+  return getString(body?.token ?? response?.token);
 }
 
-function extractSyncfyTransactions(responseBody: unknown): unknown[] {
+function extractSyncfyList(responseBody: unknown, key: string): unknown[] {
   if (Array.isArray(responseBody)) return responseBody;
 
   const body = getJsonObject(responseBody);
   const response = body?.response;
 
   if (Array.isArray(response)) return response;
+
   const responseObject = getJsonObject(response);
-  if (Array.isArray(responseObject?.transactions)) {
-    return responseObject.transactions;
-  }
-  if (Array.isArray(body?.transactions)) return body.transactions;
 
-  return [];
-}
-
-function extractSyncfyAccounts(responseBody: unknown): unknown[] {
-  if (Array.isArray(responseBody)) return responseBody;
-
-  const body = getJsonObject(responseBody);
-  const response = body?.response;
-
-  if (Array.isArray(response)) return response;
-  const responseObject = getJsonObject(response);
-  if (Array.isArray(responseObject?.accounts)) {
-    return responseObject.accounts;
-  }
-  if (Array.isArray(body?.accounts)) return body.accounts;
-
-  return [];
-}
-
-function extractSyncfyInstitutions(responseBody: unknown): unknown[] {
-  if (Array.isArray(responseBody)) return responseBody;
-
-  const body = getJsonObject(responseBody);
-  const response = body?.response;
-
-  if (Array.isArray(response)) return response;
-  const responseObject = getJsonObject(response);
-  if (Array.isArray(responseObject?.sites)) return responseObject.sites;
-  if (Array.isArray(responseObject?.institutions)) {
-    return responseObject.institutions;
-  }
-  if (Array.isArray(body?.sites)) return body.sites;
-  if (Array.isArray(body?.institutions)) return body.institutions;
-
-  return [];
-}
-
-function extractSyncfyUsers(responseBody: unknown): unknown[] {
-  if (Array.isArray(responseBody)) return responseBody;
-
-  const body = getJsonObject(responseBody);
-  const response = body?.response;
-
-  if (Array.isArray(response)) return response;
-  const responseObject = getJsonObject(response);
-  if (Array.isArray(responseObject?.users)) return responseObject.users;
-  if (Array.isArray(body?.users)) return body.users;
+  if (Array.isArray(responseObject?.[key])) return responseObject[key];
+  if (Array.isArray(body?.[key])) return body[key];
 
   return [];
 }
@@ -219,11 +148,11 @@ function extractSyncfyUser(responseBody: unknown): unknown {
 }
 
 function getEndpointList(endpoints: unknown, key: "accounts" | "transactions") {
-  if (!endpoints || typeof endpoints !== "object" || Array.isArray(endpoints)) {
-    return [];
-  }
+  const endpointMap = getJsonObject(endpoints);
+  if (!endpointMap) return [];
 
-  const value = (endpoints as Record<string, unknown>)[key];
+  const value = endpointMap[key];
+
   if (Array.isArray(value)) {
     return value.filter((endpoint): endpoint is string =>
       Boolean(getString(endpoint))
@@ -234,6 +163,17 @@ function getEndpointList(endpoints: unknown, key: "accounts" | "transactions") {
   return endpoint ? [endpoint] : [];
 }
 
+function buildSyncfyApiUrl(pathname: string) {
+  if (!env.SYNCFY_API_KEY) {
+    throw new HttpError(500, "Syncfy API key is not configured");
+  }
+
+  const url = new URL(pathname, syncfyApiBaseUrl);
+  url.searchParams.set("api_key", env.SYNCFY_API_KEY);
+
+  return url;
+}
+
 function buildSyncfyDataUrl(endpoint: string, token: string) {
   const url = new URL(endpoint, syncfyDataBaseUrl);
 
@@ -242,16 +182,7 @@ function buildSyncfyDataUrl(endpoint: string, token: string) {
   }
 
   url.searchParams.set("token", token);
-  return url;
-}
 
-function buildSyncfyApiUrl(pathname: string) {
-  if (!env.SYNCFY_API_KEY) {
-    throw new HttpError(500, "Syncfy API key is not configured");
-  }
-
-  const url = new URL(pathname, syncfyApiBaseUrl);
-  url.searchParams.set("api_key", env.SYNCFY_API_KEY);
   return url;
 }
 
@@ -260,6 +191,16 @@ async function fetchJson(url: URL, init?: RequestInit) {
   const body = (await response.json().catch(() => null)) as unknown;
 
   if (!response.ok) {
+    const safeUrl = env.SYNCFY_API_KEY
+      ? url.toString().replace(env.SYNCFY_API_KEY, "***")
+      : url.toString();
+
+    console.error("[SYNCFY REQUEST FAILED]", {
+      url: safeUrl,
+      status: response.status,
+      body
+    });
+
     throw new HttpError(
       502,
       `Syncfy request failed with status ${response.status}`
@@ -277,6 +218,7 @@ export async function createSyncfySession(idUser: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id_user: idUser })
   });
+
   const token = extractSyncfyToken(body);
 
   if (!token) {
@@ -288,6 +230,7 @@ export async function createSyncfySession(idUser: string) {
 
 function normalizeSyncfyUser(user: unknown): SyncfyUser {
   const rawData = getJsonObject(user);
+
   if (!rawData) {
     throw new HttpError(502, "Syncfy user payload is not an object");
   }
@@ -305,9 +248,7 @@ export async function fetchSyncfyUserByExternalId(externalUserId: string) {
   url.searchParams.set("id_external", externalUserId);
 
   const body = await fetchJson(url);
-  const [user] = extractSyncfyUsers(body).map((item) =>
-    normalizeSyncfyUser(item)
-  );
+  const [user] = extractSyncfyList(body, "users").map(normalizeSyncfyUser);
 
   return user;
 }
@@ -317,6 +258,7 @@ export async function createSyncfyUser(input: {
   name: string;
 }) {
   const url = buildSyncfyApiUrl("/v1/users");
+
   const body = await fetchJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -354,36 +296,6 @@ async function saveSyncfyUserMapping(input: {
   });
 }
 
-async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId: string) {
-  const mapping = await prisma.userAuthAccount.findUnique({
-    where: {
-      provider_providerAccountId: {
-        provider: "syncfy",
-        providerAccountId: syncfyUserId
-      }
-    },
-    select: { userId: true }
-  });
-
-  return mapping?.userId;
-}
-
-async function findFlowLedgerUserIdForSyncfyCredential(
-  syncfyCredentialId: string
-) {
-  const connection = await prisma.providerConnection.findUnique({
-    where: {
-      provider_providerCredentialId: {
-        provider: "syncfy",
-        providerCredentialId: syncfyCredentialId
-      }
-    },
-    select: { userId: true }
-  });
-
-  return connection?.userId;
-}
-
 export async function getOrCreateSyncfyUserForFlowLedgerUser(
   flowLedgerUserId: string
 ) {
@@ -416,6 +328,7 @@ export async function getOrCreateSyncfyUserForFlowLedgerUser(
   const existingSyncfyUser = await fetchSyncfyUserByExternalId(
     flowLedgerUser.id
   );
+
   const syncfyUser =
     existingSyncfyUser ??
     (await createSyncfyUser({
@@ -432,99 +345,25 @@ export async function getOrCreateSyncfyUserForFlowLedgerUser(
   return syncfyUser;
 }
 
-function normalizeInstitutionCategory(rawData: JsonRecord) {
-  const values = [
-    getString(rawData.type),
-    getString(rawData.category),
-    getString(rawData.classification),
-    getString(rawData.kind),
-    getString(rawData.name)
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLowerCase();
-
-  if (/\b(bank|banco|banking)\b/.test(values)) return "bank";
-  if (/\b(broker|brokerage|inversion|investment)\b/.test(values)) {
-    return "broker";
-  }
-  if (/\b(exchange|crypto|cripto|bitcoin)\b/.test(values)) return "exchange";
-  if (/\b(wallet|digital wallet|billetera)\b/.test(values)) return "wallet";
-  if (/\b(government|fiscal|tax|sat|afip)\b/.test(values)) {
-    return "government";
-  }
-
-  return "other";
-}
-
-export function normalizeSyncfyInstitution(
-  institution: unknown
-): NormalizedSyncfyInstitution {
-  const rawData = getJsonObject(institution);
-  if (!rawData) {
-    throw new HttpError(502, "Syncfy institution payload is not an object");
-  }
-
-  const country = getJsonObject(rawData.country);
-
-  return {
-    syncfyInstitutionId: requiredString(
-      rawData,
-      ["id_site", "id_institution", "institution_id", "id"],
-      "id_site"
-    ),
-    name:
-      getString(rawData.name) ??
-      getString(rawData.display_name) ??
-      "Syncfy institution",
-    logoUrl:
-      getString(rawData.logo) ??
-      getString(rawData.logo_url) ??
-      getString(rawData.image) ??
-      getString(rawData.icon) ??
-      null,
-    country:
-      getString(rawData.country) ??
-      getString(rawData.country_code) ??
-      getString(country?.code) ??
-      getString(country?.name) ??
-      null,
-    category: normalizeInstitutionCategory(rawData),
-    supportedAccountTypes: uniq([
-      ...getStringList(rawData.account_types),
-      ...getStringList(rawData.accountTypes),
-      ...getStringList(rawData.supported_account_types),
-      ...getStringList(rawData.products),
-      ...getStringList(rawData.type)
-    ]),
-    rawData
-  };
-}
-
 export function normalizeSyncfyAccount(
   account: unknown,
   fallbackCredentialId?: string
 ): NormalizedSyncfyAccount {
   const rawData = getJsonObject(account);
+
   if (!rawData) {
     throw new HttpError(502, "Syncfy account payload is not an object");
   }
 
-  const name =
-    getString(rawData.name) ??
-    getString(rawData.description) ??
-    getString(rawData.number) ??
-    "Syncfy account";
-
   return {
-    syncfyAccountId: requiredString(
-      rawData,
-      ["id_account", "id"],
-      "id_account"
-    ),
+    syncfyAccountId: requiredString(rawData, ["id_account", "id"], "id_account"),
     syncfyCredentialId:
       getString(rawData.id_credential) ?? fallbackCredentialId,
-    name,
+    name:
+      getString(rawData.name) ??
+      getString(rawData.description) ??
+      getString(rawData.number) ??
+      "Syncfy account",
     type: getString(rawData.type) ?? getString(rawData.account_type),
     currency: getString(rawData.currency),
     balance: getNumber(rawData.balance),
@@ -537,21 +376,17 @@ export function normalizeSyncfyTransaction(
   fallbackCredentialId?: string
 ): NormalizedSyncfyTransaction {
   const rawData = getJsonObject(transaction);
+
   if (!rawData) {
     throw new HttpError(502, "Syncfy transaction payload is not an object");
   }
 
   const syncfyCredentialId =
     getString(rawData.id_credential) ?? fallbackCredentialId;
+
   if (!syncfyCredentialId) {
     throw new HttpError(502, "Syncfy transaction is missing id_credential");
   }
-
-  const description =
-    getString(rawData.description) ??
-    getString(rawData.name) ??
-    getString(rawData.memo) ??
-    "Syncfy transaction";
 
   return {
     syncfyTransactionId: requiredString(
@@ -561,7 +396,11 @@ export function normalizeSyncfyTransaction(
     ),
     syncfyCredentialId,
     syncfyAccountId: requiredString(rawData, ["id_account"], "id_account"),
-    description,
+    description:
+      getString(rawData.description) ??
+      getString(rawData.name) ??
+      getString(rawData.memo) ??
+      "Syncfy transaction",
     amount: requiredNumber(rawData, ["amount"], "amount"),
     currency: getString(rawData.currency) ?? "MXN",
     transactionDate: unixTimestampToDate(
@@ -573,15 +412,6 @@ export function normalizeSyncfyTransaction(
   };
 }
 
-export async function fetchSyncfyInstitutions() {
-  const url = buildSyncfyApiUrl("/v1/catalogues/sites");
-  const body = await fetchJson(url);
-
-  return extractSyncfyInstitutions(body).map((institution) =>
-    normalizeSyncfyInstitution(institution)
-  );
-}
-
 export async function fetchSyncfyAccounts(
   endpoint: string,
   token: string,
@@ -590,7 +420,7 @@ export async function fetchSyncfyAccounts(
   const url = buildSyncfyDataUrl(endpoint, token);
   const body = await fetchJson(url);
 
-  return extractSyncfyAccounts(body).map((account) =>
+  return extractSyncfyList(body, "accounts").map((account) =>
     normalizeSyncfyAccount(account, fallbackCredentialId)
   );
 }
@@ -603,7 +433,7 @@ export async function fetchSyncfyTransactions(
   const url = buildSyncfyDataUrl(endpoint, token);
   const body = await fetchJson(url);
 
-  return extractSyncfyTransactions(body).map((transaction) =>
+  return extractSyncfyList(body, "transactions").map((transaction) =>
     normalizeSyncfyTransaction(transaction, fallbackCredentialId)
   );
 }
@@ -617,6 +447,36 @@ function providerAccountKey(
   providerAccountId: string
 ) {
   return `${providerCredentialId}:${providerAccountId}`;
+}
+
+async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId: string) {
+  const mapping = await prisma.userAuthAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: "syncfy",
+        providerAccountId: syncfyUserId
+      }
+    },
+    select: { userId: true }
+  });
+
+  return mapping?.userId;
+}
+
+async function findFlowLedgerUserIdForSyncfyCredential(
+  syncfyCredentialId: string
+) {
+  const connection = await prisma.providerConnection.findUnique({
+    where: {
+      provider_providerCredentialId: {
+        provider: "syncfy",
+        providerCredentialId: syncfyCredentialId
+      }
+    },
+    select: { userId: true }
+  });
+
+  return connection?.userId;
 }
 
 async function upsertProviderConnection(input: {
@@ -663,7 +523,7 @@ async function upsertProviderAccounts(input: {
   providerUserId: string;
   accounts: NormalizedSyncfyAccount[];
 }) {
-  const accountRefs = new Map<string, string>();
+  const refs = new Map<string, string>();
 
   for (const account of input.accounts) {
     if (!account.syncfyCredentialId) {
@@ -716,7 +576,7 @@ async function upsertProviderAccounts(input: {
       }
     });
 
-    accountRefs.set(
+    refs.set(
       providerAccountKey(
         providerAccount.providerCredentialId,
         providerAccount.providerAccountId
@@ -725,7 +585,7 @@ async function upsertProviderAccounts(input: {
     );
   }
 
-  return accountRefs;
+  return refs;
 }
 
 async function findProviderAccountRefs(input: {
@@ -738,7 +598,7 @@ async function findProviderAccountRefs(input: {
     where: {
       provider: "syncfy",
       providerCredentialId: input.providerCredentialId,
-      providerAccountId: { in: uniq(input.providerAccountIds) }
+      providerAccountId: { in: Array.from(new Set(input.providerAccountIds)) }
     },
     select: {
       id: true,
@@ -798,6 +658,51 @@ async function fetchTransactionsFromEndpoints(input: {
   return transactions;
 }
 
+async function getExistingImportedTransactionIds(input: {
+  provider: string;
+  providerTransactionIds: string[];
+}) {
+  if (input.providerTransactionIds.length === 0) return new Set<string>();
+
+  const rows = await prisma.providerImportedTransaction.findMany({
+    where: {
+      provider: input.provider,
+      providerTransactionId: {
+        in: Array.from(new Set(input.providerTransactionIds))
+      }
+    },
+    select: {
+      providerTransactionId: true
+    }
+  });
+
+  return new Set(rows.map((row) => row.providerTransactionId));
+}
+
+async function notifyNewImportedTransactions(input: {
+  userId: string;
+  providerCredentialId: string;
+  newTransactionsCount: number;
+}) {
+  if (input.newTransactionsCount <= 0) return;
+
+  await prisma.notification.create({
+    data: {
+      userId: input.userId,
+      type: "provider_transactions_pending",
+      title: "Transactions ready to review",
+      message: `${input.newTransactionsCount} new imported transaction${
+        input.newTransactionsCount === 1 ? " is" : "s are"
+      } ready to review.`,
+      metadata: toJsonValue({
+        provider: "syncfy",
+        providerCredentialId: input.providerCredentialId,
+        newTransactionsCount: input.newTransactionsCount
+      })
+    }
+  });
+}
+
 export async function processSyncfyWebhookEvent(
   eventId: string,
   event: SyncfyWebhookEventInput
@@ -838,6 +743,7 @@ export async function processSyncfyWebhookEvent(
     event.payload.endpoints,
     "transactions"
   );
+
   if (accountEndpoints.length === 0 && transactionEndpoints.length === 0) {
     await prisma.providerWebhookEvent.update({
       where: { id: eventId },
@@ -856,16 +762,30 @@ export async function processSyncfyWebhookEvent(
 
   const fallbackCredentialId = event.payload.id_credential;
   const { token } = await createSyncfySession(idUser);
+
   const accounts = await fetchAccountsFromEndpoints({
     endpoints: accountEndpoints,
     token,
     fallbackCredentialId
   });
+
   const transactions = await fetchTransactionsFromEndpoints({
     endpoints: transactionEndpoints,
     token,
     fallbackCredentialId
   });
+
+  const existingTransactionIds = await getExistingImportedTransactionIds({
+    provider: "syncfy",
+    providerTransactionIds: transactions.map(
+      (transaction) => transaction.syncfyTransactionId
+    )
+  });
+
+  const newTransactionsCount = transactions.filter(
+    (transaction) => !existingTransactionIds.has(transaction.syncfyTransactionId)
+  ).length;
+
   const providerCredentialId =
     fallbackCredentialId ??
     accounts.find((account) => account.syncfyCredentialId)
@@ -879,6 +799,7 @@ export async function processSyncfyWebhookEvent(
   const userId =
     (await findFlowLedgerUserIdForSyncfyUser(idUser)) ??
     (await findFlowLedgerUserIdForSyncfyCredential(providerCredentialId));
+
   if (!userId) {
     throw new HttpError(404, "FlowLedger user was not found for Syncfy event");
   }
@@ -903,6 +824,7 @@ export async function processSyncfyWebhookEvent(
       (transaction) => transaction.syncfyAccountId
     )
   });
+
   for (const [key, value] of existingAccountRefs) {
     accountRefs.set(key, value);
   }
@@ -936,7 +858,7 @@ export async function processSyncfyWebhookEvent(
         currency: transaction.currency,
         transactionDate: transaction.transactionDate,
         refreshDate: transaction.refreshDate,
-        status: "imported",
+        status: "pending",
         errorMessage: null,
         rawData: transaction.rawData as Prisma.InputJsonObject
       },
@@ -952,12 +874,17 @@ export async function processSyncfyWebhookEvent(
         currency: transaction.currency,
         transactionDate: transaction.transactionDate,
         refreshDate: transaction.refreshDate,
-        status: "imported",
         errorMessage: null,
         rawData: transaction.rawData as Prisma.InputJsonObject
       }
     });
   }
+
+  await notifyNewImportedTransactions({
+    userId,
+    providerCredentialId,
+    newTransactionsCount
+  });
 
   await prisma.providerWebhookEvent.update({
     where: { id: eventId },

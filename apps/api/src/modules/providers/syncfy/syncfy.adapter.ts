@@ -1,10 +1,9 @@
-import { HttpError } from "../../../utils/httpError.js";
 import { env } from "../../../config/env.js";
+import { HttpError } from "../../../utils/httpError.js";
 import type { FinancialProviderAdapter } from "../provider.types.js";
 import {
   createSyncfySession,
   fetchSyncfyAccounts,
-  fetchSyncfyInstitutions,
   fetchSyncfyTransactions,
   getOrCreateSyncfyUserForFlowLedgerUser,
   markSyncfyWebhookEventFailed,
@@ -14,71 +13,17 @@ import {
   type SyncfyWebhookEventInput
 } from "./syncfy.service.js";
 
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function getRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function getCountryCode(
-  rawData: Record<string, unknown> | undefined,
-  fallbackCountry: unknown
-) {
-  const country = getRecord(rawData?.country);
-  const value =
-    getString(rawData?.country_code) ??
-    getString(country?.code) ??
-    getString(fallbackCountry) ??
-    getString(rawData?.country);
-
-  return value && value.length <= 3 ? value.toUpperCase() : undefined;
-}
-
-function buildSyncfyWidgetConfig(input: {
-  institutionId?: string;
-  metadata?: Record<string, unknown>;
-}) {
-  const institution = getRecord(input.metadata?.institution);
-  const rawData = getRecord(institution?.rawData);
-  const country = getCountryCode(rawData, institution?.country);
-  const entrypoint = {
-    ...(country ? { country } : {}),
-    ...(input.institutionId ? { site: input.institutionId } : {})
-  };
-
+function buildSyncfyWidgetConfig() {
   return {
-    locale: "en",
-    ...(Object.keys(entrypoint).length > 0 ? { entrypoint } : {}),
+    locale: "es",
+    entrypoint: {
+      country: "MX",
+      siteOrganizationType: "56cf4f5b784806cf028b4568"
+    },
     navigation: {
-      enableBackNavigation: !input.institutionId,
-      hideSelectCountry: Boolean(country),
-      oneSiteFlow: Boolean(input.institutionId),
-      displayStatusInToast: false
+      displayStatusInToast: true
     }
   };
-}
-
-const syncfyDemoInstitutionPatterns = [
-  /\bacme\b/i,
-  /\bsandbox\b/i,
-  /\bnormal auth\b/i,
-  /\btoken 2fa\b/i,
-  /\bcaptcha\b/i,
-  /\bmultiple image\b/i,
-  /\bmultiple text\b/i
-];
-
-function isSyncfyDemoInstitution(institution: {
-  syncfyInstitutionId: string;
-  name: string;
-}) {
-  const value = `${institution.syncfyInstitutionId} ${institution.name}`;
-
-  return syncfyDemoInstitutionPatterns.some((pattern) => pattern.test(value));
 }
 
 export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
@@ -93,7 +38,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         title: "Syncfy México",
         description: "Mexican banks and financial institutions",
         helperText:
-          "If your bank is in Mexico, it is probably available through Syncfy.",
+          "Select Syncfy to open the secure provider widget and choose your institution there.",
         country: "MX",
         category: "bank",
         coverageLabel: "Mexico",
@@ -103,21 +48,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
       }
     ],
 
-    listInstitutions: async () =>
-      fetchSyncfyInstitutions().then((institutions) =>
-        institutions
-          .filter((institution) => !isSyncfyDemoInstitution(institution))
-          .map((institution) => ({
-            provider: "syncfy",
-            institutionId: institution.syncfyInstitutionId,
-            name: institution.name,
-            logoUrl: institution.logoUrl,
-            country: institution.country,
-            category: institution.category,
-            supportedAccountTypes: institution.supportedAccountTypes,
-            rawData: institution.rawData
-          }))
-      ),
+    listInstitutions: async () => [],
 
     createUser: async ({ externalUserId }) => {
       const user = await getOrCreateSyncfyUserForFlowLedgerUser(externalUserId);
@@ -132,23 +63,22 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
 
     createSession: async ({ providerUserId, externalUserId }) => {
       const idUser = providerUserId || externalUserId;
+
       if (!idUser) {
         throw new HttpError(400, "Syncfy session requires a provider user id");
       }
 
       const session = await createSyncfySession(idUser);
+
       return {
         provider: "syncfy",
         token: session.token
       };
     },
 
-    createConnectionFlow: async ({
-      providerUserId,
-      externalUserId,
-      ...input
-    }) => {
+    createConnectionFlow: async ({ providerUserId, externalUserId }) => {
       const flowLedgerUserId = providerUserId || externalUserId;
+
       if (!flowLedgerUserId) {
         throw new HttpError(
           400,
@@ -159,7 +89,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
       const syncfyUser =
         await getOrCreateSyncfyUserForFlowLedgerUser(flowLedgerUserId);
       const session = await createSyncfySession(syncfyUser.idUser);
-      const config = buildSyncfyWidgetConfig(input);
+      const config = buildSyncfyWidgetConfig();
 
       return {
         provider: "syncfy",
@@ -185,6 +115,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
 
       try {
         const summary = await processSyncfyWebhookEvent(eventId, payload);
+
         return {
           status: summary.status,
           importedAccounts: summary.importedAccounts,
@@ -204,22 +135,22 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         );
       }
 
-      return fetchSyncfyAccounts(
+      const accounts = await fetchSyncfyAccounts(
         endpoint,
         sessionToken,
         providerCredentialId
-      ).then((accounts) =>
-        accounts.map((account) => ({
-          provider: "syncfy",
-          providerAccountId: account.syncfyAccountId,
-          providerCredentialId: account.syncfyCredentialId,
-          name: account.name,
-          type: account.type,
-          currency: account.currency,
-          balance: account.balance,
-          rawData: account.rawData
-        }))
       );
+
+      return accounts.map((account) => ({
+        provider: "syncfy",
+        providerAccountId: account.syncfyAccountId,
+        providerCredentialId: account.syncfyCredentialId,
+        name: account.name,
+        type: account.type,
+        currency: account.currency,
+        balance: account.balance,
+        rawData: account.rawData
+      }));
     },
 
     fetchTransactions: async ({
@@ -234,24 +165,24 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
         );
       }
 
-      return fetchSyncfyTransactions(
+      const transactions = await fetchSyncfyTransactions(
         endpoint,
         sessionToken,
         providerCredentialId
-      ).then((transactions) =>
-        transactions.map((transaction) => ({
-          provider: "syncfy",
-          providerTransactionId: transaction.syncfyTransactionId,
-          providerCredentialId: transaction.syncfyCredentialId,
-          providerAccountId: transaction.syncfyAccountId,
-          description: transaction.description,
-          amount: transaction.amount,
-          currency: transaction.currency,
-          transactionDate: transaction.transactionDate,
-          refreshDate: transaction.refreshDate,
-          rawData: transaction.rawData
-        }))
       );
+
+      return transactions.map((transaction) => ({
+        provider: "syncfy",
+        providerTransactionId: transaction.syncfyTransactionId,
+        providerCredentialId: transaction.syncfyCredentialId,
+        providerAccountId: transaction.syncfyAccountId,
+        description: transaction.description,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        transactionDate: transaction.transactionDate,
+        refreshDate: transaction.refreshDate,
+        rawData: transaction.rawData
+      }));
     },
 
     normalizeAccount: ({ account, fallbackCredentialId }) => {
