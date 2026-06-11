@@ -52,10 +52,13 @@ async function openSyncfyWidget(
 
   resetSyncfyWidgetContainer();
 
-  const module = (await import("@syncfy/authentication-widget")) as {
+  // const module = (await import("@syncfy/authentication-widget")) as {
+  //   default: SyncfyWidgetConstructor;
+  // };
+  const module = (await import("@syncfy/authentication-widget/umd")) as {
     default: SyncfyWidgetConstructor;
   };
-
+  
   const syncfyWidget = new module.default({
     token: widget.token,
     config: widget.config
