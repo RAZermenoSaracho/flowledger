@@ -1,10 +1,12 @@
 export class HttpError extends Error {
   constructor(
     public statusCode: number,
-    message: string
+    message: string,
+    public details?: unknown
   ) {
     super(message);
   }
 }
 
-export const notFound = (resource = "Resource") => new HttpError(404, `${resource} not found`);
+export const notFound = (resource = "Resource") =>
+  new HttpError(404, `${resource} not found`);

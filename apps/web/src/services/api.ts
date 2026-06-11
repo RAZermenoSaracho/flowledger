@@ -7,6 +7,15 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY)
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public body?: unknown
+  ) {
+    super(message);
+  }
+}
+
 type ApiOptions = {
   method?: string;
   body?: unknown;
@@ -61,7 +70,7 @@ export async function apiRequest<T>(
     const errorBody = (await response.json().catch(() => null)) as {
       message?: string;
     } | null;
-    throw new Error(errorBody?.message ?? "Request failed");
+    throw new ApiError(errorBody?.message ?? "Request failed", errorBody);
   }
 
   if (response.status === 204) {

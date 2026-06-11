@@ -2,7 +2,12 @@ import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { HttpError } from "../utils/httpError.js";
 
-export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(
+  error: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) {
   if (error instanceof ZodError) {
     res.status(400).json({
       message: "Validation failed",
@@ -12,7 +17,12 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   }
 
   if (error instanceof HttpError) {
-    res.status(error.statusCode).json({ message: error.message });
+    res.status(error.statusCode).json({
+      message: error.message,
+      ...(error.details && typeof error.details === "object"
+        ? error.details
+        : {})
+    });
     return;
   }
 

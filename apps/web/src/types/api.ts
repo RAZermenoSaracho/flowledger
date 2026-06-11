@@ -9,6 +9,10 @@ import type {
   SharedExpenseStatus,
   TransactionType
 } from "@flowledger/shared";
+import type {
+  ProviderConnector,
+  ProviderInstitution
+} from "@flowledger/shared";
 
 export type User = {
   id: string;
@@ -29,8 +33,46 @@ export type Account = {
   identifier?: string | null;
   initialBalance: number;
   currentBalance?: number;
+  source?: "manual" | "synced";
+  sync?: AccountSync[];
   isArchived: boolean;
   archivedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountSync = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  institutionId?: string | null;
+  institutionName?: string | null;
+  accountName?: string | null;
+  accountType?: string | null;
+  currency?: string | null;
+  externalBalance?: number | null;
+  status: string;
+  connectionStatus?: string | null;
+  lastSyncAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Institution = ProviderInstitution;
+export type Connector = ProviderConnector;
+
+export type ProviderImportedAccount = {
+  id: string;
+  provider: string;
+  institutionName?: string | null;
+  name: string;
+  type: AccountType;
+  providerType?: string | null;
+  currency?: string | null;
+  balance?: number | null;
+  status: string;
+  linkedAccountId?: string | null;
+  linkedAccount?: Pick<Account, "id" | "name" | "type"> | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -96,6 +138,45 @@ export type Transaction = {
   expenseOffsetCategory?: Category | null;
   group?: Group | null;
   sharedExpense?: SharedExpense | null;
+};
+
+export type ProviderImportedTransactionStatus =
+  | "pending"
+  | "processed"
+  | "ignored";
+
+export type ProviderImportedTransaction = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  providerTransactionId: string;
+  description: string;
+  amount: number;
+  currency: string;
+  transactionDate: string;
+  refreshDate?: string | null;
+  status: ProviderImportedTransactionStatus;
+  categoryId?: string | null;
+  transactionId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  category?: Category | null;
+  transaction?: Transaction | null;
+  providerAccount?: {
+    id: string;
+    provider: string;
+    providerAccountId: string;
+    accountId?: string | null;
+    accountMetadata?: Record<string, unknown> | null;
+    account?: Account | null;
+    connection?: {
+      id: string;
+      institutionId?: string | null;
+      institutionName?: string | null;
+      status: string;
+      lastSyncAt?: string | null;
+    } | null;
+  } | null;
 };
 
 export type SharedExpenseParticipant = {

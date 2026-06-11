@@ -48,6 +48,19 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.string().url(),
   WEB_APP_URL: z.string().url(),
+  SYNCFY_API_KEY: z.string().min(1).optional(),
+  SYNCFY_WEBHOOK_SIGNATURE_KEY: z.string().min(1).optional(),
+  SYNCFY_API_BASE_URL: z.string().url().default("https://api.syncfy.com"),
+  SYNCFY_DATA_BASE_URL: z.string().url().default("https://sync.paybook.com"),
+  PROVIDER_WEBHOOK_PUBLIC_BASE_URL: z.string().url().optional(),
+  SYNCFY_WIDGET_SCRIPT_URL: z
+    .string()
+    .url()
+    .default("https://cdn.skypack.dev/@paybook/sync-widget"),
+  SYNCFY_WIDGET_STYLE_URL: z
+    .string()
+    .url()
+    .default("https://cdn.jsdelivr.net/npm/@paybook/sync-widget/dist/widget.css"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 

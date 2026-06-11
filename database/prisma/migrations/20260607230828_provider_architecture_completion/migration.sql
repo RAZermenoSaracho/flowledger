@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "ProviderAccount_provider_providerCredentialId_providerAccountId" RENAME TO "ProviderAccount_provider_providerCredentialId_providerAccou_key";

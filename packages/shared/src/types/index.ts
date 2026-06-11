@@ -18,6 +18,13 @@ export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type PlanType = (typeof PLAN_TYPES)[number];
 export type GroupRole = "admin" | "member";
+export type InstitutionCategory =
+  | "bank"
+  | "broker"
+  | "exchange"
+  | "wallet"
+  | "government"
+  | "other";
 
 export type PublicUser = {
   id: string;
@@ -36,4 +43,42 @@ export type SummaryReport = {
   totalExpenseReimbursements: number;
   totalNetExpenses: number;
   currentBalance: number;
+};
+
+export type ProviderInstitution = {
+  provider: string;
+  institutionId: string;
+  name: string;
+  logoUrl: string | null;
+  country: string | null;
+  category: InstitutionCategory;
+  supportedAccountTypes: string[];
+  rawData: Record<string, unknown>;
+};
+
+export type ProviderConnector = {
+  provider: string;
+  connectorId: string;
+  title: string;
+  description: string;
+  helperText?: string;
+  country: string | null;
+  category: InstitutionCategory;
+  coverageLabel: string;
+};
+
+export type ProviderConnectionFlow = {
+  provider: string;
+  connectorId?: string;
+  institutionId?: string;
+  institutionName: string;
+  flowId?: string;
+  token?: string;
+  url?: string;
+  widget?: {
+    token: string;
+    config: Record<string, unknown>;
+    scriptUrl?: string;
+    styleUrl?: string;
+  };
 };

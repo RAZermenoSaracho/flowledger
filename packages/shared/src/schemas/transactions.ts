@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  PROVIDER_IMPORTED_TRANSACTION_STATUSES,
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
@@ -121,9 +122,57 @@ export const transactionFiltersSchema = z.object({
   search: z.string().trim().max(120).optional()
 });
 
+export const providerImportedTransactionFiltersSchema = z.object({
+  status: z.enum(PROVIDER_IMPORTED_TRANSACTION_STATUSES).optional(),
+  search: z.string().trim().max(120).optional(),
+  provider: z.string().trim().max(80).optional(),
+  accountId: z.string().min(1).optional(),
+  providerAccountId: z.string().min(1).optional(),
+  categoryId: z.string().min(1).optional(),
+  dateFrom: optionalDateStringSchema,
+  dateTo: optionalDateStringSchema,
+  amountFrom: moneySchema.optional(),
+  amountTo: moneySchema.optional(),
+  sortBy: z
+    .enum(["transactionDate", "amount", "description", "provider", "status"])
+    .optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional()
+});
+
+export const updateProviderImportedTransactionSchema = z.object({
+  categoryId: z.string().min(1).nullable()
+});
+
+export const importProviderImportedTransactionSchema = z.object({
+  categoryId: z.string().min(1).optional()
+});
+
+const importedTransactionSelectionSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("ids"),
+    ids: z.array(z.string().min(1)).min(1)
+  }),
+  z.object({
+    mode: z.literal("filtered"),
+    filters: providerImportedTransactionFiltersSchema.optional()
+  })
+]);
+
+export const batchImportProviderImportedTransactionsSchema = z.object({
+  selection: importedTransactionSelectionSchema,
+  categoryId: z.string().min(1).optional()
+});
+
+export const batchIgnoreProviderImportedTransactionsSchema = z.object({
+  selection: importedTransactionSelectionSchema
+});
+
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type TransactionSharedExpenseInput = z.infer<
   typeof transactionSharedExpenseSchema
 >;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
+export type ProviderImportedTransactionFilters = z.infer<
+  typeof providerImportedTransactionFiltersSchema
+>;
