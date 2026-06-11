@@ -1,4 +1,9 @@
 export const TRANSACTION_TYPES = ["income", "expense", "transfer"] as const;
+export const PROVIDER_IMPORTED_TRANSACTION_STATUSES = [
+  "pending",
+  "processed",
+  "ignored"
+] as const;
 export const TRANSACTION_FILTER_TYPES = [
   "normal",
   "settlement",
@@ -20,7 +25,8 @@ export const NOTIFICATION_TYPES = [
   "settlement_requested",
   "settlement_approved",
   "settlement_rejected",
-  "settlement_payment_registration_needed"
+  "settlement_payment_registration_needed",
+  "provider_transactions_pending"
 ] as const;
 export const PLAN_TYPES = ["free", "flowledger_one"] as const;
 

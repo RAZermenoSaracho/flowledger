@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types tests/debtDirection.test.ts && node --experimental-strip-types tests/transactionCalculations.test.ts && node --experimental-strip-types tests/syncfyWebhookSecurity.test.ts && node --import tsx tests/providerArchitecture.test.ts"
+    "test": "node --experimental-strip-types tests/debtDirection.test.ts && node --experimental-strip-types tests/transactionCalculations.test.ts && node --experimental-strip-types tests/syncfyWebhookSecurity.test.ts && node --import tsx tests/providerArchitecture.test.ts && node --import tsx tests/providerImportedTransactions.test.ts"
   },
   "dependencies": {
     "@flowledger/shared": "0.1.0",

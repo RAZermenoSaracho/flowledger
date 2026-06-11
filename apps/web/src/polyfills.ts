@@ -1,3 +1,7 @@
-if (typeof (globalThis as any).global === "undefined") {
-  (globalThis as any).global = globalThis;
+const syncfyGlobal = globalThis as typeof globalThis & {
+  global?: typeof globalThis;
+};
+
+if (typeof syncfyGlobal.global === "undefined") {
+  syncfyGlobal.global = globalThis;
 }

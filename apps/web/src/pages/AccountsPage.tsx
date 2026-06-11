@@ -42,8 +42,12 @@ function resetSyncfyWidgetContainer() {
 async function openSyncfyWidget(
   widget: NonNullable<ProviderConnectionFlow["widget"]>
 ) {
-  if (typeof (globalThis as any).global === "undefined") {
-    (globalThis as any).global = globalThis;
+  const syncfyGlobal = globalThis as typeof globalThis & {
+    global?: typeof globalThis;
+  };
+
+  if (typeof syncfyGlobal.global === "undefined") {
+    syncfyGlobal.global = globalThis;
   }
 
   resetSyncfyWidgetContainer();
@@ -111,6 +115,9 @@ export function AccountsPage() {
   );
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "synced">(
+    "all"
+  );
   const [sortBy, setSortBy] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -203,7 +210,9 @@ export function AccountsPage() {
       filters: [
         (account) =>
           archiveMode === "archived" ? account.isArchived : !account.isArchived,
-        (account) => (typeFilter ? account.type === typeFilter : true)
+        (account) => (typeFilter ? account.type === typeFilter : true),
+        (account) =>
+          sourceFilter === "all" ? true : account.source === sourceFilter
       ],
       sortBy,
       sortDirection,
@@ -219,6 +228,7 @@ export function AccountsPage() {
     search,
     sortBy,
     sortDirection,
+    sourceFilter,
     typeFilter
   ]);
 
@@ -815,6 +825,18 @@ export function AccountsPage() {
                     label: item.replace("_", " "),
                     value: item
                   }))
+                ]
+              },
+              {
+                id: "source",
+                label: "Source",
+                value: sourceFilter,
+                onChange: (value) =>
+                  setSourceFilter(value as "all" | "manual" | "synced"),
+                options: [
+                  { label: "All sources", value: "all" },
+                  { label: "Manual", value: "manual" },
+                  { label: "Synced", value: "synced" }
                 ]
               }
             ]}

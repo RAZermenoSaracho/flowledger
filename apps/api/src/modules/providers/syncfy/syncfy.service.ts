@@ -47,6 +47,16 @@ export type NormalizedSyncfyAccount = {
   rawData: JsonRecord;
 };
 
+export type NormalizedSyncfyInstitution = {
+  syncfyInstitutionId: string;
+  name: string;
+  logoUrl?: string;
+  country?: string;
+  category: string;
+  supportedAccountTypes: string[];
+  rawData: JsonRecord;
+};
+
 export type SyncfyUser = {
   idUser: string;
   externalUserId?: string;
@@ -97,6 +107,12 @@ function requiredNumber(record: JsonRecord, keys: string[], fieldName: string) {
   }
 
   throw new HttpError(502, `Syncfy payload is missing ${fieldName}`);
+}
+
+function uniqueStrings(values: (string | undefined)[]) {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value)))
+  );
 }
 
 function unixTimestampToDate(value: unknown, fieldName: string) {
@@ -356,7 +372,11 @@ export function normalizeSyncfyAccount(
   }
 
   return {
-    syncfyAccountId: requiredString(rawData, ["id_account", "id"], "id_account"),
+    syncfyAccountId: requiredString(
+      rawData,
+      ["id_account", "id"],
+      "id_account"
+    ),
     syncfyCredentialId:
       getString(rawData.id_credential) ?? fallbackCredentialId,
     name:
@@ -368,6 +388,31 @@ export function normalizeSyncfyAccount(
     currency: getString(rawData.currency),
     balance: getNumber(rawData.balance),
     rawData
+  };
+}
+
+export function normalizeSyncfyInstitution(
+  institution: unknown
+): NormalizedSyncfyInstitution {
+  const record = getJsonObject(institution);
+  if (!record)
+    throw new HttpError(502, "Syncfy institution payload is invalid");
+
+  const country = getJsonObject(record.country);
+  const products = Array.isArray(record.products) ? record.products : [];
+  const category = getString(record.type) ?? "bank";
+
+  return {
+    syncfyInstitutionId: requiredString(record, ["id_site", "id"], "id_site"),
+    name: requiredString(record, ["display_name", "name"], "display_name"),
+    logoUrl: getString(record.logo_url),
+    country: getString(country?.code),
+    category,
+    supportedAccountTypes: uniqueStrings([
+      ...products.map((product) => getString(product)),
+      category
+    ]),
+    rawData: record
   };
 }
 
@@ -686,19 +731,41 @@ async function notifyNewImportedTransactions(input: {
 }) {
   if (input.newTransactionsCount <= 0) return;
 
+  const pendingCount = await prisma.providerImportedTransaction.count({
+    where: { userId: input.userId, status: "pending" }
+  });
+  const existing = await prisma.notification.findFirst({
+    where: {
+      userId: input.userId,
+      type: "provider_transactions_pending",
+      readAt: null
+    }
+  });
+  const data = {
+    title: "Imported transactions pending review",
+    message: `You have ${pendingCount} imported transaction${
+      pendingCount === 1 ? "" : "s"
+    } pending review.`,
+    metadata: toJsonValue({
+      provider: "syncfy",
+      providerCredentialId: input.providerCredentialId,
+      pendingCount
+    })
+  };
+
+  if (existing) {
+    await prisma.notification.update({
+      where: { id: existing.id },
+      data
+    });
+    return;
+  }
+
   await prisma.notification.create({
     data: {
       userId: input.userId,
       type: "provider_transactions_pending",
-      title: "Transactions ready to review",
-      message: `${input.newTransactionsCount} new imported transaction${
-        input.newTransactionsCount === 1 ? " is" : "s are"
-      } ready to review.`,
-      metadata: toJsonValue({
-        provider: "syncfy",
-        providerCredentialId: input.providerCredentialId,
-        newTransactionsCount: input.newTransactionsCount
-      })
+      ...data
     }
   });
 }
@@ -783,7 +850,8 @@ export async function processSyncfyWebhookEvent(
   });
 
   const newTransactionsCount = transactions.filter(
-    (transaction) => !existingTransactionIds.has(transaction.syncfyTransactionId)
+    (transaction) =>
+      !existingTransactionIds.has(transaction.syncfyTransactionId)
   ).length;
 
   const providerCredentialId =

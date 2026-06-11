@@ -140,6 +140,45 @@ export type Transaction = {
   sharedExpense?: SharedExpense | null;
 };
 
+export type ProviderImportedTransactionStatus =
+  | "pending"
+  | "processed"
+  | "ignored";
+
+export type ProviderImportedTransaction = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  providerTransactionId: string;
+  description: string;
+  amount: number;
+  currency: string;
+  transactionDate: string;
+  refreshDate?: string | null;
+  status: ProviderImportedTransactionStatus;
+  categoryId?: string | null;
+  transactionId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  category?: Category | null;
+  transaction?: Transaction | null;
+  providerAccount?: {
+    id: string;
+    provider: string;
+    providerAccountId: string;
+    accountId?: string | null;
+    accountMetadata?: Record<string, unknown> | null;
+    account?: Account | null;
+    connection?: {
+      id: string;
+      institutionId?: string | null;
+      institutionName?: string | null;
+      status: string;
+      lastSyncAt?: string | null;
+    } | null;
+  } | null;
+};
+
 export type SharedExpenseParticipant = {
   id: string;
   userId?: string | null;
