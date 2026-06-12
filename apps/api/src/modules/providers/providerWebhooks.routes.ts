@@ -270,10 +270,15 @@ providerWebhooksRouter.post(
       return;
     }
 
-    const signatureVerification = verifySyncfyWebhookSignature({
+  const signatureVerification = verifySyncfyWebhookSignature({
       rawBody: req.rawBody,
       signature: getHeaderString(req.headers["request-signature"]),
       signatureKey: env.SYNCFY_WEBHOOK_SIGNATURE_KEY
+    });
+
+    console.info("[PROVIDER WEBHOOK] Syncfy signature verification", {
+      result: signatureVerification,
+      hasSignature: Boolean(getHeaderString(req.headers["request-signature"]))
     });
 
     if (signatureVerification === "invalid") {
@@ -289,6 +294,9 @@ providerWebhooksRouter.post(
       res.status(200).json({
         success: true,
         acceptedEvents: 0
+      });
+      console.warn("[PROVIDER WEBHOOK] Syncfy webhook rejected", {
+        reason: "invalid_signature"
       });
       return;
     }
@@ -309,10 +317,21 @@ providerWebhooksRouter.post(
         success: true,
         acceptedEvents: 0
       });
+      console.warn("[PROVIDER WEBHOOK] Syncfy webhook rejected", {
+        reason: "invalid_payload"
+      });
       return;
     }
 
     const webhook = parsedWebhook.data;
+    console.info("[PROVIDER WEBHOOK] Syncfy webhook received", {
+      rid: webhook.rid,
+      eventCount: webhook.events.length,
+      events: webhook.events.map((event) => ({
+        eventName: event.header.event.name ?? "unknown",
+        providerCredentialId: event.payload.id_credential
+      }))
+    });
     const recordResults = await Promise.allSettled(
       webhook.events.map(async (event, index) => ({
         event,

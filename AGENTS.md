@@ -255,21 +255,18 @@ Current roadmap includes:
 
 Important:
 
-Do not assume Syncfy exposes raw credentials.
+FlowLedger does not store bank login credentials. Do not store user bank
+usernames, passwords, OTPs, security answers, card numbers, account login
+identifiers, or other bank login credential material.
 
-Before implementing credential storage:
+Syncfy handles credential entry through its widget. FlowLedger stores only
+non-secret Syncfy provider metadata needed for connection status, account
+metadata, webhook processing, and refresh/import operations.
 
-Verify that Syncfy actually provides credential access for the institution.
-
-If not supported:
-
-- Store only provider identifiers
-- Mark account as requires_reconnect
-- Fall back to manual widget reconnect
-
-Never store plaintext credentials.
-
-Any stored credential material must be encrypted at rest.
+For current Syncfy flows, treat `id_credential` as the credential source of
+truth. Manual resync should use `setEntrypointCredential(idCredential)`, and
+manual credential refresh/reconnect should use
+`setEntrypointUpdateCredential(idCredential)`.
 
 ---
 

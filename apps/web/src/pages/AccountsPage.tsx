@@ -7,7 +7,12 @@ import { Card } from "../components/Card";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
 import { apiRequest } from "../services/api";
-import type { Account, Connector, ProviderImportedAccount } from "../types/api";
+import type {
+  Account,
+  AccountSync,
+  Connector,
+  ProviderImportedAccount
+} from "../types/api";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
@@ -23,10 +28,54 @@ const dateTime = new Intl.DateTimeFormat("en-US", {
 
 type SyncfyWidgetConstructor = new (params: {
   token: string;
+  element: string;
   config: Record<string, unknown>;
 }) => {
   open: () => void;
+  on?: (eventName: string, callback: (...args: unknown[]) => void) => void;
+  setEntrypointCredential?: (idCredential: string) => void;
+  setEntrypointUpdateCredential?: (idCredential: string) => void;
 };
+
+type SyncfyWidgetEntrypoint =
+  | { type: "connect" }
+  | { type: "credential"; idCredential: string }
+  | { type: "updateCredential"; idCredential: string };
+
+type SyncfyWidgetResult =
+  | { event: "success" | "updated" | "closed"; credential?: unknown }
+  | { event: "error" | "socket-error" | "api-error"; credential?: unknown };
+
+function getRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function safeSyncfyCredentialSummary(credential: unknown) {
+  const record = getRecord(credential);
+
+  return {
+    idCredential: getString(record.id_credential),
+    status: getString(record.status),
+    ws: getString(record.ws),
+    isNew:
+      typeof record.is_new === "boolean" || typeof record.is_new === "number"
+        ? record.is_new
+        : undefined,
+    twofa:
+      typeof record.twofa === "boolean" || typeof record.twofa === "number"
+        ? record.twofa
+        : undefined,
+    hasUsername: Boolean(getString(record.username))
+  };
+}
 
 function resetSyncfyWidgetContainer() {
   const existing = document.getElementById("widget");
@@ -40,8 +89,13 @@ function resetSyncfyWidgetContainer() {
 }
 
 async function openSyncfyWidget(
-  widget: NonNullable<ProviderConnectionFlow["widget"]>
-) {
+  widget: NonNullable<ProviderConnectionFlow["widget"]>,
+  options: {
+    entrypoint?: SyncfyWidgetEntrypoint;
+    onSettled?: () => void | Promise<void>;
+    onError?: (message: string) => void;
+  } = {}
+): Promise<SyncfyWidgetResult> {
   const syncfyGlobal = globalThis as typeof globalThis & {
     global?: typeof globalThis;
   };
@@ -59,35 +113,116 @@ async function openSyncfyWidget(
     default: SyncfyWidgetConstructor;
   };
   
-  const syncfyWidget = new module.default({
-    token: widget.token,
-    config: widget.config
-  });
+  return await new Promise<SyncfyWidgetResult>((resolve, reject) => {
+    let completed = false;
+    const syncfyWidget = new module.default({
+      token: widget.token,
+      element: "#widget",
+      config: widget.config
+    });
 
-  syncfyWidget.open();
+    const settle = (result: SyncfyWidgetResult) => {
+      if (completed) return;
+      completed = true;
 
-  // Fallback cleanup: when user closes the widget with X,
-  // Syncfy hides/removes UI but may leave Vue mounted.
-  const observer = new MutationObserver(() => {
-    const widgetElement = document.getElementById("widget");
+      console.info("[SYNCFY WIDGET] Event", {
+        event: result.event,
+        credential: safeSyncfyCredentialSummary(result.credential)
+      });
+      void options.onSettled?.();
+      resolve(result);
+    };
+    const fail = (
+      event: "error" | "socket-error" | "api-error",
+      message: string,
+      credential?: unknown
+    ) => {
+      options.onError?.(message);
+      settle({ event, credential });
+    };
 
-    if (!widgetElement) {
-      observer.disconnect();
-      resetSyncfyWidgetContainer();
-      return;
+    syncfyWidget.on?.("success", (credential) =>
+      settle({ event: "success", credential })
+    );
+    syncfyWidget.on?.("updated", (credential) =>
+      settle({ event: "updated", credential })
+    );
+    syncfyWidget.on?.("closed", (credential) =>
+      settle({ event: "closed", credential })
+    );
+    syncfyWidget.on?.("status", (status) => {
+      console.info("[SYNCFY WIDGET] Status", {
+        credential: safeSyncfyCredentialSummary(status)
+      });
+    });
+
+    syncfyWidget.on?.("error", (credential) =>
+      fail(
+        "error",
+        "Syncfy reported an error while processing the credential.",
+        credential
+      )
+    );
+
+    syncfyWidget.on?.("socket-error", (socketError) =>
+      fail(
+        "socket-error",
+        "Syncfy connection failed while processing the credential.",
+        socketError
+      )
+    );
+
+    syncfyWidget.on?.("api-error", (_statusCode, apiError) =>
+      fail(
+        "api-error",
+        "Syncfy API returned an error while processing the credential.",
+        apiError
+      )
+    );
+
+    try {
+      if (options.entrypoint?.type === "credential") {
+        if (!syncfyWidget.setEntrypointCredential) {
+          throw new Error("Syncfy credential resync is unavailable.");
+        }
+        syncfyWidget.setEntrypointCredential(options.entrypoint.idCredential);
+      } else if (options.entrypoint?.type === "updateCredential") {
+        if (!syncfyWidget.setEntrypointUpdateCredential) {
+          throw new Error("Syncfy credential update is unavailable.");
+        }
+        syncfyWidget.setEntrypointUpdateCredential(
+          options.entrypoint.idCredential
+        );
+      } else {
+        syncfyWidget.open();
+      }
+    } catch (error) {
+      reject(error);
     }
 
-    const hasVisibleWidgetContent = widgetElement.children.length > 0;
+    // Fallback cleanup: when user closes the widget with X,
+    // Syncfy hides/removes UI but may leave Vue mounted.
+    const observer = new MutationObserver(() => {
+      const widgetElement = document.getElementById("widget");
 
-    if (!hasVisibleWidgetContent) {
-      observer.disconnect();
-      resetSyncfyWidgetContainer();
-    }
-  });
+      if (!widgetElement) {
+        observer.disconnect();
+        resetSyncfyWidgetContainer();
+        return;
+      }
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
+      const hasVisibleWidgetContent = widgetElement.children.length > 0;
+
+      if (!hasVisibleWidgetContent) {
+        observer.disconnect();
+        resetSyncfyWidgetContainer();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
   });
 }
 
@@ -131,6 +266,9 @@ export function AccountsPage() {
     useState<ProviderConnectionFlow | null>(null);
   const [syncfyWidgetError, setSyncfyWidgetError] = useState<string | null>(
     null
+  );
+  const [resyncMessages, setResyncMessages] = useState<Record<string, string>>(
+    {}
   );
 
   const [selectedProviderAccountIds, setSelectedProviderAccountIds] = useState<
@@ -180,6 +318,22 @@ export function AccountsPage() {
     refetchInterval: activeConnection ? 5000 : false
   });
 
+  async function invalidateProviderData() {
+    await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    await queryClient.invalidateQueries({ queryKey: ["provider-accounts"] });
+    await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["provider-imported-transactions"]
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["provider-imported-transactions", "pending-count"]
+    });
+    await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    await queryClient.invalidateQueries({
+      queryKey: ["notifications", "unread-count"]
+    });
+  }
+
   useEffect(() => {
     setSelectedProviderAccountIds((existingIds) => {
       const knownIds = new Set(
@@ -207,7 +361,8 @@ export function AccountsPage() {
           sync.institutionName,
           sync.accountName,
           sync.status,
-          sync.connectionStatus
+          sync.connectionStatus,
+          sync.failureReason
         ])
       ],
       filters: [
@@ -279,7 +434,11 @@ export function AccountsPage() {
 
       if (connection.widget) {
         try {
-          await openSyncfyWidget(connection.widget);
+          await openSyncfyWidget(connection.widget, {
+            entrypoint: { type: "connect" },
+            onSettled: invalidateProviderData,
+            onError: setSyncfyWidgetError
+          });
         } catch {
           setSyncfyWidgetError("Could not load the Syncfy widget.");
         }
@@ -359,15 +518,78 @@ export function AccountsPage() {
     }
   });
 
-  const resyncProviderAccount = useMutation({
-    mutationFn: (providerAccountId: string) =>
-      apiRequest(`/providers/accounts/${providerAccountId}/resync`, {
-        method: "POST"
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      await queryClient.invalidateQueries({ queryKey: ["provider-accounts"] });
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  const startProviderCredentialFlow = useMutation({
+    mutationFn: async (input: {
+      sync: AccountSync;
+      entrypoint: Exclude<SyncfyWidgetEntrypoint["type"], "connect">;
+    }) => {
+      const { connection } = await apiRequest<{
+        connection: ProviderConnectionFlow;
+      }>("/providers/connections", {
+        method: "POST",
+        body: {
+          provider: input.sync.provider
+        }
+      });
+
+      if (!connection.widget) {
+        throw new Error("Provider widget is unavailable.");
+      }
+
+      const widgetResult = await openSyncfyWidget(connection.widget, {
+        entrypoint: {
+          type: input.entrypoint,
+          idCredential: input.sync.providerCredentialId
+        },
+        onSettled: invalidateProviderData,
+        onError: setSyncfyWidgetError
+      });
+
+      const { refresh } = await apiRequest<{
+        refresh: {
+          status: string;
+          importedAccounts: number;
+          importedTransactions: number;
+          requiresManualReconnect?: boolean;
+          failureReason?: string;
+        };
+      }>(
+        `/providers/syncfy/credentials/${encodeURIComponent(
+          input.sync.providerCredentialId
+        )}/refresh`,
+        { method: "POST" }
+      );
+
+      return { ...input, refresh, widgetResult };
+    },
+    onSuccess: async ({ sync, entrypoint, refresh, widgetResult }) => {
+      const flowLabel = entrypoint === "credential" ? "Resync" : "Reconnect";
+      const eventLabel =
+        widgetResult.event === "error" ||
+        widgetResult.event === "socket-error" ||
+        widgetResult.event === "api-error"
+          ? "reported an error, but fallback refresh"
+          : `${widgetResult.event} refresh`;
+
+      setResyncMessages((messages) => ({
+        ...messages,
+        [sync.id]: refresh.requiresManualReconnect
+          ? (refresh.failureReason ?? "Manual reconnect is required.")
+          : `${flowLabel} ${eventLabel} complete. ${
+              refresh.importedAccounts
+            } account${
+              refresh.importedAccounts === 1 ? "" : "s"
+            } and ${refresh.importedTransactions} imported transaction${
+              refresh.importedTransactions === 1 ? "" : "s"
+            } refreshed.`
+      }));
+      await invalidateProviderData();
+    },
+    onError: (_error, { sync }) => {
+      setResyncMessages((messages) => ({
+        ...messages,
+        [sync.id]: "Could not start the Syncfy credential flow."
+      }));
     }
   });
 
@@ -435,9 +657,13 @@ export function AccountsPage() {
     );
   }
 
-  function reconnectSyncedAccount(account: Account, syncId: string) {
+  function startSyncedCredentialFlow(
+    account: Account,
+    syncId: string,
+    entrypoint: Exclude<SyncfyWidgetEntrypoint["type"], "connect">
+  ) {
     const sync = account.sync?.find((item) => item.id === syncId);
-    if (!sync?.provider) return;
+    if (!sync?.provider || !sync.providerCredentialId) return;
 
     setIsFormOpen(true);
     setAddMode("sync");
@@ -445,9 +671,7 @@ export function AccountsPage() {
     setActiveConnection(null);
     setSyncfyWidgetError(null);
 
-    startProviderConnection.mutate({
-      provider: sync.provider
-    });
+    startProviderCredentialFlow.mutate({ sync, entrypoint });
   }
 
   return (
@@ -1013,6 +1237,11 @@ export function AccountsPage() {
                                   {formatStatus(sync.connectionStatus)}
                                 </span>
                               ) : null}
+                              {sync.requiresManualReconnect ? (
+                                <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-200">
+                                  Reconnect required
+                                </span>
+                              ) : null}
                             </div>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                               {[
@@ -1040,7 +1269,35 @@ export function AccountsPage() {
                                     : "Unavailable"}
                                 </span>
                               </p>
+                              <p>
+                                Last success{" "}
+                                <span className="font-semibold">
+                                  {formatDateTime(sync.lastSyncSuccessAt)}
+                                </span>
+                              </p>
+                              <p>
+                                Last failure{" "}
+                                <span className="font-semibold">
+                                  {formatDateTime(sync.lastSyncFailureAt)}
+                                </span>
+                              </p>
                             </div>
+                            {sync.failureReason ? (
+                              <p className="mt-2 text-sm text-coral dark:text-orange-300">
+                                {sync.failureReason}
+                              </p>
+                            ) : null}
+                            {resyncMessages[sync.id] ? (
+                              <p
+                                className={`mt-2 text-sm ${
+                                  sync.requiresManualReconnect
+                                    ? "text-coral dark:text-orange-300"
+                                    : "text-pine dark:text-emerald-300"
+                                }`}
+                              >
+                                {resyncMessages[sync.id]}
+                              </p>
+                            ) : null}
                           </div>
 
                           <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
@@ -1048,11 +1305,15 @@ export function AccountsPage() {
                               type="button"
                               variant="secondary"
                               disabled={
-                                resyncProviderAccount.isPending ||
+                                startProviderCredentialFlow.isPending ||
                                 account.isArchived
                               }
                               onClick={() =>
-                                resyncProviderAccount.mutate(sync.id)
+                                startSyncedCredentialFlow(
+                                  account,
+                                  sync.id,
+                                  "credential"
+                                )
                               }
                             >
                               Resync
@@ -1061,12 +1322,17 @@ export function AccountsPage() {
                               type="button"
                               variant="secondary"
                               disabled={
-                                startProviderConnection.isPending ||
+                                startProviderCredentialFlow.isPending ||
                                 account.isArchived ||
-                                !sync.provider
+                                !sync.provider ||
+                                !sync.providerCredentialId
                               }
                               onClick={() =>
-                                reconnectSyncedAccount(account, sync.id)
+                                startSyncedCredentialFlow(
+                                  account,
+                                  sync.id,
+                                  "updateCredential"
+                                )
                               }
                             >
                               Reconnect
@@ -1075,9 +1341,9 @@ export function AccountsPage() {
                         </div>
                       ))}
 
-                      {resyncProviderAccount.isError ? (
+                      {startProviderCredentialFlow.isError ? (
                         <p className="text-sm text-coral dark:text-orange-300">
-                          Could not resync the selected account.
+                          Could not start the selected Syncfy credential flow.
                         </p>
                       ) : null}
                     </div>

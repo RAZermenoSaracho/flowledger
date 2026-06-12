@@ -61,6 +61,18 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://cdn.jsdelivr.net/npm/@paybook/sync-widget/dist/widget.css"),
+  SYNCFY_AUTO_SYNC_ENABLED: z.coerce.boolean().default(false),
+  SYNCFY_AUTO_SYNC_INTERVAL_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60),
+  SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120000),
+  SYNCFY_AUTO_SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 

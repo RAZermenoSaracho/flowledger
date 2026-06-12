@@ -304,28 +304,38 @@ Track:
 
 states for provider connections.
 
-## Secure Credential Storage
+## Syncfy Refresh Metadata
 
-If supported by Syncfy:
+FlowLedger should treat Syncfy `id_credential` as the source of truth for a
+provider credential. Syncfy handles bank credential entry through its widget.
+FlowLedger must not store user bank usernames, passwords, OTPs, security
+answers, card numbers, account login identifiers, or other bank login
+credential material.
 
-- Encrypt stored credential material.
-- Never store plaintext credentials.
+Store only non-secret Syncfy provider metadata needed for connection status,
+account metadata, webhook processing, and refresh/import operations. Sanitized
+Syncfy refresh endpoint metadata may be stored on provider metadata fields such
+as `ProviderConnection.rawData`; it must not include tokens, API keys, raw
+credentials, or bank login material.
 
-If not supported:
+If Syncfy requires interaction or usable refresh metadata is unavailable:
 
-- Use reconnect-required workflows.
+- Mark the connection reconnect-required.
+- Use the Syncfy widget credential update flow.
 
 ## Manual Resync
 
 Allow users to:
 
-- Trigger synchronization without reconnecting.
+- Trigger Syncfy credential synchronization with
+  `setEntrypointCredential(idCredential)`.
 
 ## Manual Reconnect
 
 Allow users to:
 
-- Reopen Syncfy widget.
+- Reopen the Syncfy widget credential update flow with
+  `setEntrypointUpdateCredential(idCredential)`.
 - Refresh credentials.
 - Repair expired connections.
 

@@ -16,10 +16,15 @@ export const accountsRouter = Router();
 type ProviderAccountWithConnection = {
   id: string;
   provider: string;
+  providerCredentialId: string;
   providerAccountId: string;
   accountMetadata: unknown;
   status: string;
+  failureReason: string | null;
+  requiresManualReconnect: boolean;
   lastSyncAt: Date | null;
+  lastSyncSuccessAt: Date | null;
+  lastSyncFailureAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   connection: {
@@ -27,7 +32,11 @@ type ProviderAccountWithConnection = {
     institutionId: string | null;
     institutionName: string | null;
     status: string;
+    failureReason: string | null;
+    requiresManualReconnect: boolean;
     lastSyncAt: Date | null;
+    lastSyncSuccessAt: Date | null;
+    lastSyncFailureAt: Date | null;
   } | null;
 };
 
@@ -61,6 +70,7 @@ export function providerAccountSyncSummary(
   return {
     id: providerAccount.id,
     provider: providerAccount.provider,
+    providerCredentialId: providerAccount.providerCredentialId,
     providerAccountId: providerAccount.providerAccountId,
     institutionId: providerAccount.connection?.institutionId ?? null,
     institutionName: providerAccount.connection?.institutionName ?? null,
@@ -69,10 +79,26 @@ export function providerAccountSyncSummary(
     currency: getString(metadata.currency),
     externalBalance: getNumber(metadata.balance),
     status: providerAccount.status,
+    failureReason:
+      providerAccount.failureReason ??
+      providerAccount.connection?.failureReason ??
+      null,
+    requiresManualReconnect:
+      providerAccount.requiresManualReconnect ||
+      providerAccount.connection?.requiresManualReconnect ||
+      false,
     connectionStatus: providerAccount.connection?.status ?? null,
     lastSyncAt:
       providerAccount.lastSyncAt ??
       providerAccount.connection?.lastSyncAt ??
+      null,
+    lastSyncSuccessAt:
+      providerAccount.lastSyncSuccessAt ??
+      providerAccount.connection?.lastSyncSuccessAt ??
+      null,
+    lastSyncFailureAt:
+      providerAccount.lastSyncFailureAt ??
+      providerAccount.connection?.lastSyncFailureAt ??
       null,
     createdAt: providerAccount.createdAt,
     updatedAt: providerAccount.updatedAt
@@ -112,7 +138,11 @@ accountsRouter.get(
                   institutionId: true,
                   institutionName: true,
                   status: true,
-                  lastSyncAt: true
+                  failureReason: true,
+                  requiresManualReconnect: true,
+                  lastSyncAt: true,
+                  lastSyncSuccessAt: true,
+                  lastSyncFailureAt: true
                 }
               }
             },

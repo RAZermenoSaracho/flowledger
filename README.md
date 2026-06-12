@@ -335,7 +335,7 @@ Requirements:
 
 - Passwords must be hashed.
 - Secrets must never be committed.
-- Provider credentials must never be stored in plaintext.
+- Bank login credentials must not be stored by FlowLedger.
 - Webhook signatures must be verified when configured.
 - User ownership must be enforced on all user data.
 
@@ -345,7 +345,9 @@ Never expose:
 - OAuth secrets
 - Provider API keys
 - Webhook secrets
-- Encrypted credential material
+- Syncfy tokens
+- Bank usernames, passwords, OTPs, security answers, card numbers, or account
+  login identifiers
 
 ---
 
@@ -387,12 +389,31 @@ Provider variables:
 - SYNCFY_WIDGET_STYLE_URL
 - PROVIDER_WEBHOOK_PUBLIC_BASE_URL
 
-Planned auto-sync variables:
+Syncfy auto-sync variables:
 
 - SYNCFY_AUTO_SYNC_ENABLED
 - SYNCFY_AUTO_SYNC_INTERVAL_MINUTES
 - SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS
 - SYNCFY_AUTO_SYNC_CONCURRENCY
+
+When enabled, the API starts a Syncfy scheduler on boot. It queues active
+Syncfy provider connections with linked accounts, processes them with the
+configured concurrency and timeout, and avoids overlapping runs. FlowLedger
+stores only non-secret Syncfy provider metadata, including the Syncfy
+`id_credential`, connection status, account metadata, and sanitized refresh
+endpoint metadata needed for account and transaction import. Syncfy handles bank
+credential entry through its widget. FlowLedger does not store user bank
+usernames, passwords, OTPs, security answers, card numbers, account login
+identifiers, or other bank login credential material.
+
+If Syncfy requires interactive login, MFA, OTP, or stored refresh metadata is
+unavailable, the connection is marked reconnect-required and the manual Syncfy
+widget credential update flow remains the fallback.
+
+Manual Syncfy flows use the widget credential entrypoints:
+
+- Resync: `setEntrypointCredential(idCredential)`
+- Reconnect/update: `setEntrypointUpdateCredential(idCredential)`
 
 ---
 
@@ -405,6 +426,9 @@ bash npm run dev
 Production-like local execution:
 
 bash npm run start 
+
+This builds the workspaces and runs the API plus the Vite preview server,
+which is the closest local mode to staging without deploying infrastructure.
 
 Build:
 
