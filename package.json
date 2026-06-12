@@ -18,7 +18,10 @@
     "typecheck": "npm run typecheck -w @flowledger/shared && npm run typecheck -w @flowledger/api && npm run typecheck -w @flowledger/web",
     "prisma:generate": "prisma generate --schema database/prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema database/prisma/schema.prisma",
-    "prisma:seed": "tsx database/seed.ts"
+    "prisma:seed": "tsx database/seed.ts",
+    "start": "npm run build && npm-run-all --parallel start:api start:web",
+    "start:api": "node apps/api/dist/server.js",
+    "start:web": "npm run preview -w @flowledger/web -- --host 0.0.0.0 --port 5174"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
