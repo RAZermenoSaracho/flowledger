@@ -5,6 +5,8 @@ import { HttpError } from "../../../utils/httpError.js";
 
 const syncfyApiBaseUrl = env.SYNCFY_API_BASE_URL;
 const syncfyDataBaseUrl = env.SYNCFY_DATA_BASE_URL;
+const syncfyTransactionLookbackDays = 14;
+const syncfyTransactionPageLimit = 500;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -68,6 +70,28 @@ export type SyncfyProcessingSummary = {
   status: "processed" | "ignored";
   importedAccounts: number;
   importedTransactions: number;
+  insertedOrUpdatedImportedTransactions?: number;
+  skippedDuplicateTransactions?: number;
+};
+
+export type SyncfyResyncSummary = {
+  status: "processed" | "manual_reconnect_required";
+  importedAccounts: number;
+  importedTransactions: number;
+  requiresManualReconnect: boolean;
+  insertedOrUpdatedImportedTransactions?: number;
+  skippedDuplicateTransactions?: number;
+  failureReason?: string;
+};
+
+type StoredSyncfyRefreshMetadata = {
+  provider: "syncfy";
+  providerCredentialId: string;
+  providerUserId: string;
+  endpoints: unknown;
+  storedAt: string;
+  updatedAt: string;
+  endpointSummary: ReturnType<typeof summarizeSyncfyEndpoints>;
 };
 
 function getJsonObject(value: unknown): JsonRecord | undefined {
@@ -163,7 +187,10 @@ function extractSyncfyUser(responseBody: unknown): unknown {
   return response ?? body ?? responseBody;
 }
 
-function getEndpointList(endpoints: unknown, key: "accounts" | "transactions") {
+export function getSyncfyEndpointList(
+  endpoints: unknown,
+  key: "accounts" | "transactions"
+) {
   const endpointMap = getJsonObject(endpoints);
   if (!endpointMap) return [];
 
@@ -177,6 +204,26 @@ function getEndpointList(endpoints: unknown, key: "accounts" | "transactions") {
 
   const endpoint = getString(value);
   return endpoint ? [endpoint] : [];
+}
+
+export function summarizeSyncfyEndpoints(endpoints: unknown) {
+  const accountEndpointCount = getSyncfyEndpointList(
+    endpoints,
+    "accounts"
+  ).length;
+  const transactionEndpointCount = getSyncfyEndpointList(
+    endpoints,
+    "transactions"
+  ).length;
+
+  return {
+    accountEndpointCount,
+    transactionEndpointCount,
+    endpointTypes: [
+      accountEndpointCount > 0 ? "accounts" : null,
+      transactionEndpointCount > 0 ? "transactions" : null
+    ].filter((value): value is string => Boolean(value))
+  };
 }
 
 function buildSyncfyApiUrl(pathname: string) {
@@ -202,19 +249,122 @@ function buildSyncfyDataUrl(endpoint: string, token: string) {
   return url;
 }
 
+function sanitizeSyncfyDataEndpoint(endpoint: string) {
+  const url = new URL(endpoint, syncfyDataBaseUrl);
+
+  if (url.origin !== syncfyDataBaseUrl) {
+    throw new HttpError(400, "Unexpected Syncfy endpoint host");
+  }
+
+  const sensitiveParams = [
+    "token",
+    "api_key",
+    "username",
+    "password",
+    "pass",
+    "otp",
+    "twofa",
+    "security_answer",
+    "card_number",
+    "cvv",
+    "pin"
+  ];
+
+  for (const param of sensitiveParams) {
+    url.searchParams.delete(param);
+  }
+
+  return `${url.pathname}${url.search}`;
+}
+
+function sanitizeSyncfyEndpointList(
+  endpoints: unknown,
+  key: "accounts" | "transactions"
+) {
+  return getSyncfyEndpointList(endpoints, key)
+    .map((endpoint) => sanitizeSyncfyDataEndpoint(endpoint))
+    .filter((endpoint) => {
+      const pathname = new URL(endpoint, syncfyDataBaseUrl).pathname;
+      return key === "accounts"
+        ? pathname === "/v1/accounts"
+        : pathname === "/v1/transactions";
+    });
+}
+
+export function buildSyncfyRefreshMetadata(input: {
+  providerCredentialId: string;
+  providerUserId: string;
+  endpoints: unknown;
+  now?: Date;
+}): StoredSyncfyRefreshMetadata {
+  const endpoints = {
+    accounts: sanitizeSyncfyEndpointList(input.endpoints, "accounts"),
+    transactions: sanitizeSyncfyEndpointList(input.endpoints, "transactions")
+  };
+  const now = (input.now ?? new Date()).toISOString();
+
+  return {
+    provider: "syncfy",
+    providerCredentialId: input.providerCredentialId,
+    providerUserId: input.providerUserId,
+    endpoints,
+    storedAt: now,
+    updatedAt: now,
+    endpointSummary: summarizeSyncfyEndpoints(endpoints)
+  };
+}
+
+export function getSyncfyRefreshMetadata(rawData: unknown) {
+  const raw = getJsonObject(rawData);
+  const metadata = getJsonObject(raw?.syncfyRefreshMetadata);
+
+  if (!metadata) return undefined;
+
+  return {
+    providerUserId: getString(metadata.providerUserId),
+    endpoints: metadata.endpoints
+  };
+}
+
+export function buildSyncfyTransactionDataUrl(input: {
+  endpoint: string;
+  token: string;
+  skip?: number;
+  limit?: number;
+  now?: Date;
+}) {
+  const limit = input.limit ?? syncfyTransactionPageLimit;
+  const skip = input.skip ?? 0;
+  const now = input.now ?? new Date();
+  const toSeconds = Math.floor(now.getTime() / 1000);
+  const fromSeconds =
+    toSeconds - syncfyTransactionLookbackDays * 24 * 60 * 60;
+  const url = buildSyncfyDataUrl(input.endpoint, input.token);
+
+  if (url.pathname !== "/v1/transactions") {
+    throw new HttpError(400, "Unexpected Syncfy transaction endpoint path");
+  }
+
+  url.searchParams.delete("dt_refresh_from");
+  url.searchParams.delete("dt_refresh_to");
+  url.searchParams.delete("limit");
+  url.searchParams.delete("skip");
+  url.searchParams.set("dt_refresh_from", String(fromSeconds));
+  url.searchParams.set("dt_refresh_to", String(toSeconds));
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("skip", String(skip));
+
+  return url;
+}
+
 async function fetchJson(url: URL, init?: RequestInit) {
   const response = await fetch(url, init);
   const body = (await response.json().catch(() => null)) as unknown;
 
   if (!response.ok) {
-    const safeUrl = env.SYNCFY_API_KEY
-      ? url.toString().replace(env.SYNCFY_API_KEY, "***")
-      : url.toString();
-
     console.error("[SYNCFY REQUEST FAILED]", {
-      url: safeUrl,
-      status: response.status,
-      body
+      pathname: url.pathname,
+      status: response.status
     });
 
     throw new HttpError(
@@ -473,12 +623,44 @@ export async function fetchSyncfyAccounts(
 export async function fetchSyncfyTransactions(
   endpoint: string,
   token: string,
-  fallbackCredentialId?: string
+  fallbackCredentialId?: string,
+  options: {
+    fetchPage?: (url: URL) => Promise<unknown>;
+    now?: Date;
+    limit?: number;
+  } = {}
 ) {
-  const url = buildSyncfyDataUrl(endpoint, token);
-  const body = await fetchJson(url);
+  const limit = options.limit ?? syncfyTransactionPageLimit;
+  const fetchPage = options.fetchPage ?? fetchJson;
+  const transactions: unknown[] = [];
+  let pageCount = 0;
 
-  return extractSyncfyList(body, "transactions").map((transaction) =>
+  for (let skip = 0; ; skip += limit) {
+    const url = buildSyncfyTransactionDataUrl({
+      endpoint,
+      token,
+      skip,
+      limit,
+      now: options.now
+    });
+    const body = await fetchPage(url);
+    const page = extractSyncfyList(body, "transactions");
+
+    pageCount += 1;
+    transactions.push(...page);
+
+    if (page.length < limit) {
+      break;
+    }
+  }
+
+  console.info("[SYNCFY TRANSACTIONS] Fetched transaction pages", {
+    pageCount,
+    fetchedTransactionsCount: transactions.length,
+    limit
+  });
+
+  return transactions.map((transaction) =>
     normalizeSyncfyTransaction(transaction, fallbackCredentialId)
   );
 }
@@ -487,11 +669,59 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
+function getEndpointSummary(endpoints: unknown) {
+  const summary = summarizeSyncfyEndpoints(endpoints);
+
+  return {
+    hasEndpoints:
+      summary.accountEndpointCount > 0 || summary.transactionEndpointCount > 0,
+    endpointTypes: summary.endpointTypes
+  };
+}
+
 function providerAccountKey(
   providerCredentialId: string,
   providerAccountId: string
 ) {
   return `${providerCredentialId}:${providerAccountId}`;
+}
+
+export function buildSyncfyProviderAccountMetadata(
+  account: Pick<NormalizedSyncfyAccount, "name" | "type" | "currency" | "balance">
+) {
+  return {
+    name: account.name,
+    type: account.type,
+    currency: account.currency,
+    balance: account.balance
+  };
+}
+
+export function resolveSyncfyImportedTransactionStatus(input: {
+  existingStatus?: string | null;
+  transactionId?: string | null;
+}) {
+  if (!input.existingStatus) return "pending";
+
+  return nextSyncfyImportedTransactionStatus({
+    status: input.existingStatus,
+    transactionId: input.transactionId
+  });
+}
+
+export function summarizeSyncfyImportedTransactionWrites(input: {
+  existingTransactionIds: Set<string>;
+  transactions: Pick<NormalizedSyncfyTransaction, "syncfyTransactionId">[];
+}) {
+  const skippedDuplicateTransactions = input.transactions.filter((transaction) =>
+    input.existingTransactionIds.has(transaction.syncfyTransactionId)
+  ).length;
+
+  return {
+    insertedOrUpdatedImportedTransactions:
+      input.transactions.length - skippedDuplicateTransactions,
+    skippedDuplicateTransactions
+  };
 }
 
 async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId: string) {
@@ -528,8 +758,17 @@ async function upsertProviderConnection(input: {
   userId: string;
   providerUserId: string;
   providerCredentialId: string;
-  event: SyncfyWebhookEventInput;
+  endpoints: unknown;
 }) {
+  const now = new Date();
+  const refreshMetadata = buildSyncfyRefreshMetadata({
+    providerCredentialId: input.providerCredentialId,
+    providerUserId: input.providerUserId,
+    endpoints: input.endpoints,
+    now
+  });
+  const endpointSummary = getEndpointSummary(refreshMetadata.endpoints);
+
   return prisma.providerConnection.upsert({
     where: {
       provider_providerCredentialId: {
@@ -543,20 +782,30 @@ async function upsertProviderConnection(input: {
       providerUserId: input.providerUserId,
       providerCredentialId: input.providerCredentialId,
       status: "active",
-      lastSyncAt: new Date(),
+      failureReason: null,
+      requiresManualReconnect: false,
+      lastSyncAt: now,
+      lastSyncSuccessAt: now,
+      lastSyncFailureAt: null,
       rawData: toJsonValue({
-        id_credential: input.event.payload.id_credential,
-        endpoints: input.event.payload.endpoints
+        id_credential: input.providerCredentialId,
+        syncfyRefreshMetadata: refreshMetadata,
+        ...endpointSummary
       })
     },
     update: {
       userId: input.userId,
       providerUserId: input.providerUserId,
       status: "active",
-      lastSyncAt: new Date(),
+      failureReason: null,
+      requiresManualReconnect: false,
+      lastSyncAt: now,
+      lastSyncSuccessAt: now,
+      lastSyncFailureAt: null,
       rawData: toJsonValue({
-        id_credential: input.event.payload.id_credential,
-        endpoints: input.event.payload.endpoints
+        id_credential: input.providerCredentialId,
+        syncfyRefreshMetadata: refreshMetadata,
+        ...endpointSummary
       })
     }
   });
@@ -569,6 +818,7 @@ async function upsertProviderAccounts(input: {
   accounts: NormalizedSyncfyAccount[];
 }) {
   const refs = new Map<string, string>();
+  const now = new Date();
 
   for (const account of input.accounts) {
     if (!account.syncfyCredentialId) {
@@ -590,28 +840,26 @@ async function upsertProviderAccounts(input: {
         providerUserId: input.providerUserId,
         providerCredentialId: account.syncfyCredentialId,
         providerAccountId: account.syncfyAccountId,
-        accountMetadata: toJsonValue({
-          name: account.name,
-          type: account.type,
-          currency: account.currency,
-          balance: account.balance
-        }),
+        accountMetadata: toJsonValue(buildSyncfyProviderAccountMetadata(account)),
         status: "active",
-        lastSyncAt: new Date(),
+        failureReason: null,
+        requiresManualReconnect: false,
+        lastSyncAt: now,
+        lastSyncSuccessAt: now,
+        lastSyncFailureAt: null,
         rawData: account.rawData as Prisma.InputJsonObject
       },
       update: {
         userId: input.userId,
         connectionId: input.connectionId,
         providerUserId: input.providerUserId,
-        accountMetadata: toJsonValue({
-          name: account.name,
-          type: account.type,
-          currency: account.currency,
-          balance: account.balance
-        }),
+        accountMetadata: toJsonValue(buildSyncfyProviderAccountMetadata(account)),
         status: "active",
-        lastSyncAt: new Date(),
+        failureReason: null,
+        requiresManualReconnect: false,
+        lastSyncAt: now,
+        lastSyncSuccessAt: now,
+        lastSyncFailureAt: null,
         rawData: account.rawData as Prisma.InputJsonObject
       },
       select: {
@@ -770,6 +1018,335 @@ async function notifyNewImportedTransactions(input: {
   });
 }
 
+export function shouldMarkSyncfyManualReconnect(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(mfa|otp|token|credential|unauthorized|forbidden|expired|interactive|login|session|401|403)/i.test(
+    message
+  );
+}
+
+export function countNewSyncfyImportedTransactionIds(input: {
+  existingTransactionIds: Set<string>;
+  transactions: Pick<NormalizedSyncfyTransaction, "syncfyTransactionId">[];
+}) {
+  return input.transactions.filter(
+    (transaction) =>
+      !input.existingTransactionIds.has(transaction.syncfyTransactionId)
+  ).length;
+}
+
+export function nextSyncfyImportedTransactionStatus(input: {
+  status: string;
+  transactionId?: string | null;
+}) {
+  if (input.status === "imported") {
+    return input.transactionId ? "processed" : "pending";
+  }
+
+  return input.status;
+}
+
+function safeFailureReason(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.slice(0, 1000);
+}
+
+async function markSyncfyCredentialManualReconnect(input: {
+  userId?: string | null;
+  connectionId?: string;
+  providerCredentialId: string;
+  failureReason: string;
+}) {
+  const now = new Date();
+
+  await prisma.providerConnection.updateMany({
+    where: {
+      ...(input.connectionId ? { id: input.connectionId } : {}),
+      provider: "syncfy",
+      providerCredentialId: input.providerCredentialId,
+      ...(input.userId ? { userId: input.userId } : {})
+    },
+    data: {
+      status: "reconnect_required",
+      failureReason: input.failureReason,
+      requiresManualReconnect: true,
+      lastSyncFailureAt: now
+    }
+  });
+
+  await prisma.providerAccount.updateMany({
+    where: {
+      provider: "syncfy",
+      providerCredentialId: input.providerCredentialId,
+      ...(input.userId ? { userId: input.userId } : {})
+    },
+    data: {
+      status: "reconnect_required",
+      failureReason: input.failureReason,
+      requiresManualReconnect: true,
+      lastSyncFailureAt: now
+    }
+  });
+
+}
+
+async function processSyncfyCredentialRefresh(input: {
+  eventId?: string;
+  idUser: string;
+  userId?: string;
+  providerCredentialId?: string;
+  endpoints: unknown;
+}) {
+  const accountEndpoints = getSyncfyEndpointList(input.endpoints, "accounts");
+  const transactionEndpoints = getSyncfyEndpointList(
+    input.endpoints,
+    "transactions"
+  );
+  const endpointSummary = summarizeSyncfyEndpoints(input.endpoints);
+
+  console.info("[SYNCFY IMPORT] Processing credential refresh", {
+    eventId: input.eventId,
+    providerCredentialId: input.providerCredentialId,
+    endpointTypes: endpointSummary.endpointTypes,
+    accountEndpointCount: endpointSummary.accountEndpointCount,
+    transactionEndpointCount: endpointSummary.transactionEndpointCount
+  });
+
+  if (accountEndpoints.length === 0 && transactionEndpoints.length === 0) {
+    if (input.eventId) {
+      await prisma.providerWebhookEvent.update({
+        where: { id: input.eventId },
+        data: {
+          status: "processed",
+          processedAt: new Date()
+        }
+      });
+    }
+
+    return {
+      status: "processed" as const,
+      importedAccounts: 0,
+      importedTransactions: 0,
+      insertedOrUpdatedImportedTransactions: 0,
+      skippedDuplicateTransactions: 0
+    };
+  }
+
+  const { token } = await createSyncfySession(input.idUser);
+
+  const accounts = await fetchAccountsFromEndpoints({
+    endpoints: accountEndpoints,
+    token,
+    fallbackCredentialId: input.providerCredentialId
+  });
+
+  const transactions = await fetchTransactionsFromEndpoints({
+    endpoints: transactionEndpoints,
+    token,
+    fallbackCredentialId: input.providerCredentialId
+  });
+
+  const existingTransactionIds = await getExistingImportedTransactionIds({
+    provider: "syncfy",
+    providerTransactionIds: transactions.map(
+      (transaction) => transaction.syncfyTransactionId
+    )
+  });
+
+  const newTransactionsCount = countNewSyncfyImportedTransactionIds({
+    existingTransactionIds,
+    transactions
+  });
+  const transactionWriteSummary = summarizeSyncfyImportedTransactionWrites({
+    existingTransactionIds,
+    transactions
+  });
+
+  const providerCredentialId =
+    input.providerCredentialId ??
+    accounts.find((account) => account.syncfyCredentialId)
+      ?.syncfyCredentialId ??
+    transactions[0]?.syncfyCredentialId;
+
+  if (!providerCredentialId) {
+    throw new HttpError(502, "Syncfy event is missing id_credential");
+  }
+
+  const userId =
+    input.userId ??
+    (await findFlowLedgerUserIdForSyncfyUser(input.idUser)) ??
+    (await findFlowLedgerUserIdForSyncfyCredential(providerCredentialId));
+
+  if (!userId) {
+    throw new HttpError(404, "FlowLedger user was not found for Syncfy event");
+  }
+
+  console.info("[SYNCFY IMPORT] Fetched provider data", {
+    eventId: input.eventId,
+    providerCredentialId,
+    userId,
+    importedAccountCount: accounts.length,
+    importedTransactionCount: transactions.length,
+    fetchedAccountsCount: accounts.length,
+    fetchedTransactionsCount: transactions.length,
+    newTransactionCount: newTransactionsCount,
+    insertedOrUpdatedImportedTransactionsCount:
+      transactionWriteSummary.insertedOrUpdatedImportedTransactions,
+    skippedDuplicateTransactionsCount:
+      transactionWriteSummary.skippedDuplicateTransactions
+  });
+
+  if (transactions.length === 0) {
+    console.info("[SYNCFY IMPORT] Transaction endpoint returned no rows", {
+      eventId: input.eventId,
+      providerCredentialId,
+      accountEndpointCount: accountEndpoints.length,
+      transactionEndpointCount: transactionEndpoints.length,
+      fetchedAccountsCount: accounts.length,
+      fetchedTransactionsCount: transactions.length
+    });
+  }
+
+  const connection = await upsertProviderConnection({
+    userId,
+    providerUserId: input.idUser,
+    providerCredentialId,
+    endpoints: input.endpoints
+  });
+
+  const accountRefs = await upsertProviderAccounts({
+    userId,
+    connectionId: connection.id,
+    providerUserId: input.idUser,
+    accounts
+  });
+
+  const existingAccountRefs = await findProviderAccountRefs({
+    providerCredentialId,
+    providerAccountIds: transactions.map(
+      (transaction) => transaction.syncfyAccountId
+    )
+  });
+
+  for (const [key, value] of existingAccountRefs) {
+    accountRefs.set(key, value);
+  }
+
+  for (const transaction of transactions) {
+    if (existingTransactionIds.has(transaction.syncfyTransactionId)) {
+      continue;
+    }
+
+    const providerAccountRefId = accountRefs.get(
+      providerAccountKey(
+        transaction.syncfyCredentialId,
+        transaction.syncfyAccountId
+      )
+    );
+
+    try {
+      await prisma.providerImportedTransaction.create({
+        data: {
+          userId,
+          connectionId: connection.id,
+          providerAccountRefId,
+          provider: "syncfy",
+          providerUserId: input.idUser,
+          providerTransactionId: transaction.syncfyTransactionId,
+          providerCredentialId: transaction.syncfyCredentialId,
+          providerAccountId: transaction.syncfyAccountId,
+          description: transaction.description,
+          amount: new Prisma.Decimal(transaction.amount),
+          currency: transaction.currency,
+          transactionDate: transaction.transactionDate,
+          refreshDate: transaction.refreshDate,
+          status: resolveSyncfyImportedTransactionStatus({}),
+          errorMessage: null,
+          rawData: transaction.rawData as Prisma.InputJsonObject
+        }
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  if (transactions.length > 0) {
+    await prisma.providerImportedTransaction.updateMany({
+      where: {
+        provider: "syncfy",
+        providerTransactionId: {
+          in: transactions.map((transaction) => transaction.syncfyTransactionId)
+        },
+        status: "imported",
+        transactionId: null
+      },
+      data: {
+        status: "pending",
+        errorMessage: null
+      }
+    });
+
+    await prisma.providerImportedTransaction.updateMany({
+      where: {
+        provider: "syncfy",
+        providerTransactionId: {
+          in: transactions.map((transaction) => transaction.syncfyTransactionId)
+        },
+        status: "imported",
+        transactionId: { not: null }
+      },
+      data: {
+        status: "processed",
+        errorMessage: null
+      }
+    });
+  }
+
+  /*
+    Existing providerTransactionId rows are intentionally not rewritten here.
+    Their status/category/transaction link represent user review decisions.
+  */
+  /*
+    Kept as explicit variables for operational logs and API summaries.
+  */
+  const insertedOrUpdatedImportedTransactions =
+    transactionWriteSummary.insertedOrUpdatedImportedTransactions;
+  const skippedDuplicateTransactions =
+    transactionWriteSummary.skippedDuplicateTransactions;
+
+  await notifyNewImportedTransactions({
+    userId,
+    providerCredentialId,
+    newTransactionsCount
+  });
+
+  if (input.eventId) {
+    await prisma.providerWebhookEvent.update({
+      where: { id: input.eventId },
+      data: {
+        status: "processed",
+        processedAt: new Date(),
+        errorMessage: null
+      }
+    });
+  }
+
+  return {
+    status: "processed" as const,
+    importedAccounts: accounts.length,
+    importedTransactions: transactions.length,
+    insertedOrUpdatedImportedTransactions,
+    skippedDuplicateTransactions
+  };
+}
+
 export async function processSyncfyWebhookEvent(
   eventId: string,
   event: SyncfyWebhookEventInput
@@ -787,10 +1364,22 @@ export async function processSyncfyWebhookEvent(
   });
 
   if (claimResult.count === 0) {
-    return { status: "ignored", importedAccounts: 0, importedTransactions: 0 };
+    return {
+      status: "ignored",
+      importedAccounts: 0,
+      importedTransactions: 0,
+      insertedOrUpdatedImportedTransactions: 0,
+      skippedDuplicateTransactions: 0
+    };
   }
 
   if (event.header.event.name !== "credentials.refreshed") {
+    console.info("[SYNCFY WEBHOOK] Ignoring unsupported event", {
+      eventId,
+      eventName: event.header.event.name ?? "unknown",
+      providerCredentialId: event.payload.id_credential
+    });
+
     await prisma.providerWebhookEvent.update({
       where: { id: eventId },
       data: {
@@ -799,175 +1388,197 @@ export async function processSyncfyWebhookEvent(
       }
     });
 
-    return { status: "ignored", importedAccounts: 0, importedTransactions: 0 };
+    return {
+      status: "ignored",
+      importedAccounts: 0,
+      importedTransactions: 0,
+      insertedOrUpdatedImportedTransactions: 0,
+      skippedDuplicateTransactions: 0
+    };
   }
 
   const idUser = event.header.user.id_user;
   if (!idUser) throw new HttpError(400, "Syncfy event is missing id_user");
 
-  const accountEndpoints = getEndpointList(event.payload.endpoints, "accounts");
-  const transactionEndpoints = getEndpointList(
-    event.payload.endpoints,
-    "transactions"
-  );
-
-  if (accountEndpoints.length === 0 && transactionEndpoints.length === 0) {
-    await prisma.providerWebhookEvent.update({
-      where: { id: eventId },
-      data: {
-        status: "processed",
-        processedAt: new Date()
-      }
-    });
-
-    return {
-      status: "processed",
-      importedAccounts: 0,
-      importedTransactions: 0
-    };
-  }
-
-  const fallbackCredentialId = event.payload.id_credential;
-  const { token } = await createSyncfySession(idUser);
-
-  const accounts = await fetchAccountsFromEndpoints({
-    endpoints: accountEndpoints,
-    token,
-    fallbackCredentialId
+  console.info("[SYNCFY WEBHOOK] Processing event", {
+    eventId,
+    eventName: event.header.event.name,
+    providerCredentialId: event.payload.id_credential
   });
 
-  const transactions = await fetchTransactionsFromEndpoints({
-    endpoints: transactionEndpoints,
-    token,
-    fallbackCredentialId
+  return processSyncfyCredentialRefresh({
+    eventId,
+    idUser,
+    providerCredentialId: event.payload.id_credential,
+    endpoints: event.payload.endpoints
   });
+}
 
-  const existingTransactionIds = await getExistingImportedTransactionIds({
-    provider: "syncfy",
-    providerTransactionIds: transactions.map(
-      (transaction) => transaction.syncfyTransactionId
-    )
-  });
-
-  const newTransactionsCount = transactions.filter(
-    (transaction) =>
-      !existingTransactionIds.has(transaction.syncfyTransactionId)
-  ).length;
-
-  const providerCredentialId =
-    fallbackCredentialId ??
-    accounts.find((account) => account.syncfyCredentialId)
-      ?.syncfyCredentialId ??
-    transactions[0]?.syncfyCredentialId;
-
-  if (!providerCredentialId) {
-    throw new HttpError(502, "Syncfy event is missing id_credential");
-  }
-
-  const userId =
-    (await findFlowLedgerUserIdForSyncfyUser(idUser)) ??
-    (await findFlowLedgerUserIdForSyncfyCredential(providerCredentialId));
-
-  if (!userId) {
-    throw new HttpError(404, "FlowLedger user was not found for Syncfy event");
-  }
-
-  const connection = await upsertProviderConnection({
-    userId,
-    providerUserId: idUser,
-    providerCredentialId,
-    event
-  });
-
-  const accountRefs = await upsertProviderAccounts({
-    userId,
-    connectionId: connection.id,
-    providerUserId: idUser,
-    accounts
-  });
-
-  const existingAccountRefs = await findProviderAccountRefs({
-    providerCredentialId,
-    providerAccountIds: transactions.map(
-      (transaction) => transaction.syncfyAccountId
-    )
-  });
-
-  for (const [key, value] of existingAccountRefs) {
-    accountRefs.set(key, value);
-  }
-
-  for (const transaction of transactions) {
-    const providerAccountRefId = accountRefs.get(
-      providerAccountKey(
-        transaction.syncfyCredentialId,
-        transaction.syncfyAccountId
-      )
-    );
-
-    await prisma.providerImportedTransaction.upsert({
-      where: {
-        provider_providerTransactionId: {
-          provider: "syncfy",
-          providerTransactionId: transaction.syncfyTransactionId
-        }
-      },
-      create: {
-        userId,
-        connectionId: connection.id,
-        providerAccountRefId,
-        provider: "syncfy",
-        providerUserId: idUser,
-        providerTransactionId: transaction.syncfyTransactionId,
-        providerCredentialId: transaction.syncfyCredentialId,
-        providerAccountId: transaction.syncfyAccountId,
-        description: transaction.description,
-        amount: new Prisma.Decimal(transaction.amount),
-        currency: transaction.currency,
-        transactionDate: transaction.transactionDate,
-        refreshDate: transaction.refreshDate,
-        status: "pending",
-        errorMessage: null,
-        rawData: transaction.rawData as Prisma.InputJsonObject
-      },
-      update: {
-        userId,
-        connectionId: connection.id,
-        providerAccountRefId,
-        providerUserId: idUser,
-        providerCredentialId: transaction.syncfyCredentialId,
-        providerAccountId: transaction.syncfyAccountId,
-        description: transaction.description,
-        amount: new Prisma.Decimal(transaction.amount),
-        currency: transaction.currency,
-        transactionDate: transaction.transactionDate,
-        refreshDate: transaction.refreshDate,
-        errorMessage: null,
-        rawData: transaction.rawData as Prisma.InputJsonObject
-      }
-    });
-  }
-
-  await notifyNewImportedTransactions({
-    userId,
-    providerCredentialId,
-    newTransactionsCount
-  });
-
-  await prisma.providerWebhookEvent.update({
-    where: { id: eventId },
-    data: {
-      status: "processed",
-      processedAt: new Date(),
-      errorMessage: null
+export async function resyncSyncfyConnection(input: {
+  userId: string;
+  connectionId: string;
+  timeoutMs?: number;
+}): Promise<SyncfyResyncSummary> {
+  const connection = await prisma.providerConnection.findFirst({
+    where: {
+      id: input.connectionId,
+      userId: input.userId,
+      provider: "syncfy"
     }
   });
 
-  return {
-    status: "processed",
-    importedAccounts: accounts.length,
-    importedTransactions: transactions.length
-  };
+  if (!connection) {
+    throw new HttpError(404, "Syncfy connection was not found");
+  }
+
+  const storedMetadata = getSyncfyRefreshMetadata(connection.rawData);
+  const legacyRawData = getJsonObject(connection.rawData);
+  const endpoints = storedMetadata?.endpoints ?? legacyRawData?.endpoints;
+  const providerUserId =
+    storedMetadata?.providerUserId ?? connection.providerUserId;
+  const endpointSummary = summarizeSyncfyEndpoints(endpoints);
+
+  console.info("[SYNCFY REFRESH] Loaded stored endpoint metadata", {
+    providerCredentialId: connection.providerCredentialId,
+    userId: input.userId,
+    hasStoredRefreshMetadata: Boolean(storedMetadata?.endpoints),
+    endpointTypes: endpointSummary.endpointTypes,
+    accountEndpointCount: endpointSummary.accountEndpointCount,
+    transactionEndpointCount: endpointSummary.transactionEndpointCount
+  });
+
+  if (!providerUserId || !endpoints) {
+    const failureReason =
+      "Stored Syncfy refresh metadata is unavailable. Manual reconnect is required.";
+    await markSyncfyCredentialManualReconnect({
+      userId: input.userId,
+      connectionId: connection.id,
+      providerCredentialId: connection.providerCredentialId,
+      failureReason
+    });
+
+    return {
+      status: "manual_reconnect_required",
+      importedAccounts: 0,
+      importedTransactions: 0,
+      requiresManualReconnect: true,
+      failureReason
+    };
+  }
+
+  try {
+    const refresh = processSyncfyCredentialRefresh({
+      idUser: providerUserId,
+      userId: input.userId,
+      providerCredentialId: connection.providerCredentialId,
+      endpoints
+    });
+    const result = input.timeoutMs
+      ? await withTimeout(refresh, input.timeoutMs)
+      : await refresh;
+
+    console.info("[SYNCFY REFRESH] Completed credential refresh", {
+      providerCredentialId: connection.providerCredentialId,
+      userId: input.userId,
+      fetchedAccountsCount: result.importedAccounts,
+      fetchedTransactionsCount: result.importedTransactions,
+      insertedOrUpdatedImportedTransactionsCount:
+        result.insertedOrUpdatedImportedTransactions ?? 0,
+      skippedDuplicateTransactionsCount:
+        result.skippedDuplicateTransactions ?? 0
+    });
+
+    return {
+      ...result,
+      requiresManualReconnect: false
+    };
+  } catch (error) {
+    const failureReason = safeFailureReason(error);
+    const requiresManualReconnect = shouldMarkSyncfyManualReconnect(error);
+
+    if (requiresManualReconnect) {
+      await markSyncfyCredentialManualReconnect({
+        userId: input.userId,
+        connectionId: connection.id,
+        providerCredentialId: connection.providerCredentialId,
+        failureReason
+      });
+
+      return {
+        status: "manual_reconnect_required",
+        importedAccounts: 0,
+        importedTransactions: 0,
+        requiresManualReconnect: true,
+        failureReason
+      };
+    }
+
+    await prisma.providerConnection.update({
+      where: { id: connection.id },
+      data: {
+        status: "sync_failed",
+        failureReason,
+        requiresManualReconnect: false,
+        lastSyncFailureAt: new Date()
+      }
+    });
+    console.warn("[SYNCFY REFRESH] Credential refresh failed", {
+      providerCredentialId: connection.providerCredentialId,
+      userId: input.userId,
+      requiresManualReconnect: false,
+      failureReason
+    });
+    throw error;
+  }
+}
+
+export async function resyncSyncfyCredential(input: {
+  userId: string;
+  providerCredentialId: string;
+  timeoutMs?: number;
+}): Promise<SyncfyResyncSummary> {
+  const connection = await prisma.providerConnection.findFirst({
+    where: {
+      userId: input.userId,
+      provider: "syncfy",
+      providerCredentialId: input.providerCredentialId
+    },
+    select: { id: true }
+  });
+
+  if (!connection) {
+    throw new HttpError(404, "Syncfy credential connection was not found");
+  }
+
+  console.info("[SYNCFY REFRESH] Starting credential refresh fallback", {
+    providerCredentialId: input.providerCredentialId,
+    userId: input.userId
+  });
+
+  return resyncSyncfyConnection({
+    userId: input.userId,
+    connectionId: connection.id,
+    timeoutMs: input.timeoutMs
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new HttpError(504, "Syncfy resync timed out"));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
 }
 
 export async function markSyncfyWebhookEventFailed(
@@ -975,6 +1586,11 @@ export async function markSyncfyWebhookEventFailed(
   error: unknown
 ) {
   const message = error instanceof Error ? error.message : "Unknown error";
+
+  console.error("[SYNCFY WEBHOOK] Processing failed", {
+    eventId,
+    error: message
+  });
 
   await prisma.providerWebhookEvent.update({
     where: { id: eventId },

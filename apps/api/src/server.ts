@@ -24,6 +24,7 @@ import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.r
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import syncfyRoutes from "./modules/providers/syncfy/syncfy.routes.js";
+import { createSyncfyAutoSyncScheduler } from "./modules/providers/syncfy/syncfyAutoSyncScheduler.js";
 
 const app = express();
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -65,8 +66,11 @@ app.use(errorHandler);
 const server = app.listen(env.API_PORT, () => {
   console.log(`FlowLedger API listening on port ${env.API_PORT}`);
 });
+const syncfyAutoSyncScheduler = createSyncfyAutoSyncScheduler();
+syncfyAutoSyncScheduler.start();
 
 async function shutdown() {
+  syncfyAutoSyncScheduler.stop();
   server.close(async () => {
     await prisma.$disconnect();
     process.exit(0);

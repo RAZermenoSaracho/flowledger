@@ -194,6 +194,11 @@ router.post(
       signatureKey: env.SYNCFY_WEBHOOK_SIGNATURE_KEY
     });
 
+    console.info("[SYNCFY WEBHOOK] Signature verification", {
+      result: signatureVerification,
+      hasSignature: Boolean(getHeaderString(req.headers["request-signature"]))
+    });
+
     if (signatureVerification === "invalid") {
       await recordInvalidSyncfyWebhook(
         req.body,
@@ -206,6 +211,9 @@ router.post(
       res.status(200).json({
         success: true,
         acceptedEvents: 0
+      });
+      console.warn("[SYNCFY WEBHOOK] Rejected webhook", {
+        reason: "invalid_signature"
       });
       return;
     }
@@ -225,11 +233,22 @@ router.post(
         success: true,
         acceptedEvents: 0
       });
+      console.warn("[SYNCFY WEBHOOK] Rejected webhook", {
+        reason: "invalid_payload"
+      });
       return;
     }
 
     const webhook = parsedWebhook.data;
     logWebhookInDevelopment(webhook.rid, webhook.events.length);
+    console.info("[SYNCFY WEBHOOK] Received webhook", {
+      rid: webhook.rid,
+      eventCount: webhook.events.length,
+      events: webhook.events.map((event) => ({
+        eventName: event.header.event.name ?? "unknown",
+        providerCredentialId: event.payload.id_credential
+      }))
+    });
 
     const recordResults = await Promise.allSettled(
       webhook.events.map(async (event, index) => ({

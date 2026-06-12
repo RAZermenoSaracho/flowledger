@@ -322,22 +322,26 @@ model Notification {
 }
 
 model ProviderConnection {
-  id                   String                        @id @default(cuid())
-  userId               String
-  provider             String
-  providerUserId       String?
-  providerCredentialId String
-  institutionId        String?
-  institutionName      String?
-  institutionMetadata  Json?
-  status               String                        @default("active")
-  lastSyncAt           DateTime?
-  rawData              Json?
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @updatedAt
-  user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accounts             ProviderAccount[]
-  importedTransactions ProviderImportedTransaction[]
+  id                      String                        @id @default(cuid())
+  userId                  String
+  provider                String
+  providerUserId          String?
+  providerCredentialId    String
+  institutionId           String?
+  institutionName         String?
+  institutionMetadata     Json?
+  status                  String                        @default("active")
+  failureReason           String?
+  requiresManualReconnect Boolean                       @default(false)
+  lastSyncAt              DateTime?
+  lastSyncSuccessAt       DateTime?
+  lastSyncFailureAt       DateTime?
+  rawData                 Json?
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  user                    User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts                ProviderAccount[]
+  importedTransactions    ProviderImportedTransaction[]
 
   @@unique([provider, providerCredentialId])
   @@index([userId])
@@ -346,25 +350,29 @@ model ProviderConnection {
 }
 
 model ProviderAccount {
-  id                   String                        @id @default(cuid())
-  userId               String
-  connectionId         String?
-  accountId            String?
-  provider             String
-  providerUserId       String?
-  providerCredentialId String
-  providerAccountId    String
-  institutionMetadata  Json?
-  accountMetadata      Json?
-  status               String                        @default("active")
-  lastSyncAt           DateTime?
-  rawData              Json?
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @updatedAt
-  user                 User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection           ProviderConnection?           @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  account              Account?                      @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  importedTransactions ProviderImportedTransaction[]
+  id                      String                        @id @default(cuid())
+  userId                  String
+  connectionId            String?
+  accountId               String?
+  provider                String
+  providerUserId          String?
+  providerCredentialId    String
+  providerAccountId       String
+  institutionMetadata     Json?
+  accountMetadata         Json?
+  status                  String                        @default("active")
+  failureReason           String?
+  requiresManualReconnect Boolean                       @default(false)
+  lastSyncAt              DateTime?
+  lastSyncSuccessAt       DateTime?
+  lastSyncFailureAt       DateTime?
+  rawData                 Json?
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  user                    User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection              ProviderConnection?           @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  account                 Account?                      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  importedTransactions    ProviderImportedTransaction[]
 
   @@unique([provider, providerCredentialId, providerAccountId])
   @@index([userId])

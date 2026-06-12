@@ -6,7 +6,7 @@ import {
 } from "@flowledger/shared";
 import { AccountType, Prisma } from "@prisma/client";
 import { Router } from "express";
-import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
@@ -17,6 +17,10 @@ import type {
   ProviderInstitution
 } from "./provider.types.js";
 import { getProvider, listProviders } from "./providerRegistry.js";
+import {
+  resyncSyncfyConnection,
+  resyncSyncfyCredential
+} from "./syncfy/syncfy.service.js";
 
 export const providersRouter = Router();
 
@@ -26,6 +30,10 @@ type InstitutionCatalogQuery = {
   country?: string;
   category?: string;
 };
+
+const providerCredentialParamsSchema = z.object({
+  providerCredentialId: z.string().min(1)
+});
 
 function matchesSearch(institution: ProviderInstitution, query: string) {
   const haystack = [
@@ -125,10 +133,6 @@ function getNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-function toJsonValue(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
-}
-
 function normalizeAccountType(value: unknown): AccountType {
   const rawType = getString(value)?.toLowerCase() ?? "";
   if (/credit|card|tarjeta/.test(rawType)) return AccountType.credit_card;
@@ -157,6 +161,15 @@ function providerAccountSummary(
     currency: getString(metadata.currency) ?? null,
     balance: getNumber(metadata.balance) ?? null,
     status: providerAccount.status,
+    failureReason: providerAccount.failureReason,
+    requiresManualReconnect: providerAccount.requiresManualReconnect,
+    lastSyncAt: providerAccount.lastSyncAt,
+    lastSyncSuccessAt: providerAccount.lastSyncSuccessAt,
+    lastSyncFailureAt: providerAccount.lastSyncFailureAt,
+    connectionStatus: providerAccount.connection?.status ?? null,
+    connectionFailureReason: providerAccount.connection?.failureReason ?? null,
+    connectionRequiresManualReconnect:
+      providerAccount.connection?.requiresManualReconnect ?? false,
     linkedAccountId: providerAccount.accountId,
     linkedAccount: providerAccount.account
       ? {
@@ -228,61 +241,6 @@ async function createOrLinkProviderAccount(input: {
     where: { id: providerAccount.id },
     data: { accountId: account.id },
     include: { account: true, connection: true }
-  });
-}
-
-async function triggerConnectionResync(input: {
-  userId: string;
-  connection: Prisma.ProviderConnectionGetPayload<object>;
-}) {
-  const provider = getProvider(input.connection.provider);
-  if (!provider.handleWebhook) {
-    throw new HttpError(501, "Provider resync is not configured");
-  }
-
-  const rawConnectionData = getRecord(input.connection.rawData);
-  if (!rawConnectionData.endpoints) {
-    throw new HttpError(409, "Provider connection has no sync endpoints");
-  }
-  if (!input.connection.providerUserId) {
-    throw new HttpError(409, "Provider connection is missing a user mapping");
-  }
-
-  const event = {
-    header: {
-      event: {
-        eid: `manual-resync:${randomUUID()}`,
-        name: "credentials.refreshed"
-      },
-      user: {
-        id_user: input.connection.providerUserId,
-        id_external: input.userId
-      }
-    },
-    payload: {
-      id_credential: input.connection.providerCredentialId,
-      endpoints: rawConnectionData.endpoints
-    }
-  };
-  const recordedEvent = await prisma.providerWebhookEvent.create({
-    data: {
-      userId: input.userId,
-      provider: input.connection.provider,
-      providerUserId: input.connection.providerUserId,
-      providerExternalId: input.userId,
-      providerCredentialId: input.connection.providerCredentialId,
-      providerEventId: event.header.event.eid,
-      eventName: event.header.event.name,
-      rawPayload: toJsonValue(event),
-      rawHeaders: toJsonValue({ source: "manual-resync" }),
-      rawBody: JSON.stringify(event),
-      status: "received"
-    }
-  });
-
-  return provider.handleWebhook({
-    eventId: recordedEvent.id,
-    payload: event
   });
 }
 
@@ -432,7 +390,11 @@ providersRouter.get(
         institutionId: connection.institutionId,
         institutionName: connection.institutionName,
         status: connection.status,
+        failureReason: connection.failureReason,
+        requiresManualReconnect: connection.requiresManualReconnect,
         lastSyncAt: connection.lastSyncAt,
+        lastSyncSuccessAt: connection.lastSyncSuccessAt,
+        lastSyncFailureAt: connection.lastSyncFailureAt,
         createdAt: connection.createdAt,
         updatedAt: connection.updatedAt,
         accountsCount: connection._count.accounts,
@@ -463,9 +425,43 @@ providersRouter.post(
       throw new HttpError(404, "Provider connection was not found");
     }
 
-    const result = await triggerConnectionResync({ userId, connection });
+    if (connection.provider !== "syncfy") {
+      throw new HttpError(501, "Provider resync is not configured");
+    }
+
+    const result = await resyncSyncfyConnection({
+      userId,
+      connectionId: connection.id
+    });
 
     res.json({ resync: serialize(result) });
+  })
+);
+
+providersRouter.post(
+  "/syncfy/credentials/:providerCredentialId/refresh",
+  validate(providerCredentialParamsSchema, "params"),
+  asyncHandler(async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+    const providerCredentialId = req.params.providerCredentialId;
+    if (!providerCredentialId) {
+      throw new HttpError(400, "Provider credential id is required");
+    }
+
+    console.info("[SYNCFY REFRESH] Manual credential refresh requested", {
+      providerCredentialId,
+      userId
+    });
+
+    const result = await resyncSyncfyCredential({
+      userId,
+      providerCredentialId
+    });
+
+    res.json({ refresh: serialize(result) });
   })
 );
 
@@ -520,14 +516,13 @@ providersRouter.post(
       throw new HttpError(409, "Synced account is missing a connection");
     }
 
-    const result = await triggerConnectionResync({
+    if (providerAccount.provider !== "syncfy") {
+      throw new HttpError(501, "Provider resync is not configured");
+    }
+
+    const result = await resyncSyncfyConnection({
       userId,
-      connection: {
-        ...providerAccount.connection,
-        providerUserId:
-          providerAccount.providerUserId ??
-          providerAccount.connection.providerUserId
-      }
+      connectionId: providerAccount.connection.id
     });
 
     res.json({ resync: serialize(result) });

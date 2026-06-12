@@ -44,6 +44,7 @@ export type Account = {
 export type AccountSync = {
   id: string;
   provider: string;
+  providerCredentialId: string;
   providerAccountId: string;
   institutionId?: string | null;
   institutionName?: string | null;
@@ -52,8 +53,12 @@ export type AccountSync = {
   currency?: string | null;
   externalBalance?: number | null;
   status: string;
+  failureReason?: string | null;
+  requiresManualReconnect?: boolean;
   connectionStatus?: string | null;
   lastSyncAt?: string | null;
+  lastSyncSuccessAt?: string | null;
+  lastSyncFailureAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -71,6 +76,14 @@ export type ProviderImportedAccount = {
   currency?: string | null;
   balance?: number | null;
   status: string;
+  failureReason?: string | null;
+  requiresManualReconnect?: boolean;
+  lastSyncAt?: string | null;
+  lastSyncSuccessAt?: string | null;
+  lastSyncFailureAt?: string | null;
+  connectionStatus?: string | null;
+  connectionFailureReason?: string | null;
+  connectionRequiresManualReconnect?: boolean;
   linkedAccountId?: string | null;
   linkedAccount?: Pick<Account, "id" | "name" | "type"> | null;
   createdAt: string;
