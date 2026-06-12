@@ -1,304 +1,489 @@
 # FlowLedger
 
-FlowLedger is a responsive web-first personal finance MVP for tracking accounts,
-categories, income, expenses, shared expense splits, and basic financial reports.
-
-## Architecture
-
-This repository is an npm workspaces monorepo:
-
-- `apps/api`: Express API with TypeScript, Prisma, PostgreSQL, JWT auth, and Zod
-  validation.
-- `apps/web`: React + Vite frontend with Tailwind CSS, React Router, TanStack
-  Query, and Recharts.
-- `packages/shared`: shared constants, Zod schemas, and TypeScript types.
-- `database`: Prisma schema and optional seed script.
-
-The MVP uses local PostgreSQL directly. Docker and external finance
-integrations are intentionally out of scope for this first version.
-
-## MVP Features
-
-- Register and sign in with email/password.
-- Store hashed passwords and authenticate with JWT bearer tokens.
-- Manage accounts and categories.
-- Create, edit, search, and filter transactions.
-- View transaction detail records.
-- Track shared expenses and participant split status.
-- View summary, category, and monthly cashflow reports.
-- Use a mobile-friendly responsive web UI.
-
-## Environment Variables
-
-Copy `.env.example` to `.env` for local development and adjust values:
-
-```bash
-cp .env.example .env
-```
-
-The API loads the repository root `.env` file when started from either the
-monorepo root or `apps/api`, so do not duplicate environment files inside
-workspace packages. This also keeps PM2-style process working directories
-compatible with the same root `.env`.
-
-Required variables:
-
-- `DATABASE_URL`: PostgreSQL connection string.
-- `JWT_SECRET`: long random secret used to sign JWTs.
-- `JWT_EXPIRES_IN`: token lifetime, for example `7d`.
-- `API_PORT`: API port, default `4000`.
-- `WEB_PORT`: Vite dev server port, default `5173`.
-- `VITE_API_URL`: API URL used by the frontend.
-- `GOOGLE_CLIENT_ID`: Google OAuth web client ID.
-- `GOOGLE_CLIENT_SECRET`: Google OAuth web client secret. API only; never expose
-  this to the frontend.
-- `GOOGLE_CALLBACK_URL`: API callback URL registered in Google OAuth, for
-  example `http://localhost:4000/auth/google/callback`.
-- `WEB_APP_URL`: Public web app URL used after OAuth completes, for example
-  `http://localhost:5173`.
-- `NODE_ENV`: `development`, `test`, or `production`.
-
-Optional provider integration variables:
-
-- `SYNCFY_API_KEY`: Syncfy API key for provider integration calls.
-- `SYNCFY_WEBHOOK_SIGNATURE_KEY`: Syncfy webhook signature key. When configured,
-  Syncfy webhook endpoints validate the `request-signature` header before
-  processing. Leave unset only for local development bypass.
-- `SYNCFY_API_BASE_URL`: Syncfy API base URL. Defaults to
-  `https://api.syncfy.com`.
-- `SYNCFY_DATA_BASE_URL`: Syncfy data endpoint base URL used for account and
-  transaction endpoint URLs returned in webhook payloads. Defaults to
-  `https://sync.paybook.com`.
-- `PROVIDER_WEBHOOK_PUBLIC_BASE_URL`: Public base URL for provider webhook
-  registration, for example
-  `https://your-public-api.example.com/providers/webhooks`.
-- `SYNCFY_WIDGET_SCRIPT_URL`: Public browser-loaded Syncfy widget module URL.
-- `SYNCFY_WIDGET_STYLE_URL`: Public browser-loaded Syncfy widget stylesheet URL.
-
-Do not commit real `.env` files.
-
-## Syncfy Local And Staging Setup
-
-Syncfy integration is available from the Accounts page. The API creates the
-Syncfy user and session for the signed-in FlowLedger user when a provider
-connection is started; no manual database writes are required.
-
-Local setup:
-
-1. Set `SYNCFY_API_KEY` in the root `.env`. Set
-   `SYNCFY_WEBHOOK_SIGNATURE_KEY` if testing signed webhook delivery.
-2. Keep the default local app URLs: `VITE_API_URL=http://localhost:4000` and
-   `WEB_APP_URL=http://localhost:5173`.
-3. Expose the API with a temporary HTTPS tunnel, then set
-   `PROVIDER_WEBHOOK_PUBLIC_BASE_URL` to the tunnel's provider webhook base,
-   for example `https://example-tunnel.ngrok-free.app/providers/webhooks`.
-4. Register the Syncfy webhook URL as
-   `${PROVIDER_WEBHOOK_PUBLIC_BASE_URL}/syncfy`. The legacy local endpoint
-   `POST /syncfy/webhook` is still present, but new provider setup should use
-   `POST /providers/webhooks/syncfy`.
-5. Start the app with `npm run dev`, sign in, open Accounts, search/select an
-   institution, and start the connection. The API calls Syncfy to create or
-   reuse a Syncfy user for the current FlowLedger user, creates a Syncfy
-   session, and returns widget config to the web app. The web app loads the
-   public widget script/style URLs and opens the widget with the session token.
+FlowLedger is a web-first personal finance platform that helps users aggregate, organize, and understand their financial activity from a single dashboard.
 
-Staging setup:
+The platform supports:
 
-1. Configure staging with real `SYNCFY_API_KEY`,
-   `SYNCFY_WEBHOOK_SIGNATURE_KEY`, `SYNCFY_API_BASE_URL`,
-   `SYNCFY_DATA_BASE_URL`, `SYNCFY_WIDGET_SCRIPT_URL`, and
-   `SYNCFY_WIDGET_STYLE_URL` values approved for that environment.
-2. Set `WEB_APP_URL` and `VITE_API_URL` to the staging web/API origins.
-3. Set `PROVIDER_WEBHOOK_PUBLIC_BASE_URL` to the staging API provider webhook
-   base, for example `https://api-staging.example.com/providers/webhooks`.
-4. Register `https://api-staging.example.com/providers/webhooks/syncfy` in
-   Syncfy as the webhook destination.
+- Personal finance management
+- Shared expenses
+- Debt tracking
+- Bank integrations
+- Automated transaction imports
+- Financial reporting
 
-Expected Syncfy events:
+The long-term goal is to become a unified financial operating system for individuals, families, and small groups.
 
-- `credentials.updated`: accepted and recorded for audit, but not imported by
-  the current importer.
-- `credentials.refreshed`: processed by the importer. The payload should include
-  `header.user.id_user`, `payload.id_credential`, and account/transaction
-  endpoints under `payload.endpoints`.
-- `jobs.completed`: accepted and recorded for audit, but not imported by the
-  current importer.
+---
 
-Imported data storage:
+# Architecture
 
-- Syncfy user mappings are stored in `UserAuthAccount` with provider `syncfy`.
-- Provider connection state is stored in `ProviderConnection`.
-- Imported account metadata is stored in `ProviderAccount`. Confirming imported
-  accounts from the Accounts page links each provider account to an existing or
-  newly created FlowLedger `Account`.
-- Imported transaction metadata is stored in `ProviderImportedTransaction`.
-  These rows preserve provider IDs and raw payload data; they are separate from
-  manually created FlowLedger `Transaction` rows.
-- Webhook deliveries are stored in `ProviderWebhookEvent` with raw payload,
-  headers, raw body text, processing status, and any error message.
+FlowLedger is an npm workspaces monorepo.
 
-## Local PostgreSQL Setup
+## Backend
 
-Create a local database before running Prisma migrations:
+Location:
 
-```bash
-createdb flowledger
-```
+apps/api
 
-Example local connection string:
+Technology:
 
-```bash
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flowledger?schema=public"
-```
+- Node.js
+- Express
+- TypeScript
+- Prisma
+- PostgreSQL
+- JWT Authentication
+- Zod Validation
 
-Use the username, password, host, and port that match your local PostgreSQL
-installation.
+Responsibilities:
 
-## Install And Setup
+- Authentication
+- User management
+- Financial domain logic
+- Provider integrations
+- Transaction imports
+- Reporting
+- Notification workflows
 
-Install dependencies:
+---
 
-```bash
-npm install
-```
+## Frontend
 
-Generate the Prisma client:
+Location:
 
-```bash
-npm run prisma:generate
-```
+apps/web
 
-Create database tables:
+Technology:
 
-```bash
-npm run prisma:migrate
-```
+- React
+- Vite
+- TypeScript
+- Tailwind CSS
+- TanStack Query
+- React Router
+- Recharts
 
-Optionally seed demo data:
+Responsibilities:
 
-```bash
-npm run prisma:seed
-```
+- User interface
+- Account management
+- Transaction management
+- Provider connection flows
+- Imported transaction review
+- Reports and dashboards
 
-Demo seed login:
+---
 
-- Email: `demo@flowledger.local`
-- Password: `flowledger-demo`
+## Shared Package
 
-## Development Commands
+Location:
 
-Run API and web app together:
+packages/shared
 
-```bash
-npm run dev
-```
+Contains:
 
-Run only the API:
+- Shared TypeScript types
+- Shared constants
+- Shared API contracts
+- Shared Zod schemas
 
-```bash
-npm run dev:api
-```
+Both backend and frontend should consume shared contracts whenever possible.
 
-Run only the web app:
+---
 
-```bash
-npm run dev:web
-```
+## Database
 
-Build all packages:
+Location:
 
-```bash
-npm run build
-```
+database
 
-Run linting:
+Technology:
 
-```bash
-npm run lint
-```
+- PostgreSQL
+- Prisma ORM
 
-Run type checks:
+Database responsibilities:
 
-```bash
-npm run typecheck
-```
+- User data
+- Accounts
+- Categories
+- Transactions
+- Shared expenses
+- Debts
+- Notifications
+- Provider integrations
+- Imported transaction storage
 
-Run available tests:
+---
 
-```bash
-npm run test
-```
+# Current Features
 
-## API Endpoints
+## Authentication
 
-Auth:
+Implemented:
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/google`
-- `GET /auth/google/callback`
-- `GET /auth/me`
+- Email/password authentication
+- JWT sessions
+- Google OAuth
+- GitHub OAuth
 
-Accounts:
+---
 
-- `GET /accounts`
-- `POST /accounts`
-- `PUT /accounts/:id`
-- `DELETE /accounts/:id`
+## Accounts
 
-Categories:
+Implemented:
 
-- `GET /categories`
-- `POST /categories`
-- `PUT /categories/:id`
-- `DELETE /categories/:id`
+- Manual accounts
+- Provider accounts
+- Initial balances
+- Account archiving
 
-Transactions:
+---
 
-- `GET /transactions`
-- `POST /transactions`
-- `GET /transactions/:id`
-- `PUT /transactions/:id`
-- `DELETE /transactions/:id`
+## Categories
 
-Transaction filters:
+Implemented:
 
-- `dateFrom`
-- `dateTo`
-- `categoryId`
-- `accountId`
-- `type`
-- `search`
+- Personal categories
+- Group categories
+- Category archiving
 
-Shared expenses:
+---
 
-- `GET /shared-expenses`
-- `POST /shared-expenses`
-- `GET /shared-expenses/:id`
-- `PUT /shared-expenses/:id`
-- `DELETE /shared-expenses/:id`
+## Groups
 
-Reports:
+Implemented:
 
-- `GET /reports/summary`
-- `GET /reports/by-category`
-- `GET /reports/monthly-cashflow`
+- Group creation
+- Group membership
+- Shared categories
+- Shared expenses
 
-## Roadmap
+Groups replace the original Household model.
 
-Next hardening work:
+All new development must use Group terminology.
 
-- Add focused API tests for auth, user scoping, filters, and reports.
-- Improve form-level error states in the web app.
-- Add richer shared expense participant editing.
-- Review production CORS, logging, and JWT secret handling.
+---
 
-Future expansion:
+## Transactions
 
-- Bank integrations.
-- Crypto account integrations.
-- Automated transaction syncing.
-- Budgeting and savings goals.
-- AI insights.
-- Mobile apps.
-- Subscription features.
+Implemented:
+
+- Income transactions
+- Expense transactions
+- Transfer transactions
+- Imported transactions
+- Transaction relationships
+
+Capabilities:
+
+- Search
+- Filtering
+- Sorting
+- Detail views
+
+---
+
+## Shared Expenses
+
+Implemented:
+
+- Shared expense creation
+- Participant tracking
+- Settlement workflows
+
+---
+
+## Debts
+
+Implemented:
+
+- I Owe
+- Owed To Me
+- Pending Settlement Requests
+- Settled Debts
+
+---
+
+## Reports
+
+Implemented:
+
+- Summary reports
+- Category reports
+- Monthly cashflow reports
+
+---
+
+## Notifications
+
+Implemented:
+
+- Settlement notifications
+- Imported transaction notifications
+
+---
+
+# Provider Platform
+
+Provider integrations are implemented through a provider abstraction layer.
+
+Current provider:
+
+- Syncfy
+
+Future providers may include:
+
+- Belvo
+- Plaid
+- MX
+- Open Banking providers
+- Crypto exchanges
+
+Provider implementations must remain interchangeable.
+
+Do not create provider-specific parallel systems.
+
+All new integrations should extend the existing provider architecture.
+
+---
+
+# Provider Architecture
+
+Core provider files:
+
+apps/api/src/modules/providers
+
+Important files:
+
+- provider.types.ts
+- providerRegistry.ts
+- providers.routes.ts
+- providerWebhooks.routes.ts
+
+Current Syncfy implementation:
+
+- syncfy.adapter.ts
+- syncfy.routes.ts
+- syncfy.service.ts
+- syncfy.webhookSecurity.ts
+
+---
+
+# Syncfy Integration
+
+Implemented capabilities:
+
+## User Lifecycle
+
+- Create Syncfy users
+- Reuse existing Syncfy users
+- User mapping between FlowLedger and Syncfy
+
+## Connection Lifecycle
+
+- Widget-based connection flow
+- Session creation
+- Provider connection storage
+
+## Import Pipeline
+
+- Account import
+- Transaction import
+- Imported transaction review workflow
+
+## Webhooks
+
+Implemented:
+
+- Raw payload storage
+- Event deduplication
+- Audit trail
+- Signature validation
+- Processing pipeline
+
+Supported event:
+
+- credentials.refreshed
+
+Additional events are recorded for audit purposes even if not processed.
+
+---
+
+# Imported Transaction Workflow
+
+FlowLedger intentionally separates imported provider transactions from user-owned transactions.
+
+Imported data flow:
+
+Provider → ProviderImportedTransaction → User Review → Transaction
+
+Benefits:
+
+- Prevents accidental imports
+- Allows categorization before creation
+- Preserves original provider metadata
+- Supports future reconciliation workflows
+
+---
+
+# Security Principles
+
+FlowLedger prioritizes security over convenience.
+
+Requirements:
+
+- Passwords must be hashed.
+- Secrets must never be committed.
+- Provider credentials must never be stored in plaintext.
+- Webhook signatures must be verified when configured.
+- User ownership must be enforced on all user data.
+
+Never expose:
+
+- passwordHash
+- OAuth secrets
+- Provider API keys
+- Webhook secrets
+- Encrypted credential material
+
+---
+
+# Environment Variables
+
+Copy:
+
+bash cp .env.example .env 
+
+Do not commit real .env files.
+
+Core variables include:
+
+- DATABASE_URL
+- JWT_SECRET
+- JWT_EXPIRES_IN
+- API_PORT
+- WEB_PORT
+- WEB_APP_URL
+- VITE_API_URL
+- NODE_ENV
+
+OAuth variables:
+
+- GOOGLE_CLIENT_ID
+- GOOGLE_CLIENT_SECRET
+- GOOGLE_CALLBACK_URL
+- GITHUB_CLIENT_ID
+- GITHUB_CLIENT_SECRET
+- GITHUB_CALLBACK_URL
+
+Provider variables:
+
+- SYNCFY_API_KEY
+- SYNCFY_WEBHOOK_SIGNATURE_KEY
+- SYNCFY_API_BASE_URL
+- SYNCFY_DATA_BASE_URL
+- SYNCFY_WIDGET_SCRIPT_URL
+- SYNCFY_WIDGET_STYLE_URL
+- PROVIDER_WEBHOOK_PUBLIC_BASE_URL
+
+Planned auto-sync variables:
+
+- SYNCFY_AUTO_SYNC_ENABLED
+- SYNCFY_AUTO_SYNC_INTERVAL_MINUTES
+- SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS
+- SYNCFY_AUTO_SYNC_CONCURRENCY
+
+---
+
+# Development Commands
+
+Development:
+
+bash npm run dev 
+
+Production-like local execution:
+
+bash npm run start 
+
+Build:
+
+bash npm run build 
+
+Type checking:
+
+bash npm run typecheck 
+
+Testing:
+
+bash npm run test 
+
+Linting:
+
+bash npm run lint 
+
+---
+
+# Local Database Setup
+
+Create database:
+
+bash createdb flowledger 
+
+Generate Prisma client:
+
+bash npm run prisma:generate 
+
+Run migrations:
+
+bash npm run prisma:migrate 
+
+Seed demo data:
+
+bash npm run prisma:seed 
+
+---
+
+# Current Development Priorities
+
+Current active work:
+
+1. Syncfy reliability improvements.
+2. Automatic provider synchronization.
+3. Connection health monitoring.
+4. Reconnect workflows.
+5. Imported transaction review improvements.
+6. Financial automation features.
+
+See ROADMAP.md for the complete implementation sequence.
+
+---
+
+# Branch Strategy
+
+Main development branch:
+
+- razs_ai
+
+Stable branch:
+
+- main
+
+AI-generated changes should be developed in razs_ai and reviewed before merging into main.
+
+---
+
+# Future Vision
+
+Planned future capabilities:
+
+- Automatic transaction categorization
+- Budgeting
+- Savings goals
+- Investment tracking
+- Crypto integrations
+- AI financial assistant
+- Mobile applications
+- Subscription plans
+
+FlowLedger should evolve into a secure, provider-agnostic financial aggregation platform while remaining simple enough to be maintained by a small engineering team.
