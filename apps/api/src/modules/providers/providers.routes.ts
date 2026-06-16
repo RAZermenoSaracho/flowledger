@@ -18,6 +18,7 @@ import type {
 } from "./provider.types.js";
 import { getProvider, listProviders } from "./providerRegistry.js";
 import {
+  getManualSyncfyRefreshRetryDelaysMs,
   resyncSyncfyConnection,
   resyncSyncfyCredential
 } from "./syncfy/syncfy.service.js";
@@ -431,7 +432,8 @@ providersRouter.post(
 
     const result = await resyncSyncfyConnection({
       userId,
-      connectionId: connection.id
+      connectionId: connection.id,
+      retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs()
     });
 
     res.json({ resync: serialize(result) });
@@ -458,7 +460,8 @@ providersRouter.post(
 
     const result = await resyncSyncfyCredential({
       userId,
-      providerCredentialId
+      providerCredentialId,
+      retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs()
     });
 
     res.json({ refresh: serialize(result) });
@@ -522,7 +525,8 @@ providersRouter.post(
 
     const result = await resyncSyncfyConnection({
       userId,
-      connectionId: providerAccount.connection.id
+      connectionId: providerAccount.connection.id,
+      retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs()
     });
 
     res.json({ resync: serialize(result) });

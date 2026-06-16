@@ -34,9 +34,12 @@ const workspaceRoot =
   findWorkspaceRoot(process.cwd()) ?? findWorkspaceRoot(moduleDir);
 
 if (workspaceRoot) {
-  dotenv.config({ path: path.join(workspaceRoot, ".env") });
+  dotenv.config({
+    path: path.join(workspaceRoot, ".env"),
+    override: process.env.NODE_ENV === "production"
+  });
 } else {
-  dotenv.config();
+  dotenv.config({ override: process.env.NODE_ENV === "production" });
 }
 
 const envSchema = z.object({
@@ -73,6 +76,7 @@ const envSchema = z.object({
     .positive()
     .default(120000),
   SYNCFY_AUTO_SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
+  SYNCFY_TRANSACTION_LOOKBACK_DAYS: z.coerce.number().int().positive().default(60),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 

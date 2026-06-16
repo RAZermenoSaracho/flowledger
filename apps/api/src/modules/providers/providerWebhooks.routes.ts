@@ -9,7 +9,10 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import type { ProviderKey } from "./provider.types.js";
 import { getProvider } from "./providerRegistry.js";
-import { verifySyncfyWebhookSignature } from "./syncfy/syncfy.webhookSecurity.js";
+import {
+  getSyncfyWebhookSignatureDiagnostics,
+  verifySyncfyWebhookSignature
+} from "./syncfy/syncfy.webhookSecurity.js";
 
 export const providerWebhooksRouter = Router();
 
@@ -43,6 +46,38 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
+function sanitizeWebhookHeaders(
+  headers: Record<string, string | string[] | undefined>
+): Prisma.InputJsonValue {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    const lowerKey = key.toLowerCase();
+    const headerValue = Array.isArray(value) ? value[0] : value;
+
+    if (
+      lowerKey === "request-signature" ||
+      lowerKey === "request_signature" ||
+      lowerKey === "x-request-signature" ||
+      lowerKey === "x-syncfy-signature" ||
+      lowerKey === "x-paybook-signature" ||
+      lowerKey === "authorization" ||
+      lowerKey === "cookie"
+    ) {
+      sanitized[lowerKey] = {
+        redacted: true,
+        present: Boolean(headerValue),
+        length: headerValue?.length ?? 0
+      };
+      continue;
+    }
+
+    sanitized[lowerKey] = value;
+  }
+
+  return toJsonValue(sanitized);
+}
+
 function rawBodyString(rawBody: Buffer | undefined) {
   return rawBody?.toString("utf8") ?? "";
 }
@@ -62,6 +97,25 @@ export function generatedSyncfyEventEid(
 
 function getHeaderString(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function findSyncfySignatureHeader(
+  headers: Record<string, string | string[] | undefined>
+) {
+  const supportedHeaderNames = [
+    "request-signature",
+    "request_signature",
+    "x-request-signature",
+    "x-syncfy-signature",
+    "x-paybook-signature"
+  ];
+
+  for (const headerName of supportedHeaderNames) {
+    const signature = getHeaderString(headers[headerName]);
+    if (signature) return { headerName, signature };
+  }
+
+  return { headerName: null, signature: undefined };
 }
 
 async function findFlowLedgerUserId(provider: string, providerUserId?: string) {
@@ -237,7 +291,7 @@ providerWebhooksRouter.post(
 
     const providerKey = providerParam as ProviderKey;
     const provider = getProvider(providerKey);
-    const rawHeaders = toJsonValue(req.headers);
+    const rawHeaders = sanitizeWebhookHeaders(req.headers);
     const rawBody = rawBodyString(req.rawBody);
 
     if (providerKey !== "syncfy") {
@@ -270,23 +324,37 @@ providerWebhooksRouter.post(
       return;
     }
 
-  const signatureVerification = verifySyncfyWebhookSignature({
+    const signatureHeader = findSyncfySignatureHeader(req.headers);
+    const signatureVerification = verifySyncfyWebhookSignature({
       rawBody: req.rawBody,
-      signature: getHeaderString(req.headers["request-signature"]),
+      signature: signatureHeader.signature,
       signatureKey: env.SYNCFY_WEBHOOK_SIGNATURE_KEY
     });
 
     console.info("[PROVIDER WEBHOOK] Syncfy signature verification", {
+      route: "/providers/webhooks/syncfy",
       result: signatureVerification,
-      hasSignature: Boolean(getHeaderString(req.headers["request-signature"]))
+      signatureHeaderNameFound: signatureHeader.headerName,
+      diagnostics: getSyncfyWebhookSignatureDiagnostics({
+        rawBody: req.rawBody,
+        signature: signatureHeader.signature,
+        signatureKey: env.SYNCFY_WEBHOOK_SIGNATURE_KEY
+      }),
+      contentType: getHeaderString(req.headers["content-type"]),
+      hasContentEncoding: Boolean(getHeaderString(req.headers["content-encoding"]))
     });
 
     if (signatureVerification === "invalid") {
       await recordInvalidWebhook({
         provider: providerParam,
-        rawBody: req.body,
+        rawBody: {
+          redacted: true,
+          reason: "invalid_signature",
+          bodyBytes: req.rawBody?.length ?? 0,
+          parsedJson: req.body !== undefined
+        },
         rawHeaders,
-        rawBodyText: rawBody,
+        rawBodyText: "",
         eventName: "invalid_signature",
         errorMessage: "Syncfy webhook request-signature validation failed."
       }).catch(() => undefined);

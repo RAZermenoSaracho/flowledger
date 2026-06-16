@@ -5,8 +5,9 @@ import { HttpError } from "../../../utils/httpError.js";
 
 const syncfyApiBaseUrl = env.SYNCFY_API_BASE_URL;
 const syncfyDataBaseUrl = env.SYNCFY_DATA_BASE_URL;
-const syncfyTransactionLookbackDays = 14;
+const syncfyTransactionLookbackDays = env.SYNCFY_TRANSACTION_LOOKBACK_DAYS;
 const syncfyTransactionPageLimit = 500;
+const manualSyncfyRefreshRetryDelaysMs = [0, 5_000, 15_000, 30_000] as const;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -72,6 +73,8 @@ export type SyncfyProcessingSummary = {
   importedTransactions: number;
   insertedOrUpdatedImportedTransactions?: number;
   skippedDuplicateTransactions?: number;
+  refreshAttemptCount?: number;
+  balanceFingerprint?: string;
 };
 
 export type SyncfyResyncSummary = {
@@ -81,6 +84,7 @@ export type SyncfyResyncSummary = {
   requiresManualReconnect: boolean;
   insertedOrUpdatedImportedTransactions?: number;
   skippedDuplicateTransactions?: number;
+  refreshAttemptCount?: number;
   failureReason?: string;
 };
 
@@ -697,6 +701,50 @@ export function buildSyncfyProviderAccountMetadata(
   };
 }
 
+function syncfyBalanceFingerprint(accounts: NormalizedSyncfyAccount[]) {
+  return JSON.stringify(
+    accounts
+      .map((account) => ({
+        id: account.syncfyAccountId,
+        credentialId: account.syncfyCredentialId ?? null,
+        balance: account.balance ?? null,
+        currency: account.currency ?? null
+      }))
+      .sort((left, right) =>
+        `${left.credentialId ?? ""}:${left.id}`.localeCompare(
+          `${right.credentialId ?? ""}:${right.id}`
+        )
+      )
+  );
+}
+
+export function shouldStopSyncfyRefreshRetry(input: {
+  attemptIndex: number;
+  totalAttempts: number;
+  previousFetchedTransactionsCount?: number;
+  previousBalanceFingerprint?: string;
+  fetchedTransactionsCount: number;
+  balanceFingerprint: string;
+  insertedOrUpdatedImportedTransactions: number;
+}) {
+  if (input.insertedOrUpdatedImportedTransactions > 0) return true;
+  if (input.attemptIndex >= input.totalAttempts - 1) return true;
+  if (
+    input.previousFetchedTransactionsCount !== undefined &&
+    input.previousFetchedTransactionsCount !== input.fetchedTransactionsCount
+  ) {
+    return true;
+  }
+  if (
+    input.previousBalanceFingerprint !== undefined &&
+    input.previousBalanceFingerprint !== input.balanceFingerprint
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function resolveSyncfyImportedTransactionStatus(input: {
   existingStatus?: string | null;
   transactionId?: string | null;
@@ -722,6 +770,29 @@ export function summarizeSyncfyImportedTransactionWrites(input: {
       input.transactions.length - skippedDuplicateTransactions,
     skippedDuplicateTransactions
   };
+}
+
+export function buildPendingSyncfyImportedTransactionCandidates(input: {
+  existingTransactionIds: Set<string>;
+  transactions: NormalizedSyncfyTransaction[];
+}) {
+  return input.transactions
+    .filter(
+      (transaction) =>
+        !input.existingTransactionIds.has(transaction.syncfyTransactionId)
+    )
+    .map((transaction) => ({
+      providerTransactionId: transaction.syncfyTransactionId,
+      providerCredentialId: transaction.syncfyCredentialId,
+      providerAccountId: transaction.syncfyAccountId,
+      description: transaction.description,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      transactionDate: transaction.transactionDate,
+      refreshDate: transaction.refreshDate,
+      status: resolveSyncfyImportedTransactionStatus({}),
+      rawData: transaction.rawData
+    }));
 }
 
 async function findFlowLedgerUserIdForSyncfyUser(syncfyUserId: string) {
@@ -1128,7 +1199,9 @@ async function processSyncfyCredentialRefresh(input: {
       importedAccounts: 0,
       importedTransactions: 0,
       insertedOrUpdatedImportedTransactions: 0,
-      skippedDuplicateTransactions: 0
+      skippedDuplicateTransactions: 0,
+      refreshAttemptCount: 1,
+      balanceFingerprint: syncfyBalanceFingerprint([])
     };
   }
 
@@ -1161,6 +1234,7 @@ async function processSyncfyCredentialRefresh(input: {
     existingTransactionIds,
     transactions
   });
+  const balanceFingerprint = syncfyBalanceFingerprint(accounts);
 
   const providerCredentialId =
     input.providerCredentialId ??
@@ -1343,8 +1417,90 @@ async function processSyncfyCredentialRefresh(input: {
     importedAccounts: accounts.length,
     importedTransactions: transactions.length,
     insertedOrUpdatedImportedTransactions,
-    skippedDuplicateTransactions
+    skippedDuplicateTransactions,
+    refreshAttemptCount: 1,
+    balanceFingerprint
   };
+}
+
+function wait(ms: number) {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function processSyncfyCredentialRefreshWithRetry(input: {
+  idUser: string;
+  userId: string;
+  providerCredentialId: string;
+  endpoints: unknown;
+  retryDelaysMs: readonly number[];
+}) {
+  const retryDelaysMs = input.retryDelaysMs.length > 0 ? input.retryDelaysMs : [0];
+  let previousFetchedTransactionsCount: number | undefined;
+  let previousBalanceFingerprint: string | undefined;
+  let latestResult: SyncfyProcessingSummary | undefined;
+
+  for (const [attemptIndex, delayMs] of retryDelaysMs.entries()) {
+    await wait(delayMs);
+
+    const result = await processSyncfyCredentialRefresh({
+      idUser: input.idUser,
+      userId: input.userId,
+      providerCredentialId: input.providerCredentialId,
+      endpoints: input.endpoints
+    });
+    const balanceFingerprint =
+      result.balanceFingerprint ?? syncfyBalanceFingerprint([]);
+    latestResult = {
+      ...result,
+      refreshAttemptCount: attemptIndex + 1
+    };
+
+    console.info("[SYNCFY REFRESH] Credential refresh attempt completed", {
+      providerCredentialId: input.providerCredentialId,
+      userId: input.userId,
+      attempt: attemptIndex + 1,
+      maxAttempts: retryDelaysMs.length,
+      fetchedAccountsCount: result.importedAccounts,
+      fetchedTransactionsCount: result.importedTransactions,
+      insertedOrUpdatedImportedTransactionsCount:
+        result.insertedOrUpdatedImportedTransactions ?? 0,
+      skippedDuplicateTransactionsCount:
+        result.skippedDuplicateTransactions ?? 0,
+      fetchedTransactionCountChanged:
+        previousFetchedTransactionsCount !== undefined &&
+        previousFetchedTransactionsCount !== result.importedTransactions,
+      externalBalancesChanged:
+        previousBalanceFingerprint !== undefined &&
+        previousBalanceFingerprint !== balanceFingerprint
+    });
+
+    if (
+      shouldStopSyncfyRefreshRetry({
+        attemptIndex,
+        totalAttempts: retryDelaysMs.length,
+        previousFetchedTransactionsCount,
+        previousBalanceFingerprint,
+        fetchedTransactionsCount: result.importedTransactions,
+        balanceFingerprint,
+        insertedOrUpdatedImportedTransactions:
+          result.insertedOrUpdatedImportedTransactions ?? 0
+      })
+    ) {
+      break;
+    }
+
+    previousFetchedTransactionsCount = result.importedTransactions;
+    previousBalanceFingerprint = balanceFingerprint;
+  }
+
+  if (!latestResult) {
+    throw new HttpError(500, "Syncfy refresh did not run");
+  }
+
+  return latestResult;
 }
 
 export async function processSyncfyWebhookEvent(
@@ -1418,6 +1574,7 @@ export async function resyncSyncfyConnection(input: {
   userId: string;
   connectionId: string;
   timeoutMs?: number;
+  retryDelaysMs?: readonly number[];
 }): Promise<SyncfyResyncSummary> {
   const connection = await prisma.providerConnection.findFirst({
     where: {
@@ -1467,12 +1624,21 @@ export async function resyncSyncfyConnection(input: {
   }
 
   try {
-    const refresh = processSyncfyCredentialRefresh({
-      idUser: providerUserId,
-      userId: input.userId,
-      providerCredentialId: connection.providerCredentialId,
-      endpoints
-    });
+    const refresh =
+      input.retryDelaysMs && input.retryDelaysMs.length > 0
+        ? processSyncfyCredentialRefreshWithRetry({
+            idUser: providerUserId,
+            userId: input.userId,
+            providerCredentialId: connection.providerCredentialId,
+            endpoints,
+            retryDelaysMs: input.retryDelaysMs
+          })
+        : processSyncfyCredentialRefresh({
+            idUser: providerUserId,
+            userId: input.userId,
+            providerCredentialId: connection.providerCredentialId,
+            endpoints
+          });
     const result = input.timeoutMs
       ? await withTimeout(refresh, input.timeoutMs)
       : await refresh;
@@ -1485,11 +1651,18 @@ export async function resyncSyncfyConnection(input: {
       insertedOrUpdatedImportedTransactionsCount:
         result.insertedOrUpdatedImportedTransactions ?? 0,
       skippedDuplicateTransactionsCount:
-        result.skippedDuplicateTransactions ?? 0
+        result.skippedDuplicateTransactions ?? 0,
+      refreshAttemptCount: result.refreshAttemptCount ?? 1
     });
 
     return {
-      ...result,
+      status: "processed",
+      importedAccounts: result.importedAccounts,
+      importedTransactions: result.importedTransactions,
+      insertedOrUpdatedImportedTransactions:
+        result.insertedOrUpdatedImportedTransactions,
+      skippedDuplicateTransactions: result.skippedDuplicateTransactions,
+      refreshAttemptCount: result.refreshAttemptCount,
       requiresManualReconnect: false
     };
   } catch (error) {
@@ -1536,6 +1709,7 @@ export async function resyncSyncfyCredential(input: {
   userId: string;
   providerCredentialId: string;
   timeoutMs?: number;
+  retryDelaysMs?: readonly number[];
 }): Promise<SyncfyResyncSummary> {
   const connection = await prisma.providerConnection.findFirst({
     where: {
@@ -1558,8 +1732,13 @@ export async function resyncSyncfyCredential(input: {
   return resyncSyncfyConnection({
     userId: input.userId,
     connectionId: connection.id,
-    timeoutMs: input.timeoutMs
+    timeoutMs: input.timeoutMs,
+    retryDelaysMs: input.retryDelaysMs
   });
+}
+
+export function getManualSyncfyRefreshRetryDelaysMs() {
+  return [...manualSyncfyRefreshRetryDelaysMs];
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {

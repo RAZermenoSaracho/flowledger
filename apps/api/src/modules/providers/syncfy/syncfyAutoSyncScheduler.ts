@@ -1,6 +1,9 @@
 import { env } from "../../../config/env.js";
 import { prisma } from "../../../db/prisma.js";
-import { resyncSyncfyConnection } from "./syncfy.service.js";
+import {
+  getManualSyncfyRefreshRetryDelaysMs,
+  resyncSyncfyConnection
+} from "./syncfy.service.js";
 
 type SyncfyAutoSyncJob = {
   connectionId: string;
@@ -12,8 +15,13 @@ type SyncfyAutoSyncSchedulerOptions = {
   intervalMinutes: number;
   jobTimeoutMs: number;
   concurrency: number;
+  retryDelaysMs?: readonly number[];
   loadJobs: () => Promise<SyncfyAutoSyncJob[]>;
-  processJob: (job: SyncfyAutoSyncJob, timeoutMs: number) => Promise<unknown>;
+  processJob: (
+    job: SyncfyAutoSyncJob,
+    timeoutMs: number,
+    retryDelaysMs: readonly number[]
+  ) => Promise<unknown>;
   log?: Pick<typeof console, "info" | "warn" | "error">;
 };
 
@@ -27,10 +35,17 @@ export class SyncfyAutoSyncScheduler {
     if (!this.options.enabled || this.timer) return false;
 
     const intervalMs = this.options.intervalMinutes * 60 * 1000;
+    const retryDelaysMs = this.options.retryDelaysMs ?? [];
     this.timer = setInterval(() => {
       void this.runOnce();
     }, intervalMs);
 
+    this.options.log?.info("[SYNCFY AUTO SYNC] Scheduler started", {
+      intervalMinutes: this.options.intervalMinutes,
+      jobTimeoutMs: this.options.jobTimeoutMs,
+      concurrency: this.options.concurrency,
+      retryDelaysMs
+    });
     void this.runOnce();
     return true;
   }
@@ -62,6 +77,7 @@ export class SyncfyAutoSyncScheduler {
 
     try {
       const jobs = await this.options.loadJobs();
+      const retryDelaysMs = this.options.retryDelaysMs ?? [];
       const workers = Array.from(
         { length: Math.max(1, this.options.concurrency) },
         async (_, workerIndex) => {
@@ -70,7 +86,11 @@ export class SyncfyAutoSyncScheduler {
             if (!job) continue;
 
             try {
-              await this.options.processJob(job, this.options.jobTimeoutMs);
+              await this.options.processJob(
+                job,
+                this.options.jobTimeoutMs,
+                retryDelaysMs
+              );
               processed += 1;
             } catch (error) {
               failed += 1;
@@ -101,12 +121,21 @@ export class SyncfyAutoSyncScheduler {
   }
 }
 
-export function createSyncfyAutoSyncScheduler() {
-  return new SyncfyAutoSyncScheduler({
+export function getSyncfyAutoSyncSchedulerConfig() {
+  return {
     enabled: env.SYNCFY_AUTO_SYNC_ENABLED,
     intervalMinutes: env.SYNCFY_AUTO_SYNC_INTERVAL_MINUTES,
     jobTimeoutMs: env.SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS,
     concurrency: env.SYNCFY_AUTO_SYNC_CONCURRENCY,
+    retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs()
+  };
+}
+
+export function createSyncfyAutoSyncScheduler() {
+  const config = getSyncfyAutoSyncSchedulerConfig();
+
+  return new SyncfyAutoSyncScheduler({
+    ...config,
     log: console,
     loadJobs: async () => {
       const connections = await prisma.providerConnection.findMany({
@@ -134,11 +163,12 @@ export function createSyncfyAutoSyncScheduler() {
         userId: connection.userId
       }));
     },
-    processJob: (job, timeoutMs) =>
+    processJob: (job, timeoutMs, retryDelaysMs) =>
       resyncSyncfyConnection({
         userId: job.userId,
         connectionId: job.connectionId,
-        timeoutMs
+        timeoutMs,
+        retryDelaysMs
       })
   });
 }

@@ -8,23 +8,33 @@ process.env.GOOGLE_CALLBACK_URL ??=
   "http://localhost:4000/auth/google/callback";
 process.env.WEB_APP_URL ??= "http://localhost:5173";
 process.env.NODE_ENV ??= "test";
+process.env.SYNCFY_AUTO_SYNC_ENABLED = "true";
+process.env.SYNCFY_AUTO_SYNC_INTERVAL_MINUTES = "17";
+process.env.SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS = "45678";
+process.env.SYNCFY_AUTO_SYNC_CONCURRENCY = "3";
 
 const {
   buildSyncfyRefreshMetadata,
+  buildPendingSyncfyImportedTransactionCandidates,
   buildSyncfyProviderAccountMetadata,
   buildSyncfyTransactionDataUrl,
   countNewSyncfyImportedTransactionIds,
   fetchSyncfyTransactions,
   getSyncfyRefreshMetadata,
   getSyncfyEndpointList,
+  getManualSyncfyRefreshRetryDelaysMs,
   normalizeSyncfyTransaction,
   nextSyncfyImportedTransactionStatus,
   resolveSyncfyImportedTransactionStatus,
+  shouldStopSyncfyRefreshRetry,
   summarizeSyncfyEndpoints,
   summarizeSyncfyImportedTransactionWrites,
   shouldMarkSyncfyManualReconnect
 } = await import("../src/modules/providers/syncfy/syncfy.service.ts");
 const { SyncfyAutoSyncScheduler } = await import(
+  "../src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts"
+);
+const { getSyncfyAutoSyncSchedulerConfig } = await import(
   "../src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts"
 );
 
@@ -110,7 +120,7 @@ const transactionUrl = buildSyncfyTransactionDataUrl({
 assert.equal(transactionUrl.searchParams.get("id_credential"), "credential_1");
 assert.equal(transactionUrl.searchParams.get("include_pending"), "true");
 assert.equal(transactionUrl.searchParams.get("dt_refresh_to"), "1781222400");
-assert.equal(transactionUrl.searchParams.get("dt_refresh_from"), "1780012800");
+assert.equal(transactionUrl.searchParams.get("dt_refresh_from"), "1776038400");
 assert.equal(transactionUrl.searchParams.get("limit"), "500");
 assert.equal(transactionUrl.searchParams.get("skip"), "0");
 assert.equal(transactionUrl.searchParams.get("token"), "session_token");
@@ -126,7 +136,7 @@ const paginatedTransactions = await fetchSyncfyTransactions(
     fetchPage: async (url) => {
       paginatedSkipValues.push(url.searchParams.get("skip") ?? "");
       assert.equal(url.searchParams.get("limit"), "2");
-      assert.equal(url.searchParams.get("dt_refresh_from"), "1780012800");
+      assert.equal(url.searchParams.get("dt_refresh_from"), "1776038400");
       assert.equal(url.searchParams.get("dt_refresh_to"), "1781222400");
 
       const skip = Number(url.searchParams.get("skip") ?? 0);
@@ -161,6 +171,85 @@ const paginatedTransactions = await fetchSyncfyTransactions(
 );
 assert.deepEqual(paginatedSkipValues, ["0", "2"]);
 assert.equal(paginatedTransactions.length, 3);
+
+let delayedRefreshAttempt = 0;
+const delayedRefreshPages = [
+  [
+    {
+      id_transaction: "tx_existing",
+      id_credential: "credential_1",
+      id_account: "account_1",
+      description: "Existing transaction",
+      amount: -25,
+      currency: "MXN",
+      dt_transaction: 1_781_221_000,
+      dt_refresh: 1_781_221_100
+    }
+  ],
+  [
+    {
+      id_transaction: "tx_existing",
+      id_credential: "credential_1",
+      id_account: "account_1",
+      description: "Existing transaction",
+      amount: -25,
+      currency: "MXN",
+      dt_transaction: 1_781_221_000,
+      dt_refresh: 1_781_221_100
+    },
+    {
+      id_transaction: "tx_minus_50",
+      id_credential: "credential_1",
+      id_account: "account_1",
+      description: "Latest debit",
+      amount: -50,
+      currency: "MXN",
+      dt_transaction: 1_781_222_000,
+      dt_refresh: 1_781_222_100
+    }
+  ]
+];
+const delayedRefreshResults = [];
+
+for (const page of delayedRefreshPages) {
+  const transactions = await fetchSyncfyTransactions(
+    "/v1/transactions?id_credential=credential_1",
+    "session_token",
+    "credential_1",
+    {
+      now: new Date("2026-06-12T00:00:00.000Z"),
+      fetchPage: async () => ({
+        response: delayedRefreshPages[delayedRefreshAttempt++] ?? page
+      })
+    }
+  );
+  const candidates = buildPendingSyncfyImportedTransactionCandidates({
+    existingTransactionIds: new Set(["tx_existing"]),
+    transactions
+  });
+  delayedRefreshResults.push({
+    fetchedTransactionsCount: transactions.length,
+    pendingCandidates: candidates
+  });
+}
+
+assert.equal(delayedRefreshResults[0]?.fetchedTransactionsCount, 1);
+assert.equal(delayedRefreshResults[0]?.pendingCandidates.length, 0);
+assert.equal(delayedRefreshResults[1]?.fetchedTransactionsCount, 2);
+assert.deepEqual(delayedRefreshResults[1]?.pendingCandidates, [
+  {
+    providerTransactionId: "tx_minus_50",
+    providerCredentialId: "credential_1",
+    providerAccountId: "account_1",
+    description: "Latest debit",
+    amount: -50,
+    currency: "MXN",
+    transactionDate: new Date(1_781_222_000 * 1000),
+    refreshDate: new Date(1_781_222_100 * 1000),
+    status: "pending",
+    rawData: delayedRefreshPages[1]?.[1]
+  }
+]);
 
 assert.deepEqual(
   buildSyncfyProviderAccountMetadata({
@@ -252,6 +341,80 @@ assert.deepEqual(
   }
 );
 
+assert.deepEqual(getManualSyncfyRefreshRetryDelaysMs(), [
+  0,
+  5_000,
+  15_000,
+  30_000
+]);
+
+assert.deepEqual(getSyncfyAutoSyncSchedulerConfig(), {
+  enabled: true,
+  intervalMinutes: 17,
+  jobTimeoutMs: 45678,
+  concurrency: 3,
+  retryDelaysMs: [0, 5_000, 15_000, 30_000]
+});
+
+assert.equal(
+  shouldStopSyncfyRefreshRetry({
+    attemptIndex: 0,
+    totalAttempts: 4,
+    fetchedTransactionsCount: 10,
+    balanceFingerprint: "balance_a",
+    insertedOrUpdatedImportedTransactions: 1
+  }),
+  true
+);
+assert.equal(
+  shouldStopSyncfyRefreshRetry({
+    attemptIndex: 1,
+    totalAttempts: 4,
+    previousFetchedTransactionsCount: 9,
+    previousBalanceFingerprint: "balance_a",
+    fetchedTransactionsCount: 10,
+    balanceFingerprint: "balance_a",
+    insertedOrUpdatedImportedTransactions: 0
+  }),
+  true
+);
+assert.equal(
+  shouldStopSyncfyRefreshRetry({
+    attemptIndex: 1,
+    totalAttempts: 4,
+    previousFetchedTransactionsCount: 10,
+    previousBalanceFingerprint: "balance_a",
+    fetchedTransactionsCount: 10,
+    balanceFingerprint: "balance_b",
+    insertedOrUpdatedImportedTransactions: 0
+  }),
+  true
+);
+assert.equal(
+  shouldStopSyncfyRefreshRetry({
+    attemptIndex: 1,
+    totalAttempts: 4,
+    previousFetchedTransactionsCount: 10,
+    previousBalanceFingerprint: "balance_a",
+    fetchedTransactionsCount: 10,
+    balanceFingerprint: "balance_a",
+    insertedOrUpdatedImportedTransactions: 0
+  }),
+  false
+);
+assert.equal(
+  shouldStopSyncfyRefreshRetry({
+    attemptIndex: 3,
+    totalAttempts: 4,
+    previousFetchedTransactionsCount: 10,
+    previousBalanceFingerprint: "balance_a",
+    fetchedTransactionsCount: 10,
+    balanceFingerprint: "balance_a",
+    insertedOrUpdatedImportedTransactions: 0
+  }),
+  true
+);
+
 assert.equal(
   nextSyncfyImportedTransactionStatus({
     status: "imported",
@@ -294,14 +457,19 @@ assert.equal(disabledLoadCalls, 0);
 
 let releaseJob: (() => void) | undefined;
 let processedJobs = 0;
+let overlappingJobTimeoutMs: number | undefined;
+let overlappingRetryDelaysMs: readonly number[] | undefined;
 const overlappingScheduler = new SyncfyAutoSyncScheduler({
   enabled: true,
   intervalMinutes: 60,
   jobTimeoutMs: 1000,
   concurrency: 1,
   loadJobs: async () => [{ connectionId: "conn_1", userId: "user_1" }],
-  processJob: async () => {
+  retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs(),
+  processJob: async (_job, timeoutMs, retryDelaysMs) => {
     processedJobs += 1;
+    overlappingJobTimeoutMs = timeoutMs;
+    overlappingRetryDelaysMs = retryDelaysMs;
     await new Promise<void>((resolve) => {
       releaseJob = resolve;
     });
@@ -327,3 +495,58 @@ assert.deepEqual(await firstRun, {
   failed: 0
 });
 assert.equal(processedJobs, 1);
+assert.equal(overlappingJobTimeoutMs, 1000);
+assert.deepEqual(overlappingRetryDelaysMs, [0, 5_000, 15_000, 30_000]);
+overlappingScheduler.stop();
+
+const startupLogs: unknown[] = [];
+let startupProcessedJobs = 0;
+let startupJobTimeoutMs: number | undefined;
+let startupRetryDelaysMs: readonly number[] | undefined;
+const startupScheduler = new SyncfyAutoSyncScheduler({
+  enabled: true,
+  intervalMinutes: 60,
+  jobTimeoutMs: 1000,
+  concurrency: 1,
+  loadJobs: async () => [{ connectionId: "conn_startup", userId: "user_startup" }],
+  retryDelaysMs: getManualSyncfyRefreshRetryDelaysMs(),
+  processJob: async (_job, timeoutMs, retryDelaysMs) => {
+    startupProcessedJobs += 1;
+    startupJobTimeoutMs = timeoutMs;
+    startupRetryDelaysMs = retryDelaysMs;
+  },
+  log: {
+    info: (message, metadata) => {
+      startupLogs.push({ message, metadata });
+    },
+    warn: () => undefined,
+    error: () => undefined
+  }
+});
+
+assert.equal(startupScheduler.start(), true);
+await new Promise((resolve) => setTimeout(resolve, 10));
+startupScheduler.stop();
+assert.equal(startupProcessedJobs, 1);
+assert.equal(startupJobTimeoutMs, 1000);
+assert.deepEqual(startupRetryDelaysMs, [0, 5_000, 15_000, 30_000]);
+assert.equal(
+  startupLogs.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      "message" in entry &&
+      entry.message === "[SYNCFY AUTO SYNC] Scheduler started"
+  ),
+  true
+);
+assert.equal(
+  startupLogs.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      "message" in entry &&
+      entry.message === "[SYNCFY AUTO SYNC] Run complete"
+  ),
+  true
+);
