@@ -113,7 +113,6 @@ Implemented:
 - Email/password authentication
 - JWT sessions
 - Google OAuth
-- GitHub OAuth
 
 ## Accounts
 
@@ -259,15 +258,19 @@ Implemented:
 - HMAC signature validation
 - Event processing pipeline
 
+Production Syncfy event ingestion is consolidated on the generic provider
+webhook route `/providers/webhooks/syncfy`. The legacy `/syncfy/webhook` route
+is deprecated and does not process provider events.
+
 ---
 
 # Current Development Focus
 
 Status: ACTIVE
 
-Primary focus is improving provider synchronization reliability.
+Milestone 5 (Syncfy Auto-Sync) is complete. The `SyncfyAutoSyncScheduler` is implemented, started on API boot, and handles reconnect detection, per-job timeouts, configurable concurrency, and overlap prevention.
 
-The goal is to minimize manual user intervention while maintaining security.
+Current focus is Milestone 6: Financial Automation — automatic transaction categorization, categorization rules, duplicate detection, and recurring transaction detection.
 
 ---
 
@@ -289,78 +292,37 @@ Completed:
 
 # Milestone 5 - Syncfy Auto Synchronization
 
-Status: IN PROGRESS
+Status: COMPLETED
 
-Goals:
+Completed:
 
 ## Connection Health Tracking
 
-Track:
-
-- Active
-- Expired
-- Reconnect Required
-- Sync Failed
-
-states for provider connections.
+- `ProviderConnection.status` tracks `active`, `sync_failed`, `reconnect_required`
+- `requiresManualReconnect` flag removes connections from auto-sync queue
 
 ## Syncfy Refresh Metadata
 
-FlowLedger should treat Syncfy `id_credential` as the source of truth for a
-provider credential. Syncfy handles bank credential entry through its widget.
-FlowLedger must not store user bank usernames, passwords, OTPs, security
-answers, card numbers, account login identifiers, or other bank login
-credential material.
+- Sanitized endpoint paths stored in `ProviderConnection.rawData.syncfyRefreshMetadata`
+- Sensitive query params (`token`, `api_key`, `username`, `password`, `otp`, etc.) stripped before storage
+- `id_credential` is the credential source of truth — bank login credentials never stored
 
-Store only non-secret Syncfy provider metadata needed for connection status,
-account metadata, webhook processing, and refresh/import operations. Sanitized
-Syncfy refresh endpoint metadata may be stored on provider metadata fields such
-as `ProviderConnection.rawData`; it must not include tokens, API keys, raw
-credentials, or bank login material.
+## Manual Resync and Reconnect
 
-If Syncfy requires interaction or usable refresh metadata is unavailable:
-
-- Mark the connection reconnect-required.
-- Use the Syncfy widget credential update flow.
-
-## Manual Resync
-
-Allow users to:
-
-- Trigger Syncfy credential synchronization with
-  `setEntrypointCredential(idCredential)`.
-
-## Manual Reconnect
-
-Allow users to:
-
-- Reopen the Syncfy widget credential update flow with
-  `setEntrypointUpdateCredential(idCredential)`.
-- Refresh credentials.
-- Repair expired connections.
+- `POST /providers/syncfy/credentials/:providerCredentialId/refresh` handles both resync and reconnect
+- Widget entrypoints: `setEntrypointCredential` (resync) / `setEntrypointUpdateCredential` (reconnect)
+- Bounded backend retry/backoff (`[0, 5000, 15000, 30000]` ms) after widget completion
 
 ## Automated Synchronization
 
-Implement background synchronization:
+- `SyncfyAutoSyncScheduler` started on API boot
+- Configurable: `SYNCFY_AUTO_SYNC_ENABLED`, `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES`, `SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS`, `SYNCFY_AUTO_SYNC_CONCURRENCY`
+- Processes oldest-synced connections first; skips overlap; isolates per-job failures
 
-- Queue-based processing
-- Configurable intervals
-- Retry handling
-- Timeout handling
-- Failure tracking
+## Dynamic Token / MFA Handling
 
-## Dynamic Token Handling
-
-Detect institutions requiring:
-
-- MFA
-- OTP
-- Dynamic authentication
-
-Automatically:
-
-- Mark connection as reconnect-required.
-- Notify users.
+- `shouldMarkSyncfyManualReconnect()` detects MFA/OTP/auth error patterns
+- Automatically marks connection `requiresManualReconnect = true` and removes from auto-sync queue
 
 ---
 

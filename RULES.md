@@ -79,6 +79,8 @@ intentionally generic so they can be copied into any repository.
   - `AGENTS.md` for project-specific AI agent instructions.
   - `ROADMAP.md` for project vision, milestones, and implementation sequence.
   - `README.md` for human-facing setup, usage, and operations.
+  - `CLAUDE.md` for agent orientation and quick-start.
+  - `docs/` for detailed architecture, API, domain logic, and conventions.
 - Document new environment variables with safe example values only.
 - Document operational changes, security implications, and manual steps.
 - Update documentation as part of architecture or workflow changes.

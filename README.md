@@ -125,7 +125,6 @@ Implemented:
 - Email/password authentication
 - JWT sessions
 - Google OAuth
-- GitHub OAuth
 
 ---
 
@@ -302,6 +301,14 @@ Implemented:
 - Signature validation
 - Processing pipeline
 
+Production Syncfy webhooks are processed only at:
+
+- `/providers/webhooks/syncfy`
+
+The legacy `/syncfy/webhook` route is deprecated and returns a non-processing
+deprecation response. Configure Syncfy to send events to the provider webhook
+route above.
+
 Supported event:
 
 - credentials.refreshed
@@ -365,7 +372,6 @@ Core variables include:
 - JWT_SECRET
 - JWT_EXPIRES_IN
 - API_PORT
-- WEB_PORT
 - WEB_APP_URL
 - VITE_API_URL
 - NODE_ENV
@@ -375,9 +381,6 @@ OAuth variables:
 - GOOGLE_CLIENT_ID
 - GOOGLE_CLIENT_SECRET
 - GOOGLE_CALLBACK_URL
-- GITHUB_CLIENT_ID
-- GITHUB_CLIENT_SECRET
-- GITHUB_CALLBACK_URL
 
 Provider variables:
 
@@ -395,6 +398,7 @@ Syncfy auto-sync variables:
 - SYNCFY_AUTO_SYNC_INTERVAL_MINUTES
 - SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS
 - SYNCFY_AUTO_SYNC_CONCURRENCY
+- SYNCFY_TRANSACTION_LOOKBACK_DAYS
 
 When enabled, the API starts a Syncfy scheduler on boot. It queues active
 Syncfy provider connections with linked accounts, processes them with the
@@ -414,6 +418,12 @@ Manual Syncfy flows use the widget credential entrypoints:
 
 - Resync: `setEntrypointCredential(idCredential)`
 - Reconnect/update: `setEntrypointUpdateCredential(idCredential)`
+
+After either manual widget flow, the backend fetches both Syncfy accounts and
+transactions from stored provider endpoints. Manual refreshes use bounded
+server-side retry/backoff to allow Syncfy's data endpoints to finish updating
+after the widget reports completion. The transaction refresh window defaults to
+60 days through `SYNCFY_TRANSACTION_LOOKBACK_DAYS`.
 
 ---
 
@@ -468,16 +478,33 @@ bash npm run prisma:seed
 
 ---
 
+# Documentation
+
+- `CLAUDE.md` — agent orientation and quick-start
+- `docs/ARCHITECTURE.md` — full stack details, directory tree, env vars
+- `docs/API_REFERENCE.md` — all API routes
+- `docs/DATA_MODEL.md` — all Prisma models and enums
+- `docs/DOMAIN_LOGIC.md` — shared expenses, debts, settlements, reports
+- `docs/PROVIDER_SYNC.md` — Syncfy integration and auto-sync scheduler
+- `docs/AUTH_FLOW.md` — JWT, OAuth flows
+- `docs/FRONTEND_MAP.md` — pages, components, hooks
+- `docs/CONVENTIONS.md` — code patterns and naming rules
+- `docs/TESTING.md` — test file map
+
+---
+
 # Current Development Priorities
 
-Current active work:
+Completed:
 
-1. Syncfy reliability improvements.
-2. Automatic provider synchronization.
-3. Connection health monitoring.
-4. Reconnect workflows.
-5. Imported transaction review improvements.
-6. Financial automation features.
+1. Syncfy auto-sync scheduler (Milestone 5 complete — `SyncfyAutoSyncScheduler` runs on boot when `SYNCFY_AUTO_SYNC_ENABLED=true`).
+2. Webhook HMAC security with multi-format signature support.
+3. Credential refresh with bounded retry/backoff.
+
+Active focus:
+
+1. Imported transaction review improvements.
+2. Financial automation features (Milestone 6 — categorization, rules, dedup).
 
 See ROADMAP.md for the complete implementation sequence.
 

@@ -108,7 +108,6 @@ FlowLedger currently contains:
 - Email/password login
 - JWT authentication
 - Google OAuth
-- GitHub OAuth
 
 ## Accounts
 
@@ -194,6 +193,7 @@ Syncfy implementation:
 - syncfy.routes.ts
 - syncfy.service.ts
 - syncfy.webhookSecurity.ts
+- syncfyAutoSyncScheduler.ts
 
 Agents must extend the provider architecture instead of creating Syncfy-specific parallel systems.
 
@@ -228,6 +228,13 @@ Current webhook security:
 - Raw payload storage
 - Webhook audit trail
 
+Production Syncfy webhook event processing must use the generic provider route:
+
+- `/providers/webhooks/syncfy`
+
+The legacy `/syncfy/webhook` route is deprecated and must not process provider
+events.
+
 Never remove webhook signature validation.
 
 Never weaken provider security.
@@ -242,16 +249,16 @@ Never log:
 
 ---
 
-# Upcoming Syncfy Auto-Sync Work
+# Syncfy Auto-Sync
 
-Current roadmap includes:
+Auto-sync is implemented and running. The `SyncfyAutoSyncScheduler` is created and started in `server.ts` on boot. See `docs/PROVIDER_SYNC.md` for full details.
 
-- Automatic Syncfy account resync
-- Background synchronization queue
-- Connection health monitoring
-- Manual reconnect flow
-- Reconnect-required state
-- Sync status tracking
+Scheduler behavior:
+- Runs on configurable interval (default: disabled, set `SYNCFY_AUTO_SYNC_ENABLED=true`)
+- Processes connections with `status` in `["active", "sync_failed"]` that have at least one confirmed linked `ProviderAccount`
+- Skips connections with `requiresManualReconnect = true`
+- Calls `resyncSyncfyConnection()` per job, same path as manual resync
+- Detects MFA/OTP/auth errors via `shouldMarkSyncfyManualReconnect()` and marks connections reconnect-required automatically
 
 Important:
 
@@ -267,6 +274,11 @@ For current Syncfy flows, treat `id_credential` as the credential source of
 truth. Manual resync should use `setEntrypointCredential(idCredential)`, and
 manual credential refresh/reconnect should use
 `setEntrypointUpdateCredential(idCredential)`.
+
+Manual Syncfy refreshes must fetch both accounts and transactions from stored
+provider endpoints after widget completion. Keep the refresh idempotent and use
+bounded retry/backoff so recent provider data has time to appear without
+duplicating imported transactions or overwriting user review decisions.
 
 ---
 
@@ -415,15 +427,31 @@ Update:
 - README.md
 - ROADMAP.md
 - AGENTS.md
+- Relevant docs/ files
 
 When security changes:
 
 Update:
 
 - README.md
-- Relevant implementation documentation
+- Relevant docs/ files
 
 Documentation must remain aligned with actual implementation.
+
+## Documentation map
+
+| File | Purpose |
+|---|---|
+| `CLAUDE.md` | Agent orientation and quick-start reference |
+| `docs/ARCHITECTURE.md` | Full stack, directory structure, env vars, ports |
+| `docs/DATA_MODEL.md` | All Prisma models and enums |
+| `docs/API_REFERENCE.md` | All routes with method/path/auth/description |
+| `docs/FRONTEND_MAP.md` | Pages, components, hooks, services |
+| `docs/AUTH_FLOW.md` | JWT, email/password, Google OAuth flows |
+| `docs/PROVIDER_SYNC.md` | Provider abstraction, Syncfy integration, auto-sync |
+| `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements, reports |
+| `docs/CONVENTIONS.md` | Code patterns, validation, naming, ESM rules |
+| `docs/TESTING.md` | Test file map and what each covers |
 
 ---
 
