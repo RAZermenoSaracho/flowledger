@@ -1,6 +1,7 @@
 import {
   batchIgnoreProviderImportedTransactionsSchema,
   batchImportProviderImportedTransactionsSchema,
+  batchUnignoreProviderImportedTransactionsSchema,
   importProviderImportedTransactionSchema,
   providerImportedTransactionFiltersSchema,
   transactionFiltersSchema,
@@ -739,6 +740,43 @@ transactionsRouter.post(
 );
 
 transactionsRouter.post(
+  "/imported/:id/unignore",
+  asyncHandler(async (req, res) => {
+    const importedTransactionId = req.params.id;
+    if (!importedTransactionId) throw notFound("Imported transaction");
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.providerImportedTransaction.updateMany({
+        where: {
+          id: importedTransactionId,
+          userId: req.user!.id,
+          status: "ignored"
+        },
+        data: { status: "pending" }
+      });
+
+      if (updated.count === 0) {
+        const existing = await tx.providerImportedTransaction.findFirst({
+          where: { id: importedTransactionId, userId: req.user!.id }
+        });
+        if (!existing) throw notFound("Imported transaction");
+        throw new HttpError(
+          400,
+          "Only ignored imported transactions can be unignored"
+        );
+      }
+
+      return tx.providerImportedTransaction.findUniqueOrThrow({
+        where: { id: importedTransactionId },
+        include: importedTransactionInclude
+      });
+    });
+
+    res.json({ importedTransaction: serialize(result) });
+  })
+);
+
+transactionsRouter.post(
   "/imported/batch-import",
   validate(batchImportProviderImportedTransactionsSchema),
   asyncHandler(async (req, res) => {
@@ -875,6 +913,51 @@ transactionsRouter.post(
     });
 
     res.json({ ignoredCount: result, errors: [] });
+  })
+);
+
+transactionsRouter.post(
+  "/imported/batch-unignore",
+  validate(batchUnignoreProviderImportedTransactionsSchema),
+  asyncHandler(async (req, res) => {
+    const selection = req.body.selection as ImportedTransactionSelection;
+    const result = await prisma.$transaction(async (tx) => {
+      const rows = await tx.providerImportedTransaction.findMany({
+        where: importedTransactionSelectionWhere(req.user!.id, selection),
+        select: { id: true, status: true }
+      });
+      const errors = rows
+        .filter((row) => row.status !== "ignored")
+        .map((row) =>
+          importValidationError(
+            row.id,
+            "Only ignored imported transactions can be unignored"
+          )
+        );
+
+      if (errors.length > 0) {
+        throw new HttpError(
+          400,
+          "Some imported transactions cannot be unignored",
+          {
+            errors
+          }
+        );
+      }
+
+      const updated = await tx.providerImportedTransaction.updateMany({
+        where: {
+          id: { in: rows.map((row) => row.id) },
+          userId: req.user!.id,
+          status: "ignored"
+        },
+        data: { status: "pending" }
+      });
+
+      return updated.count;
+    });
+
+    res.json({ unignoredCount: result, errors: [] });
   })
 );
 

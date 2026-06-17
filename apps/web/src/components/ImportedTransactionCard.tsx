@@ -64,10 +64,12 @@ type ImportedTransactionCardProps = {
   isSelectionLocked: boolean;
   isImporting: boolean;
   isIgnoring: boolean;
+  isUnignoring: boolean;
   onSelectedChange: () => void;
   onCategoryChange: (categoryId: string | null) => void;
   onImport: () => void;
   onIgnore: () => void;
+  onUnignore: () => void;
 };
 
 export function ImportedTransactionCard({
@@ -77,10 +79,12 @@ export function ImportedTransactionCard({
   isSelectionLocked,
   isImporting,
   isIgnoring,
+  isUnignoring,
   onSelectedChange,
   onCategoryChange,
   onImport,
-  onIgnore
+  onIgnore,
+  onUnignore
 }: ImportedTransactionCardProps) {
   const type = importedTransactionType(transaction);
   const compatibleCategories = categories.filter(
@@ -162,27 +166,35 @@ export function ImportedTransactionCard({
             </option>
           ))}
         </SelectField>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            type="button"
-            disabled={
-              transaction.status !== "pending" ||
-              !transaction.categoryId ||
-              isImporting
-            }
-            onClick={onImport}
-          >
-            Import
-          </Button>
+        {transaction.status === "pending" ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              disabled={!transaction.categoryId || isImporting}
+              onClick={onImport}
+            >
+              Import
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isIgnoring}
+              onClick={onIgnore}
+            >
+              Ignore
+            </Button>
+          </div>
+        ) : null}
+        {transaction.status === "ignored" ? (
           <Button
             type="button"
             variant="secondary"
-            disabled={transaction.status !== "pending" || isIgnoring}
-            onClick={onIgnore}
+            disabled={isUnignoring}
+            onClick={onUnignore}
           >
-            Ignore
+            Unignore
           </Button>
-        </div>
+        ) : null}
       </div>
     </div>
   );

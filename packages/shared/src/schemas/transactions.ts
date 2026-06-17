@@ -167,6 +167,10 @@ export const batchIgnoreProviderImportedTransactionsSchema = z.object({
   selection: importedTransactionSelectionSchema
 });
 
+export const batchUnignoreProviderImportedTransactionsSchema = z.object({
+  selection: importedTransactionSelectionSchema
+});
+
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type TransactionSharedExpenseInput = z.infer<
   typeof transactionSharedExpenseSchema

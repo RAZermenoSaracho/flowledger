@@ -337,7 +337,7 @@ Completed:
 
 # Milestone 6 - Unignore Imported Transactions
 
-Status: PLANNED
+Status: COMPLETED
 
 Imported transactions can currently move from `pending` to `ignored`, but not
 back. Add a button to move an imported transaction from `ignored` back to

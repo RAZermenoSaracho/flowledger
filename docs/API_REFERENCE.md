@@ -132,10 +132,12 @@ Transaction filter types (`transactionFilterType`): `normal`, `settlement`, `exp
 | PATCH | `/transactions/imported/:id` | Update imported transaction (assign/change category). |
 | POST | `/transactions/imported/:id/import` | Import a pending transaction → creates a Transaction. |
 | POST | `/transactions/imported/:id/ignore` | Ignore a pending transaction. |
+| POST | `/transactions/imported/:id/unignore` | Move an ignored transaction back to pending. |
 | POST | `/transactions/imported/batch-import` | Bulk import by ID list or filter selection. |
 | POST | `/transactions/imported/batch-ignore` | Bulk ignore by ID list or filter selection. |
+| POST | `/transactions/imported/batch-unignore` | Bulk unignore by ID list or filter selection. |
 
-**Validation schemas:** `transactionSchema`, `updateTransactionSchema`, `transactionFiltersSchema`, `providerImportedTransactionFiltersSchema`, `importProviderImportedTransactionSchema`, `updateProviderImportedTransactionSchema`, `batchImportProviderImportedTransactionsSchema`, `batchIgnoreProviderImportedTransactionsSchema`.
+**Validation schemas:** `transactionSchema`, `updateTransactionSchema`, `transactionFiltersSchema`, `providerImportedTransactionFiltersSchema`, `importProviderImportedTransactionSchema`, `updateProviderImportedTransactionSchema`, `batchImportProviderImportedTransactionsSchema`, `batchIgnoreProviderImportedTransactionsSchema`, `batchUnignoreProviderImportedTransactionsSchema`.
 
 ---
 

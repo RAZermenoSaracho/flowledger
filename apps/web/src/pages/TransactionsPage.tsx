@@ -473,6 +473,29 @@ export function TransactionsPage() {
     }
   });
 
+  const unignoreImportedTransaction = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest(`/transactions/imported/${id}/unignore`, { method: "POST" }),
+    onSuccess: async () => {
+      setSelectedImportedIds([]);
+      setSelectAllFilteredImported(false);
+      await invalidateImportedWorkflow();
+    }
+  });
+
+  const batchUnignoreImportedTransactions = useMutation({
+    mutationFn: () =>
+      apiRequest("/transactions/imported/batch-unignore", {
+        method: "POST",
+        body: { selection: importedSelection }
+      }),
+    onSuccess: async () => {
+      setSelectedImportedIds([]);
+      setSelectAllFilteredImported(false);
+      await invalidateImportedWorkflow();
+    }
+  });
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (transferAccountsInvalid) return;
@@ -1731,8 +1754,10 @@ export function TransactionsPage() {
               batchCategoryId={batchCategoryId}
               categories={categoriesQuery.data ?? []}
               isPendingFilter={importedFilters.status === "pending"}
+              isIgnoredFilter={importedFilters.status === "ignored"}
               isImporting={batchImportImportedTransactions.isPending}
               isIgnoring={batchIgnoreImportedTransactions.isPending}
+              isUnignoring={batchUnignoreImportedTransactions.isPending}
               onBatchCategoryChange={setBatchCategoryId}
               onVisibleSelectionChange={setAllVisibleImportedSelected}
               onAllFilteredSelectionChange={(selected) => {
@@ -1741,18 +1766,22 @@ export function TransactionsPage() {
               }}
               onImportSelected={() => batchImportImportedTransactions.mutate()}
               onIgnoreSelected={() => batchIgnoreImportedTransactions.mutate()}
+              onUnignoreSelected={() => batchUnignoreImportedTransactions.mutate()}
             />
 
             {batchImportImportedTransactions.isError ||
-            batchIgnoreImportedTransactions.isError ? (
+            batchIgnoreImportedTransactions.isError ||
+            batchUnignoreImportedTransactions.isError ? (
               <div className="mt-3 rounded-md border border-coral/40 bg-orange-50 p-3 text-sm text-coral dark:bg-orange-950/30 dark:text-orange-300">
                 <p className="font-semibold">
                   {batchImportImportedTransactions.error?.message ??
-                    batchIgnoreImportedTransactions.error?.message}
+                    batchIgnoreImportedTransactions.error?.message ??
+                    batchUnignoreImportedTransactions.error?.message}
                 </p>
                 {batchErrors(
                   batchImportImportedTransactions.error ??
-                    batchIgnoreImportedTransactions.error
+                    batchIgnoreImportedTransactions.error ??
+                    batchUnignoreImportedTransactions.error
                 ).map((error) => (
                   <p key={`${error.id}:${error.message}`} className="mt-1">
                     {error.id}: {error.message}
@@ -1774,6 +1803,7 @@ export function TransactionsPage() {
                   isSelectionLocked={selectAllFilteredImported}
                   isImporting={importImportedTransaction.isPending}
                   isIgnoring={ignoreImportedTransaction.isPending}
+                  isUnignoring={unignoreImportedTransaction.isPending}
                   onSelectedChange={() =>
                     toggleImportedSelection(transaction.id)
                   }
@@ -1786,6 +1816,9 @@ export function TransactionsPage() {
                   onImport={() => void importOneImportedTransaction(transaction)}
                   onIgnore={() =>
                     ignoreImportedTransaction.mutate(transaction.id)
+                  }
+                  onUnignore={() =>
+                    unignoreImportedTransaction.mutate(transaction.id)
                   }
                 />
               ))}

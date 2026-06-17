@@ -11,13 +11,16 @@ type ImportedTransactionSelectionToolbarProps = {
   batchCategoryId: string;
   categories: Category[];
   isPendingFilter: boolean;
+  isIgnoredFilter: boolean;
   isImporting: boolean;
   isIgnoring: boolean;
+  isUnignoring: boolean;
   onBatchCategoryChange: (categoryId: string) => void;
   onVisibleSelectionChange: (selected: boolean) => void;
   onAllFilteredSelectionChange: (selected: boolean) => void;
   onImportSelected: () => void;
   onIgnoreSelected: () => void;
+  onUnignoreSelected: () => void;
 };
 
 export function ImportedTransactionSelectionToolbar({
@@ -29,13 +32,16 @@ export function ImportedTransactionSelectionToolbar({
   batchCategoryId,
   categories,
   isPendingFilter,
+  isIgnoredFilter,
   isImporting,
   isIgnoring,
+  isUnignoring,
   onBatchCategoryChange,
   onVisibleSelectionChange,
   onAllFilteredSelectionChange,
   onImportSelected,
-  onIgnoreSelected
+  onIgnoreSelected,
+  onUnignoreSelected
 }: ImportedTransactionSelectionToolbarProps) {
   const hasSelection = allFilteredSelected || selectedCount > 0;
   const allVisibleSelected =
@@ -106,21 +112,35 @@ export function ImportedTransactionSelectionToolbar({
               </option>
             ))}
           </SelectField>
-          <Button
-            type="button"
-            disabled={isImporting || !isPendingFilter || !hasSelection}
-            onClick={onImportSelected}
-          >
-            Import {actionScope}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={isIgnoring || !isPendingFilter || !hasSelection}
-            onClick={onIgnoreSelected}
-          >
-            Ignore {actionScope}
-          </Button>
+          {isPendingFilter ? (
+            <Button
+              type="button"
+              disabled={isImporting || !hasSelection}
+              onClick={onImportSelected}
+            >
+              Import {actionScope}
+            </Button>
+          ) : null}
+          {isPendingFilter ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isIgnoring || !hasSelection}
+              onClick={onIgnoreSelected}
+            >
+              Ignore {actionScope}
+            </Button>
+          ) : null}
+          {isIgnoredFilter ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isUnignoring || !hasSelection}
+              onClick={onUnignoreSelected}
+            >
+              Unignore {actionScope}
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
