@@ -23,6 +23,7 @@ import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
+import { currenciesRouter } from "./modules/currencies/currencies.routes.js";
 import syncfyRoutes from "./modules/providers/syncfy/syncfy.routes.js";
 import { createSyncfyAutoSyncScheduler } from "./modules/providers/syncfy/syncfyAutoSyncScheduler.js";
 
@@ -47,6 +48,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.use("/currencies", currenciesRouter);
 app.use("/auth", authRouter);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);

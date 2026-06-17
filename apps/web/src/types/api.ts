@@ -20,11 +20,18 @@ export type User = {
   email: string;
   avatarUrl?: string | null;
   planType: PlanType;
+  preferredCurrency?: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type PublicUser = Pick<User, "id" | "name" | "email">;
+
+export type Currency = {
+  code: string;
+  name: string;
+  type: "fiat" | "crypto";
+};
 
 export type Account = {
   id: string;

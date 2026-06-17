@@ -201,3 +201,16 @@ User reviews at /transactions?tab=imported
   ↓  POST /transactions/imported/:id/import
 Transaction ← created, ProviderImportedTransaction.transactionId set, status: processed
 ```
+
+---
+
+## Market data providers (read-only, no FinancialProviderAdapter)
+
+These are lightweight services that fetch public market data for display purposes. They do not implement `FinancialProviderAdapter` and are not registered in `providerRegistry.ts`.
+
+| Provider | Module | Purpose | Cache TTL |
+|---|---|---|---|
+| **Frankfurter** | `apps/api/src/modules/providers/frankfurter/frankfurter.service.ts` | Fiat currency list (`GET https://api.frankfurter.app/currencies`) | 24 hours |
+| **Binance** | `apps/api/src/modules/providers/binance/binance.service.ts` | Crypto base asset list (`GET https://api.binance.com/api/v3/ticker/price`) | 1 hour |
+
+Both services use an in-memory cache with a plain timestamp object. Both degrade gracefully on upstream failure (log and return empty array). Results are served to the frontend via `GET /currencies` (no auth required).

@@ -14,6 +14,20 @@ Routes are mounted in `apps/api/src/server.ts`.
 
 ---
 
+## Currencies — `/currencies`
+
+Module: `apps/api/src/modules/currencies/currencies.routes.ts`
+
+No authentication required.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/currencies` | No | Returns the combined list of fiat and crypto currencies. |
+
+**Response:** `{ currencies: Array<{ code: string, name: string, type: "fiat" \| "crypto" }> }` — sorted alphabetically by code. Fiat data sourced from Frankfurter (24 h cache), crypto base assets from Binance (1 h cache). Degrades gracefully if either upstream is unavailable.
+
+---
+
 ## Auth — `/auth`
 
 Module: `apps/api/src/modules/auth/auth.routes.ts`
@@ -38,9 +52,11 @@ All routes require auth.
 
 | Method | Path | Description |
 |---|---|---|
-| PATCH | `/users/me` | Update profile (name, email). |
+| PATCH | `/users/me` | Update profile (name, email, optional preferredCurrency). |
 | POST | `/users/me/avatar` | Upload avatar image (multipart). |
 | DELETE | `/users/me/avatar` | Remove avatar. |
+
+**Validation schemas:** `updateUserProfileSchema` (`name`, `email`, `preferredCurrency?` — any 1–10 char string or null; valid codes served by `GET /currencies`), `updateUserPasswordSchema`, `updateUserPlanSchema`.
 
 ---
 

@@ -72,7 +72,10 @@ usersRouter.patch(
       where: { id: req.user!.id },
       data: {
         name: input.name,
-        email: input.email
+        email: input.email,
+        ...(input.preferredCurrency !== undefined
+          ? { preferredCurrency: input.preferredCurrency }
+          : {})
       }
     });
 

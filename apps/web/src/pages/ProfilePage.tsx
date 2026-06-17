@@ -8,7 +8,7 @@ import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
 import { useTheme } from "../hooks/useTheme";
 import type { ThemePreference } from "../hooks/useTheme";
 import { apiAssetUrl, apiRequest } from "../services/api";
-import type { User } from "../types/api";
+import type { Currency, User } from "../types/api";
 
 const planLabels = {
   free: "Free",
@@ -21,6 +21,7 @@ export function ProfilePage() {
   const { preference, setPreference } = useTheme();
   const [name, setName] = useState(auth.user?.name ?? "");
   const [email, setEmail] = useState(auth.user?.email ?? "");
+  const [preferredCurrency, setPreferredCurrency] = useState(auth.user?.preferredCurrency ?? "");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
@@ -44,10 +45,17 @@ export function ProfilePage() {
     initialData: auth.user ?? undefined
   });
 
+  const currenciesQuery = useQuery({
+    queryKey: ["currencies"],
+    queryFn: () => apiRequest<{ currencies: Currency[] }>("/currencies"),
+    staleTime: 60 * 60 * 1000
+  });
+
   useEffect(() => {
     if (profileQuery.data && !isEditingProfile) {
       setName(profileQuery.data.name);
       setEmail(profileQuery.data.email);
+      setPreferredCurrency(profileQuery.data.preferredCurrency ?? "");
     }
   }, [isEditingProfile, profileQuery.data]);
 
@@ -72,7 +80,7 @@ export function ProfilePage() {
     mutationFn: () =>
       apiRequest<{ user: User }>("/users/me", {
         method: "PATCH",
-        body: { name, email }
+        body: { name, email, preferredCurrency: preferredCurrency || null }
       }),
     onSuccess: (response) => syncUser(response.user)
   });
@@ -139,6 +147,7 @@ export function ProfilePage() {
   function startEditingProfile() {
     setName(user?.name ?? "");
     setEmail(user?.email ?? "");
+    setPreferredCurrency(user?.preferredCurrency ?? "");
     setAvatarFile(null);
     setProfileError(null);
     setProfileMessage(null);
@@ -148,6 +157,7 @@ export function ProfilePage() {
   function cancelEditingProfile() {
     setName(user?.name ?? "");
     setEmail(user?.email ?? "");
+    setPreferredCurrency(user?.preferredCurrency ?? "");
     setAvatarFile(null);
     setCurrentPassword("");
     setNewPassword("");
@@ -182,6 +192,15 @@ export function ProfilePage() {
   const user = profileQuery.data;
   const isLoading = profileQuery.isLoading && !user;
   const currentPlan = user?.planType ?? "free";
+  const allCurrencies = currenciesQuery.data?.currencies ?? [];
+  const fiatCurrencies = allCurrencies.filter((c) => c.type === "fiat").sort((a, b) => a.code.localeCompare(b.code));
+  const cryptoCurrencies = allCurrencies.filter((c) => c.type === "crypto").sort((a, b) => a.code.localeCompare(b.code));
+  const currencyDetail = (() => {
+    if (!user?.preferredCurrency) return "Not set";
+    const c = allCurrencies.find((cur) => cur.code === user.preferredCurrency);
+    if (!c) return user.preferredCurrency;
+    return c.type === "fiat" ? `${c.code} — ${c.name}` : c.code;
+  })();
   const profileAvatarUrl = avatarPreviewUrl ?? apiAssetUrl(user?.avatarUrl);
   const isProfileSaving = updateProfile.isPending || uploadAvatar.isPending;
   const initials = (user?.name ?? "FL")
@@ -232,6 +251,7 @@ export function ProfilePage() {
             <Detail label="Name" value={user?.name ?? "Loading..."} />
             <Detail label="Email" value={user?.email ?? "Loading..."} />
             <Detail label="Plan" value={planLabels[currentPlan]} />
+            <Detail label="Currency" value={currencyDetail} />
             <Detail label="Member since" value={user ? new Date(user.createdAt).toLocaleDateString() : "Loading..."} />
           </dl>
         </Card>
@@ -283,6 +303,40 @@ export function ProfilePage() {
                 maxLength={255}
                 disabled={isLoading || isProfileSaving}
               />
+              <SelectField
+                label="Preferred currency"
+                value={preferredCurrency}
+                onChange={(event) => setPreferredCurrency(event.target.value)}
+                disabled={isLoading || isProfileSaving || currenciesQuery.isLoading || currenciesQuery.isError}
+              >
+                {currenciesQuery.isLoading ? (
+                  <option value="">Loading currencies...</option>
+                ) : currenciesQuery.isError ? (
+                  <option value="">Could not load currencies</option>
+                ) : (
+                  <>
+                    <option value="">No preference</option>
+                    {fiatCurrencies.length > 0 ? (
+                      <optgroup label="Fiat currencies">
+                        {fiatCurrencies.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code} — {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {cryptoCurrencies.length > 0 ? (
+                      <optgroup label="Crypto assets">
+                        {cryptoCurrencies.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </>
+                )}
+              </SelectField>
               {profileError ? <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p> : null}
               {profileMessage ? <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p> : null}
               <div className="flex flex-col gap-2 sm:flex-row">

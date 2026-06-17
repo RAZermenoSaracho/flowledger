@@ -35,7 +35,8 @@ export const googleOAuthCallbackQuerySchema = z.object({
 
 export const updateUserProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(255)
+  email: z.string().trim().email().max(255),
+  preferredCurrency: z.string().min(1).max(10).nullable().optional()
 });
 
 export const updateUserPasswordSchema = z

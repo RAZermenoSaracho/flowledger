@@ -369,7 +369,7 @@ milestone in this group builds on the previous one and they must ship in order.
 
 # Milestone 7 - User Currency Preference
 
-Status: PLANNED
+Status: COMPLETED
 
 Add a currency selector to the user profile settings so each user can set their
 preferred display currency.
