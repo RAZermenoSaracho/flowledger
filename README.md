@@ -520,7 +520,7 @@ Stable branch:
 
 - main
 
-AI-generated changes should be developed in razs_ai, and reviewed before merging into main.
+AI-generated changes should be developed in razs_ai and reviewed before merging into main.
 
 ---
 
