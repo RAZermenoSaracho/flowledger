@@ -1,7 +1,11 @@
+import { currencyRateQuerySchema } from "@flowledger/shared";
+import type { CurrencyRateQuery } from "@flowledger/shared";
 import { Router } from "express";
+import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getCryptoCurrencies } from "../providers/binance/binance.service.js";
 import { getFiatCurrencies } from "../providers/frankfurter/frankfurter.service.js";
+import { getExchangeRate } from "./exchangeRate.service.js";
 
 export const currenciesRouter = Router();
 
@@ -11,5 +15,15 @@ currenciesRouter.get(
     const [fiat, crypto] = await Promise.all([getFiatCurrencies(), getCryptoCurrencies()]);
     const currencies = [...fiat, ...crypto].sort((a, b) => a.code.localeCompare(b.code));
     res.json({ currencies });
+  })
+);
+
+currenciesRouter.get(
+  "/rate",
+  validate(currencyRateQuerySchema, "query"),
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query as unknown as CurrencyRateQuery;
+    const rate = await getExchangeRate(from, to);
+    res.json({ from, to, rate });
   })
 );

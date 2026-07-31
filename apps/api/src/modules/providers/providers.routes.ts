@@ -234,6 +234,7 @@ async function createOrLinkProviderAccount(input: {
       name: getString(metadata.name) ?? "Synced account",
       type: normalizeAccountType(metadata.type),
       identifier: null,
+      currency: getString(metadata.currency)?.toUpperCase() ?? "USD",
       initialBalance: new Prisma.Decimal(getNumber(metadata.balance) ?? 0)
     }
   });
