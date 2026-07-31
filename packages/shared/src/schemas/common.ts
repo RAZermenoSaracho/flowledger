@@ -10,6 +10,13 @@ export const optionalDateStringSchema = z
 
 export const moneySchema = z.coerce.number().finite();
 
+export const currencyCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .min(2)
+  .max(10);
+
 export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional(),
   offset: z.coerce.number().int().nonnegative().optional()

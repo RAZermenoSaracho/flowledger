@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { ACCOUNT_TYPES } from "../constants/index.js";
+import { currencyCodeSchema } from "./common.js";
 
 export const accountSchema = z.object({
   name: z.string().trim().min(1).max(120),
   type: z.enum(ACCOUNT_TYPES),
   identifier: z.string().trim().max(120).optional().nullable(),
+  currency: currencyCodeSchema.default("USD"),
   initialBalance: z.coerce.number().finite().default(0)
 });
 
