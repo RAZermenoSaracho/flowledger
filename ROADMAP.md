@@ -268,17 +268,13 @@ is deprecated and does not process provider events.
 
 Status: ACTIVE
 
-Milestone 5 (Syncfy Auto-Sync) is complete. The `SyncfyAutoSyncScheduler` is
-implemented, started on API boot, and handles reconnect detection, per-job
-timeouts, configurable concurrency, and overlap prevention.
+Milestone 6 (Unignore Imported Transactions) and the Full Currency Logic group
+(Milestones 7-10) are complete. Accounts, transactions, and debts all carry
+explicit currency fields, with live exchange rates sourced from the
+Frankfurter (fiat) and Binance (crypto) integrations built in Milestone 7.
 
-Current focus is Milestone 6: Unignore Imported Transactions — a small,
-self-contained fix that unblocks users who accidentally ignored transactions
-they want to revisit.
-
-After Milestone 6, the priority is the Full Currency Logic group (Milestones
-7-10), which must land before any feature that displays or computes monetary
-amounts, including the crypto integration group that follows.
+Current priority is the Full Crypto Adaptation group (Milestones 11-15),
+starting with Milestone 11: Binance API Integration.
 
 ---
 
@@ -385,7 +381,7 @@ Goals:
 
 # Milestone 8 - Native Currency on Accounts
 
-Status: PLANNED
+Status: COMPLETED
 
 Depends on: Milestone 7.
 
@@ -404,7 +400,7 @@ Goals:
 
 # Milestone 9 - Transaction Execution Currency + Exchange Rate
 
-Status: PLANNED
+Status: COMPLETED
 
 Depends on: Milestones 7 and 8.
 
@@ -426,7 +422,7 @@ Goals:
 
 # Milestone 10 - Multi-Currency Debts
 
-Status: PLANNED
+Status: COMPLETED
 
 Depends on: Milestone 9.
 
