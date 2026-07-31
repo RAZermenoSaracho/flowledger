@@ -10,6 +10,7 @@ import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { Group, PublicUser } from "../types/api";
+import { formatMoney } from "../utils/currency";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -913,7 +914,10 @@ export function GroupsPage() {
                     <div className="flex flex-col justify-between gap-1 sm:flex-row">
                       <p className="font-medium">{transaction.name}</p>
                       <p className="font-semibold">
-                        {money.format(transaction.amount)}
+                        {formatMoney(
+                          transaction.amount,
+                          transaction.executionCurrency
+                        )}
                       </p>
                     </div>
                     <p className="text-slate-500 dark:text-slate-400">

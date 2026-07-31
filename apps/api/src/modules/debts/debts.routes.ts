@@ -10,10 +10,12 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import { getExchangeRate, roundMoney } from "../currencies/exchangeRate.service.js";
 import {
   createNotifications,
   moneyText
 } from "../notifications/notifications.service.js";
+import { resolveTransactionCurrencyFields } from "../transactions/transactionCurrency.js";
 import {
   getDebtDirection,
   isDebtRelevantToUser,
@@ -98,6 +100,29 @@ function balanceDebt(
   };
 }
 
+async function withPreferredCurrencyOutstandingAmounts<
+  TDebt extends { currency: string; outstandingAmount: number }
+>(debts: TDebt[], preferredCurrency: string | null) {
+  return Promise.all(
+    debts.map(async (debt) => {
+      if (!preferredCurrency || debt.currency === preferredCurrency) {
+        return {
+          ...debt,
+          outstandingAmountInPreferredCurrency: debt.outstandingAmount
+        };
+      }
+
+      const rate = await getExchangeRate(debt.currency, preferredCurrency);
+      return {
+        ...debt,
+        outstandingAmountInPreferredCurrency: roundMoney(
+          debt.outstandingAmount * rate
+        )
+      };
+    })
+  );
+}
+
 function participantStatus(shareAmount: number, paidAmount: number) {
   if (paidAmount >= shareAmount) return "paid";
   if (paidAmount > 0) return "partial";
@@ -115,6 +140,20 @@ async function assertSettlementAccount(
   if (!account) {
     throw new HttpError(400, "Account does not exist or is archived");
   }
+  return account;
+}
+
+// Converts a debt's fixed original-currency amount into another currency
+// using the live rate at settlement time (Milestone 10) — never the rate
+// captured when the debt was created.
+async function convertSettlementAmount(
+  amount: Prisma.Decimal,
+  fromCurrency: string,
+  toCurrency: string
+) {
+  if (fromCurrency === toCurrency) return amount.toNumber();
+  const rate = await getExchangeRate(fromCurrency, toCurrency);
+  return roundMoney(amount.toNumber() * rate);
 }
 
 async function assertSettlementCategory(
@@ -240,6 +279,10 @@ debtsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { preferredCurrency: true }
+    });
     const debts = await prisma.sharedExpenseParticipant.findMany({
       where: {
         OR: [{ userId }, { sharedExpense: { ownerUserId: userId } }]
@@ -284,9 +327,20 @@ debtsRouter.get(
       orderBy: { approvedAt: "desc" }
     });
 
-    const withBalances = debts
-      .filter((debt) => isDebtRelevantToUser(debt, userId))
-      .map((debt) => balanceDebt(debt));
+    const withBalances = await withPreferredCurrencyOutstandingAmounts(
+      debts
+        .filter((debt) => isDebtRelevantToUser(debt, userId))
+        .map((debt) => balanceDebt(debt)),
+      user.preferredCurrency
+    );
+
+    const approvedSettlementRequestDebts =
+      await withPreferredCurrencyOutstandingAmounts(
+        approvedSettlementRequests.map((request) =>
+          balanceDebt(request.sharedExpenseParticipant)
+        ),
+        user.preferredCurrency
+      );
 
     res.json(
       serialize({
@@ -298,11 +352,9 @@ debtsRouter.get(
         ),
         pendingSettlementRequests,
         approvedSettlementRequests: approvedSettlementRequests.map(
-          (request) => ({
+          (request, index) => ({
             ...request,
-            sharedExpenseParticipant: balanceDebt(
-              request.sharedExpenseParticipant
-            )
+            sharedExpenseParticipant: approvedSettlementRequestDebts[index]
           })
         ),
         settledDebts: withBalances.filter(
@@ -601,11 +653,18 @@ settlementsRouter.post(
 
       const originalTransaction =
         approvedRequest.sharedExpenseParticipant.sharedExpense.transaction;
-      await assertSettlementAccount(
-        tx,
-        approvedRequest.creditorUserId,
-        req.body.accountId
-      );
+      const [debtorAccount, creditorAccount] = await Promise.all([
+        assertSettlementAccount(
+          tx,
+          approvedRequest.debtorUserId,
+          settlementRequest.debtorAccountId
+        ),
+        assertSettlementAccount(
+          tx,
+          approvedRequest.creditorUserId,
+          req.body.accountId
+        )
+      ]);
       await assertSettlementCategory(
         tx,
         approvedRequest.creditorUserId,
@@ -627,6 +686,42 @@ settlementsRouter.post(
           groupId: originalTransaction.groupId
         });
 
+      const debtCurrency = debt.currency;
+      const [debtorUser, creditorUser] = await Promise.all([
+        tx.user.findUniqueOrThrow({
+          where: { id: approvedRequest.debtorUserId },
+          select: { preferredCurrency: true }
+        }),
+        tx.user.findUniqueOrThrow({
+          where: { id: approvedRequest.creditorUserId },
+          select: { preferredCurrency: true }
+        })
+      ]);
+      const [debtorAmount, creditorAmount] = await Promise.all([
+        convertSettlementAmount(
+          approvedRequest.amount,
+          debtCurrency,
+          debtorAccount.currency
+        ),
+        convertSettlementAmount(
+          approvedRequest.amount,
+          debtCurrency,
+          creditorAccount.currency
+        )
+      ]);
+      const [debtorCurrencyFields, creditorCurrencyFields] = await Promise.all([
+        resolveTransactionCurrencyFields({
+          executionCurrency: debtorAccount.currency,
+          amount: debtorAmount,
+          preferredCurrency: debtorUser.preferredCurrency
+        }),
+        resolveTransactionCurrencyFields({
+          executionCurrency: creditorAccount.currency,
+          amount: creditorAmount,
+          preferredCurrency: creditorUser.preferredCurrency
+        })
+      ]);
+
       const transactionDate = approvedRequest.approvedAt ?? new Date();
       const transactionName = `Settlement: ${approvedRequest.sharedExpenseParticipant.sharedExpense.title}`;
       const notes = settlementNotes({
@@ -637,7 +732,8 @@ settlementsRouter.post(
         data: {
           userId: approvedRequest.debtorUserId,
           name: transactionName,
-          amount: approvedRequest.amount,
+          amount: debtorAmount,
+          ...debtorCurrencyFields,
           type: "expense",
           date: transactionDate,
           accountId: settlementRequest.debtorAccountId,
@@ -652,7 +748,8 @@ settlementsRouter.post(
         data: {
           userId: approvedRequest.creditorUserId,
           name: transactionName,
-          amount: approvedRequest.amount,
+          amount: creditorAmount,
+          ...creditorCurrencyFields,
           type: "income",
           accountId: req.body.accountId,
           categoryId: req.body.categoryId,

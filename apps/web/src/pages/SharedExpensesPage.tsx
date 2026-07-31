@@ -10,12 +10,8 @@ import { SearchComponent } from "../components/SearchComponent";
 import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type { PublicUser, SharedExpense, Transaction } from "../types/api";
+import { formatMoney } from "../utils/currency";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
 
 type ParticipantDraft = {
   draftId: string;
@@ -328,7 +324,7 @@ export function SharedExpensesPage() {
                 {(transactionsQuery.data ?? []).map((transaction) => (
                   <option key={transaction.id} value={transaction.id}>
                     {transaction.name} · {transaction.type} ·{" "}
-                    {money.format(transaction.amount)}
+                    {formatMoney(transaction.amount, transaction.executionCurrency)}
                   </option>
                 ))}
               </SelectField>
@@ -344,7 +340,10 @@ export function SharedExpensesPage() {
                 </span>
                 <p className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                   {selectedTransaction
-                    ? money.format(selectedTransaction.amount)
+                    ? formatMoney(
+                        selectedTransaction.amount,
+                        selectedTransaction.executionCurrency
+                      )
                     : "Select transaction"}
                 </p>
               </div>
@@ -559,7 +558,10 @@ export function SharedExpensesPage() {
                   </p>
                 </div>
                 <p className="font-semibold">
-                  {money.format(sharedExpense.totalAmount)}
+                  {formatMoney(
+                    sharedExpense.totalAmount,
+                    sharedExpense.transaction?.executionCurrency ?? "USD"
+                  )}
                 </p>
               </div>
               <div className="mt-3">
@@ -589,8 +591,9 @@ export function SharedExpensesPage() {
                       {participant.userId ? "App user" : "Manual"}
                     </span>{" "}
                     · {participant.participantName}:{" "}
-                    {money.format(participant.paidAmount)} settled of{" "}
-                    {money.format(participant.shareAmount)}
+                    {formatMoney(participant.paidAmount, participant.currency)}{" "}
+                    settled of{" "}
+                    {formatMoney(participant.shareAmount, participant.currency)}
                   </div>
                 ))}
               </div>

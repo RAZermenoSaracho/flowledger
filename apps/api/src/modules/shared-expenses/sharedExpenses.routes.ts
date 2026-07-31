@@ -109,6 +109,8 @@ sharedExpensesRouter.put(
       );
     }
 
+    const participantCurrency =
+      transaction?.executionCurrency ?? existing.transaction.executionCurrency;
     const existingUserIds = new Set(
       existing.participants
         .map((participant) => participant.userId)
@@ -131,7 +133,10 @@ sharedExpensesRouter.put(
             ? {
                 participants: {
                   deleteMany: {},
-                  create: normalizedParticipants
+                  create: normalizedParticipants.map((participant) => ({
+                    ...participant,
+                    currency: participantCurrency
+                  }))
                 }
               }
             : {})

@@ -125,7 +125,7 @@ export async function createSharedExpenseForTransaction(
   ownerUserId: string,
   transaction: Pick<
     Transaction,
-    "id" | "amount" | "name" | "groupId" | "type"
+    "id" | "amount" | "name" | "groupId" | "type" | "executionCurrency"
   >,
   input: Omit<SharedExpenseInput, "transactionId"> & { transactionId?: string }
 ) {
@@ -145,7 +145,12 @@ export async function createSharedExpenseForTransaction(
       status: input.status,
       totalAmount: transaction.amount,
       ownerUserId,
-      participants: { create: participants }
+      participants: {
+        create: participants.map((participant) => ({
+          ...participant,
+          currency: transaction.executionCurrency
+        }))
+      }
     },
     include: { transaction: true, participants: true }
   });

@@ -17,12 +17,8 @@ import type {
   PublicUser,
   SettlementRequest
 } from "../types/api";
+import { formatMoney } from "../utils/currency";
 import { matchesSearch } from "../utils/search";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
 
 type DebtsResponse = {
   iOwe: Debt[];
@@ -124,9 +120,10 @@ function debtDescription(debt: Debt, viewerUserId?: string) {
       ? partyName(debt, debt.creditorUserId)
       : partyName(debt, debt.debtorUserId);
 
-  return `${otherPartyName ?? "Unknown user"} · ${transactionTypeLabel(debt)} · ${money.format(
-    debt.paidAmount
-  )} settled of ${money.format(debt.shareAmount)}`;
+  return `${otherPartyName ?? "Unknown user"} · ${transactionTypeLabel(debt)} · ${formatMoney(
+    debt.paidAmount,
+    debt.currency
+  )} settled of ${formatMoney(debt.shareAmount, debt.currency)}`;
 }
 
 function statusLabel(debt: Debt) {
@@ -188,6 +185,7 @@ function EmptyState({ children }: { children: ReactNode }) {
 
 export function DebtsPage() {
   const auth = useAuth();
+  const summaryCurrency = auth.user?.preferredCurrency || "USD";
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const highlightedDebtId = searchParams.get("debtId");
@@ -275,12 +273,14 @@ export function DebtsPage() {
     (debts?.owedToMe ?? []).forEach((debt) => {
       const balance = ensureBalance(debt);
       balance.theyOweMe.push(debt);
-      balance.theyOweMeTotal += debt.outstandingAmount;
+      balance.theyOweMeTotal +=
+        debt.outstandingAmountInPreferredCurrency ?? debt.outstandingAmount;
     });
     (debts?.iOwe ?? []).forEach((debt) => {
       const balance = ensureBalance(debt);
       balance.iOweThem.push(debt);
-      balance.iOweThemTotal += debt.outstandingAmount;
+      balance.iOweThemTotal +=
+        debt.outstandingAmountInPreferredCurrency ?? debt.outstandingAmount;
     });
 
     return Array.from(byPerson.values())
@@ -752,7 +752,9 @@ export function DebtsPage() {
             <div>
               <h2 className="text-lg font-semibold">Outstanding balances</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                One net balance per person across all unsettled debts.
+                One net balance per person across all unsettled debts,
+                converted to {summaryCurrency}. Individual debts stay
+                denominated in their original currency.
               </p>
             </div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -811,10 +813,10 @@ export function DebtsPage() {
                           ) : null}
                         </td>
                         <td className="px-3 py-3 text-right">
-                          {money.format(balance.theyOweMeTotal)}
+                          {formatMoney(balance.theyOweMeTotal, summaryCurrency)}
                         </td>
                         <td className="px-3 py-3 text-right">
-                          {money.format(balance.iOweThemTotal)}
+                          {formatMoney(balance.iOweThemTotal, summaryCurrency)}
                         </td>
                         <td
                           className={`px-3 py-3 text-right font-semibold ${
@@ -823,7 +825,7 @@ export function DebtsPage() {
                               : "text-coral dark:text-red-400"
                           }`}
                         >
-                          {money.format(balance.netBalance)}
+                          {formatMoney(balance.netBalance, summaryCurrency)}
                         </td>
                         <td className="py-3 pl-3 text-slate-500 dark:text-slate-400">
                           {balance.theyOweMe.length + balance.iOweThem.length}
@@ -840,6 +842,7 @@ export function DebtsPage() {
         {selectedBalance ? (
           <PersonDebtDetail
             balance={selectedBalance}
+            summaryCurrency={summaryCurrency}
             viewerUserId={auth.user?.id}
             selectedDebtIds={selectedDebtIds}
             selectedIOweThem={selectedIOweThem}
@@ -1111,6 +1114,7 @@ export function DebtsPage() {
 
 function PersonDebtDetail({
   balance,
+  summaryCurrency,
   viewerUserId,
   selectedDebtIds,
   selectedIOweThem,
@@ -1127,6 +1131,7 @@ function PersonDebtDetail({
   onSubmitBatchSettlement
 }: {
   balance: PersonBalance;
+  summaryCurrency: string;
   viewerUserId?: string;
   selectedDebtIds: Set<string>;
   selectedIOweThem: Debt[];
@@ -1167,13 +1172,13 @@ function PersonDebtDetail({
         <div>
           <h2 className="text-lg font-semibold">{displayPerson(balance)}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Net balance {money.format(balance.netBalance)}
+            Net balance {formatMoney(balance.netBalance, summaryCurrency)}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm sm:text-right">
           <div>
             <p className="font-semibold">
-              {money.format(balance.theyOweMeTotal)}
+              {formatMoney(balance.theyOweMeTotal, summaryCurrency)}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               They owe me
@@ -1181,7 +1186,7 @@ function PersonDebtDetail({
           </div>
           <div>
             <p className="font-semibold">
-              {money.format(balance.iOweThemTotal)}
+              {formatMoney(balance.iOweThemTotal, summaryCurrency)}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               I owe them
@@ -1210,7 +1215,7 @@ function PersonDebtDetail({
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {selectedIOweThem.length} selected ·{" "}
-                {money.format(selectedBatchTotal)}
+                {formatMoney(selectedBatchTotal, summaryCurrency)}
               </p>
             </div>
             <form
@@ -1275,7 +1280,7 @@ function PersonDebtDetail({
                   onSubmit={(event) => onSubmitSettlement(event, debt)}
                 >
                   <TextInput
-                    label="Amount"
+                    label={`Amount (${debt.currency})`}
                     type="number"
                     min="0.01"
                     max={availableAmount}
@@ -1433,7 +1438,7 @@ function DebtTable({
                       <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
                         Outstanding
                       </span>
-                      {money.format(debt.outstandingAmount)}
+                      {formatMoney(debt.outstandingAmount, debt.currency)}
                     </td>
                     <td className="block px-3 py-2 align-top text-slate-500 lg:table-cell lg:py-3 dark:text-slate-400">
                       <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 lg:hidden dark:text-slate-400">
@@ -1487,7 +1492,7 @@ function DebtSummaryCard({
         </div>
         <div className="text-left sm:text-right">
           <p className="font-semibold">
-            {money.format(debt.outstandingAmount)}
+            {formatMoney(debt.outstandingAmount, debt.currency)}
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {statusLabel(debt)}
@@ -1633,7 +1638,7 @@ function SettlementRequestCard({
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {request.debtor?.name ?? "Debtor"} requested{" "}
-              {money.format(request.amount)}
+              {formatMoney(request.amount, debt?.currency ?? "USD")}
             </p>
           </div>
         </div>
