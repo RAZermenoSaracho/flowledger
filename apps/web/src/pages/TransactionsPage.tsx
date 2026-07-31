@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { CurrencySelect } from "../components/CurrencySelect";
 import { SelectField, TextArea, TextInput } from "../components/FormField";
 import {
   ImportedTransactionCard,
@@ -14,6 +15,7 @@ import { ImportedTransactionSelectionToolbar } from "../components/ImportedTrans
 import { SearchComponent } from "../components/SearchComponent";
 import { ApiError, apiRequest } from "../services/api";
 import { useAuth } from "../hooks/useAuth";
+import { formatMoney } from "../utils/currency";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 import {
   parseTransactionAmount,
@@ -28,11 +30,6 @@ import type {
   Transaction
 } from "../types/api";
 
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
-
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
 
@@ -40,6 +37,7 @@ type TransactionForm = {
   id?: string;
   name: string;
   amount: string;
+  executionCurrency: string;
   type: "income" | "expense" | "transfer";
   date: string;
   accountId: string;
@@ -63,6 +61,7 @@ type ParticipantDraft = {
 const emptyForm: TransactionForm = {
   name: "",
   amount: "",
+  executionCurrency: "USD",
   type: "expense",
   date: new Date().toISOString().slice(0, 10),
   accountId: "",
@@ -303,6 +302,7 @@ export function TransactionsPage() {
   );
   const transactionBalance =
     transactionSummary.income - transactionSummary.expenses;
+  const summaryCurrency = auth.user?.preferredCurrency || "USD";
   const hasActiveFilters = Object.values(filters).some(Boolean);
   const selectedGroupCategories = selectedGroup?.categories ?? [];
   const categoryOptions = form.groupId
@@ -344,6 +344,7 @@ export function TransactionsPage() {
       const body = {
         name: form.name,
         amount: Number(form.amount),
+        executionCurrency: form.executionCurrency,
         type: form.type,
         date: form.date,
         accountId: form.accountId || null,
@@ -372,7 +373,10 @@ export function TransactionsPage() {
         : apiRequest("/transactions", { method: "POST", body });
     },
     onSuccess: async () => {
-      setForm(emptyForm);
+      setForm({
+        ...emptyForm,
+        executionCurrency: auth.user?.preferredCurrency || "USD"
+      });
       setIsFormOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -731,6 +735,13 @@ export function TransactionsPage() {
                     }
                     required
                   />
+                  <CurrencySelect
+                    label="Currency"
+                    value={form.executionCurrency}
+                    onChange={(executionCurrency) =>
+                      setForm({ ...form, executionCurrency })
+                    }
+                  />
                   <SelectField
                     label="Type"
                     value={form.type}
@@ -779,9 +790,14 @@ export function TransactionsPage() {
                     value={form.accountId}
                     onChange={(event) => {
                       const accountId = event.target.value;
+                      const selectedAccount = (accountsQuery.data ?? []).find(
+                        (account) => account.id === accountId
+                      );
                       setForm({
                         ...form,
                         accountId,
+                        executionCurrency:
+                          selectedAccount?.currency ?? form.executionCurrency,
                         transferToAccountId:
                           accountId && accountId === form.transferToAccountId
                             ? ""
@@ -1102,14 +1118,22 @@ export function TransactionsPage() {
                             ))}
                             {participants.length > 0 ? (
                               <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Assigned {money.format(participantShareTotal)}{" "}
+                                Assigned{" "}
+                                {formatMoney(
+                                  participantShareTotal,
+                                  form.executionCurrency
+                                )}{" "}
                                 of{" "}
                                 {Number.isFinite(transactionAmount)
-                                  ? money.format(transactionAmount)
-                                  : "$0.00"}
+                                  ? formatMoney(
+                                      transactionAmount,
+                                      form.executionCurrency
+                                    )
+                                  : formatMoney(0, form.executionCurrency)}
                                 . Remaining owner share:{" "}
-                                {money.format(
-                                  Math.max(0, remainingSharedAmount)
+                                {formatMoney(
+                                  Math.max(0, remainingSharedAmount),
+                                  form.executionCurrency
                                 )}
                                 .
                               </p>
@@ -1145,7 +1169,10 @@ export function TransactionsPage() {
                 type="button"
                 className="w-full sm:w-auto"
                 onClick={() => {
-                  setForm(emptyForm);
+                  setForm({
+                    ...emptyForm,
+                    executionCurrency: auth.user?.preferredCurrency || "USD"
+                  });
                   setParticipantName("");
                   setUserSearch("");
                   setParticipants([]);
@@ -1377,7 +1404,7 @@ export function TransactionsPage() {
                   Total income
                 </p>
                 <p className="mt-2 text-2xl font-bold text-pine dark:text-emerald-300">
-                  {money.format(transactionSummary.income)}
+                  {formatMoney(transactionSummary.income, summaryCurrency)}
                 </p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {hasActiveFilters
@@ -1390,7 +1417,7 @@ export function TransactionsPage() {
                   Total expenses
                 </p>
                 <p className="mt-2 text-2xl font-bold text-coral dark:text-orange-300">
-                  {money.format(transactionSummary.expenses)}
+                  {formatMoney(transactionSummary.expenses, summaryCurrency)}
                 </p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {hasActiveFilters
@@ -1409,7 +1436,7 @@ export function TransactionsPage() {
                       : "text-coral dark:text-orange-300"
                   }`}
                 >
-                  {money.format(transactionBalance)}
+                  {formatMoney(transactionBalance, summaryCurrency)}
                 </p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {visibleTransactions.length} transaction
@@ -1471,8 +1498,9 @@ export function TransactionsPage() {
                               : "font-semibold text-coral dark:text-orange-300"
                         }
                       >
-                        {money.format(
-                          parseTransactionAmount(transaction.amount)
+                        {formatMoney(
+                          parseTransactionAmount(transaction.amount),
+                          transaction.executionCurrency
                         )}
                       </span>
                       <div className="flex flex-wrap gap-2 md:justify-end">
@@ -1484,6 +1512,7 @@ export function TransactionsPage() {
                               id: transaction.id,
                               name: transaction.name,
                               amount: String(transaction.amount),
+                              executionCurrency: transaction.executionCurrency,
                               type: transaction.type,
                               date: transaction.date.slice(0, 10),
                               accountId: transaction.accountId ?? "",

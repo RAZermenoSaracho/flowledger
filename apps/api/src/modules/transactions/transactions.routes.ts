@@ -21,6 +21,8 @@ import { createSharedExpenseForTransaction } from "../shared-expenses/sharedExpe
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { HttpError, notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import { roundMoney } from "../currencies/exchangeRate.service.js";
+import { resolveTransactionCurrencyFields } from "./transactionCurrency.js";
 
 export const transactionsRouter = Router();
 
@@ -562,6 +564,16 @@ async function importProviderImportedTransaction(input: {
     throw new HttpError(400, "Category is required before importing");
   }
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: input.userId },
+    select: { preferredCurrency: true }
+  });
+  const currencyFields = await resolveTransactionCurrencyFields({
+    executionCurrency: existing.currency,
+    amount: existing.amount.abs().toNumber(),
+    preferredCurrency: user.preferredCurrency
+  });
+
   return prisma.$transaction(async (tx) => {
     const current = await tx.providerImportedTransaction.findFirst({
       where: { id: existing.id, userId: input.userId },
@@ -581,6 +593,7 @@ async function importProviderImportedTransaction(input: {
         userId: input.userId,
         name: current.description,
         amount: current.amount.abs(),
+        ...currencyFields,
         type,
         date: current.transactionDate,
         categoryId,
@@ -1089,10 +1102,34 @@ transactionsRouter.post(
     await assertOwnedRelations(req.user!.id, req.body);
     await assertGroupRelations(req.user!.id, req.body);
 
-    const { sharedExpense, ...input } = req.body;
+    const { sharedExpense, executionCurrency, ...input } = req.body;
+    const [account, user] = await Promise.all([
+      input.accountId
+        ? prisma.account.findUnique({
+            where: { id: input.accountId },
+            select: { currency: true }
+          })
+        : null,
+      prisma.user.findUniqueOrThrow({
+        where: { id: req.user!.id },
+        select: { preferredCurrency: true }
+      })
+    ]);
+    const currencyFields = await resolveTransactionCurrencyFields({
+      executionCurrency:
+        executionCurrency ?? account?.currency ?? user.preferredCurrency ?? "USD",
+      amount: input.amount,
+      preferredCurrency: user.preferredCurrency
+    });
+
     const transaction = await prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.transaction.create({
-        data: { ...input, userId: req.user!.id, date: new Date(input.date) },
+        data: {
+          ...input,
+          ...currencyFields,
+          userId: req.user!.id,
+          date: new Date(input.date)
+        },
         include: {
           account: true,
           transferToAccount: true,
@@ -1216,12 +1253,41 @@ transactionsRouter.put(
     });
     await assertGroupRelations(req.user!.id, relationInput);
 
+    let currencyFields:
+      | Awaited<ReturnType<typeof resolveTransactionCurrencyFields>>
+      | { amountInPreferredCurrency: number }
+      | undefined;
+    if (
+      req.body.executionCurrency !== undefined &&
+      req.body.executionCurrency !== existing.executionCurrency
+    ) {
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: req.user!.id },
+        select: { preferredCurrency: true }
+      });
+      currencyFields = await resolveTransactionCurrencyFields({
+        executionCurrency: req.body.executionCurrency,
+        amount:
+          req.body.amount !== undefined
+            ? req.body.amount
+            : existing.amount.toNumber(),
+        preferredCurrency: user.preferredCurrency
+      });
+    } else if (req.body.amount !== undefined) {
+      currencyFields = {
+        amountInPreferredCurrency: roundMoney(
+          req.body.amount * existing.exchangeRate.toNumber()
+        )
+      };
+    }
+
     const transaction = await prisma.$transaction(async (tx) => {
       const updatedTransaction = await tx.transaction.update({
         where: { id: existing.id },
         data: {
           ...req.body,
-          ...(req.body.date ? { date: new Date(req.body.date) } : {})
+          ...(req.body.date ? { date: new Date(req.body.date) } : {}),
+          ...currencyFields
         },
         include: {
           account: true,

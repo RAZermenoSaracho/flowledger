@@ -38,8 +38,10 @@ export type Account = {
   name: string;
   type: AccountType;
   identifier?: string | null;
+  currency: string;
   initialBalance: number;
   currentBalance?: number;
+  currentBalanceInPreferredCurrency?: number;
   source?: "manual" | "synced";
   sync?: AccountSync[];
   isArchived: boolean;
@@ -142,6 +144,9 @@ export type Transaction = {
   id: string;
   name: string;
   amount: number;
+  executionCurrency: string;
+  exchangeRate: number;
+  amountInPreferredCurrency: number;
   type: TransactionType;
   date: string;
   categoryId?: string | null;
@@ -203,6 +208,7 @@ export type SharedExpenseParticipant = {
   id: string;
   userId?: string | null;
   participantName: string;
+  currency: string;
   shareAmount: number;
   paidAmount: number;
   status: ParticipantStatus;
@@ -236,6 +242,7 @@ export type Debt = SharedExpenseParticipant & {
   debtorUserId?: string | null;
   creditorUserId?: string | null;
   outstandingAmount: number;
+  outstandingAmountInPreferredCurrency?: number;
   pendingSettlementAmount: number;
   sharedExpense: SharedExpense & {
     owner?: PublicUser;

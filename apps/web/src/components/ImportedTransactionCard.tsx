@@ -1,11 +1,7 @@
 import { Button } from "./Button";
 import { SelectField } from "./FormField";
 import type { Category, ProviderImportedTransaction } from "../types/api";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
+import { formatMoney } from "../utils/currency";
 
 export function importedTransactionType(
   transaction: ProviderImportedTransaction
@@ -147,10 +143,7 @@ export function ImportedTransactionCard({
                 : "text-coral dark:text-orange-300"
             }`}
           >
-            {money.format(transaction.amount)}
-          </p>
-          <p className="text-sm uppercase text-slate-500 dark:text-slate-400">
-            {transaction.currency}
+            {formatMoney(transaction.amount, transaction.currency)}
           </p>
         </div>
         <SelectField

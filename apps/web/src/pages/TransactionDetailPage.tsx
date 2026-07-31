@@ -2,13 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
+import { formatMoney } from "../utils/currency";
 import type { Transaction } from "../types/api";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
 
 function splitDirectionLabel(type: Transaction["type"]) {
   if (type === "income") return "You owe participants";
@@ -31,6 +28,7 @@ function transferDirection(transaction: Transaction) {
 }
 
 export function TransactionDetailPage() {
+  const auth = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -101,7 +99,20 @@ export function TransactionDetailPage() {
           </p>
         ) : null}
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <Detail label="Amount" value={money.format(transaction.amount)} />
+          <Detail
+            label="Amount"
+            value={formatMoney(transaction.amount, transaction.executionCurrency)}
+          />
+          {auth.user?.preferredCurrency &&
+          auth.user.preferredCurrency !== transaction.executionCurrency ? (
+            <Detail
+              label="Amount in your currency"
+              value={formatMoney(
+                transaction.amountInPreferredCurrency,
+                auth.user.preferredCurrency
+              )}
+            />
+          ) : null}
           <Detail label="Type" value={transaction.type} />
           <Detail
             label="Date"
@@ -161,8 +172,9 @@ export function TransactionDetailPage() {
               >
                 <p className="font-medium">{participant.participantName}</p>
                 <p>
-                  {money.format(participant.paidAmount)} settled of{" "}
-                  {money.format(participant.shareAmount)}
+                  {formatMoney(participant.paidAmount, participant.currency)}{" "}
+                  settled of{" "}
+                  {formatMoney(participant.shareAmount, participant.currency)}
                 </p>
               </div>
             ))}

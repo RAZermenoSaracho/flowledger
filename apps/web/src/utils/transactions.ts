@@ -4,6 +4,10 @@ type TransactionAmountInput = Pick<Transaction, "type"> & {
   amount: unknown;
 };
 
+type TransactionSummaryInput = Pick<Transaction, "type"> & {
+  amountInPreferredCurrency: unknown;
+};
+
 export function parseTransactionAmount(amount: unknown) {
   if (typeof amount === "number") {
     return Number.isFinite(amount) ? amount : 0;
@@ -17,10 +21,14 @@ export function parseTransactionAmount(amount: unknown) {
   return 0;
 }
 
-export function summarizeTransactions(transactions: TransactionAmountInput[]) {
+// Sums amountInPreferredCurrency (not the raw amount) so totals stay
+// meaningful across transactions executed in different currencies.
+export function summarizeTransactions(transactions: TransactionSummaryInput[]) {
   return transactions.reduce(
     (summary, transaction) => {
-      const amount = parseTransactionAmount(transaction.amount);
+      const amount = parseTransactionAmount(
+        transaction.amountInPreferredCurrency
+      );
 
       if (transaction.type === "income") {
         summary.income += amount;
