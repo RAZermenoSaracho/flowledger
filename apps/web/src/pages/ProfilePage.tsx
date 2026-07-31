@@ -2,13 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { CurrencySelect, useCurrenciesQuery } from "../components/CurrencySelect";
 import { SelectField, TextInput } from "../components/FormField";
 import { useAuth } from "../hooks/useAuth";
 import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
 import { useTheme } from "../hooks/useTheme";
 import type { ThemePreference } from "../hooks/useTheme";
 import { apiAssetUrl, apiRequest } from "../services/api";
-import type { Currency, User } from "../types/api";
+import type { User } from "../types/api";
 
 const planLabels = {
   free: "Free",
@@ -45,11 +46,7 @@ export function ProfilePage() {
     initialData: auth.user ?? undefined
   });
 
-  const currenciesQuery = useQuery({
-    queryKey: ["currencies"],
-    queryFn: () => apiRequest<{ currencies: Currency[] }>("/currencies"),
-    staleTime: 60 * 60 * 1000
-  });
+  const currenciesQuery = useCurrenciesQuery();
 
   useEffect(() => {
     if (profileQuery.data && !isEditingProfile) {
@@ -193,8 +190,6 @@ export function ProfilePage() {
   const isLoading = profileQuery.isLoading && !user;
   const currentPlan = user?.planType ?? "free";
   const allCurrencies = currenciesQuery.data?.currencies ?? [];
-  const fiatCurrencies = allCurrencies.filter((c) => c.type === "fiat").sort((a, b) => a.code.localeCompare(b.code));
-  const cryptoCurrencies = allCurrencies.filter((c) => c.type === "crypto").sort((a, b) => a.code.localeCompare(b.code));
   const currencyDetail = (() => {
     if (!user?.preferredCurrency) return "Not set";
     const c = allCurrencies.find((cur) => cur.code === user.preferredCurrency);
@@ -303,40 +298,13 @@ export function ProfilePage() {
                 maxLength={255}
                 disabled={isLoading || isProfileSaving}
               />
-              <SelectField
+              <CurrencySelect
                 label="Preferred currency"
                 value={preferredCurrency}
-                onChange={(event) => setPreferredCurrency(event.target.value)}
-                disabled={isLoading || isProfileSaving || currenciesQuery.isLoading || currenciesQuery.isError}
-              >
-                {currenciesQuery.isLoading ? (
-                  <option value="">Loading currencies...</option>
-                ) : currenciesQuery.isError ? (
-                  <option value="">Could not load currencies</option>
-                ) : (
-                  <>
-                    <option value="">No preference</option>
-                    {fiatCurrencies.length > 0 ? (
-                      <optgroup label="Fiat currencies">
-                        {fiatCurrencies.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.code} — {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {cryptoCurrencies.length > 0 ? (
-                      <optgroup label="Crypto assets">
-                        {cryptoCurrencies.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.code}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                  </>
-                )}
-              </SelectField>
+                onChange={setPreferredCurrency}
+                disabled={isLoading || isProfileSaving}
+                allowNoPreference
+              />
               {profileError ? <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p> : null}
               {profileMessage ? <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p> : null}
               <div className="flex flex-col gap-2 sm:flex-row">

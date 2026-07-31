@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { CurrencySelect } from "../components/CurrencySelect";
 import { SelectField, TextInput } from "../components/FormField";
 import { SearchComponent } from "../components/SearchComponent";
+import { useAuth } from "../hooks/useAuth";
 import { apiRequest } from "../services/api";
 import type {
   Account,
@@ -13,13 +15,9 @@ import type {
   Connector,
   ProviderImportedAccount
 } from "../types/api";
+import { formatMoney } from "../utils/currency";
 import { applyCollectionControls, dateSortValue } from "../utils/search";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
 
 const dateTime = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -238,6 +236,7 @@ function formatStatus(value: string | null | undefined) {
 }
 
 export function AccountsPage() {
+  const auth = useAuth();
   const queryClient = useQueryClient();
 
   const [addMode, setAddMode] = useState<"manual" | "sync" | null>(null);
@@ -246,6 +245,7 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
   const [identifier, setIdentifier] = useState("");
+  const [currency, setCurrency] = useState(auth.user?.preferredCurrency || "USD");
   const [initialBalance, setInitialBalance] = useState("0");
 
   const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
@@ -282,6 +282,7 @@ export function AccountsPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
   const [editIdentifier, setEditIdentifier] = useState("");
+  const [editCurrency, setEditCurrency] = useState("USD");
   const [editInitialBalance, setEditInitialBalance] = useState("0");
 
   const accountsQuery = useQuery({
@@ -398,12 +399,14 @@ export function AccountsPage() {
           name,
           type,
           identifier: identifier || null,
+          currency,
           initialBalance: Number(initialBalance || 0)
         }
       }),
     onSuccess: async () => {
       setName("");
       setIdentifier("");
+      setCurrency(auth.user?.preferredCurrency || "USD");
       setInitialBalance("0");
       setAddMode(null);
       setIsFormOpen(false);
@@ -452,6 +455,7 @@ export function AccountsPage() {
       name: string;
       type: AccountType;
       identifier: string;
+      currency: string;
       initialBalance: number;
     }) =>
       apiRequest(`/accounts/${account.id}`, {
@@ -460,6 +464,7 @@ export function AccountsPage() {
           name: account.name,
           type: account.type,
           identifier: account.identifier || null,
+          currency: account.currency,
           initialBalance: account.initialBalance
         }
       }),
@@ -607,6 +612,7 @@ export function AccountsPage() {
       name: editName,
       type: editType,
       identifier: editIdentifier,
+      currency: editCurrency,
       initialBalance: Number(editInitialBalance || 0)
     });
   }
@@ -615,6 +621,7 @@ export function AccountsPage() {
     setName("");
     setType("checking");
     setIdentifier("");
+    setCurrency(auth.user?.preferredCurrency || "USD");
     setInitialBalance("0");
     setAddMode(null);
     setSelectedConnectorId(null);
@@ -630,6 +637,7 @@ export function AccountsPage() {
     setEditName(account.name);
     setEditType(account.type);
     setEditIdentifier(account.identifier ?? "");
+    setEditCurrency(account.currency);
     setEditInitialBalance(String(account.initialBalance ?? 0));
   }
 
@@ -638,6 +646,7 @@ export function AccountsPage() {
     setEditName("");
     setEditType("checking");
     setEditIdentifier("");
+    setEditCurrency("USD");
     setEditInitialBalance("0");
   }
 
@@ -726,7 +735,7 @@ export function AccountsPage() {
 
             {addMode === "manual" ? (
               <form
-                className="mt-4 grid gap-4 md:grid-cols-4"
+                className="mt-4 grid gap-4 md:grid-cols-5"
                 onSubmit={submit}
               >
                 <TextInput
@@ -753,6 +762,11 @@ export function AccountsPage() {
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                 />
+                <CurrencySelect
+                  label="Currency"
+                  value={currency}
+                  onChange={setCurrency}
+                />
                 <TextInput
                   label="Initial balance"
                   type="number"
@@ -760,7 +774,7 @@ export function AccountsPage() {
                   value={initialBalance}
                   onChange={(event) => setInitialBalance(event.target.value)}
                 />
-                <div className="flex flex-col gap-2 md:col-span-4 sm:flex-row">
+                <div className="flex flex-col gap-2 md:col-span-5 sm:flex-row">
                   <Button type="submit" disabled={createAccount.isPending}>
                     Save account
                   </Button>
@@ -914,7 +928,10 @@ export function AccountsPage() {
                                 providerAccount.balance !== undefined ? (
                                   <span className="block text-sm font-semibold text-pine dark:text-emerald-300">
                                     Balance{" "}
-                                    {money.format(providerAccount.balance)}
+                                    {formatMoney(
+                                      providerAccount.balance,
+                                      providerAccount.currency ?? "USD"
+                                    )}
                                   </span>
                                 ) : null}
                               </span>
@@ -1099,7 +1116,7 @@ export function AccountsPage() {
                     onChange={(event) => setEditName(event.target.value)}
                     required
                   />
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-4">
                     <SelectField
                       label="Type"
                       value={editType}
@@ -1119,6 +1136,11 @@ export function AccountsPage() {
                       onChange={(event) =>
                         setEditIdentifier(event.target.value)
                       }
+                    />
+                    <CurrencySelect
+                      label="Currency"
+                      value={editCurrency}
+                      onChange={setEditCurrency}
                     />
                     <TextInput
                       label="Initial balance"
@@ -1159,7 +1181,7 @@ export function AccountsPage() {
                         ) : null}
                       </div>
                       <p className="text-sm capitalize text-slate-500 dark:text-slate-400">
-                        {account.type.replace("_", " ")}
+                        {account.type.replace("_", " ")} · {account.currency}
                       </p>
                       <p
                         className={`text-sm font-semibold ${
@@ -1169,8 +1191,18 @@ export function AccountsPage() {
                         }`}
                       >
                         FlowLedger balance{" "}
-                        {money.format(account.currentBalance ?? 0)}
+                        {formatMoney(account.currentBalance ?? 0, account.currency)}
                       </p>
+                      {auth.user?.preferredCurrency &&
+                      auth.user.preferredCurrency !== account.currency &&
+                      account.currentBalanceInPreferredCurrency !== undefined ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {formatMoney(
+                            account.currentBalanceInPreferredCurrency,
+                            auth.user.preferredCurrency
+                          )}
+                        </p>
+                      ) : null}
                       {account.identifier ? (
                         <p className="text-sm text-slate-500 dark:text-slate-400">
                           {account.identifier}
@@ -1265,7 +1297,10 @@ export function AccountsPage() {
                                 <span className="font-semibold">
                                   {sync.externalBalance !== null &&
                                   sync.externalBalance !== undefined
-                                    ? money.format(sync.externalBalance)
+                                    ? formatMoney(
+                                        sync.externalBalance,
+                                        sync.currency ?? "USD"
+                                      )
                                     : "Unavailable"}
                                 </span>
                               </p>

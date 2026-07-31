@@ -9,6 +9,7 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
 import { serialize } from "../../utils/serialize.js";
+import { getExchangeRate, roundMoney } from "../currencies/exchangeRate.service.js";
 import { withAccountBalances } from "../transactions/transactionCalculations.js";
 
 export const accountsRouter = Router();
@@ -105,6 +106,29 @@ export function providerAccountSyncSummary(
   };
 }
 
+async function withPreferredCurrencyBalances<
+  TAccount extends { currency: string; currentBalance: number }
+>(accounts: TAccount[], preferredCurrency: string | null) {
+  return Promise.all(
+    accounts.map(async (account) => {
+      if (!preferredCurrency || account.currency === preferredCurrency) {
+        return {
+          ...account,
+          currentBalanceInPreferredCurrency: account.currentBalance
+        };
+      }
+
+      const rate = await getExchangeRate(account.currency, preferredCurrency);
+      return {
+        ...account,
+        currentBalanceInPreferredCurrency: roundMoney(
+          account.currentBalance * rate
+        )
+      };
+    })
+  );
+}
+
 export function accountListItemWithSyncSummary<
   TAccount extends { providerAccounts: ProviderAccountWithConnection[] }
 >(account: TAccount) {
@@ -123,7 +147,11 @@ accountsRouter.get(
   validate(accountFiltersSchema, "query"),
   asyncHandler(async (req, res) => {
     const filters = req.query as { includeArchived?: string };
-    const [accounts, transactions] = await Promise.all([
+    const [user, accounts, transactions] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { id: req.user!.id },
+        select: { preferredCurrency: true }
+      }),
       prisma.account.findMany({
         where: {
           userId: req.user!.id,
@@ -162,11 +190,14 @@ accountsRouter.get(
       })
     ]);
 
+    const accountsWithBalances = await withPreferredCurrencyBalances(
+      withAccountBalances(accounts, transactions),
+      user.preferredCurrency
+    );
+
     res.json({
       accounts: serialize(
-        withAccountBalances(accounts, transactions).map(
-          accountListItemWithSyncSummary
-        )
+        accountsWithBalances.map(accountListItemWithSyncSummary)
       )
     });
   })
