@@ -1,12 +1,33 @@
 import {
+  getCryptoCurrencies,
   getCryptoUsdtPrice,
   isCryptoCurrencyCode
-} from "../providers/binance/binance.service.js";
+} from "../providers/binance/services/read.service.js";
 import {
+  getFiatCurrencies,
   getFiatExchangeRate,
   isFiatCurrencyCode
-} from "../providers/frankfurter/frankfurter.service.js";
-import { HttpError } from "../../utils/httpError.js";
+} from "../providers/frankfurter/services/read.service.js";
+import { HttpError } from "../../../utils/httpError.js";
+
+export async function listCurrencies() {
+  const [fiatUnsorted, cryptoUnsorted] = await Promise.all([
+    getFiatCurrencies(),
+    getCryptoCurrencies()
+  ]);
+  const fiat = [...fiatUnsorted].sort((a, b) => a.code.localeCompare(b.code));
+  const crypto = [...cryptoUnsorted].sort((a, b) =>
+    a.code.localeCompare(b.code)
+  );
+
+  return {
+    currencies: [...fiat, ...crypto].sort((a, b) =>
+      a.code.localeCompare(b.code)
+    ),
+    fiat,
+    crypto
+  };
+}
 
 async function isFiat(code: string): Promise<boolean> {
   if (code === "USD") return true;
@@ -52,8 +73,4 @@ export async function getExchangeRate(from: string, to: string): Promise<number>
   ]);
 
   return usdPerFrom / usdPerTo;
-}
-
-export function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
 }
