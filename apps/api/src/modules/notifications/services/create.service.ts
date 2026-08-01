@@ -1,14 +1,4 @@
-import type { NotificationType, Prisma } from "@prisma/client";
-
-type NotificationInput = {
-  userId: string | null | undefined;
-  type: NotificationType;
-  title: string;
-  message: string;
-  metadata?: Prisma.InputJsonValue;
-};
-
-type NotificationClient = Pick<Prisma.TransactionClient, "notification">;
+import type { NotificationClient, NotificationInput } from "../types/notifications.types.js";
 
 export async function createNotifications(
   tx: NotificationClient,
@@ -29,9 +19,4 @@ export async function createNotifications(
   if (data.length === 0) return;
 
   await tx.notification.createMany({ data });
-}
-
-export function moneyText(amount: Prisma.Decimal | number) {
-  const value = typeof amount === "number" ? amount : amount.toNumber();
-  return `$${value.toFixed(2)}`;
 }
