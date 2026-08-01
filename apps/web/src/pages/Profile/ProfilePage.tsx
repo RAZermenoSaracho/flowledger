@@ -1,19 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useState } from "react";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { CurrencySelect, useCurrenciesQuery } from "../components/CurrencySelect";
-import { SelectField, TextInput } from "../components/FormField";
-import { useAuth } from "../hooks/useAuth";
-import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
-import { useTheme } from "../hooks/useTheme";
-import type { ThemePreference } from "../hooks/useTheme";
-import { apiAssetUrl, apiRequest } from "../services/api";
-import type { User } from "../types/api";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { CurrencySelect, useCurrenciesQuery } from "../../components/CurrencySelect";
+import { SelectField, TextInput } from "../../components/FormField";
+import type { MobileSidebarSide } from "@flowledger/shared";
+import { useAuth } from "../../hooks/useAuth";
+import { useTheme } from "../../hooks/useTheme";
+import type { ThemePreference } from "../../hooks/useTheme";
+import * as usersClient from "../../services/users.client";
+import type { User } from "../../types/api";
 
 const planLabels = {
   free: "Free",
   flowledger_one: "FlowLedger One"
+} as const;
+
+const planDescriptions = {
+  free: "Free covers the core FlowLedger experience: accounts, transactions, budgeting, and reports.",
+  flowledger_one:
+    "FlowLedger One adds priority support, early access to new features, and premium reporting tools on top of everything in Free."
 } as const;
 
 export function ProfilePage() {
@@ -34,12 +40,11 @@ export function ProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [mobileSidebarSide, setMobileSidebarSide] = useMobileSidebarSide();
 
   const profileQuery = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
-      const response = await apiRequest<{ user: User }>("/users/me");
+      const response = await usersClient.getProfile();
       auth.setUser(response.user);
       return response.user;
     },
@@ -75,31 +80,25 @@ export function ProfilePage() {
 
   const updateProfile = useMutation({
     mutationFn: () =>
-      apiRequest<{ user: User }>("/users/me", {
-        method: "PATCH",
-        body: { name, email, preferredCurrency: preferredCurrency || null }
+      usersClient.updateProfile({
+        name,
+        email,
+        preferredCurrency: preferredCurrency || null
       }),
     onSuccess: (response) => syncUser(response.user)
   });
 
   const uploadAvatar = useMutation({
-    mutationFn: (file: File) => {
-      const formData = new FormData();
-      formData.append("avatar", file);
-
-      return apiRequest<{ user: User }>("/users/me/avatar", {
-        method: "POST",
-        body: formData
-      });
-    },
+    mutationFn: (file: File) => usersClient.uploadAvatar(file),
     onSuccess: (response) => syncUser(response.user)
   });
 
   const updatePassword = useMutation({
     mutationFn: () =>
-      apiRequest<void>("/users/me/password", {
-        method: "PATCH",
-        body: { currentPassword, newPassword, confirmPassword }
+      usersClient.updatePassword({
+        currentPassword,
+        newPassword,
+        confirmPassword
       }),
     onSuccess: () => {
       setCurrentPassword("");
@@ -110,16 +109,18 @@ export function ProfilePage() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: (planType: User["planType"]) =>
-      apiRequest<{ user: User }>("/users/me/plan", {
-        method: "PATCH",
-        body: { planType }
-      }),
+    mutationFn: (planType: User["planType"]) => usersClient.updatePlan(planType),
     onSuccess: async (response) => {
       auth.setUser(response.user);
       queryClient.setQueryData(["me"], response.user);
       await queryClient.invalidateQueries({ queryKey: ["me"] });
     }
+  });
+
+  const updateSidebarSide = useMutation({
+    mutationFn: (mobileSidebarSide: MobileSidebarSide) =>
+      usersClient.updateSidebarSide(mobileSidebarSide),
+    onSuccess: (response) => syncUser(response.user)
   });
 
   async function submitProfile(event: FormEvent) {
@@ -196,7 +197,7 @@ export function ProfilePage() {
     if (!c) return user.preferredCurrency;
     return c.type === "fiat" ? `${c.code} — ${c.name}` : c.code;
   })();
-  const profileAvatarUrl = avatarPreviewUrl ?? apiAssetUrl(user?.avatarUrl);
+  const profileAvatarUrl = avatarPreviewUrl ?? usersClient.getAvatarUrl(user?.avatarUrl);
   const isProfileSaving = updateProfile.isPending || uploadAvatar.isPending;
   const initials = (user?.name ?? "FL")
     .split(" ")
@@ -392,7 +393,7 @@ export function ProfilePage() {
                   Sidebar drawer side
                 </span>
                 <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
-                  {mobileSidebarSide === "left" ? "Left sidebar drawer" : "Right sidebar drawer"}
+                  {(user?.mobileSidebarSide ?? "left") === "left" ? "Left sidebar drawer" : "Right sidebar drawer"}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -401,9 +402,12 @@ export function ProfilePage() {
                   type="checkbox"
                   role="switch"
                   className="peer sr-only"
-                  checked={mobileSidebarSide === "right"}
+                  checked={(user?.mobileSidebarSide ?? "left") === "right"}
                   aria-label="Use right sidebar drawer"
-                  onChange={(event) => setMobileSidebarSide(event.target.checked ? "right" : "left")}
+                  disabled={isLoading || updateSidebarSide.isPending}
+                  onChange={(event) =>
+                    updateSidebarSide.mutate(event.target.checked ? "right" : "left")
+                  }
                 />
                 <span
                   aria-hidden="true"
@@ -411,7 +415,7 @@ export function ProfilePage() {
                 >
                   <span
                     className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
-                      mobileSidebarSide === "right" ? "translate-x-5" : ""
+                      (user?.mobileSidebarSide ?? "left") === "right" ? "translate-x-5" : ""
                     }`}
                   />
                 </span>
@@ -421,38 +425,30 @@ export function ProfilePage() {
           </section>
 
           <section>
-            <h3 className="text-lg font-semibold">Account plan</h3>
+            <h3 className="text-lg font-semibold">
+              Account plan: {planLabels[currentPlan]}
+            </h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Payments are not connected yet. This MVP control only changes the saved plan label.
+              {planDescriptions[currentPlan]}
             </p>
             <div className="mt-4 grid gap-4">
-              <SelectField
-                label="Plan type"
-                value={currentPlan}
-                onChange={(event) => changePlan(event.target.value as User["planType"])}
-                disabled={isLoading || updatePlan.isPending}
-              >
-                <option value="free">Free</option>
-                <option value="flowledger_one">FlowLedger One</option>
-              </SelectField>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                <PlanOption
-                  title="Free"
-                  description="Standard FlowLedger features."
-                  active={currentPlan === "free"}
-                  actionLabel="Downgrade"
-                  onClick={() => changePlan("free")}
-                  disabled={currentPlan === "free" || updatePlan.isPending}
-                />
+              {currentPlan === "free" ? (
                 <PlanOption
                   title="FlowLedger One"
-                  description="Paid/VIP-style plan placeholder."
-                  active={currentPlan === "flowledger_one"}
+                  description={planDescriptions.flowledger_one}
                   actionLabel="Upgrade"
                   onClick={() => changePlan("flowledger_one")}
-                  disabled={currentPlan === "flowledger_one" || updatePlan.isPending}
+                  disabled={updatePlan.isPending}
                 />
-              </div>
+              ) : (
+                <PlanOption
+                  title="Free"
+                  description={planDescriptions.free}
+                  actionLabel="Downgrade"
+                  onClick={() => changePlan("free")}
+                  disabled={updatePlan.isPending}
+                />
+              )}
               {planError ? <p className="text-sm text-red-600 dark:text-red-400">{planError}</p> : null}
             </div>
           </section>
@@ -474,32 +470,21 @@ function Detail({ label, value }: { label: string; value: string }) {
 function PlanOption({
   title,
   description,
-  active,
   actionLabel,
   onClick,
   disabled
 }: {
   title: string;
   description: string;
-  active: boolean;
   actionLabel: string;
   onClick: () => void;
   disabled: boolean;
 }) {
   return (
     <div className="rounded-md border border-slate-200 p-4 dark:border-slate-700">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="font-semibold">{title}</h4>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
-        </div>
-        {active ? (
-          <span className="rounded-md bg-mint px-2 py-1 text-xs font-semibold text-pine dark:bg-emerald-950 dark:text-emerald-200">
-            Active
-          </span>
-        ) : null}
-      </div>
-      <Button type="button" variant={active ? "secondary" : "primary"} className="mt-4 w-full" onClick={onClick} disabled={disabled}>
+      <h4 className="font-semibold">{title}</h4>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+      <Button type="button" className="mt-4 w-full" onClick={onClick} disabled={disabled}>
         {actionLabel}
       </Button>
     </div>
