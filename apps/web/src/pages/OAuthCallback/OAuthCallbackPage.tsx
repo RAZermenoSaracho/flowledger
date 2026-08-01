@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card } from "../components/Card";
-import { routes } from "../constants/routes";
-import { useAuth } from "../hooks/useAuth";
-import { apiRequest, tokenStore } from "../services/api";
-import type { User } from "../types/api";
+import { Card } from "../../components/Card";
+import { routes } from "../../constants/routes";
+import { useAuth } from "../../hooks/useAuth";
+import { clearToken, getMe, setToken } from "../../services/auth.client";
 
 export function OAuthCallbackPage() {
   const auth = useAuth();
@@ -23,14 +22,14 @@ export function OAuthCallbackPage() {
       }
 
       try {
-        tokenStore.set(token);
-        const response = await apiRequest<{ user: User }>("/auth/me");
+        setToken(token);
+        const response = await getMe();
         auth.setUser(response.user);
         navigate(redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : routes.dashboard, {
           replace: true
         });
       } catch (caught) {
-        tokenStore.clear();
+        clearToken();
         setError(caught instanceof Error ? caught.message : "Google authentication failed");
       }
     }
