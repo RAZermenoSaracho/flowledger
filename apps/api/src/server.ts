@@ -8,7 +8,11 @@ import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { requireAuth } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { accountsRouter } from "./modules/accounts/accounts.routes.js";
+import {
+  accountsRouter,
+  providerWebhooksRouter,
+  providersRouter
+} from "./modules/accounts/accounts.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { categoriesRouter } from "./modules/categories/categories.routes.js";
 import {
@@ -17,15 +21,13 @@ import {
 } from "./modules/debts/debts.routes.js";
 import { groupsRouter } from "./modules/groups/groups.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
-import { providerWebhooksRouter } from "./modules/providers/providerWebhooks.routes.js";
-import { providersRouter } from "./modules/providers/providers.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { currenciesRouter } from "./modules/currencies/currencies.routes.js";
-import syncfyRoutes from "./modules/providers/syncfy/syncfy.routes.js";
-import { createSyncfyAutoSyncScheduler } from "./modules/providers/syncfy/syncfyAutoSyncScheduler.js";
+import syncfyRoutes from "./modules/accounts/providers/syncfy/syncfy.routes.js";
+import { createSyncfyAutoSyncScheduler } from "./modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.js";
 
 const app = express();
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
