@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import * as categoriesClient from "../../../services/categories.client";
 import * as groupsClient from "../../../services/groups.client";
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 
 export function useGroupCategoryManagement({
   selectedGroupId,
@@ -72,7 +72,8 @@ export function useGroupCategoryManagement({
   });
 
   const deleteCategory = useMutation({
-    mutationFn: (categoryId: string) => categoriesClient.deleteCategory(categoryId),
+    mutationFn: (categoryId: string) =>
+      categoriesClient.deleteCategory(categoryId),
     onSuccess: async () => {
       await refreshSelectedGroup();
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });

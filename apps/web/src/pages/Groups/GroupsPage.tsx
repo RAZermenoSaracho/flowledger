@@ -167,7 +167,9 @@ export function GroupsPage() {
           selectedGroupId={selectedGroupId}
           onSelectGroup={(groupId) => {
             categoryManagement.closeCategoryEditForm();
-            setSelectedGroupId(groupId);
+            setSelectedGroupId((current) =>
+              current === groupId ? null : groupId
+            );
           }}
         />
       </div>

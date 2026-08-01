@@ -9,7 +9,8 @@ import {
 } from "../../../components/SearchComponent";
 import type { SearchGroupByDef } from "../../../components/SearchComponent";
 import type { CategorySortBy } from "../../../services/categories.client";
-import type { Category, Group } from "../../../types/api";
+import type { Category } from "../../../types/categories.types";
+import type { Group } from "../../../types/groups.types";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
 import { GroupCategoryItem } from "./GroupCategoryItem";
 
@@ -99,7 +100,8 @@ export function GroupCategoriesSection({
           sort={{
             value: categorySortBy,
             direction: categorySortDirection,
-            onChange: (value) => onCategorySortByChange(value as CategorySortBy),
+            onChange: (value) =>
+              onCategorySortByChange(value as CategorySortBy),
             onDirectionChange: onCategorySortDirectionChange,
             options: [
               { label: "Name", value: "name" },

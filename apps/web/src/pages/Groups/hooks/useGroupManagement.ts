@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import * as groupsClient from "../../../services/groups.client";
 import { searchUsers } from "../../../services/users.client";
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 
 export function useGroupManagement({
   selectedGroupId,

@@ -1,4 +1,4 @@
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 import { formatMoney } from "../../../utils/currency";
 
 export function GroupTransactionsSection({

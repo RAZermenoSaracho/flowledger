@@ -1,8 +1,9 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
+import { ActionMenu, ActionMenuItem } from "../../../components/ActionMenu";
 import { Button } from "../../../components/Button";
 import { SelectField, TextInput } from "../../../components/FormField";
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
 
 export function GroupCategoryItem({
@@ -17,7 +18,10 @@ export function GroupCategoryItem({
   if (categoryManagement.editingCategoryId === category.id) {
     return (
       <div className="rounded-md border border-slate-200 p-4 text-sm dark:border-slate-800">
-        <form className="grid gap-3" onSubmit={categoryManagement.submitCategoryEdit}>
+        <form
+          className="grid gap-3"
+          onSubmit={categoryManagement.submitCategoryEdit}
+        >
           <TextInput
             label="Name"
             value={categoryManagement.editCategoryName}
@@ -52,7 +56,10 @@ export function GroupCategoryItem({
             />
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button type="submit" disabled={categoryManagement.updateCategory.isPending}>
+            <Button
+              type="submit"
+              disabled={categoryManagement.updateCategory.isPending}
+            >
               Save changes
             </Button>
             <Button
@@ -91,49 +98,88 @@ export function GroupCategoryItem({
           </div>
         </div>
         {canManage ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap 2xl:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={() => categoryManagement.openCategoryEditForm(category)}
-            >
-              Edit
-            </Button>
-            {category.isArchived ? (
+          <div className="flex shrink-0 items-center gap-2 2xl:justify-end">
+            <div className="hidden gap-2 lg:flex">
               <Button
                 type="button"
                 variant="secondary"
-                className="w-full sm:w-auto"
-                disabled={categoryManagement.restoreCategory.isPending}
                 onClick={() =>
-                  categoryManagement.restoreCategory.mutate(category.id)
+                  categoryManagement.openCategoryEditForm(category)
                 }
               >
-                Restore
+                Edit
               </Button>
-            ) : (
+              {category.isArchived ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={categoryManagement.restoreCategory.isPending}
+                  onClick={() =>
+                    categoryManagement.restoreCategory.mutate(category.id)
+                  }
+                >
+                  Restore
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={categoryManagement.archiveCategory.isPending}
+                  onClick={() =>
+                    categoryManagement.archiveCategory.mutate(category.id)
+                  }
+                >
+                  Archive
+                </Button>
+              )}
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full sm:w-auto"
-                disabled={categoryManagement.archiveCategory.isPending}
+                variant="danger"
+                disabled={categoryManagement.deleteCategory.isPending}
                 onClick={() =>
-                  categoryManagement.archiveCategory.mutate(category.id)
+                  categoryManagement.confirmDeleteCategory(category)
                 }
               >
-                Archive
+                Delete
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="danger"
-              className="w-full sm:w-auto"
-              disabled={categoryManagement.deleteCategory.isPending}
-              onClick={() => categoryManagement.confirmDeleteCategory(category)}
-            >
-              Delete
-            </Button>
+            </div>
+            <ActionMenu label={`Actions for ${category.name}`}>
+              <ActionMenuItem
+                onClick={() =>
+                  categoryManagement.openCategoryEditForm(category)
+                }
+              >
+                Edit
+              </ActionMenuItem>
+              {category.isArchived ? (
+                <ActionMenuItem
+                  disabled={categoryManagement.restoreCategory.isPending}
+                  onClick={() =>
+                    categoryManagement.restoreCategory.mutate(category.id)
+                  }
+                >
+                  Restore
+                </ActionMenuItem>
+              ) : (
+                <ActionMenuItem
+                  disabled={categoryManagement.archiveCategory.isPending}
+                  onClick={() =>
+                    categoryManagement.archiveCategory.mutate(category.id)
+                  }
+                >
+                  Archive
+                </ActionMenuItem>
+              )}
+              <ActionMenuItem
+                variant="danger"
+                disabled={categoryManagement.deleteCategory.isPending}
+                onClick={() =>
+                  categoryManagement.confirmDeleteCategory(category)
+                }
+              >
+                Delete
+              </ActionMenuItem>
+            </ActionMenu>
           </div>
         ) : null}
       </div>

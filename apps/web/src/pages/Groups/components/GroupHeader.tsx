@@ -1,6 +1,6 @@
 import { Button } from "../../../components/Button";
 import { TextArea, TextInput } from "../../../components/FormField";
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 import type { useGroupManagement } from "../hooks/useGroupManagement";
 
 export function GroupHeader({

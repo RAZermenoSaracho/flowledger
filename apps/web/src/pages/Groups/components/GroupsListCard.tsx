@@ -1,7 +1,7 @@
 import { Card } from "../../../components/Card";
 import { SearchComponent } from "../../../components/SearchComponent";
 import type { CategorySortBy } from "../../../services/categories.client";
-import type { Group } from "../../../types/api";
+import type { Group } from "../../../types/groups.types";
 
 export function GroupsListCard({
   groupSearch,
