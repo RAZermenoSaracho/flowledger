@@ -3,7 +3,7 @@ import {
   getDebtDirection,
   isDebtRelevantToUser,
   isSettlementDirectionCurrent
-} from "../src/modules/debts/debtDirection.ts";
+} from "../src/modules/debts/utils/debtDirection.ts";
 
 const expenseDebt = {
   userId: "participant-1",
