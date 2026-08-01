@@ -10,17 +10,10 @@ import {
 } from "../../../components/SearchComponent";
 import type { SearchGroupByDef } from "../../../components/SearchComponent";
 import type { TransactionSortBy } from "../../../services/transactions.client";
-import type { Account, Category, Group } from "../../../types/api";
-
-export type TransactionFilters = {
-  search: string;
-  transactionFilterType: string;
-  dateFrom: string;
-  dateTo: string;
-  amountFrom: string;
-  amountTo: string;
-  classification: string;
-};
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { Group } from "../../../types/groups.types";
+import type { TransactionFilters } from "../types/transactions.types";
 
 export const emptyTransactionFilters: TransactionFilters = {
   search: "",
@@ -256,9 +249,7 @@ export function TransactionFiltersCard({
             >
               <option value="">All</option>
               <option value="complete">Complete</option>
-              <option value="needsClassification">
-                Needs classification
-              </option>
+              <option value="needsClassification">Needs classification</option>
             </SelectField>
             <div className="flex items-end">
               <Button

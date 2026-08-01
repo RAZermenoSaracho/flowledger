@@ -2,13 +2,11 @@ import type { AccountType } from "@flowledger/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import * as accountsClient from "../../../services/accounts.client";
-import type { Account } from "../../../types/api";
+import type { Account } from "../../../types/accounts.types";
 
 export function useAccountEditForm() {
   const queryClient = useQueryClient();
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(
-    null
-  );
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<AccountType>("checking");
   const [editIdentifier, setEditIdentifier] = useState("");

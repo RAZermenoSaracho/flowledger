@@ -1,13 +1,10 @@
 import type { FormEvent } from "react";
 import { Button } from "../../../components/Button";
 import { SelectField } from "../../../components/FormField";
-import type { Account, Category, SettlementRequest } from "../../../types/api";
-
-export type SettlementApprovalDraft = {
-  accountId: string;
-  categoryId: string;
-  expenseOffsetCategoryId: string;
-};
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { SettlementRequest } from "../../../types/debts.types";
+import type { SettlementApprovalDraft } from "../types/debts.types";
 
 export function ApprovalActions({
   request,

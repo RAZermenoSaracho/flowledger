@@ -10,11 +10,8 @@ import {
   emptyReportFilters,
   ReportFiltersCard
 } from "./components/ReportFiltersCard";
-import type {
-  ReportAmountMode,
-  ReportFilters
-} from "./components/ReportFiltersCard";
 import { ReportSummaryCards } from "./components/ReportSummaryCards";
+import type { ReportAmountMode, ReportFilters } from "./types/reports.types";
 
 export function ReportsPage() {
   const auth = useAuth();
@@ -35,7 +32,8 @@ export function ReportsPage() {
   });
   const summaryQuery = useQuery({
     queryKey: ["summary", reportQuery],
-    queryFn: async () => (await reportsClient.getSummaryReport(reportQuery)).summary
+    queryFn: async () =>
+      (await reportsClient.getSummaryReport(reportQuery)).summary
   });
   const categoryQuery = useQuery({
     queryKey: ["category-report", reportQuery],

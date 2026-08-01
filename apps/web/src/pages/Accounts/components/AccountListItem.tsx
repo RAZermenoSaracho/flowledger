@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "../../../components/Button";
 import { CurrencySelect } from "../../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../../components/FormField";
-import type { Account } from "../../../types/api";
+import type { Account } from "../../../types/accounts.types";
 import { formatMoney } from "../../../utils/currency";
 import type { useAccountEditForm } from "../hooks/useAccountEditForm";
 import { AccountSyncPanel } from "./AccountSyncPanel";
@@ -97,7 +97,11 @@ export function AccountListItem({
 
   const managementActions = (
     <>
-      <Button type="button" variant="secondary" onClick={() => editForm.openEditForm(account)}>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => editForm.openEditForm(account)}
+      >
         Edit
       </Button>
       {account.isArchived ? (
@@ -199,7 +203,9 @@ export function AccountListItem({
               {account.identifier}
             </p>
           ) : null}
-          <div className="flex flex-col gap-2 lg:hidden">{managementActions}</div>
+          <div className="flex flex-col gap-2 lg:hidden">
+            {managementActions}
+          </div>
 
           <AccountSyncPanel
             account={account}

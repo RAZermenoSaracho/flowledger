@@ -6,11 +6,14 @@ import { ActionMenu, ActionMenuItem } from "../../components/ActionMenu";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { SelectField, TextInput } from "../../components/FormField";
-import { groupByFields, SearchComponent } from "../../components/SearchComponent";
+import {
+  groupByFields,
+  SearchComponent
+} from "../../components/SearchComponent";
 import type { SearchGroupByDef } from "../../components/SearchComponent";
 import * as categoriesClient from "../../services/categories.client";
 import type { CategorySortBy } from "../../services/categories.client";
-import type { Category } from "../../types/api";
+import type { Category } from "../../types/categories.types";
 import { matchesSearch } from "../../utils/search";
 
 export function CategoriesPage() {
@@ -37,7 +40,8 @@ export function CategoriesPage() {
   const groupByDefs: SearchGroupByDef[] = [{ id: "type", label: "Type" }];
 
   function categoryGroupKey(category: Category, groupById: string) {
-    if (groupById === "type") return { key: category.type, label: category.type };
+    if (groupById === "type")
+      return { key: category.type, label: category.type };
     return { key: "", label: "" };
   }
 
@@ -67,7 +71,8 @@ export function CategoriesPage() {
   }, [categoriesQuery.data, search]);
 
   const groupedCategories = useMemo(
-    () => groupByFields(visibleCategories, groupBys, groupByDefs, categoryGroupKey),
+    () =>
+      groupByFields(visibleCategories, groupBys, groupByDefs, categoryGroupKey),
     [visibleCategories, groupBys]
   );
 
@@ -118,7 +123,8 @@ export function CategoriesPage() {
   });
 
   const deleteCategory = useMutation({
-    mutationFn: (categoryId: string) => categoriesClient.deleteCategory(categoryId),
+    mutationFn: (categoryId: string) =>
+      categoriesClient.deleteCategory(categoryId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -285,141 +291,160 @@ export function CategoriesPage() {
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 {section.items.map((category) => (
-            <div
-              key={category.id}
-              className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
-            >
-              {editingCategoryId === category.id ? (
-                <form className="grid gap-3" onSubmit={submitEdit}>
-                  <TextInput
-                    label="Name"
-                    value={editName}
-                    onChange={(event) => setEditName(event.target.value)}
-                    required
-                  />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SelectField
-                      label="Type"
-                      value={editType}
-                      onChange={(event) =>
-                        setEditType(event.target.value as CategoryType)
-                      }
-                    >
-                      {CATEGORY_TYPES.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </SelectField>
-                    <TextInput
-                      label="Color"
-                      type="color"
-                      value={editColor}
-                      onChange={(event) => setEditColor(event.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" disabled={updateCategory.isPending}>
-                      Save changes
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={closeEditForm}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              ) : (
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className="h-4 w-4 shrink-0 rounded-full"
-                        style={{ background: category.color ?? "#cbd5e1" }}
-                      />
-                      <p className="truncate font-semibold">{category.name}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <div className="hidden gap-2 lg:flex">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => openEditForm(category)}
-                        >
-                          Edit
-                        </Button>
-                        {category.isArchived ? (
+                  <div
+                    key={category.id}
+                    className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
+                  >
+                    {editingCategoryId === category.id ? (
+                      <form className="grid gap-3" onSubmit={submitEdit}>
+                        <TextInput
+                          label="Name"
+                          value={editName}
+                          onChange={(event) => setEditName(event.target.value)}
+                          required
+                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <SelectField
+                            label="Type"
+                            value={editType}
+                            onChange={(event) =>
+                              setEditType(event.target.value as CategoryType)
+                            }
+                          >
+                            {CATEGORY_TYPES.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
+                              </option>
+                            ))}
+                          </SelectField>
+                          <TextInput
+                            label="Color"
+                            type="color"
+                            value={editColor}
+                            onChange={(event) =>
+                              setEditColor(event.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="submit"
+                            disabled={updateCategory.isPending}
+                          >
+                            Save changes
+                          </Button>
                           <Button
                             type="button"
                             variant="secondary"
-                            disabled={restoreCategory.isPending}
-                            onClick={() => restoreCategory.mutate(category.id)}
+                            onClick={closeEditForm}
                           >
-                            Restore
+                            Cancel
                           </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={archiveCategory.isPending}
-                            onClick={() => archiveCategory.mutate(category.id)}
-                          >
-                            Archive
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="danger"
-                          disabled={deleteCategory.isPending}
-                          onClick={() => confirmDelete(category)}
-                        >
-                          Delete
-                        </Button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className="h-4 w-4 shrink-0 rounded-full"
+                              style={{
+                                background: category.color ?? "#cbd5e1"
+                              }}
+                            />
+                            <p className="truncate font-semibold">
+                              {category.name}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <div className="hidden gap-2 lg:flex">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => openEditForm(category)}
+                              >
+                                Edit
+                              </Button>
+                              {category.isArchived ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  disabled={restoreCategory.isPending}
+                                  onClick={() =>
+                                    restoreCategory.mutate(category.id)
+                                  }
+                                >
+                                  Restore
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  disabled={archiveCategory.isPending}
+                                  onClick={() =>
+                                    archiveCategory.mutate(category.id)
+                                  }
+                                >
+                                  Archive
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="danger"
+                                disabled={deleteCategory.isPending}
+                                onClick={() => confirmDelete(category)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                            <ActionMenu label={`Actions for ${category.name}`}>
+                              <ActionMenuItem
+                                onClick={() => openEditForm(category)}
+                              >
+                                Edit
+                              </ActionMenuItem>
+                              {category.isArchived ? (
+                                <ActionMenuItem
+                                  disabled={restoreCategory.isPending}
+                                  onClick={() =>
+                                    restoreCategory.mutate(category.id)
+                                  }
+                                >
+                                  Restore
+                                </ActionMenuItem>
+                              ) : (
+                                <ActionMenuItem
+                                  disabled={archiveCategory.isPending}
+                                  onClick={() =>
+                                    archiveCategory.mutate(category.id)
+                                  }
+                                >
+                                  Archive
+                                </ActionMenuItem>
+                              )}
+                              <ActionMenuItem
+                                variant="danger"
+                                disabled={deleteCategory.isPending}
+                                onClick={() => confirmDelete(category)}
+                              >
+                                Delete
+                              </ActionMenuItem>
+                            </ActionMenu>
+                          </div>
+                        </div>
+                        <div className="pl-7">
+                          {category.isArchived ? (
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                              Archived
+                            </span>
+                          ) : null}
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {category.type}
+                          </p>
+                        </div>
                       </div>
-                      <ActionMenu label={`Actions for ${category.name}`}>
-                        <ActionMenuItem onClick={() => openEditForm(category)}>
-                          Edit
-                        </ActionMenuItem>
-                        {category.isArchived ? (
-                          <ActionMenuItem
-                            disabled={restoreCategory.isPending}
-                            onClick={() => restoreCategory.mutate(category.id)}
-                          >
-                            Restore
-                          </ActionMenuItem>
-                        ) : (
-                          <ActionMenuItem
-                            disabled={archiveCategory.isPending}
-                            onClick={() => archiveCategory.mutate(category.id)}
-                          >
-                            Archive
-                          </ActionMenuItem>
-                        )}
-                        <ActionMenuItem
-                          variant="danger"
-                          disabled={deleteCategory.isPending}
-                          onClick={() => confirmDelete(category)}
-                        >
-                          Delete
-                        </ActionMenuItem>
-                      </ActionMenu>
-                    </div>
+                    )}
                   </div>
-                  <div className="pl-7">
-                    {category.isArchived ? (
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                        Archived
-                      </span>
-                    ) : null}
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {category.type}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
                 ))}
               </div>
             </div>

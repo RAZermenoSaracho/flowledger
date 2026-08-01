@@ -3,14 +3,12 @@ import { useState } from "react";
 import type { SetURLSearchParams } from "react-router-dom";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { ListImportedTransactionsParams } from "../../../services/transactions.client";
-import type { ProviderImportedTransaction } from "../../../types/api";
-import {
-  emptyImportedFilters
-} from "../components/ImportedTransactionsFiltersCard";
+import type { ProviderImportedTransaction } from "../../../types/transactions.types";
+import { emptyImportedFilters } from "../components/ImportedTransactionsFiltersCard";
 import type {
   ImportedFilters,
   ImportedSortBy
-} from "../components/ImportedTransactionsFiltersCard";
+} from "../types/transactions.types";
 
 export function useImportedTransactionsWorkflow({
   activeTab,
@@ -106,7 +104,8 @@ export function useImportedTransactionsWorkflow({
   });
 
   const ignoreImportedTransaction = useMutation({
-    mutationFn: (id: string) => transactionsClient.ignoreImportedTransaction(id),
+    mutationFn: (id: string) =>
+      transactionsClient.ignoreImportedTransaction(id),
     onSuccess: async () => {
       setSelectedImportedIds([]);
       setSelectAllFilteredImported(false);

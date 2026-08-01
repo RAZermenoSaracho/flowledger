@@ -1,7 +1,8 @@
 import { Button } from "../../../components/Button";
 import { SelectField } from "../../../components/FormField";
-import type { Category, ProviderImportedTransaction } from "../../../types/api";
+import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 import { formatMoney } from "../../../utils/currency";
+import type { ImportedTransactionCardProps } from "../types/transactions.types";
 
 export function importedTransactionType(
   transaction: ProviderImportedTransaction
@@ -21,9 +22,7 @@ function providerAccountMetadataValue(
     : null;
 }
 
-export function providerAccountLabel(
-  transaction: ProviderImportedTransaction
-) {
+export function providerAccountLabel(transaction: ProviderImportedTransaction) {
   return [
     providerAccountMetadataValue(transaction, "name"),
     transaction.providerAccount?.connection?.institutionName,
@@ -52,21 +51,6 @@ function metadataLine(transaction: ProviderImportedTransaction) {
 
   return `${transaction.provider} · ${institution} · ${providerAccount} · ${linkedAccount}`;
 }
-
-type ImportedTransactionCardProps = {
-  transaction: ProviderImportedTransaction;
-  categories: Category[];
-  isSelected: boolean;
-  isSelectionLocked: boolean;
-  isImporting: boolean;
-  isIgnoring: boolean;
-  isUnignoring: boolean;
-  onSelectedChange: () => void;
-  onCategoryChange: (categoryId: string | null) => void;
-  onImport: () => void;
-  onIgnore: () => void;
-  onUnignore: () => void;
-};
 
 export function ImportedTransactionCard({
   transaction,

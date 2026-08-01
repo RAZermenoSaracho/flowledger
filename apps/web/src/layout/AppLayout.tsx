@@ -20,7 +20,7 @@ import {
   markNotificationRead
 } from "../services/notifications.client";
 import { getImportedTransactionsPendingCount } from "../services/transactions.client";
-import type { Notification } from "../types/api";
+import type { Notification } from "../types/notifications.types";
 
 const navItems = [
   ["Dashboard", routes.dashboard],

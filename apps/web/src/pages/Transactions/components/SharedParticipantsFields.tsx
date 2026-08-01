@@ -4,16 +4,9 @@ import { Button } from "../../../components/Button";
 import { TextInput } from "../../../components/FormField";
 import { searchUsers } from "../../../services/users.client";
 import { formatMoney } from "../../../utils/currency";
-import type { Group, PublicUser } from "../../../types/api";
-
-export type ParticipantDraft = {
-  draftId: string;
-  userId?: string | null;
-  participantName: string;
-  email?: string;
-  source: "app" | "manual";
-  shareAmount: string;
-};
+import type { Group } from "../../../types/groups.types";
+import type { PublicUser } from "../../../types/users.types";
+import type { ParticipantDraft } from "../types/transactions.types";
 
 export function SharedParticipantsFields({
   isShared,
@@ -199,9 +192,7 @@ export function SharedParticipantsFields({
                 className="grid gap-3 rounded-md bg-slate-50 p-3 dark:bg-slate-950 sm:grid-cols-[1fr_minmax(8rem,12rem)_auto] sm:items-end"
               >
                 <div className="text-sm">
-                  <p className="font-semibold">
-                    {participant.participantName}
-                  </p>
+                  <p className="font-semibold">{participant.participantName}</p>
                   <p className="text-slate-500 dark:text-slate-400">
                     {participant.source === "app"
                       ? `App user${
@@ -236,13 +227,16 @@ export function SharedParticipantsFields({
             ))}
             {participants.length > 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Assigned{" "}
-                {formatMoney(participantShareTotal, executionCurrency)} of{" "}
+                Assigned {formatMoney(participantShareTotal, executionCurrency)}{" "}
+                of{" "}
                 {Number.isFinite(transactionAmount)
                   ? formatMoney(transactionAmount, executionCurrency)
                   : formatMoney(0, executionCurrency)}
                 . Remaining owner share:{" "}
-                {formatMoney(Math.max(0, remainingSharedAmount), executionCurrency)}
+                {formatMoney(
+                  Math.max(0, remainingSharedAmount),
+                  executionCurrency
+                )}
                 .
               </p>
             ) : (

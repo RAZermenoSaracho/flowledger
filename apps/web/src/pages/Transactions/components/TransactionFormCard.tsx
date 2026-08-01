@@ -4,11 +4,16 @@ import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { useAuth } from "../../../hooks/useAuth";
 import { createTransaction } from "../../../services/transactions.client";
-import type { Account, Category, Group, PublicUser } from "../../../types/api";
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { Group } from "../../../types/groups.types";
+import type { PublicUser } from "../../../types/users.types";
+import type {
+  ParticipantDraft,
+  TransactionFormState
+} from "../types/transactions.types";
 import { SharedParticipantsFields } from "./SharedParticipantsFields";
-import type { ParticipantDraft } from "./SharedParticipantsFields";
 import { TransactionCoreFields } from "./TransactionCoreFields";
-import type { TransactionFormState } from "./TransactionCoreFields";
 
 function emptyForm(defaultCurrency: string): TransactionFormState {
   return {
@@ -69,8 +74,8 @@ export function TransactionFormCard({
     form.type === "transfer" &&
     Boolean(
       !form.accountId ||
-        !form.transferToAccountId ||
-        form.accountId === form.transferToAccountId
+      !form.transferToAccountId ||
+      form.accountId === form.transferToAccountId
     );
   const saveTransaction = useMutation({
     mutationFn: () => {

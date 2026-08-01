@@ -1,4 +1,8 @@
-import type { Debt, PersonBalance, SettlementRequest } from "../../../types/api";
+import type {
+  Debt,
+  PersonBalance,
+  SettlementRequest
+} from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { matchesSearch } from "../../../utils/search";
 

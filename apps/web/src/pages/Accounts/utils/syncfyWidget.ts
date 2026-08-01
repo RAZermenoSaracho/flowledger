@@ -1,24 +1,9 @@
 import type { ProviderConnectionFlow } from "@flowledger/shared";
-
-type SyncfyWidgetConstructor = new (params: {
-  token: string;
-  element: string;
-  config: Record<string, unknown>;
-}) => {
-  open: () => void;
-  on?: (eventName: string, callback: (...args: unknown[]) => void) => void;
-  setEntrypointCredential?: (idCredential: string) => void;
-  setEntrypointUpdateCredential?: (idCredential: string) => void;
-};
-
-export type SyncfyWidgetEntrypoint =
-  | { type: "connect" }
-  | { type: "credential"; idCredential: string }
-  | { type: "updateCredential"; idCredential: string };
-
-export type SyncfyWidgetResult =
-  | { event: "success" | "updated" | "closed"; credential?: unknown }
-  | { event: "error" | "socket-error" | "api-error"; credential?: unknown };
+import type {
+  SyncfyWidgetConstructor,
+  SyncfyWidgetEntrypoint,
+  SyncfyWidgetResult
+} from "../types/accounts.types";
 
 function getRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

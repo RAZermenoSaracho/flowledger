@@ -4,7 +4,7 @@ import {
   SearchComponent
 } from "../../../components/SearchComponent";
 import type { SearchGroupByDef } from "../../../components/SearchComponent";
-import type { Account } from "../../../types/api";
+import type { Account } from "../../../types/accounts.types";
 import type { AccountSortBy } from "../../../services/accounts.client";
 
 export const accountGroupByDefs: SearchGroupByDef[] = [

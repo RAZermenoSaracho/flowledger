@@ -1,6 +1,12 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
 import * as authClient from "../services/auth.client";
-import type { User } from "../types/api";
+import type { User } from "../types/users.types";
 
 type AuthContextValue = {
   user: User | null;

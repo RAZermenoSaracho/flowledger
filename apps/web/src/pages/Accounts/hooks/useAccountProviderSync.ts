@@ -2,11 +2,9 @@ import type { AccountType, ProviderConnectionFlow } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import * as accountsClient from "../../../services/accounts.client";
-import type { Account, AccountSync } from "../../../types/api";
-import {
-  openSyncfyWidget,
-  type SyncfyWidgetEntrypoint
-} from "../utils/syncfyWidget";
+import type { Account, AccountSync } from "../../../types/accounts.types";
+import type { SyncfyWidgetEntrypoint } from "../types/accounts.types";
+import { openSyncfyWidget } from "../utils/syncfyWidget";
 
 export function useAccountProviderSync({
   defaultCurrency
@@ -24,9 +22,9 @@ export function useAccountProviderSync({
   const [currency, setCurrency] = useState(defaultCurrency);
   const [initialBalance, setInitialBalance] = useState("0");
 
-  const [selectedConnectorId, setSelectedConnectorId] = useState<
-    string | null
-  >(null);
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
+    null
+  );
   const [activeConnection, setActiveConnection] =
     useState<ProviderConnectionFlow | null>(null);
   const [syncfyWidgetError, setSyncfyWidgetError] = useState<string | null>(
@@ -36,10 +34,12 @@ export function useAccountProviderSync({
     {}
   );
 
-  const [selectedProviderAccountIds, setSelectedProviderAccountIds] =
-    useState<string[]>([]);
-  const [providerAccountLinkTargets, setProviderAccountLinkTargets] =
-    useState<Record<string, string>>({});
+  const [selectedProviderAccountIds, setSelectedProviderAccountIds] = useState<
+    string[]
+  >([]);
+  const [providerAccountLinkTargets, setProviderAccountLinkTargets] = useState<
+    Record<string, string>
+  >({});
 
   const connectorsQuery = useQuery({
     queryKey: ["provider-connectors"],

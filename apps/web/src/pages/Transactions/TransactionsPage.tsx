@@ -22,9 +22,8 @@ import * as categoriesClient from "../../services/categories.client";
 import { listGroups } from "../../services/groups.client";
 import * as transactionsClient from "../../services/transactions.client";
 import type { TransactionSortBy } from "../../services/transactions.client";
-import type { Transaction } from "../../types/api";
-
-type TransactionsTab = "transactions" | "imported";
+import type { Transaction } from "../../types/transactions.types";
+import type { TransactionsTab } from "./types/transactions.types";
 
 export function TransactionsPage() {
   const auth = useAuth();
@@ -159,7 +158,8 @@ export function TransactionsPage() {
     const seen = new Set<string>();
 
     return imported.importedTransactions.flatMap((transaction) => {
-      const id = transaction.providerAccount?.id ?? transaction.providerAccountId;
+      const id =
+        transaction.providerAccount?.id ?? transaction.providerAccountId;
       if (!id || seen.has(id)) return [];
 
       seen.add(id);
@@ -363,7 +363,9 @@ export function TransactionsPage() {
             batchCategoryId={imported.batchCategoryId}
             isPendingFilter={imported.importedFilters.status === "pending"}
             isIgnoredFilter={imported.importedFilters.status === "ignored"}
-            isBatchImporting={imported.batchImportImportedTransactions.isPending}
+            isBatchImporting={
+              imported.batchImportImportedTransactions.isPending
+            }
             isBatchIgnoring={imported.batchIgnoreImportedTransactions.isPending}
             isBatchUnignoring={
               imported.batchUnignoreImportedTransactions.isPending
@@ -400,9 +402,7 @@ export function TransactionsPage() {
               void imported.importOneImportedTransaction(transaction)
             }
             onIgnore={(id) => imported.ignoreImportedTransaction.mutate(id)}
-            onUnignore={(id) =>
-              imported.unignoreImportedTransaction.mutate(id)
-            }
+            onUnignore={(id) => imported.unignoreImportedTransaction.mutate(id)}
           />
         </div>
       )}

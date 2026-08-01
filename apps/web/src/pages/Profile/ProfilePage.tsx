@@ -2,14 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useState } from "react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
-import { CurrencySelect, useCurrenciesQuery } from "../../components/CurrencySelect";
+import {
+  CurrencySelect,
+  useCurrenciesQuery
+} from "../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../components/FormField";
 import type { MobileSidebarSide } from "@flowledger/shared";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import type { ThemePreference } from "../../hooks/useTheme";
 import * as usersClient from "../../services/users.client";
-import type { User } from "../../types/api";
+import type { User } from "../../types/users.types";
 
 const planLabels = {
   free: "Free",
@@ -28,7 +31,9 @@ export function ProfilePage() {
   const { preference, setPreference } = useTheme();
   const [name, setName] = useState(auth.user?.name ?? "");
   const [email, setEmail] = useState(auth.user?.email ?? "");
-  const [preferredCurrency, setPreferredCurrency] = useState(auth.user?.preferredCurrency ?? "");
+  const [preferredCurrency, setPreferredCurrency] = useState(
+    auth.user?.preferredCurrency ?? ""
+  );
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
@@ -109,7 +114,8 @@ export function ProfilePage() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: (planType: User["planType"]) => usersClient.updatePlan(planType),
+    mutationFn: (planType: User["planType"]) =>
+      usersClient.updatePlan(planType),
     onSuccess: async (response) => {
       auth.setUser(response.user);
       queryClient.setQueryData(["me"], response.user);
@@ -138,7 +144,11 @@ export function ProfilePage() {
       setIsEditingProfile(false);
       setProfileMessage("Profile updated");
     } catch (caught) {
-      setProfileError(caught instanceof Error ? caught.message : "Profile could not be updated");
+      setProfileError(
+        caught instanceof Error
+          ? caught.message
+          : "Profile could not be updated"
+      );
     }
   }
 
@@ -173,7 +183,11 @@ export function ProfilePage() {
     try {
       await updatePassword.mutateAsync();
     } catch (caught) {
-      setPasswordError(caught instanceof Error ? caught.message : "Password could not be updated");
+      setPasswordError(
+        caught instanceof Error
+          ? caught.message
+          : "Password could not be updated"
+      );
     }
   }
 
@@ -183,7 +197,9 @@ export function ProfilePage() {
     try {
       await updatePlan.mutateAsync(planType);
     } catch (caught) {
-      setPlanError(caught instanceof Error ? caught.message : "Plan could not be updated");
+      setPlanError(
+        caught instanceof Error ? caught.message : "Plan could not be updated"
+      );
     }
   }
 
@@ -197,7 +213,8 @@ export function ProfilePage() {
     if (!c) return user.preferredCurrency;
     return c.type === "fiat" ? `${c.code} — ${c.name}` : c.code;
   })();
-  const profileAvatarUrl = avatarPreviewUrl ?? usersClient.getAvatarUrl(user?.avatarUrl);
+  const profileAvatarUrl =
+    avatarPreviewUrl ?? usersClient.getAvatarUrl(user?.avatarUrl);
   const isProfileSaving = updateProfile.isPending || uploadAvatar.isPending;
   const initials = (user?.name ?? "FL")
     .split(" ")
@@ -226,12 +243,18 @@ export function ProfilePage() {
               <div>
                 <h2 className="text-xl font-semibold">Profile and account</h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Manage your FlowLedger identity, sign-in details, and MVP plan.
+                  Manage your FlowLedger identity, sign-in details, and MVP
+                  plan.
                 </p>
               </div>
             </div>
             {!isEditingProfile ? (
-              <Button type="button" className="w-full sm:w-auto" onClick={startEditingProfile} disabled={isLoading}>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={startEditingProfile}
+                disabled={isLoading}
+              >
                 Edit Profile
               </Button>
             ) : null}
@@ -239,7 +262,9 @@ export function ProfilePage() {
 
           {profileQuery.isError ? (
             <p className="mt-4 text-sm text-red-600 dark:text-red-400">
-              {profileQuery.error instanceof Error ? profileQuery.error.message : "Profile could not be loaded"}
+              {profileQuery.error instanceof Error
+                ? profileQuery.error.message
+                : "Profile could not be loaded"}
             </p>
           ) : null}
 
@@ -248,7 +273,14 @@ export function ProfilePage() {
             <Detail label="Email" value={user?.email ?? "Loading..."} />
             <Detail label="Plan" value={planLabels[currentPlan]} />
             <Detail label="Currency" value={currencyDetail} />
-            <Detail label="Member since" value={user ? new Date(user.createdAt).toLocaleDateString() : "Loading..."} />
+            <Detail
+              label="Member since"
+              value={
+                user
+                  ? new Date(user.createdAt).toLocaleDateString()
+                  : "Loading..."
+              }
+            />
           </dl>
         </Card>
 
@@ -273,7 +305,9 @@ export function ProfilePage() {
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
+                    onChange={(event) =>
+                      setAvatarFile(event.target.files?.[0] ?? null)
+                    }
                     disabled={isLoading || isProfileSaving}
                     className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-pine file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ink dark:text-slate-300 dark:file:bg-emerald-700"
                   />
@@ -306,20 +340,35 @@ export function ProfilePage() {
                 disabled={isLoading || isProfileSaving}
                 allowNoPreference
               />
-              {profileError ? <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p> : null}
-              {profileMessage ? <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p> : null}
+              {profileError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {profileError}
+                </p>
+              ) : null}
+              {profileMessage ? (
+                <p className="text-sm text-pine dark:text-emerald-300">
+                  {profileMessage}
+                </p>
+              ) : null}
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button type="submit" disabled={isLoading || isProfileSaving}>
                   Save profile
                 </Button>
-                <Button type="button" variant="secondary" onClick={cancelEditingProfile} disabled={isProfileSaving}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={cancelEditingProfile}
+                  disabled={isProfileSaving}
+                >
                   Cancel
                 </Button>
               </div>
             </form>
           </Card>
         ) : profileMessage ? (
-          <p className="text-sm text-pine dark:text-emerald-300">{profileMessage}</p>
+          <p className="text-sm text-pine dark:text-emerald-300">
+            {profileMessage}
+          </p>
         ) : null}
 
         {isEditingProfile ? (
@@ -352,8 +401,16 @@ export function ProfilePage() {
                 minLength={8}
                 maxLength={128}
               />
-              {passwordError ? <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p> : null}
-              {passwordMessage ? <p className="text-sm text-pine dark:text-emerald-300">{passwordMessage}</p> : null}
+              {passwordError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {passwordError}
+                </p>
+              ) : null}
+              {passwordMessage ? (
+                <p className="text-sm text-pine dark:text-emerald-300">
+                  {passwordMessage}
+                </p>
+              ) : null}
               <Button type="submit" disabled={updatePassword.isPending}>
                 Change password
               </Button>
@@ -373,7 +430,9 @@ export function ProfilePage() {
               <SelectField
                 label="Theme"
                 value={preference}
-                onChange={(event) => setPreference(event.target.value as ThemePreference)}
+                onChange={(event) =>
+                  setPreference(event.target.value as ThemePreference)
+                }
               >
                 <option value="system">System</option>
                 <option value="light">Light</option>
@@ -393,7 +452,9 @@ export function ProfilePage() {
                   Sidebar drawer side
                 </span>
                 <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
-                  {(user?.mobileSidebarSide ?? "left") === "left" ? "Left sidebar drawer" : "Right sidebar drawer"}
+                  {(user?.mobileSidebarSide ?? "left") === "left"
+                    ? "Left sidebar drawer"
+                    : "Right sidebar drawer"}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -406,7 +467,9 @@ export function ProfilePage() {
                   aria-label="Use right sidebar drawer"
                   disabled={isLoading || updateSidebarSide.isPending}
                   onChange={(event) =>
-                    updateSidebarSide.mutate(event.target.checked ? "right" : "left")
+                    updateSidebarSide.mutate(
+                      event.target.checked ? "right" : "left"
+                    )
                   }
                 />
                 <span
@@ -415,7 +478,9 @@ export function ProfilePage() {
                 >
                   <span
                     className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
-                      (user?.mobileSidebarSide ?? "left") === "right" ? "translate-x-5" : ""
+                      (user?.mobileSidebarSide ?? "left") === "right"
+                        ? "translate-x-5"
+                        : ""
                     }`}
                   />
                 </span>
@@ -449,7 +514,11 @@ export function ProfilePage() {
                   disabled={updatePlan.isPending}
                 />
               )}
-              {planError ? <p className="text-sm text-red-600 dark:text-red-400">{planError}</p> : null}
+              {planError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {planError}
+                </p>
+              ) : null}
             </div>
           </section>
         </div>
@@ -461,7 +530,9 @@ export function ProfilePage() {
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+      <dt className="font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </dt>
       <dd className="mt-1 break-words text-ink dark:text-slate-100">{value}</dd>
     </div>
   );
@@ -483,8 +554,15 @@ function PlanOption({
   return (
     <div className="rounded-md border border-slate-200 p-4 dark:border-slate-700">
       <h4 className="font-semibold">{title}</h4>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
-      <Button type="button" className="mt-4 w-full" onClick={onClick} disabled={disabled}>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {description}
+      </p>
+      <Button
+        type="button"
+        className="mt-4 w-full"
+        onClick={onClick}
+        disabled={disabled}
+      >
         {actionLabel}
       </Button>
     </div>

@@ -4,20 +4,12 @@ import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { SearchComponent } from "../../../components/SearchComponent";
-import type { Account, Category } from "../../../types/api";
-
-export type ImportedFilters = {
-  status: string;
-  search: string;
-  provider: string;
-  accountId: string;
-  providerAccountId: string;
-  categoryId: string;
-  dateFrom: string;
-  dateTo: string;
-  amountFrom: string;
-  amountTo: string;
-};
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type {
+  ImportedFilters,
+  ImportedSortBy
+} from "../types/transactions.types";
 
 export const emptyImportedFilters: ImportedFilters = {
   status: "pending",
@@ -31,13 +23,6 @@ export const emptyImportedFilters: ImportedFilters = {
   amountFrom: "",
   amountTo: ""
 };
-
-export type ImportedSortBy =
-  | "transactionDate"
-  | "amount"
-  | "description"
-  | "provider"
-  | "status";
 
 // Imported transaction filters stay single-value server-side (they drive a
 // "select all filtered" batch action), so facet toggles here replace rather

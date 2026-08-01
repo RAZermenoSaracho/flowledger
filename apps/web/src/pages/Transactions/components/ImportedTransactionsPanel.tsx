@@ -1,6 +1,7 @@
 import { Card } from "../../../components/Card";
 import * as transactionsClient from "../../../services/transactions.client";
-import type { Category, ProviderImportedTransaction } from "../../../types/api";
+import type { Category } from "../../../types/categories.types";
+import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 import { ImportedTransactionCard } from "./ImportedTransactionCard";
 import { ImportedTransactionSelectionToolbar } from "./ImportedTransactionSelectionToolbar";
 

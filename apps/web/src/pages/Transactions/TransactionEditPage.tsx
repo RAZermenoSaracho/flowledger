@@ -13,23 +13,11 @@ import {
   getTransaction,
   updateTransaction as updateTransactionRequest
 } from "../../services/transactions.client";
-import type { Transaction } from "../../types/api";
+import type { Transaction } from "../../types/transactions.types";
+import type { TransactionEditForm } from "./types/transactions.types";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
-
-type TransactionEditForm = {
-  name: string;
-  amount: string;
-  executionCurrency: string;
-  type: "income" | "expense" | "transfer";
-  date: string;
-  accountId: string;
-  transferToAccountId: string;
-  categoryId: string;
-  groupId: string;
-  notes: string;
-};
 
 function formFromTransaction(transaction: Transaction): TransactionEditForm {
   return {
@@ -124,8 +112,8 @@ export function TransactionEditPage() {
     form.type === "transfer" &&
     Boolean(
       form.accountId &&
-        form.transferToAccountId &&
-        form.accountId === form.transferToAccountId
+      form.transferToAccountId &&
+      form.accountId === form.transferToAccountId
     );
   const transferAccountsInvalid =
     form.type === "transfer" &&

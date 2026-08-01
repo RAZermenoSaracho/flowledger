@@ -1,4 +1,4 @@
-import type { Debt } from "../../../types/api";
+import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { debtDescription, debtTitle, statusLabel } from "../utils/debtDisplay";
 

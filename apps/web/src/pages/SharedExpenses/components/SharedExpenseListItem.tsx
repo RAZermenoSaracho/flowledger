@@ -1,5 +1,5 @@
 import { Button } from "../../../components/Button";
-import type { SharedExpense } from "../../../types/api";
+import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { formatMoney } from "../../../utils/currency";
 
 export function splitDirectionLabel(sharedExpense: SharedExpense) {

@@ -1,15 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
 import * as debtsClient from "../../../services/debts.client";
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { Debt, SettlementRequest } from "../../../types/debts.types";
+import type { Group } from "../../../types/groups.types";
 import type {
-  Account,
-  Category,
-  Debt,
-  Group,
-  SettlementRequest
-} from "../../../types/api";
-import type { SettlementApprovalDraft } from "../components/ApprovalActions";
-import type { SettlementDraft } from "../types";
+  SettlementApprovalDraft,
+  SettlementDraft
+} from "../types/debts.types";
 import { availableSettlementAmount } from "../utils/debtDisplay";
 
 export function useDebtSettlementWorkflow({

@@ -1,25 +1,17 @@
 import { TRANSACTION_TYPES } from "@flowledger/shared";
 import { CurrencySelect } from "../../../components/CurrencySelect";
-import { SelectField, TextArea, TextInput } from "../../../components/FormField";
-import type { Account, Category, Group } from "../../../types/api";
+import {
+  SelectField,
+  TextArea,
+  TextInput
+} from "../../../components/FormField";
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { Group } from "../../../types/groups.types";
+import type { TransactionFormState } from "../types/transactions.types";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
-
-export type TransactionFormState = {
-  name: string;
-  amount: string;
-  executionCurrency: string;
-  type: "income" | "expense" | "transfer";
-  date: string;
-  accountId: string;
-  transferToAccountId: string;
-  categoryId: string;
-  groupId: string;
-  notes: string;
-  isShared: boolean;
-  sharedTitle: string;
-};
 
 export function TransactionCoreFields({
   form,
@@ -42,8 +34,8 @@ export function TransactionCoreFields({
     form.type === "transfer" &&
     Boolean(
       form.accountId &&
-        form.transferToAccountId &&
-        form.accountId === form.transferToAccountId
+      form.transferToAccountId &&
+      form.accountId === form.transferToAccountId
     );
   const sourceAccountOptions = accounts.filter(
     (account) => account.id !== form.transferToAccountId
@@ -57,7 +49,9 @@ export function TransactionCoreFields({
       <TextInput
         label="Name"
         value={form.name}
-        onChange={(event) => onFormChange({ ...form, name: event.target.value })}
+        onChange={(event) =>
+          onFormChange({ ...form, name: event.target.value })
+        }
         required
       />
       <TextInput
@@ -145,7 +139,9 @@ export function TransactionCoreFields({
         label="Date"
         type="date"
         value={form.date}
-        onChange={(event) => onFormChange({ ...form, date: event.target.value })}
+        onChange={(event) =>
+          onFormChange({ ...form, date: event.target.value })
+        }
         required
       />
       {form.type === "transfer" ? (
@@ -223,7 +219,9 @@ export function TransactionCoreFields({
         <TextArea
           label="Notes"
           value={form.notes}
-          onChange={(event) => onFormChange({ ...form, notes: event.target.value })}
+          onChange={(event) =>
+            onFormChange({ ...form, notes: event.target.value })
+          }
         />
         {form.type === "transfer" ? (
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

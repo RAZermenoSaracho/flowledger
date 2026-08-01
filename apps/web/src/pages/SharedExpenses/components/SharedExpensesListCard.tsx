@@ -6,7 +6,7 @@ import {
 } from "../../../components/SearchComponent";
 import type { SearchGroupByDef } from "../../../components/SearchComponent";
 import type { SharedExpenseSortBy } from "../../../services/sharedExpenses.client";
-import type { SharedExpense } from "../../../types/api";
+import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { SharedExpenseListItem } from "./SharedExpenseListItem";
 
 export const sharedExpenseGroupByDefs: SearchGroupByDef[] = [

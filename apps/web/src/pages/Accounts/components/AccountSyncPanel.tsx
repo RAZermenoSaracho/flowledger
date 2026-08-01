@@ -1,5 +1,5 @@
 import { Button } from "../../../components/Button";
-import type { Account, AccountSync } from "../../../types/api";
+import type { Account, AccountSync } from "../../../types/accounts.types";
 import { formatMoney } from "../../../utils/currency";
 import { formatDateTime, formatStatus } from "../utils/accountDisplay";
 

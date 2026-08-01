@@ -2,16 +2,10 @@ import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { CurrencySelect } from "../../../components/CurrencySelect";
 import { TextInput } from "../../../components/FormField";
-import type { Category, Group } from "../../../types/api";
+import type { Category } from "../../../types/categories.types";
+import type { Group } from "../../../types/groups.types";
+import type { ReportAmountMode, ReportFilters } from "../types/reports.types";
 import { MultiSelectFilter } from "./MultiSelectFilter";
-
-export type ReportAmountMode = "net" | "gross";
-export type ReportFilters = {
-  dateFrom: string;
-  dateTo: string;
-  groupIds: string[];
-  categoryIds: string[];
-};
 
 export const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
   { value: "net", label: "Net" },

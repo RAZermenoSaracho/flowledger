@@ -1,27 +1,6 @@
 import { Button } from "../../../components/Button";
 import { SelectField } from "../../../components/FormField";
-import type { Category } from "../../../types/api";
-
-type ImportedTransactionSelectionToolbarProps = {
-  totalFilteredCount: number;
-  visibleCount: number;
-  selectedCount: number;
-  selectedVisibleCount: number;
-  allFilteredSelected: boolean;
-  batchCategoryId: string;
-  categories: Category[];
-  isPendingFilter: boolean;
-  isIgnoredFilter: boolean;
-  isImporting: boolean;
-  isIgnoring: boolean;
-  isUnignoring: boolean;
-  onBatchCategoryChange: (categoryId: string) => void;
-  onVisibleSelectionChange: (selected: boolean) => void;
-  onAllFilteredSelectionChange: (selected: boolean) => void;
-  onImportSelected: () => void;
-  onIgnoreSelected: () => void;
-  onUnignoreSelected: () => void;
-};
+import type { ImportedTransactionSelectionToolbarProps } from "../types/transactions.types";
 
 export function ImportedTransactionSelectionToolbar({
   totalFilteredCount,

@@ -4,17 +4,9 @@ import { FormEvent, useState } from "react";
 import * as sharedExpensesClient from "../../../services/sharedExpenses.client";
 import { listTransactions } from "../../../services/transactions.client";
 import { searchUsers } from "../../../services/users.client";
-import type { PublicUser, SharedExpense } from "../../../types/api";
-
-export type ParticipantDraft = {
-  draftId: string;
-  userId?: string | null;
-  participantName: string;
-  email?: string;
-  source: "app" | "manual";
-  shareAmount: string;
-  paidAmount: string;
-};
+import type { SharedExpense } from "../../../types/sharedExpenses.types";
+import type { PublicUser } from "../../../types/users.types";
+import type { ParticipantDraft } from "../types/sharedExpenses.types";
 
 function participantStatus(shareAmount: string, paidAmount: string) {
   const share = Number(shareAmount);

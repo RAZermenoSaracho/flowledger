@@ -1,9 +1,11 @@
 import type { FormEvent } from "react";
 import { Card } from "../../../components/Card";
 import { SearchComponent } from "../../../components/SearchComponent";
-import type { Account, Category, Debt, PersonBalance } from "../../../types/api";
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
-import type { SettlementDraft } from "../types";
+import type { SettlementDraft } from "../types/debts.types";
 import { displayPerson } from "../utils/debtDisplay";
 import { EmptyState } from "./EmptyState";
 import { PersonDebtDetail } from "./PersonDebtDetail";
@@ -64,9 +66,9 @@ export function BalancesTab({
           <div>
             <h2 className="text-lg font-semibold">Outstanding balances</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              One net balance per person across all unsettled debts,
-              converted to {summaryCurrency}. Individual debts stay
-              denominated in their original currency.
+              One net balance per person across all unsettled debts, converted
+              to {summaryCurrency}. Individual debts stay denominated in their
+              original currency.
             </p>
           </div>
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">

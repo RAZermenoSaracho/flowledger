@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { SettlementRequest } from "../../../types/api";
+import type { SettlementRequest } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 
 export function SettlementRequestCard({

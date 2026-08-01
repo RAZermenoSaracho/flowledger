@@ -1,6 +1,6 @@
 import { Card } from "../../../components/Card";
 import { SearchComponent } from "../../../components/SearchComponent";
-import type { Debt } from "../../../types/api";
+import type { Debt } from "../../../types/debts.types";
 import { DebtSummaryCard } from "./DebtSummaryCard";
 import { EmptyState } from "./EmptyState";
 

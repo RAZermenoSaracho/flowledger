@@ -12,14 +12,13 @@ import { BalancesTab } from "./components/BalancesTab";
 import { PendingRequestsTab } from "./components/PendingRequestsTab";
 import { SettledDebtsTab } from "./components/SettledDebtsTab";
 import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
+import type { DebtsTab } from "./types/debts.types";
 import {
   availableSettlementAmount,
   debtMatchesSearch,
   otherParty,
   settlementRequestMatchesSearch
 } from "./utils/debtDisplay";
-
-type DebtsTab = "balances" | "pending" | "settled" | "sharedExpenses";
 
 const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "balances", label: "Outstanding Balances" },
@@ -86,8 +85,12 @@ export function DebtsPage() {
     privateIncomeCategories,
     accounts: accountsQuery.data ?? []
   });
-  const { selectedDebtIds, setSelectedDebtIds, selectedApprovalIds, setSelectedApprovalIds } =
-    workflow;
+  const {
+    selectedDebtIds,
+    setSelectedDebtIds,
+    selectedApprovalIds,
+    setSelectedApprovalIds
+  } = workflow;
 
   const balances = debts?.balances ?? [];
   const balanceByKey = useMemo(

@@ -2,8 +2,10 @@ import type { FormEvent } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { SearchComponent } from "../../../components/SearchComponent";
-import type { Account, Category, SettlementRequest } from "../../../types/api";
-import type { SettlementApprovalDraft } from "./ApprovalActions";
+import type { Account } from "../../../types/accounts.types";
+import type { Category } from "../../../types/categories.types";
+import type { SettlementRequest } from "../../../types/debts.types";
+import type { SettlementApprovalDraft } from "../types/debts.types";
 import { ApprovalActions } from "./ApprovalActions";
 import { EmptyState } from "./EmptyState";
 import { SettlementRequestCard } from "./SettlementRequestCard";
@@ -83,9 +85,7 @@ export function PendingRequestsTab({
     <Card>
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-semibold">
-            Pending settlement requests
-          </h2>
+          <h2 className="text-lg font-semibold">Pending settlement requests</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Review outgoing requests and approvals waiting on you.
           </p>
@@ -143,9 +143,12 @@ export function PendingRequestsTab({
                 variant="secondary"
                 className="w-full"
                 disabled={
-                  visiblePendingForMe.length === 0 || allVisibleApprovalsSelected
+                  visiblePendingForMe.length === 0 ||
+                  allVisibleApprovalsSelected
                 }
-                onClick={() => onSetApprovalSelection(visiblePendingForMe, true)}
+                onClick={() =>
+                  onSetApprovalSelection(visiblePendingForMe, true)
+                }
               >
                 Select all
               </Button>

@@ -1,6 +1,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "../../../components/Card";
-import type { CategoryChartRow } from "../../../types/api";
+import type { CategoryChartRow } from "../../../types/reports.types";
 import { formatMoney } from "../../../utils/currency";
 
 function renderPieLabel({
@@ -135,9 +135,9 @@ export function CategoryBreakdown({
                 ) : null}
                 {type === "income" && row.incomeOffsetTotal > 0 ? (
                   <span className="col-span-3 min-w-0 break-words pl-5 text-right text-xs text-slate-500 dark:text-slate-400">
-                    Gross {formatMoney(row.grossIncomeTotal, currency)} |
-                    Offset {formatMoney(-row.incomeOffsetTotal, currency)} |
-                    Net {formatMoney(row.netIncomeTotal, currency)}
+                    Gross {formatMoney(row.grossIncomeTotal, currency)} | Offset{" "}
+                    {formatMoney(-row.incomeOffsetTotal, currency)} | Net{" "}
+                    {formatMoney(row.netIncomeTotal, currency)}
                   </span>
                 ) : null}
               </div>

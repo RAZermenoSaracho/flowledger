@@ -3,9 +3,12 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { useAuth } from "../../hooks/useAuth";
-import { deleteTransaction as deleteTransactionRequest, getTransaction } from "../../services/transactions.client";
+import {
+  deleteTransaction as deleteTransactionRequest,
+  getTransaction
+} from "../../services/transactions.client";
 import { formatMoney } from "../../utils/currency";
-import type { Transaction } from "../../types/api";
+import type { Transaction } from "../../types/transactions.types";
 
 function splitDirectionLabel(type: Transaction["type"]) {
   if (type === "income") return "You owe participants";
@@ -38,7 +41,8 @@ export function TransactionDetailPage() {
     queryFn: async () => (await getTransaction(id!)).transaction
   });
   const deleteTransaction = useMutation({
-    mutationFn: (transactionId: string) => deleteTransactionRequest(transactionId),
+    mutationFn: (transactionId: string) =>
+      deleteTransactionRequest(transactionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -108,7 +112,10 @@ export function TransactionDetailPage() {
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <Detail
             label="Amount"
-            value={formatMoney(transaction.amount, transaction.executionCurrency)}
+            value={formatMoney(
+              transaction.amount,
+              transaction.executionCurrency
+            )}
           />
           {auth.user?.preferredCurrency &&
           auth.user.preferredCurrency !== transaction.executionCurrency ? (

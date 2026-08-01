@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { formatMoney } from "../../../utils/currency";
-import { parseTransactionAmount } from "../../../utils/transactions";
-import type { Transaction } from "../../../types/api";
+import { parseTransactionAmount } from "../utils/transactions";
+import type { Transaction } from "../../../types/transactions.types";
 
 function needsClassification(transaction: Transaction) {
   if (transaction.type === "transfer") {
@@ -71,7 +71,8 @@ export function TransactionList({
                         {new Date(transaction.date).toLocaleDateString()} ·{" "}
                         {transaction.type === "transfer"
                           ? "Transfer"
-                          : (transaction.category?.name ?? "Uncategorized")}{" "}
+                          : (transaction.category?.name ??
+                            "Uncategorized")}{" "}
                         · {transactionAccountLabel(transaction)}
                         {transaction.group
                           ? ` · ${transaction.group.name}${
