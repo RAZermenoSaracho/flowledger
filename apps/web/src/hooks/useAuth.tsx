@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { apiRequest, tokenStore } from "../services/api";
+import * as authClient from "../services/auth.client";
 import type { User } from "../types/api";
 
 type AuthContextValue = {
@@ -12,11 +12,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-type AuthResponse = {
-  token: string;
-  user: User;
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
@@ -25,23 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       setUser,
       login: async (email, password) => {
-        const response = await apiRequest<AuthResponse>("/auth/login", {
-          method: "POST",
-          body: { email, password }
-        });
-        tokenStore.set(response.token);
+        const response = await authClient.login(email, password);
+        authClient.setToken(response.token);
         setUser(response.user);
       },
       register: async (name, email, password) => {
-        const response = await apiRequest<AuthResponse>("/auth/register", {
-          method: "POST",
-          body: { name, email, password }
-        });
-        tokenStore.set(response.token);
+        const response = await authClient.register(name, email, password);
+        authClient.setToken(response.token);
         setUser(response.user);
       },
       logout: () => {
-        tokenStore.clear();
+        authClient.clearToken();
         setUser(null);
       }
     }),

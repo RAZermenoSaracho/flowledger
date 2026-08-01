@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { SelectField } from "./FormField";
-import { apiRequest } from "../services/api";
-import type { Currency } from "../types/api";
+import { listCurrencies } from "../services/currencies.client";
 
 export function useCurrenciesQuery() {
   return useQuery({
     queryKey: ["currencies"],
-    queryFn: () => apiRequest<{ currencies: Currency[] }>("/currencies"),
+    queryFn: () => listCurrencies(),
     staleTime: 60 * 60 * 1000
   });
 }
@@ -25,13 +24,8 @@ export function CurrencySelect({
   allowNoPreference?: boolean;
 }) {
   const currenciesQuery = useCurrenciesQuery();
-  const allCurrencies = currenciesQuery.data?.currencies ?? [];
-  const fiatCurrencies = allCurrencies
-    .filter((currency) => currency.type === "fiat")
-    .sort((a, b) => a.code.localeCompare(b.code));
-  const cryptoCurrencies = allCurrencies
-    .filter((currency) => currency.type === "crypto")
-    .sort((a, b) => a.code.localeCompare(b.code));
+  const fiatCurrencies = currenciesQuery.data?.fiat ?? [];
+  const cryptoCurrencies = currenciesQuery.data?.crypto ?? [];
 
   return (
     <SelectField

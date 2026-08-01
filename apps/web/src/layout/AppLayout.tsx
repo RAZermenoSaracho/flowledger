@@ -7,14 +7,20 @@ import {
   useLocation,
   useNavigate
 } from "react-router-dom";
+import type { MobileSidebarSide } from "@flowledger/shared";
 import { BrandLogo } from "../components/BrandLogo";
 import { Button } from "../components/Button";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
-import { useMobileSidebarSide } from "../hooks/useMobileSidebarSide";
-import { apiRequest, tokenStore } from "../services/api";
-import type { Notification, User } from "../types/api";
-import type { MobileSidebarSide } from "../hooks/useMobileSidebarSide";
+import { getMe, getToken } from "../services/auth.client";
+import {
+  getUnreadCount,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead
+} from "../services/notifications.client";
+import { getImportedTransactionsPendingCount } from "../services/transactions.client";
+import type { Notification } from "../types/api";
 
 const navItems = [
   ["Dashboard", routes.dashboard],
@@ -34,13 +40,14 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [mobileSidebarSide] = useMobileSidebarSide();
+  const mobileSidebarSide: MobileSidebarSide =
+    auth.user?.mobileSidebarSide ?? "left";
 
   useQuery({
     queryKey: ["me"],
-    enabled: Boolean(tokenStore.get()) && !auth.user,
+    enabled: Boolean(getToken()) && !auth.user,
     queryFn: async () => {
-      const response = await apiRequest<{ user: User }>("/auth/me");
+      const response = await getMe();
       auth.setUser(response.user);
       return response.user;
     },
@@ -148,31 +155,22 @@ function NotificationsMenu({
   const [isOpen, setIsOpen] = useState(false);
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
-    queryFn: async () =>
-      (await apiRequest<{ count: number }>("/notifications/unread-count"))
-        .count,
+    queryFn: async () => (await getUnreadCount()).count,
     refetchInterval: 60_000
   });
   const pendingImportedCountQuery = useQuery({
     queryKey: ["provider-imported-transactions", "pending-count"],
-    queryFn: async () =>
-      (
-        await apiRequest<{ count: number }>(
-          "/transactions/imported/pending-count"
-        )
-      ).count,
+    queryFn: async () => (await getImportedTransactionsPendingCount()).count,
     refetchInterval: 60_000
   });
   const notificationsQuery = useQuery({
     queryKey: ["notifications"],
     enabled: isOpen,
-    queryFn: async () =>
-      (await apiRequest<{ notifications: Notification[] }>("/notifications"))
-        .notifications
+    queryFn: async () => (await listNotifications()).notifications
   });
   const markRead = useMutation({
     mutationFn: (notificationId: string) =>
-      apiRequest(`/notifications/${notificationId}/read`, { method: "PATCH" }),
+      markNotificationRead(notificationId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
       await queryClient.invalidateQueries({
@@ -181,8 +179,7 @@ function NotificationsMenu({
     }
   });
   const markAllRead = useMutation({
-    mutationFn: () =>
-      apiRequest("/notifications/read-all", { method: "PATCH" }),
+    mutationFn: () => markAllNotificationsRead(),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
       await queryClient.invalidateQueries({
