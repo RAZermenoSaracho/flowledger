@@ -70,7 +70,7 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 
 ## Key architectural decisions
 
-- **Provider abstraction layer** — All bank integrations go through `FinancialProviderAdapter` (`provider.types.ts`). Never hardcode Syncfy-specific logic outside the `syncfy/` subdirectory.
+- **Provider abstraction layer** — All bank integrations go through `FinancialProviderAdapter` (`apps/api/src/modules/accounts/types/provider.types.ts`). Never hardcode Syncfy-specific logic outside `apps/api/src/modules/accounts/providers/syncfy/`. Providers live inside the module that owns their domain (e.g. Google OAuth under `auth/providers/google/`, Binance/Frankfurter under `currencies/providers/`) — see `apps/api/CLAUDE.md` for the full pattern.
 - **Imported transaction staging** — Provider transactions land in `ProviderImportedTransaction` (status `pending`) and only become user `Transaction` records after explicit review. This prevents accidental imports and preserves provider metadata.
 - **JWT auth only** — All authenticated routes require `Authorization: Bearer <token>`. The `requireAuth` middleware populates `req.user`. No session cookies.
 - **Shared Zod schemas** — All request validation uses schemas from `@flowledger/shared`. Backend and frontend share the same contracts.
@@ -87,9 +87,9 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | `database/prisma/schema.prisma` | Data model — all relationships, enums, indices |
 | `apps/api/src/server.ts` | Route mounting, middleware order, scheduler startup |
 | `apps/api/src/config/env.ts` | All environment variables and their defaults |
-| `apps/api/src/modules/providers/provider.types.ts` | Provider adapter contract |
-| `apps/api/src/modules/providers/syncfy/syncfy.service.ts` | Core Syncfy import logic |
-| `apps/api/src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts` | Background sync scheduler |
+| `apps/api/src/modules/accounts/types/provider.types.ts` | Provider adapter contract |
+| `apps/api/src/modules/accounts/providers/syncfy/services/create.service.ts` | Core Syncfy import logic |
+| `apps/api/src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts` | Background sync scheduler |
 | `packages/shared/src/schemas/` | Shared Zod schemas — always prefer these over ad-hoc validation |
 
 ---

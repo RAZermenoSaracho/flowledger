@@ -39,6 +39,7 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/` (index) | `DashboardPage` | Yes |
 | `/transactions` | `TransactionsPage` | Yes |
 | `/transactions/:id` | `TransactionDetailPage` | Yes |
+| `/transactions/:id/edit` | `TransactionEditPage` | Yes |
 | `/accounts` | `AccountsPage` | Yes |
 | `/categories` | `CategoriesPage` | Yes |
 | `/groups` | `GroupsPage` | Yes |
@@ -50,75 +51,153 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 
 ---
 
-## API calls — `services/api.ts`
+## API calls — per-module clients in `services/`
 
-All server communication goes through `src/services/api.ts`. Never use `fetch` directly in page or component code.
+`src/services/api.ts` holds the one low-level fetch layer (`apiRequest`, `tokenStore`, `ApiError`, `apiUrl`, `apiAssetUrl`). **`services/api.ts` must only ever be imported by files inside `services/` — never directly by a page, component, or hook.** This applies to every export, not just `apiRequest`: `tokenStore` is wrapped by `auth.client.ts` (`getToken`/`setToken`/`clearToken`), `apiAssetUrl` is wrapped by `users.client.ts` (`getAvatarUrl`), and `ApiError` is only ever caught inside a `.client.ts` function, which normalizes it into a plain return value (e.g. `transactions.client.ts`'s `getBatchErrors`) rather than leaking the error class itself to a page. If a page needs to inspect an error to make a decision, that decision belongs in the client or the backend, not the page. Every backend module has a matching `services/<module>.client.ts` that wraps it:
 
-```ts
-import { apiRequest, tokenStore, ApiError, apiUrl, apiAssetUrl } from '../services/api';
-
-// GET
-const data = await apiRequest<MyType>('/resource');
-
-// POST with body
-const result = await apiRequest<MyType>('/resource', { method: 'POST', body: payload });
-
-// GET with query params
-const list = await apiRequest<MyType[]>('/resource', { query: { status: 'active' } });
+```
+services/
+  api.ts                    apiRequest/tokenStore/ApiError/apiUrl/apiAssetUrl — the only fetch layer
+  accounts.client.ts        accounts CRUD + provider connections (Syncfy: connectors,
+                             institutions, connections, provider-account confirm/resync,
+                             credential refresh) — grouped here because provider syncing
+                             exists to sync FlowLedger accounts, mirroring the backend's
+                             accounts module
+  auth.client.ts            login/register/me + googleOAuthUrl() link builder
+  categories.client.ts      categories CRUD + list (supports scope:"all" for personal+group merge)
+  currencies.client.ts      currency list (fiat/crypto grouped) + exchange rate lookup
+  debts.client.ts           debts list (includes server-computed balances), settlement
+                             request/approve/reject, batch settlement request/approval
+  groups.client.ts          groups CRUD, members, nested group categories
+  notifications.client.ts   list/unread-count/mark-read/mark-all-read
+  reports.client.ts         summary/by-category/monthly-cashflow
+  sharedExpenses.client.ts  shared-expenses CRUD
+  transactions.client.ts    transactions CRUD + provider-imported-transaction review workflow
+  users.client.ts           profile, avatar, password, plan, sidebar side, user search
 ```
 
-- `apiRequest<T>` auto-adds `Authorization: Bearer <token>` and throws `ApiError` on non-2xx
-- `tokenStore` — get/set/clear JWT in `localStorage` under key `"flowledger.token"`
-- `apiUrl(path)` — absolute API URL for constructing links
-- `apiAssetUrl(path)` — absolute URL for API-served assets (avatars, uploads)
+**Rule: a `<module>.client.ts` file contains ONLY request-building and API-calling
+logic** — building the path/query/body and calling `apiRequest`. No filtering,
+sorting, grouping, or computed aggregates. That logic lives in the backend's
+`read.service.ts` (see `apps/api/CLAUDE.md`) and is exposed through query
+parameters (`sortBy`, `sortDirection`, facet filters, `scope`, `amountMode`,
+etc.) that the client function forwards.
+
+```ts
+import { apiRequest } from "./api";
+import type { Account } from "../types/api";
+
+export function listAccounts(params: { includeArchived?: boolean; sortBy?: "name" | "createdAt" } = {}) {
+  return apiRequest<{ accounts: Account[] }>("/accounts", {
+    query: { includeArchived: params.includeArchived ? "true" : undefined, sortBy: params.sortBy }
+  });
+}
+```
+
+Pages import the client, not `apiRequest`:
+
+```ts
+import { listAccounts, createAccount } from "../services/accounts.client";
+
+const accountsQuery = useQuery({
+  queryKey: ["accounts", sortBy],
+  queryFn: () => listAccounts({ sortBy }).then((r) => r.accounts)
+});
+```
+
+When a provider (Syncfy, Google, Binance/Frankfurter) has its own routes, its calls live in
+the client of the module that owns it on the backend — check `apps/api/CLAUDE.md`'s
+"Providers" section for which module that is. Don't invent a separate `<provider>.client.ts`
+unless the frontend actually calls that provider's routes independently of its owning module.
 
 ---
 
 ## Data fetching pattern
 
-All server state uses TanStack Query. Standard patterns:
+All server state uses TanStack Query, always via a `<module>.client.ts` function — never an inline `apiRequest` call in a page or component:
 
 ```ts
 // Query
 const { data } = useQuery({
   queryKey: ['resource', id],
-  queryFn: () => apiRequest<Resource>(`/resource/${id}`),
+  queryFn: () => getResource(id),
 });
 
 // Mutation with cache invalidation
 const mutation = useMutation({
-  mutationFn: (body: Payload) => apiRequest('/resource', { method: 'POST', body }),
+  mutationFn: (body: Payload) => createResource(body),
   onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resource'] }),
 });
 ```
+
+### What belongs in a page vs. the backend
+
+- **Backend (`read.service.ts`, via query params passed through the client function):** filtering by any facet (status, type, category, account, group, currency, date range, amount range), sorting, computed aggregates (totals, balances, per-person netting, report rows with derived fields/colors).
+- **Page/component (local state, presentational):** which UI panel is open, free-text search-box narrowing of an already-fetched list (search is otherwise server-side wherever the backend supports it), grouping already-sorted results into collapsible UI sections (no aggregation, just bucketing for rendering), unsaved form/draft state (e.g. a shared-expense split being built before save), excluding an already-selected option from a dropdown.
+
+If you find yourself writing `.filter()` / `.sort()` / `.reduce()` over `queryKey` data to compute something other than presentational bucketing, check whether the backend already exposes a parameter for it before reaching for client-side logic — most list endpoints support `sortBy`/`sortDirection` and facet filters (including multi-select array filters, e.g. `typeIds`/`categoryIds` on `/transactions`).
 
 ---
 
 ## Component and hook conventions
 
-- Pages: `src/pages/<Name>Page.tsx`, exported as named export (`PascalCase`)
-- Shared UI primitives: `src/components/<Name>.tsx`
-- Custom hooks: `src/hooks/use<Name>.tsx` or `.ts`
+- Pages: one folder per page module under `src/pages/<Name>/` — see "Page-module folder structure" below
+- Shared UI primitives (used by more than one page module): `src/components/<Name>.tsx`
+- Custom hooks shared across page modules: `src/hooks/use<Name>.tsx` or `.ts`
 - Layout wrappers: `src/layout/<Name>.tsx`
 - Styling: Tailwind utility classes only — no inline `style` props, no CSS modules
-- No component-level `fetch` calls — always use `apiRequest` via TanStack Query
+- No component-level `fetch` or `apiRequest` calls — always go through a `services/<module>.client.ts` function via TanStack Query
+
+### Page-module folder structure
+
+Every page lives in its own folder under `src/pages/`, named for the module (`PascalCase`, matches the page component minus the `Page` suffix):
+
+```
+pages/<Name>/
+  <Name>Page.tsx          the page component, exported as a named export (PascalCase)
+  <OtherPage>.tsx          additional top-level pages that belong to the same module
+                            (e.g. Transactions/ also holds TransactionDetailPage.tsx
+                            and TransactionEditPage.tsx)
+  components/              UI pieces extracted from this page that are specific to it —
+                            not reused by any other page module
+  hooks/                   stateful logic (state + mutations + queries) extracted from
+                            this page when a section's state/handlers are substantial
+                            enough to clutter the page file — e.g.
+                            Transactions/hooks/useImportedTransactionsWorkflow.ts,
+                            Debts/hooks/useDebtSettlementWorkflow.ts. Only add this folder
+                            if the extraction is genuinely warranted; small pages don't
+                            need it.
+  utils/                   pure presentation-only helpers specific to this page (date/
+                            enum-to-label formatting, etc.) — only if genuinely needed.
+                            If something here starts to look like filtering, sorting,
+                            or business logic, it belongs in the backend's
+                            `read.service.ts` instead, not in a frontend utils/ file.
+```
+
+Apply this folder pattern to every page, even small ones, for consistency. A page file should end up being primarily composition — importing and arranging its `components/` (and calling its `hooks/`) — not one large JSX tree with all the logic inline. Only put something in a page's `components/`, `hooks/`, or `utils/` folder if it is genuinely specific to that page/module; anything reusable belongs in the top-level `components/` or `hooks/` instead.
+
+**Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
 
 ### Adding a new page
 
-1. Create `src/pages/<Name>Page.tsx` with a named export
+1. Create `src/pages/<Name>/<Name>Page.tsx` with a named export
 2. Add a route constant to `src/constants/routes.ts`
-3. Add the `<Route>` in `src/main.tsx` (inside the `<ProtectedRoute>` wrapper if auth-required)
+3. Add the `<Route>` in `src/main.tsx` (inside the `<ProtectedRoute>` wrapper if auth-required), importing from `./pages/<Name>/<Name>Page`
 4. If auth-required: it will render inside `AppLayout` automatically
+5. If the page needs backend data, add the calls to the relevant `services/<module>.client.ts` (create the file if the module doesn't have one yet) rather than calling `apiRequest` inline
 
 ### Adding a new component
 
-Create `src/components/<Name>.tsx`. Export named. Use existing primitives (`Button`, `Card`, `FormField`) before creating new ones.
+- Specific to one page module: `src/pages/<Name>/components/<Component>.tsx`
+- Reused by more than one page module: `src/components/<Name>.tsx`
+
+Export named. Use existing primitives (`Button`, `Card`, `FormField`) before creating new ones.
 
 ---
 
 ## Auth context
 
-`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, setUser, logout }`. On login, store the JWT with `tokenStore.set(token)` and call `setUser(user)`. On logout, `tokenStore.clear()` is handled by `logout()`.
+`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, setUser, logout }`. On login, store the JWT via `auth.client.ts`'s `setToken(token)` and call `setUser(user)`. On logout, `clearToken()` (also from `auth.client.ts`) is handled by `logout()`. `useAuth`'s `login`/`register` delegate to `services/auth.client.ts`.
 
 ---
 
@@ -137,13 +216,15 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 
 ## What to never do
 
-- Call `fetch` directly in components or pages — always use `apiRequest` from `services/api.ts`
+- Call `fetch` or `apiRequest` directly in components or pages — always go through a `services/<module>.client.ts` function
+- Import anything from `services/api.ts` outside of `services/` — not just `apiRequest`, but `tokenStore`, `ApiError`, `apiUrl`, and `apiAssetUrl` too. Every one of those is wrapped by a `.client.ts` function (`auth.client.ts`'s `getToken`/`setToken`/`clearToken`, `users.client.ts`'s `getAvatarUrl`, etc.) — `grep -r "services/api" src` outside `services/` itself should return nothing
+- Put filtering, sorting, grouping, or aggregate computation in a `.client.ts` file — it only builds requests; that logic belongs in the backend's `read.service.ts`
 - Use inline `style` props for layout/theming — use Tailwind classes
-- Access `localStorage` directly for the token — use `tokenStore`
+- Access `localStorage` or `tokenStore` directly for the token from a page/component/hook — use `getToken`/`setToken`/`clearToken` from `services/auth.client.ts`
 - Define new TypeScript types that duplicate `src/types/api.ts` — extend or reuse existing types
 - Import from `apps/api` — the only shared code is from `@flowledger/shared`
 - Use `useEffect` + `fetch` for data fetching — use TanStack Query
-- Hard-code API paths as strings in components — use route constants from `constants/routes.ts` for page navigation, and use `apiRequest(path)` with literal API path strings
+- Hard-code API paths as strings in components — use route constants from `constants/routes.ts` for page navigation, and call a `services/<module>.client.ts` function instead of a literal API path string
 
 ---
 
@@ -152,7 +233,8 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 | File | Why |
 |---|---|
 | `src/main.tsx` | Router setup, provider tree, all route-to-page mappings |
-| `src/services/api.ts` | `apiRequest`, `tokenStore`, `ApiError` — the only fetch layer |
+| `src/services/api.ts` | `apiRequest`, `tokenStore`, `ApiError` — the only fetch layer, wrapped by every `<module>.client.ts` |
+| `src/services/` | The per-module client files — check here first for existing request-building logic before adding new `apiRequest` usage |
 | `src/hooks/useAuth.tsx` | Auth context shape and how token/user state is managed |
 | `src/layout/AppLayout.tsx` | Sidebar nav, notification bell, mobile layout — shared shell for all auth'd pages |
 | `src/types/api.ts` | Frontend TypeScript types for all API response shapes |
