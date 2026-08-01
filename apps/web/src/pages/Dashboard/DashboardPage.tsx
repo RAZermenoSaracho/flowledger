@@ -1,23 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card } from "../components/Card";
-import { apiRequest } from "../services/api";
-import type { CashflowRow, Summary, Transaction } from "../types/api";
+import { Card } from "../../components/Card";
+import { getMonthlyCashflowReport, getSummaryReport } from "../../services/reports.client";
+import { listTransactions } from "../../services/transactions.client";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 export function DashboardPage() {
   const summaryQuery = useQuery({
     queryKey: ["summary"],
-    queryFn: async () => (await apiRequest<{ summary: Summary }>("/reports/summary")).summary
+    queryFn: async () => (await getSummaryReport({})).summary
   });
   const cashflowQuery = useQuery({
     queryKey: ["cashflow"],
-    queryFn: async () => (await apiRequest<{ cashflow: CashflowRow[] }>("/reports/monthly-cashflow")).cashflow
+    queryFn: async () => (await getMonthlyCashflowReport({})).cashflow
   });
   const transactionsQuery = useQuery({
     queryKey: ["transactions", "recent"],
-    queryFn: async () => (await apiRequest<{ transactions: Transaction[] }>("/transactions")).transactions.slice(0, 5)
+    queryFn: async () =>
+      (await listTransactions({ limit: 5 })).transactions
   });
 
   const summary = summaryQuery.data ?? {
@@ -28,7 +29,10 @@ export function DashboardPage() {
     totalGrossExpenses: 0,
     totalExpenseReimbursements: 0,
     totalNetExpenses: 0,
-    currentBalance: 0
+    currentBalance: 0,
+    reportIncome: 0,
+    reportExpenses: 0,
+    reportBalance: 0
   };
 
   return (
