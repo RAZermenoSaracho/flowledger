@@ -1,124 +1,12 @@
 import type { SharedExpenseInput } from "@flowledger/shared";
 import type { Prisma, Transaction } from "@prisma/client";
-import { prisma } from "../../db/prisma.js";
-import { HttpError } from "../../utils/httpError.js";
-import {
-  createNotifications,
-  moneyText
-} from "../notifications/notifications.service.js";
-import { getDebtDirection } from "../debts/debtDirection.js";
-
-type ParticipantInput = NonNullable<SharedExpenseInput["participants"]>[number];
-
-function totalParticipantShares(participants: ParticipantInput[]) {
-  return participants.reduce(
-    (sum, participant) => sum + Number(participant.shareAmount),
-    0
-  );
-}
-
-export async function getOwnedTransaction(
-  userId: string,
-  transactionId?: string
-) {
-  if (!transactionId) return null;
-
-  const transaction = await prisma.transaction.findFirst({
-    where: { id: transactionId, userId }
-  });
-
-  if (!transaction) {
-    throw new HttpError(400, "Transaction does not exist for this user");
-  }
-
-  return transaction;
-}
-
-export function assertShareableTransaction(
-  transaction: Pick<Transaction, "type">
-) {
-  if (transaction.type === "transfer") {
-    throw new HttpError(
-      400,
-      "Shared transactions are only supported for income and expense transactions"
-    );
-  }
-}
-
-export async function normalizeSharedExpenseParticipants(
-  ownerUserId: string,
-  participants: SharedExpenseInput["participants"] = [],
-  groupId?: string | null
-) {
-  const participantUserIds = Array.from(
-    new Set(
-      participants.map((participant) => participant.userId).filter(Boolean)
-    )
-  ) as string[];
-
-  if (participantUserIds.includes(ownerUserId)) {
-    throw new HttpError(
-      400,
-      "Shared transaction participants cannot include the owner"
-    );
-  }
-
-  if (groupId && participants.some((participant) => !participant.userId)) {
-    throw new HttpError(400, "Group split participants must be app users");
-  }
-
-  if (participantUserIds.length === 0) {
-    return participants;
-  }
-
-  if (groupId) {
-    const groupMemberCount = await prisma.groupMember.count({
-      where: {
-        groupId,
-        userId: { in: participantUserIds }
-      }
-    });
-
-    if (groupMemberCount !== participantUserIds.length) {
-      throw new HttpError(
-        400,
-        "Group split participants must be group members"
-      );
-    }
-  }
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: participantUserIds } },
-    select: { id: true, name: true }
-  });
-  const usersById = new Map(users.map((user) => [user.id, user]));
-
-  if (users.length !== participantUserIds.length) {
-    throw new HttpError(400, "One or more participants do not exist");
-  }
-
-  return participants.map((participant) => {
-    if (!participant.userId) return participant;
-
-    const user = usersById.get(participant.userId);
-    return {
-      ...participant,
-      participantName: user?.name ?? participant.participantName
-    };
-  });
-}
-
-export function validateSharedExpenseParticipants(
-  totalAmount: Prisma.Decimal,
-  participants: ParticipantInput[]
-) {
-  if (totalParticipantShares(participants) > totalAmount.toNumber()) {
-    throw new HttpError(
-      400,
-      "Participant shares cannot exceed the transaction amount"
-    );
-  }
-}
+import { prisma } from "../../../db/prisma.js";
+import { HttpError } from "../../../utils/httpError.js";
+import { createNotifications } from "../../notifications/services/create.service.js";
+import { moneyText } from "../../notifications/utils/moneyText.js";
+import { getDebtDirection } from "../../debts/utils/debtDirection.js";
+import { assertShareableTransaction, validateSharedExpenseParticipants } from "../utils/assertions.js";
+import { getOwnedTransaction, normalizeSharedExpenseParticipants } from "./read.service.js";
 
 export async function createSharedExpenseForTransaction(
   tx: Prisma.TransactionClient,
@@ -244,4 +132,18 @@ export async function notifySharedExpenseParticipants(
   });
 
   await createNotifications(tx, notifications);
+}
+
+export async function createSharedExpense(
+  userId: string,
+  input: SharedExpenseInput
+) {
+  const transaction = await getOwnedTransaction(userId, input.transactionId);
+  if (!transaction) {
+    throw new HttpError(400, "Transaction is required");
+  }
+
+  return prisma.$transaction((tx) =>
+    createSharedExpenseForTransaction(tx, userId, transaction, input)
+  );
 }
