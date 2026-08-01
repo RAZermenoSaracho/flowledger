@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   parseTransactionAmount,
   summarizeTransactions
-} from "../src/utils/transactions.ts";
+} from "../src/pages/Transactions/utils/transactions.ts";
 
 const unfilteredTransactions = [
   { type: "income" as const, amount: "1000.25" },
