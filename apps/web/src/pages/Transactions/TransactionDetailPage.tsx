@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { useAuth } from "../hooks/useAuth";
-import { apiRequest } from "../services/api";
-import { formatMoney } from "../utils/currency";
-import type { Transaction } from "../types/api";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { useAuth } from "../../hooks/useAuth";
+import { deleteTransaction as deleteTransactionRequest, getTransaction } from "../../services/transactions.client";
+import { formatMoney } from "../../utils/currency";
+import type { Transaction } from "../../types/api";
 
 function splitDirectionLabel(type: Transaction["type"]) {
   if (type === "income") return "You owe participants";
@@ -35,13 +35,10 @@ export function TransactionDetailPage() {
   const transactionQuery = useQuery({
     queryKey: ["transaction", id],
     enabled: Boolean(id),
-    queryFn: async () =>
-      (await apiRequest<{ transaction: Transaction }>(`/transactions/${id}`))
-        .transaction
+    queryFn: async () => (await getTransaction(id!)).transaction
   });
   const deleteTransaction = useMutation({
-    mutationFn: (transactionId: string) =>
-      apiRequest(`/transactions/${transactionId}`, { method: "DELETE" }),
+    mutationFn: (transactionId: string) => deleteTransactionRequest(transactionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -73,22 +70,32 @@ export function TransactionDetailPage() {
           >
             Back to transactions
           </Link>
-          <Button
-            type="button"
-            variant="danger"
-            disabled={deleteTransaction.isPending}
-            onClick={() => {
-              const sharedCleanup = transaction.sharedExpense
-                ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
-                : "";
-              const confirmed = window.confirm(
-                `Delete "${transaction.name}" permanently?${sharedCleanup}`
-              );
-              if (confirmed) void deleteTransaction.mutateAsync(transaction.id);
-            }}
-          >
-            Delete
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => navigate(`/transactions/${transaction.id}/edit`)}
+            >
+              Edit
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={deleteTransaction.isPending}
+              onClick={() => {
+                const sharedCleanup = transaction.sharedExpense
+                  ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
+                  : "";
+                const confirmed = window.confirm(
+                  `Delete "${transaction.name}" permanently?${sharedCleanup}`
+                );
+                if (confirmed)
+                  void deleteTransaction.mutateAsync(transaction.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
         </div>
         <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
         {isPendingClassification ? (

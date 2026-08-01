@@ -1,6 +1,6 @@
-import { Button } from "./Button";
-import { SelectField } from "./FormField";
-import type { Category } from "../types/api";
+import { Button } from "../../../components/Button";
+import { SelectField } from "../../../components/FormField";
+import type { Category } from "../../../types/api";
 
 type ImportedTransactionSelectionToolbarProps = {
   totalFilteredCount: number;

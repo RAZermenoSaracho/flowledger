@@ -1,7 +1,7 @@
-import { Button } from "./Button";
-import { SelectField } from "./FormField";
-import type { Category, ProviderImportedTransaction } from "../types/api";
-import { formatMoney } from "../utils/currency";
+import { Button } from "../../../components/Button";
+import { SelectField } from "../../../components/FormField";
+import type { Category, ProviderImportedTransaction } from "../../../types/api";
+import { formatMoney } from "../../../utils/currency";
 
 export function importedTransactionType(
   transaction: ProviderImportedTransaction
