@@ -1,5 +1,5 @@
-import { apiRequest, apiUrl, tokenStore } from "./api";
-import type { User } from "../types/api";
+import { apiRequest, apiUrl, tokenStore } from "./api.client";
+import type { User } from "../types/users.types";
 
 export function login(email: string, password: string) {
   return apiRequest<{ token: string; user: User }>("/auth/login", {
@@ -26,7 +26,7 @@ export function googleOAuthUrl(redirect: string) {
 // Session-token access for auth-flow call sites (route guards, the auth
 // context, OAuth callback handling). Not a data-fetching concern, but kept
 // here rather than accessed directly so nothing outside services/ reaches
-// into services/api.ts.
+// into services/api.client.ts.
 export function getToken() {
   return tokenStore.get();
 }

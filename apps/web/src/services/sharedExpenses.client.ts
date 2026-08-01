@@ -1,5 +1,5 @@
-import { apiRequest } from "./api";
-import type { SharedExpense } from "../types/api";
+import { apiRequest } from "./api.client";
+import type { SharedExpense } from "../types/sharedExpenses.types";
 import type { SharedExpenseStatus } from "@flowledger/shared";
 
 export type SharedExpenseSortBy =

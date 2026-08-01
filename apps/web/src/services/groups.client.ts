@@ -1,5 +1,6 @@
-import { apiRequest } from "./api";
-import type { Category, Group, GroupMember } from "../types/api";
+import { apiRequest } from "./api.client";
+import type { Category } from "../types/categories.types";
+import type { Group, GroupMember } from "../types/groups.types";
 import type { CategoryType } from "@flowledger/shared";
 import type { CategorySortBy, SortDirection } from "./categories.client";
 
@@ -39,7 +40,10 @@ export function getGroup(groupId: string, params: GetGroupParams = {}) {
   });
 }
 
-export function createGroup(body: { name: string; description?: string | null }) {
+export function createGroup(body: {
+  name: string;
+  description?: string | null;
+}) {
   return apiRequest<{ group: Group }>("/groups", { method: "POST", body });
 }
 

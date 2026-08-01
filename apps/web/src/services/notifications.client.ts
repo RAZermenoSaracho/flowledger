@@ -1,5 +1,5 @@
-import { apiRequest } from "./api";
-import type { Notification } from "../types/api";
+import { apiRequest } from "./api.client";
+import type { Notification } from "../types/notifications.types";
 
 export function listNotifications() {
   return apiRequest<{ notifications: Notification[] }>("/notifications");

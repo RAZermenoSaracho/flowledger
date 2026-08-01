@@ -1,10 +1,10 @@
-import { apiRequest } from "./api";
+import { apiRequest } from "./api.client";
 import type {
   Account,
   Connector,
   Institution,
   ProviderImportedAccount
-} from "../types/api";
+} from "../types/accounts.types";
 import type { AccountType } from "@flowledger/shared";
 
 export type AccountSortBy = "name" | "createdAt" | "updatedAt";
@@ -82,15 +82,20 @@ export function listProviderConnectors() {
   return apiRequest<{ connectors: Connector[] }>("/providers/connectors");
 }
 
-export function listProviderInstitutions(params: {
-  q?: string;
-  provider?: string;
-  country?: string;
-  category?: string;
-} = {}) {
-  return apiRequest<{ institutions: Institution[] }>("/providers/institutions", {
-    query: params
-  });
+export function listProviderInstitutions(
+  params: {
+    q?: string;
+    provider?: string;
+    country?: string;
+    category?: string;
+  } = {}
+) {
+  return apiRequest<{ institutions: Institution[] }>(
+    "/providers/institutions",
+    {
+      query: params
+    }
+  );
 }
 
 export function createProviderConnection(body: {
@@ -154,9 +159,7 @@ export function refreshSyncfyCredential(providerCredentialId: string) {
   );
 }
 
-export function listProviderAccounts(
-  params: { status?: "unlinked" } = {}
-) {
+export function listProviderAccounts(params: { status?: "unlinked" } = {}) {
   return apiRequest<{ accounts: ProviderImportedAccount[] }>(
     "/providers/accounts",
     { query: params }

@@ -1,16 +1,18 @@
-import { ApiError, apiRequest } from "./api";
+import { ApiError, apiRequest } from "./api.client";
 import type {
   ProviderImportedTransaction,
   ProviderImportedTransactionStatus,
   Transaction,
   TransactionsSummary
-} from "../types/api";
+} from "../types/transactions.types";
 import type { TransactionType } from "@flowledger/shared";
 
 // Batch imported-transaction endpoints (batch-import/batch-ignore/batch-unignore)
 // return per-item failures in the error body; this extracts them for display
 // without callers needing to know about ApiError.
-export function getBatchErrors(error: unknown): { id: string; message: string }[] {
+export function getBatchErrors(
+  error: unknown
+): { id: string; message: string }[] {
   if (!(error instanceof ApiError)) return [];
   const body = error.body as { errors?: { id: string; message: string }[] };
   return Array.isArray(body?.errors) ? body.errors : [];
@@ -43,17 +45,17 @@ export type ListTransactionsParams = {
 };
 
 export function listTransactions(params: ListTransactionsParams = {}) {
-  return apiRequest<{ transactions: Transaction[]; summary: TransactionsSummary }>(
-    "/transactions",
-    {
-      query: {
-        ...params,
-        amountFrom: params.amountFrom?.toString(),
-        amountTo: params.amountTo?.toString(),
-        limit: params.limit?.toString()
-      } as Record<string, string | string[] | undefined>
-    }
-  );
+  return apiRequest<{
+    transactions: Transaction[];
+    summary: TransactionsSummary;
+  }>("/transactions", {
+    query: {
+      ...params,
+      amountFrom: params.amountFrom?.toString(),
+      amountTo: params.amountTo?.toString(),
+      limit: params.limit?.toString()
+    } as Record<string, string | string[] | undefined>
+  });
 }
 
 export function getTransaction(transactionId: string) {
@@ -121,9 +123,7 @@ export function listImportedTransactions(
 }
 
 export function getImportedTransactionsPendingCount() {
-  return apiRequest<{ count: number }>(
-    "/transactions/imported/pending-count"
-  );
+  return apiRequest<{ count: number }>("/transactions/imported/pending-count");
 }
 
 export function updateImportedTransactionCategory(

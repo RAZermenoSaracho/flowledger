@@ -1,5 +1,5 @@
-import { apiAssetUrl, apiRequest } from "./api";
-import type { PublicUser, User } from "../types/api";
+import { apiAssetUrl, apiRequest } from "./api.client";
+import type { PublicUser, User } from "../types/users.types";
 import type { PlanType, MobileSidebarSide } from "@flowledger/shared";
 
 export function getProfile() {

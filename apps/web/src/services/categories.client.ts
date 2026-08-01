@@ -1,5 +1,5 @@
-import { apiRequest } from "./api";
-import type { Category } from "../types/api";
+import { apiRequest } from "./api.client";
+import type { Category } from "../types/categories.types";
 import type { CategoryType } from "@flowledger/shared";
 
 export type CategorySortBy = "name" | "createdAt" | "updatedAt";

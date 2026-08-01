@@ -1,5 +1,9 @@
-import { apiRequest } from "./api";
-import type { Debt, PersonBalance, SettlementRequest } from "../types/api";
+import { apiRequest } from "./api.client";
+import type {
+  Debt,
+  PersonBalance,
+  SettlementRequest
+} from "../types/debts.types";
 
 export type DebtsResponse = {
   iOwe: Debt[];
