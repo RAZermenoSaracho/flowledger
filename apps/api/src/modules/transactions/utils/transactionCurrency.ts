@@ -1,4 +1,5 @@
-import { getExchangeRate, roundMoney } from "../currencies/exchangeRate.service.js";
+import { getExchangeRate } from "../../currencies/services/read.service.js";
+import { roundMoney } from "../../currencies/utils/roundMoney.js";
 
 export async function resolveTransactionCurrencyFields(input: {
   executionCurrency: string;
