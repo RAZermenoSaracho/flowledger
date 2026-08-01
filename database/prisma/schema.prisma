@@ -70,6 +70,7 @@ model User {
   avatarUrl                    String?
   planType                     String                        @default("free")
   preferredCurrency            String?
+  mobileSidebarSide            String                        @default("left")
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   authAccounts                 UserAuthAccount[]
