@@ -1,6 +1,7 @@
 import type {
   ACCOUNT_TYPES,
   CATEGORY_TYPES,
+  MOBILE_SIDEBAR_SIDES,
   PARTICIPANT_STATUSES,
   NOTIFICATION_TYPES,
   PLAN_TYPES,
@@ -17,6 +18,7 @@ export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type PlanType = (typeof PLAN_TYPES)[number];
+export type MobileSidebarSide = (typeof MOBILE_SIDEBAR_SIDES)[number];
 export type GroupRole = "admin" | "member";
 export type InstitutionCategory =
   | "bank"

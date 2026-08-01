@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CATEGORY_TYPES } from "../constants/index.js";
+import { optionalArraySchema } from "./common.js";
 
 export const categorySchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -9,7 +10,11 @@ export const categorySchema = z.object({
 
 export const categoryFiltersSchema = z.object({
   groupId: z.string().min(1).optional(),
-  includeArchived: z.enum(["true", "false"]).optional()
+  scope: z.enum(["all"]).optional(),
+  includeArchived: z.enum(["true", "false"]).optional(),
+  sortBy: z.enum(["name", "createdAt", "updatedAt"]).optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional(),
+  types: optionalArraySchema(z.enum(CATEGORY_TYPES))
 });
 
 export const updateCategorySchema = categorySchema

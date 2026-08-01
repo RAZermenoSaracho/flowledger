@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ACCOUNT_TYPES } from "../constants/index.js";
-import { currencyCodeSchema } from "./common.js";
+import { currencyCodeSchema, optionalArraySchema } from "./common.js";
 
 export const accountSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -13,9 +13,11 @@ export const accountSchema = z.object({
 export const updateAccountSchema = accountSchema.partial();
 
 export const accountFiltersSchema = z.object({
-  includeArchived: z
-    .enum(["true", "false"])
-    .optional()
+  includeArchived: z.enum(["true", "false"]).optional(),
+  sortBy: z.enum(["name", "createdAt", "updatedAt"]).optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional(),
+  types: optionalArraySchema(z.enum(ACCOUNT_TYPES)),
+  sources: optionalArraySchema(z.enum(["manual", "synced"]))
 });
 
 export type AccountInput = z.infer<typeof accountSchema>;

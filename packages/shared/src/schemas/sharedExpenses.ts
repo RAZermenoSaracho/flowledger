@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PARTICIPANT_STATUSES, SHARED_EXPENSE_STATUSES } from "../constants/index.js";
-import { moneySchema } from "./common.js";
+import { moneySchema, optionalArraySchema } from "./common.js";
 
 export const sharedExpenseParticipantSchema = z.object({
   userId: z.string().min(1).optional().nullable(),
@@ -21,5 +21,15 @@ export const updateSharedExpenseSchema = sharedExpenseSchema.partial().extend({
   participants: z.array(sharedExpenseParticipantSchema).optional()
 });
 
+export const sharedExpenseFiltersSchema = z.object({
+  status: z.enum(SHARED_EXPENSE_STATUSES).optional(),
+  statuses: optionalArraySchema(z.enum(SHARED_EXPENSE_STATUSES)),
+  sortBy: z
+    .enum(["title", "totalAmount", "status", "createdAt", "updatedAt"])
+    .optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional()
+});
+
 export type SharedExpenseInput = z.infer<typeof sharedExpenseSchema>;
 export type UpdateSharedExpenseInput = z.infer<typeof updateSharedExpenseSchema>;
+export type SharedExpenseFilters = z.infer<typeof sharedExpenseFiltersSchema>;

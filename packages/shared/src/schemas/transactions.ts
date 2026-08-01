@@ -7,6 +7,7 @@ import {
 import {
   currencyCodeSchema,
   moneySchema,
+  optionalArraySchema,
   optionalDateStringSchema
 } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
@@ -119,12 +120,21 @@ export const transactionFiltersSchema = z.object({
   amountFrom: moneySchema.optional(),
   amountTo: moneySchema.optional(),
   categoryId: z.string().min(1).optional(),
+  categoryIds: optionalArraySchema(z.string().min(1)),
   groupId: z.string().min(1).optional(),
+  groupIds: optionalArraySchema(z.string().min(1)),
   accountId: z.string().min(1).optional(),
+  accountIds: optionalArraySchema(z.string().min(1)),
+  executionCurrency: currencyCodeSchema.optional(),
+  executionCurrencies: optionalArraySchema(currencyCodeSchema),
   type: z.enum(TRANSACTION_TYPES).optional(),
+  types: optionalArraySchema(z.enum(TRANSACTION_TYPES)),
   transactionFilterType: z.enum(TRANSACTION_FILTER_TYPES).optional(),
   classification: z.enum(["complete", "needsClassification"]).optional(),
-  search: z.string().trim().max(120).optional()
+  search: z.string().trim().max(120).optional(),
+  sortBy: z.enum(["date", "createdAt", "name", "amount"]).optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional(),
+  limit: z.coerce.number().int().positive().max(500).optional()
 });
 
 export const providerImportedTransactionFiltersSchema = z.object({

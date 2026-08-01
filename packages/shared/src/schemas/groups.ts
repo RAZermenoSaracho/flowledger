@@ -12,7 +12,9 @@ export const updateGroupSchema = groupSchema.partial().refine(
 );
 
 export const groupFiltersSchema = z.object({
-  includeArchived: z.enum(["true", "false"]).optional()
+  includeArchived: z.enum(["true", "false"]).optional(),
+  sortBy: z.enum(["name", "createdAt", "updatedAt"]).optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional()
 });
 
 export const groupMemberSchema = z.object({

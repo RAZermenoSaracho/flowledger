@@ -29,6 +29,7 @@ export const NOTIFICATION_TYPES = [
   "provider_transactions_pending"
 ] as const;
 export const PLAN_TYPES = ["free", "flowledger_one"] as const;
+export const MOBILE_SIDEBAR_SIDES = ["left", "right"] as const;
 
 export const ACCOUNT_TYPES = [
   "cash",
