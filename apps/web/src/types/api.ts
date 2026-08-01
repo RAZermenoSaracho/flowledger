@@ -2,6 +2,7 @@ import type {
   AccountType,
   CategoryType,
   GroupRole,
+  MobileSidebarSide,
   NotificationType,
   ParticipantStatus,
   PlanType,
@@ -21,6 +22,7 @@ export type User = {
   avatarUrl?: string | null;
   planType: PlanType;
   preferredCurrency?: string | null;
+  mobileSidebarSide: MobileSidebarSide;
   createdAt: string;
   updatedAt: string;
 };
@@ -251,6 +253,17 @@ export type Debt = SharedExpenseParticipant & {
   settlementRequests: SettlementRequest[];
 };
 
+export type PersonBalance = {
+  key: string;
+  person: PublicUser | null;
+  fallbackName: string;
+  theyOweMe: Debt[];
+  iOweThem: Debt[];
+  theyOweMeTotal: number;
+  iOweThemTotal: number;
+  netBalance: number;
+};
+
 export type SharedExpense = {
   id: string;
   transactionId: string;
@@ -285,6 +298,9 @@ export type Summary = {
   totalExpenseReimbursements: number;
   totalNetExpenses: number;
   currentBalance: number;
+  reportIncome: number;
+  reportExpenses: number;
+  reportBalance: number;
 };
 
 export type CategoryReportRow = {
@@ -302,6 +318,13 @@ export type CategoryReportRow = {
   netExpenseTotal: number;
 };
 
+export type CategoryChartRow = CategoryReportRow & {
+  displayName: string;
+  displayTotal: number;
+  chartTotal: number;
+  fill: string;
+};
+
 export type CashflowRow = {
   month: string;
   income: number;
@@ -312,5 +335,13 @@ export type CashflowRow = {
   grossIncome: number;
   incomeOffsets: number;
   netIncome: number;
+  balance: number;
+  reportIncome: number;
+  reportExpenses: number;
+};
+
+export type TransactionsSummary = {
+  income: number;
+  expenses: number;
   balance: number;
 };
