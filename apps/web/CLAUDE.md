@@ -47,17 +47,17 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |
 
-`ProtectedRoute` checks `tokenStore.get()` and redirects to `/login?redirect=<path>` if no token is present.
+`ProtectedRoute` checks `getToken()` (from `services/auth.client.ts`) and redirects to `/login?redirect=<path>` if no token is present.
 
 ---
 
 ## API calls — per-module clients in `services/`
 
-`src/services/api.ts` holds the one low-level fetch layer (`apiRequest`, `tokenStore`, `ApiError`, `apiUrl`, `apiAssetUrl`). **`services/api.ts` must only ever be imported by files inside `services/` — never directly by a page, component, or hook.** This applies to every export, not just `apiRequest`: `tokenStore` is wrapped by `auth.client.ts` (`getToken`/`setToken`/`clearToken`), `apiAssetUrl` is wrapped by `users.client.ts` (`getAvatarUrl`), and `ApiError` is only ever caught inside a `.client.ts` function, which normalizes it into a plain return value (e.g. `transactions.client.ts`'s `getBatchErrors`) rather than leaking the error class itself to a page. If a page needs to inspect an error to make a decision, that decision belongs in the client or the backend, not the page. Every backend module has a matching `services/<module>.client.ts` that wraps it:
+`src/services/api.client.ts` holds the one low-level fetch layer (`apiRequest`, `tokenStore`, `ApiError`, `apiUrl`, `apiAssetUrl`). **`services/api.client.ts` must only ever be imported by files inside `services/` — never directly by a page, component, or hook.** This applies to every export, not just `apiRequest`: `tokenStore` is wrapped by `auth.client.ts` (`getToken`/`setToken`/`clearToken`), `apiAssetUrl` is wrapped by `users.client.ts` (`getAvatarUrl`), and `ApiError` is only ever caught inside a `.client.ts` function, which normalizes it into a plain return value (e.g. `transactions.client.ts`'s `getBatchErrors`) rather than leaking the error class itself to a page. If a page needs to inspect an error to make a decision, that decision belongs in the client or the backend, not the page. Every backend module has a matching `services/<module>.client.ts` that wraps it — **every file in `services/` follows the `<name>.client.ts` naming pattern, including the low-level fetch layer itself**:
 
 ```
 services/
-  api.ts                    apiRequest/tokenStore/ApiError/apiUrl/apiAssetUrl — the only fetch layer
+  api.client.ts             apiRequest/tokenStore/ApiError/apiUrl/apiAssetUrl — the only fetch layer
   accounts.client.ts        accounts CRUD + provider connections (Syncfy: connectors,
                              institutions, connections, provider-account confirm/resync,
                              credential refresh) — grouped here because provider syncing
@@ -84,8 +84,8 @@ parameters (`sortBy`, `sortDirection`, facet filters, `scope`, `amountMode`,
 etc.) that the client function forwards.
 
 ```ts
-import { apiRequest } from "./api";
-import type { Account } from "../types/api";
+import { apiRequest } from "./api.client";
+import type { Account } from "../types/accounts.types";
 
 export function listAccounts(params: { includeArchived?: boolean; sortBy?: "name" | "createdAt" } = {}) {
   return apiRequest<{ accounts: Account[] }>("/accounts", {
@@ -109,6 +109,43 @@ When a provider (Syncfy, Google, Binance/Frankfurter) has its own routes, its ca
 the client of the module that owns it on the backend — check `apps/api/CLAUDE.md`'s
 "Providers" section for which module that is. Don't invent a separate `<provider>.client.ts`
 unless the frontend actually calls that provider's routes independently of its owning module.
+
+---
+
+## Types
+
+Types live next to the thing that owns them, at two levels:
+
+### Global API response types — `src/types/<client>.types.ts`
+
+One file per `services/<client>.client.ts`, holding the response shapes that client returns
+(`Account`/`AccountSync` in `accounts.types.ts`, `Transaction`/`ProviderImportedTransaction` in
+`transactions.types.ts`, etc.). A type goes in the file of whichever client owns that resource,
+even if other clients' types reference it — e.g. `Group` lives in `groups.types.ts` and
+`Transaction` (in `transactions.types.ts`) imports it for `Transaction.group`, not the other way
+around. There is no catch-all `api.ts`/`api.types.ts` — if you're about to add a type there, put
+it in the owning client's file instead. A `common.types.ts` is reserved for genuinely
+cross-cutting shapes with no single owning client (e.g. a shared pagination envelope) — most
+new types are not this; default to a specific client's file.
+
+```ts
+// types/accounts.types.ts
+export type Account = { id: string; name: string; /* ... */ sync?: AccountSync[] };
+export type AccountSync = { id: string; provider: string; /* ... */ };
+```
+
+### Page-module-local types — `pages/<Name>/types/<name>.types.ts`
+
+Every page module that defines its own types (form state, tab unions, prop shapes not reused
+elsewhere) collects them into a single `types/<pageName>.types.ts` file, named for the module in
+`camelCase` (e.g. `pages/Accounts/types/accounts.types.ts`,
+`pages/Transactions/types/transactions.types.ts` — note this is a different file from the global
+`src/types/transactions.types.ts`; the page-local one holds UI-only types like
+`TransactionFormState`, the global one holds the `Transaction` API shape). Only named
+`type`/`interface` declarations move here — an inline prop-shape annotation directly in a
+component's function signature (`{ prop }: { prop: string }`) is not something to extract into a
+named type just to relocate it. If a page module has no named types of its own, it doesn't get a
+`types/` folder — same "only if genuinely needed" rule as `utils/`.
 
 ---
 
@@ -142,7 +179,7 @@ If you find yourself writing `.filter()` / `.sort()` / `.reduce()` over `queryKe
 ## Component and hook conventions
 
 - Pages: one folder per page module under `src/pages/<Name>/` — see "Page-module folder structure" below
-- Shared UI primitives (used by more than one page module): `src/components/<Name>.tsx`
+- Shared UI primitives: `src/components/<Name>.tsx` — see "What belongs globally vs. in a page module" below for the bar
 - Custom hooks shared across page modules: `src/hooks/use<Name>.tsx` or `.ts`
 - Layout wrappers: `src/layout/<Name>.tsx`
 - Styling: Tailwind utility classes only — no inline `style` props, no CSS modules
@@ -167,6 +204,11 @@ pages/<Name>/
                             Debts/hooks/useDebtSettlementWorkflow.ts. Only add this folder
                             if the extraction is genuinely warranted; small pages don't
                             need it.
+  types/                   named type/interface declarations used within this page module
+                            (form state shapes, tab unions, prop types), collected into a
+                            single types/<pageName>.types.ts file — see "Types" above. Only
+                            add this folder if the page module actually declares named types
+                            of its own; don't create an empty placeholder.
   utils/                   pure presentation-only helpers specific to this page (date/
                             enum-to-label formatting, etc.) — only if genuinely needed.
                             If something here starts to look like filtering, sorting,
@@ -174,7 +216,24 @@ pages/<Name>/
                             `read.service.ts` instead, not in a frontend utils/ file.
 ```
 
-Apply this folder pattern to every page, even small ones, for consistency. A page file should end up being primarily composition — importing and arranging its `components/` (and calling its `hooks/`) — not one large JSX tree with all the logic inline. Only put something in a page's `components/`, `hooks/`, or `utils/` folder if it is genuinely specific to that page/module; anything reusable belongs in the top-level `components/` or `hooks/` instead.
+Apply this folder pattern to every page, even small ones, for consistency. A page file should end up being primarily composition — importing and arranging its `components/` (and calling its `hooks/`) — not one large JSX tree with all the logic inline. Only put something in a page's `components/`, `hooks/`, `types/`, or `utils/` folder if it is genuinely specific to that page/module; anything reusable belongs in the top-level `components/`/`hooks/`/`types/` instead.
+
+### What belongs globally vs. in a page module
+
+For `components/`, `hooks/`, and `utils/` (top-level `src/` vs. a page's local folder), the bar
+is usage, not potential:
+
+- **Used by 2+ page modules, or by app-shell code** (`layout/`, `hooks/`, `main.tsx`) → belongs
+  in the top-level `src/components/`, `src/hooks/`, or `src/utils/`. This includes something used
+  by only one page module *directly* but reused transitively through an already-global component
+  (e.g. `GoogleIcon.tsx` is only imported by `GoogleOAuthButton.tsx`, but that button is used by
+  both the Login and Register pages, so the icon stays global too).
+- **Used by exactly one page module** → belongs in that page's own `components/`/`hooks/`/`utils/`,
+  not the top-level folder — move it there rather than leaving it global "in case" something else
+  needs it later. `pages/Transactions/utils/transactions.ts` (`parseTransactionAmount`) is an
+  example: nothing outside `Transactions/components/TransactionList.tsx` uses it.
+- **Not imported anywhere** → don't silently delete it; it may be dead code or something meant to
+  be wired up and never was. Flag it instead.
 
 **Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
 
@@ -217,14 +276,16 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 ## What to never do
 
 - Call `fetch` or `apiRequest` directly in components or pages — always go through a `services/<module>.client.ts` function
-- Import anything from `services/api.ts` outside of `services/` — not just `apiRequest`, but `tokenStore`, `ApiError`, `apiUrl`, and `apiAssetUrl` too. Every one of those is wrapped by a `.client.ts` function (`auth.client.ts`'s `getToken`/`setToken`/`clearToken`, `users.client.ts`'s `getAvatarUrl`, etc.) — `grep -r "services/api" src` outside `services/` itself should return nothing
+- Import anything from `services/api.client.ts` outside of `services/` — not just `apiRequest`, but `tokenStore`, `ApiError`, `apiUrl`, and `apiAssetUrl` too. Every one of those is wrapped by a `.client.ts` function (`auth.client.ts`'s `getToken`/`setToken`/`clearToken`, `users.client.ts`'s `getAvatarUrl`, etc.) — `grep -r "services/api" src` outside `services/` itself should return nothing
 - Put filtering, sorting, grouping, or aggregate computation in a `.client.ts` file — it only builds requests; that logic belongs in the backend's `read.service.ts`
 - Use inline `style` props for layout/theming — use Tailwind classes
 - Access `localStorage` or `tokenStore` directly for the token from a page/component/hook — use `getToken`/`setToken`/`clearToken` from `services/auth.client.ts`
-- Define new TypeScript types that duplicate `src/types/api.ts` — extend or reuse existing types
+- Define new TypeScript types that duplicate a type already in `src/types/<client>.types.ts` or a page's `types/<pageName>.types.ts` — extend or reuse existing types
+- Add a type to a catch-all file instead of the owning client's `types/<client>.types.ts` — there is no `api.ts`/`api.types.ts` to fall back to
 - Import from `apps/api` — the only shared code is from `@flowledger/shared`
 - Use `useEffect` + `fetch` for data fetching — use TanStack Query
 - Hard-code API paths as strings in components — use route constants from `constants/routes.ts` for page navigation, and call a `services/<module>.client.ts` function instead of a literal API path string
+- Leave a component/hook/util in the top-level `components/`/`hooks/`/`utils/` folder once it's only used by one page module — move it into that page's local folder (see "What belongs globally vs. in a page module")
 
 ---
 
@@ -233,8 +294,8 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 | File | Why |
 |---|---|
 | `src/main.tsx` | Router setup, provider tree, all route-to-page mappings |
-| `src/services/api.ts` | `apiRequest`, `tokenStore`, `ApiError` — the only fetch layer, wrapped by every `<module>.client.ts` |
+| `src/services/api.client.ts` | `apiRequest`, `tokenStore`, `ApiError` — the only fetch layer, wrapped by every other `<module>.client.ts` |
 | `src/services/` | The per-module client files — check here first for existing request-building logic before adding new `apiRequest` usage |
 | `src/hooks/useAuth.tsx` | Auth context shape and how token/user state is managed |
 | `src/layout/AppLayout.tsx` | Sidebar nav, notification bell, mobile layout — shared shell for all auth'd pages |
-| `src/types/api.ts` | Frontend TypeScript types for all API response shapes |
+| `src/types/` | Per-client global API response types (`<client>.types.ts`) — check here before adding a new response shape |
