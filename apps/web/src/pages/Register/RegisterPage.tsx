@@ -1,12 +1,12 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BrandLogo } from "../components/BrandLogo";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { TextInput } from "../components/FormField";
-import { GoogleOAuthButton } from "../components/GoogleOAuthButton";
-import { routes } from "../constants/routes";
-import { useAuth } from "../hooks/useAuth";
+import { BrandLogo } from "../../components/BrandLogo";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { TextInput } from "../../components/FormField";
+import { GoogleOAuthButton } from "../../components/GoogleOAuthButton";
+import { routes } from "../../constants/routes";
+import { useAuth } from "../../hooks/useAuth";
 
 export function RegisterPage() {
   const auth = useAuth();
