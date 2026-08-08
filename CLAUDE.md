@@ -106,6 +106,8 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 - Extend `FinancialProviderAdapter` for new providers — do not create parallel provider-specific systems.
 - Use "Group" terminology throughout — never introduce "Household".
 - All API input must be validated with shared Zod schemas.
+- Every exported function, class, type, and other public module member requires a TSDoc comment (`/** ... */`). A comment must explain the non-obvious — parameters, return values, or the "why" behind a design choice — for a reader with no session context. Never write narrative or self-congratulatory comments ("fixed this bug", "this now correctly...", "regression test for #123") or comments that just restate what the code already says; those belong in a commit message or PR description, not the source.
+- A file's role is fixed by its location: types only in a module's `types.ts` file (or `types/` folder), services only in `services/` files, API clients only in `<module>.client.ts` files, controllers only in `controllers/` files. Never define a type, a service function, a client call, or a controller handler inline in a file of a different role — relocate it, even if it's small. See `apps/api/CLAUDE.md` and `apps/web/CLAUDE.md` for the exact per-app layering these roles map to.
 
 ---
 

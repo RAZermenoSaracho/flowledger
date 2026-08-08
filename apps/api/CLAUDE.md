@@ -210,6 +210,8 @@ API listens on `env.API_PORT` (default `4000`). Requires a running PostgreSQL in
 - Add Syncfy-specific logic outside `src/modules/accounts/providers/syncfy/` — use `FinancialProviderAdapter` for new providers
 - Put business logic, filtering, sorting, or grouping in a controller or in the frontend — it belongs in a module's `read.service.ts` (or the relevant service file)
 - Use `prisma.$executeRaw` or raw SQL without explicit approval
+- Export a function, class, or type without a TSDoc comment, or write one that narrates a change instead of explaining current behavior (see root `CLAUDE.md`)
+- Define a type outside `types/`, a service function outside `services/`, or a controller handler outside `controllers/` — one file role per file (see root `CLAUDE.md`)
 
 ---
 

@@ -286,6 +286,8 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 - Use `useEffect` + `fetch` for data fetching — use TanStack Query
 - Hard-code API paths as strings in components — use route constants from `constants/routes.ts` for page navigation, and call a `services/<module>.client.ts` function instead of a literal API path string
 - Leave a component/hook/util in the top-level `components/`/`hooks/`/`utils/` folder once it's only used by one page module — move it into that page's local folder (see "What belongs globally vs. in a page module")
+- Export a function, component, hook, or type without a TSDoc comment, or write one that narrates a change instead of explaining current behavior (see root `CLAUDE.md`)
+- Define a type outside `types/`, request-building logic outside a `<module>.client.ts` file — one file role per file (see root `CLAUDE.md`)
 
 ---
 
