@@ -8,6 +8,7 @@ import {
   getSummary
 } from "./controllers/read.controller.js";
 
+/** Express router mounted at `/reports`. */
 export const reportsRouter = Router();
 
 reportsRouter.get(

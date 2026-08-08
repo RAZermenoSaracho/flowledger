@@ -7,6 +7,7 @@ const TICKER_TTL_MS = 60 * 1000;
 
 let tickerCache: TickerCache | null = null;
 
+/** Fetches Binance's full ticker price list, caching the result for {@link TICKER_TTL_MS}. */
 export async function fetchBinanceTickerPrices(): Promise<Map<string, number>> {
   const now = Date.now();
   if (tickerCache && now - tickerCache.fetchedAt < TICKER_TTL_MS) {

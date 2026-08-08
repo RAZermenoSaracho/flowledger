@@ -27,6 +27,7 @@ const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "sharedExpenses", label: "Shared Expenses" }
 ];
 
+/** Debts page: outstanding balances, pending settlement requests, and settled-history tabs. */
 export function DebtsPage() {
   const auth = useAuth();
   const summaryCurrency = auth.user?.preferredCurrency || "USD";

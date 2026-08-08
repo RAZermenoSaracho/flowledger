@@ -2,9 +2,12 @@ import { apiRequest } from "./api.client";
 import type { Category } from "../types/categories.types";
 import type { CategoryType } from "@flowledger/shared";
 
+/** Sortable fields for the categories list. */
 export type CategorySortBy = "name" | "createdAt" | "updatedAt";
+/** Ascending or descending sort direction. */
 export type SortDirection = "asc" | "desc";
 
+/** Filter/sort params for listing categories. */
 export type ListCategoriesParams = {
   groupId?: string;
   scope?: "all";
@@ -14,6 +17,7 @@ export type ListCategoriesParams = {
   types?: CategoryType[];
 };
 
+/** Fetches categories, optionally merging personal and group categories via `scope: "all"`. */
 export function listCategories(params: ListCategoriesParams = {}) {
   return apiRequest<{ categories: Category[] }>("/categories", {
     query: {
@@ -27,6 +31,7 @@ export function listCategories(params: ListCategoriesParams = {}) {
   });
 }
 
+/** Creates a category. */
 export function createCategory(body: {
   name: string;
   type: CategoryType;
@@ -38,6 +43,7 @@ export function createCategory(body: {
   });
 }
 
+/** Updates a category's fields. */
 export function updateCategory(
   categoryId: string,
   body: { name: string; type: CategoryType; color?: string | null }
@@ -48,6 +54,7 @@ export function updateCategory(
   });
 }
 
+/** Archives a category. */
 export function archiveCategory(categoryId: string) {
   return apiRequest<{ category: Category }>(
     `/categories/${categoryId}/archive`,
@@ -55,6 +62,7 @@ export function archiveCategory(categoryId: string) {
   );
 }
 
+/** Restores an archived category. */
 export function restoreCategory(categoryId: string) {
   return apiRequest<{ category: Category }>(
     `/categories/${categoryId}/restore`,
@@ -62,6 +70,7 @@ export function restoreCategory(categoryId: string) {
   );
 }
 
+/** Deletes a category. */
 export function deleteCategory(categoryId: string) {
   return apiRequest<void>(`/categories/${categoryId}`, { method: "DELETE" });
 }

@@ -23,6 +23,7 @@ function transactionAccountLabel(transaction: Transaction) {
   return transaction.account?.name ?? "No account";
 }
 
+/** Grouped list of transactions with per-row edit/delete actions. */
 export function TransactionList({
   groupedTransactions,
   totalCount,

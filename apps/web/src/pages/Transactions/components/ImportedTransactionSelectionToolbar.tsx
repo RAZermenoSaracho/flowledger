@@ -2,6 +2,7 @@ import { Button } from "../../../components/Button";
 import { SelectField } from "../../../components/FormField";
 import type { ImportedTransactionSelectionToolbarProps } from "../types/transactions.types";
 
+/** Toolbar for bulk-selecting, importing, and ignoring imported transactions. */
 export function ImportedTransactionSelectionToolbar({
   totalFilteredCount,
   visibleCount,

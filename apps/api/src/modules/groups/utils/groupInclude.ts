@@ -1,5 +1,6 @@
 import type { CategoryType } from "@prisma/client";
 
+/** Builds a Prisma `include` for a group's members and categories, filtered to `userId`'s accessible categories with optional archive/type/sort options. */
 export function groupInclude(
   userId: string,
   includeArchivedCategories = false,

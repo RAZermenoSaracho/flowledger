@@ -5,6 +5,7 @@ import type { ProviderImportedTransaction } from "../../../types/transactions.ty
 import { ImportedTransactionCard } from "./ImportedTransactionCard";
 import { ImportedTransactionSelectionToolbar } from "./ImportedTransactionSelectionToolbar";
 
+/** Panel listing imported transactions with per-row and batch import/ignore actions. */
 export function ImportedTransactionsPanel({
   totalCount,
   importedTransactions,

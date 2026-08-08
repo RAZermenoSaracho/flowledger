@@ -2,6 +2,7 @@ import type { ReportFilters } from "@flowledger/shared";
 import type { Prisma } from "@prisma/client";
 import { REPORT_TRANSACTION_TYPES } from "../../transactions/utils/transactionCalculations.js";
 
+/** Builds a Prisma date-range filter from `dateFrom`/`dateTo`; a bare `YYYY-MM-DD` `dateTo` is treated as exclusive of the next day rather than a literal midnight timestamp. Returns `null` when neither bound is set. */
 export function dateRangeWhere(
   filters: ReportFilters
 ): Prisma.DateTimeFilter | null {
@@ -23,6 +24,7 @@ export function dateRangeWhere(
   };
 }
 
+/** Normalizes the filter's `groupIds` (multi) and `groupId` (single, legacy) into one array. */
 export function selectedGroupIds(filters: ReportFilters) {
   return filters.groupIds?.length
     ? filters.groupIds
@@ -31,6 +33,7 @@ export function selectedGroupIds(filters: ReportFilters) {
       : [];
 }
 
+/** Normalizes the filter's `categoryIds` (multi) and `categoryId` (single, legacy) into one array. */
 export function selectedCategoryIds(filters: ReportFilters) {
   return filters.categoryIds?.length
     ? filters.categoryIds
@@ -39,6 +42,7 @@ export function selectedCategoryIds(filters: ReportFilters) {
       : [];
 }
 
+/** Builds the base Prisma `where` shared by income/expense report queries: ownership plus group, category, and date filters. */
 export function baseReportWhere(
   userId: string,
   filters: ReportFilters
@@ -55,6 +59,7 @@ export function baseReportWhere(
   };
 }
 
+/** Builds the Prisma `where` for expense-offset (reimbursement) income rows — those with a set `expenseOffsetCategoryId` — scoped to the report filters. */
 export function offsetReportWhere(
   userId: string,
   filters: ReportFilters
@@ -74,6 +79,7 @@ export function offsetReportWhere(
   };
 }
 
+/** Builds the Prisma `where` for the monthly cashflow query; when categories are filtered, matches either a transaction's own category or its expense-offset category so reimbursements stay attributed to the right category. */
 export function cashflowReportWhere(
   userId: string,
   filters: ReportFilters

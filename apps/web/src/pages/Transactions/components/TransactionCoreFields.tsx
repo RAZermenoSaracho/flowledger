@@ -13,6 +13,7 @@ import type { TransactionFormState } from "../types/transactions.types";
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
 
+/** Core name/amount/date/account/category fields of the transaction create form. */
 export function TransactionCoreFields({
   form,
   onFormChange,

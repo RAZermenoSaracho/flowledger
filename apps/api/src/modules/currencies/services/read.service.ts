@@ -10,6 +10,7 @@ import {
 } from "../providers/frankfurter/services/read.service.js";
 import { HttpError } from "../../../utils/httpError.js";
 
+/** Combines fiat and crypto currency lists, each and together sorted by code. */
 export async function listCurrencies() {
   const [fiatUnsorted, cryptoUnsorted] = await Promise.all([
     getFiatCurrencies(),
@@ -51,7 +52,7 @@ async function usdValueOf(code: string, codeIsFiat: boolean): Promise<number> {
 /**
  * Live rate such that `1 unit of from == rate units of to`. Fiat/fiat pairs
  * come straight from Frankfurter; any pair involving a crypto asset bridges
- * through Binance's USDT quote, per the Milestone 7 provider split.
+ * through Binance's USDT quote.
  */
 export async function getExchangeRate(from: string, to: string): Promise<number> {
   const fromCode = from.trim().toUpperCase();

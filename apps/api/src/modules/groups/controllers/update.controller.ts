@@ -3,6 +3,7 @@ import { notFound } from "../../../utils/httpError.js";
 import { serialize } from "../../../utils/serialize.js";
 import { archiveGroup, restoreGroup, updateGroup } from "../services/update.service.js";
 
+/** Updates a group's name/description. */
 export async function putGroup(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");
@@ -11,6 +12,7 @@ export async function putGroup(req: Request, res: Response) {
   res.json({ group: serialize(group) });
 }
 
+/** Archives a group. */
 export async function postGroupArchive(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");
@@ -19,6 +21,7 @@ export async function postGroupArchive(req: Request, res: Response) {
   res.json({ group: serialize(group) });
 }
 
+/** Restores an archived group. */
 export async function postGroupRestore(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");

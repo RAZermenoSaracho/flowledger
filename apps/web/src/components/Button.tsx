@@ -10,6 +10,7 @@ const variants = {
   danger: "bg-coral text-white hover:bg-red-600 dark:hover:bg-red-500"
 };
 
+/** Styled button with primary/secondary/danger variants. */
 export function Button({ className = "", variant = "primary", ...props }: ButtonProps) {
   return (
     <button

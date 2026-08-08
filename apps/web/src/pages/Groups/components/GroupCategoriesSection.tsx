@@ -14,10 +14,12 @@ import type { Group } from "../../../types/groups.types";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
 import { GroupCategoryItem } from "./GroupCategoryItem";
 
+/** Group-by options for a group's categories list. */
 export const categoryGroupByDefs: SearchGroupByDef[] = [
   { id: "type", label: "Type" }
 ];
 
+/** Derives the group key/label for a category under a chosen group-by field. */
 export function groupCategoryGroupKey(category: Category, groupById: string) {
   if (groupById === "type") {
     return { key: category.type, label: category.type };
@@ -27,6 +29,7 @@ export function groupCategoryGroupKey(category: Category, groupById: string) {
 
 export { groupByFields };
 
+/** Section listing and managing a group's shared categories, with search/filter/group controls. */
 export function GroupCategoriesSection({
   canManage,
   canManageActive,

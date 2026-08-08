@@ -8,6 +8,7 @@ import { GoogleOAuthButton } from "../../components/GoogleOAuthButton";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 
+/** New-user registration form. */
 export function RegisterPage() {
   const auth = useAuth();
   const navigate = useNavigate();

@@ -13,6 +13,7 @@ import {
 import { ReportSummaryCards } from "./components/ReportSummaryCards";
 import type { ReportAmountMode, ReportFilters } from "./types/reports.types";
 
+/** Reports page: date/group/category filters, summary cards, and cashflow/category charts. */
 export function ReportsPage() {
   const auth = useAuth();
   const [reportAmountMode, setReportAmountMode] =

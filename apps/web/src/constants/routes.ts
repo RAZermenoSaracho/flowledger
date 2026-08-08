@@ -1,3 +1,4 @@
+/** Central map of app route paths, keyed by page. */
 export const routes = {
   dashboard: "/",
   login: "/login",

@@ -10,6 +10,7 @@ type MultipartPart = {
 
 const headerSeparator = Buffer.from("\r\n\r\n");
 
+/** Reads and parses a raw `multipart/form-data` request body into its parts, rejecting with `HttpError` if the boundary is missing or `maxBytes` is exceeded. */
 export async function readMultipartParts(req: Request, maxBytes: number): Promise<MultipartPart[]> {
   const contentType = req.headers["content-type"] ?? "";
   const boundaryMatch = /(?:^|;)\s*boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);

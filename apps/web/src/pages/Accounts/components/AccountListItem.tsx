@@ -9,6 +9,7 @@ import { formatMoney } from "../../../utils/currency";
 import type { useAccountEditForm } from "../hooks/useAccountEditForm";
 import { AccountSyncPanel } from "./AccountSyncPanel";
 
+/** One row in the accounts list; expands to show sync status and inline edit controls. */
 export function AccountListItem({
   account,
   editForm,

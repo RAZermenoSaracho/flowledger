@@ -6,6 +6,7 @@ import type { Category } from "../../../types/categories.types";
 import type { SettlementRequest } from "../../../types/debts.types";
 import type { SettlementApprovalDraft } from "../types/debts.types";
 
+/** Approve/reject controls and account/category selection for a settlement request. */
 export function ApprovalActions({
   request,
   accounts,

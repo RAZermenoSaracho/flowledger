@@ -54,6 +54,7 @@ function renderPieLabel({
   );
 }
 
+/** Pie-chart breakdown of a report's category rows with a legend. */
 export function CategoryBreakdown({
   title,
   rows,

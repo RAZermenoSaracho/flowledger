@@ -3,6 +3,7 @@ import { TextArea, TextInput } from "../../../components/FormField";
 import type { Group } from "../../../types/groups.types";
 import type { useGroupManagement } from "../hooks/useGroupManagement";
 
+/** Group name/description header with edit/archive management actions. */
 export function GroupHeader({
   group,
   canManage,

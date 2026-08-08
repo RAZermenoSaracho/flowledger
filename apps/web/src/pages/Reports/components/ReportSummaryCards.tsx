@@ -1,6 +1,7 @@
 import { Card } from "../../../components/Card";
 import { formatMoney } from "../../../utils/currency";
 
+/** Income/expenses/balance summary tiles for reports. */
 export function ReportSummaryCards({
   currency,
   totalIncome,

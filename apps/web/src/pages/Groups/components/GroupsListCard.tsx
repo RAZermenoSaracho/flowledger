@@ -3,6 +3,7 @@ import { SearchComponent } from "../../../components/SearchComponent";
 import type { CategorySortBy } from "../../../services/categories.client";
 import type { Group } from "../../../types/groups.types";
 
+/** Search/sort/list card for choosing which group is selected. */
 export function GroupsListCard({
   groupSearch,
   onGroupSearchChange,

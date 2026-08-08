@@ -2,6 +2,7 @@ import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { groupInclude } from "../utils/groupInclude.js";
 
+/** Looks up `userId`'s membership row for `groupId`, or `null` if `groupId` is not given; throws if given but the user isn't a member. */
 export async function getGroupMembership(
   userId: string,
   groupId?: string | null
@@ -19,6 +20,7 @@ export async function getGroupMembership(
   return member;
 }
 
+/** Throws (404, to avoid leaking group existence) unless `userId` is an admin member of `groupId`. */
 export async function getGroupAdmin(userId: string, groupId: string) {
   const member = await prisma.groupMember.findFirst({
     where: { groupId, userId, role: "admin" }
@@ -31,6 +33,7 @@ export async function getGroupAdmin(userId: string, groupId: string) {
   return member;
 }
 
+/** Throws unless `categoryId` is an active category of `groupId` that `userId` (a group member) has access to; returns `null` if no `categoryId` is given. */
 export async function assertCategory(
   userId: string,
   groupId?: string | null,
@@ -60,6 +63,7 @@ export async function assertCategory(
   return category;
 }
 
+/** Lists groups `userId` belongs to, with optional archive-inclusion and sort filters. */
 export async function listGroups(
   userId: string,
   filters: {
@@ -80,6 +84,7 @@ export async function listGroups(
   });
 }
 
+/** Fetches one group (categories/members filtered per params) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
 export async function getGroupById(
   userId: string,
   groupId: string,

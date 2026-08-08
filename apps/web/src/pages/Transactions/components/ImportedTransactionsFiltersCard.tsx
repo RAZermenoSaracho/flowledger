@@ -11,6 +11,7 @@ import type {
   ImportedSortBy
 } from "../types/transactions.types";
 
+/** Default (empty) `ImportedFilters` value. */
 export const emptyImportedFilters: ImportedFilters = {
   status: "pending",
   search: "",
@@ -33,6 +34,7 @@ function singleFacetValue(current: string, values: string[]): string {
   return values.find((value) => value !== current) ?? values[0] ?? "";
 }
 
+/** Filter and sort controls for the imported-transactions list. */
 export function ImportedTransactionsFiltersCard({
   filters,
   onFiltersChange,

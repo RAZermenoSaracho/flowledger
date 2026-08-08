@@ -125,6 +125,7 @@ async function markSyncfyCredentialManualReconnect(input: {
   });
 }
 
+/** Resyncs a Syncfy connection's accounts/transactions using its stored refresh metadata, retrying per `retryDelaysMs` and marking the connection `reconnect_required` if Syncfy reports an auth/credential failure. */
 export async function resyncSyncfyConnection(input: {
   userId: string;
   connectionId: string;
@@ -260,6 +261,7 @@ export async function resyncSyncfyConnection(input: {
   }
 }
 
+/** Resolves the connection for a Syncfy credential id (owned by `userId`) and delegates to {@link resyncSyncfyConnection}. */
 export async function resyncSyncfyCredential(input: {
   userId: string;
   providerCredentialId: string;
@@ -292,10 +294,12 @@ export async function resyncSyncfyCredential(input: {
   });
 }
 
+/** Returns the fixed retry-delay schedule (ms) used for manual/scheduled Syncfy refreshes. */
 export function getManualSyncfyRefreshRetryDelaysMs() {
   return [...manualSyncfyRefreshRetryDelaysMs];
 }
 
+/** Records a webhook event as `failed`, storing the error message truncated to 1000 characters. */
 export async function markSyncfyWebhookEventFailed(
   eventId: string,
   error: unknown

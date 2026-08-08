@@ -320,6 +320,7 @@ async function notifyNewImportedTransactions(input: {
   });
 }
 
+/** Fetches accounts/transactions from a Syncfy credential's endpoints and upserts the connection, accounts, and pending imported transactions; marks the source webhook event processed if `eventId` is given. */
 export async function processSyncfyCredentialRefresh(input: {
   eventId?: string;
   idUser: string;
@@ -582,6 +583,7 @@ export async function processSyncfyCredentialRefresh(input: {
   };
 }
 
+/** Atomically claims a `received` webhook event (no-op if already claimed), then processes it if it's a `credentials.refreshed` event, ignoring other event types. */
 export async function processSyncfyWebhookEvent(
   eventId: string,
   event: SyncfyWebhookEventInput

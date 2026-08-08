@@ -30,6 +30,7 @@ function transferDirection(transaction: Transaction) {
   }`;
 }
 
+/** Read-only detail view of a single transaction, including shared-expense/debt classification hints. */
 export function TransactionDetailPage() {
   const auth = useAuth();
   const { id } = useParams();

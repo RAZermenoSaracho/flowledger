@@ -26,6 +26,7 @@ function buildSyncfyWidgetConfig() {
   };
 }
 
+/** `FinancialProviderAdapter` implementation registering Syncfy as a bank-sync provider. */
 export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
   {
     key: "syncfy",

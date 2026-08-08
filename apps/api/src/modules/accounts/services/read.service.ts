@@ -28,6 +28,7 @@ async function withPreferredCurrencyBalances<
   );
 }
 
+/** Lists a user's accounts with archive/type/source filters and sorting, enriched with computed balances (in both native and preferred currency) and provider sync summaries. */
 export async function listAccounts(
   userId: string,
   filters: {

@@ -6,6 +6,7 @@ import {
   resyncSyncfyCredential
 } from "../providers/syncfy/services/update.service.js";
 
+/** Resyncs all accounts under a Syncfy provider connection owned by `userId`; throws 501 for any other provider. */
 export async function resyncConnection(userId: string, connectionId: string) {
   const connection = await prisma.providerConnection.findFirst({
     where: {
@@ -29,6 +30,7 @@ export async function resyncConnection(userId: string, connectionId: string) {
   });
 }
 
+/** Manually triggers a Syncfy credential refresh, bypassing the auto-sync scheduler's cadence. */
 export async function refreshSyncfyCredential(
   userId: string,
   providerCredentialId: string
@@ -45,6 +47,7 @@ export async function refreshSyncfyCredential(
   });
 }
 
+/** Resyncs the Syncfy connection backing a single linked provider account owned by `userId`. */
 export async function resyncProviderAccount(userId: string, accountId: string) {
   const providerAccount = await prisma.providerAccount.findFirst({
     where: {

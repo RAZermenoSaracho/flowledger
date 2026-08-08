@@ -1,17 +1,20 @@
 import { AccountType, Prisma } from "@prisma/client";
 
+/** Narrows an unknown value to a plain object, or `{}` if it isn't one (arrays included). */
 export function getRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
 }
 
+/** Narrows an unknown value to a trimmed, non-empty string, or `undefined` otherwise. */
 export function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : undefined;
 }
 
+/** Coerces an unknown value (number or numeric string) to a finite number, or `undefined` otherwise. */
 export function getNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim().length > 0) {
@@ -22,6 +25,7 @@ export function getNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+/** Infers a FlowLedger `AccountType` from a free-text provider type string via keyword matching (English/Spanish), defaulting to `other`. */
 export function normalizeAccountType(value: unknown): AccountType {
   const rawType = getString(value)?.toLowerCase() ?? "";
   if (/credit|card|tarjeta/.test(rawType)) return AccountType.credit_card;
@@ -33,6 +37,7 @@ export function normalizeAccountType(value: unknown): AccountType {
   return AccountType.other;
 }
 
+/** Builds a display summary of an imported provider account from its raw `accountMetadata`, its confirmation/link status, and any account it's linked to. */
 export function providerAccountSummary(
   providerAccount: Prisma.ProviderAccountGetPayload<{
     include: { account: true; connection: true };

@@ -14,16 +14,19 @@ type InstitutionCatalogQuery = {
   category?: string;
 };
 
+/** Lists provider connectors across all registered providers, stripped of internal metadata. */
 export async function listConnectors() {
   const connectors = await listAvailableConnectors();
   return connectors.map(({ metadata: _metadata, ...connector }) => connector);
 }
 
+/** Lists provider institutions across all registered providers, filtered by query/country/category. */
 export async function listInstitutions(filters: InstitutionCatalogQuery) {
   const institutions = await listAvailableInstitutions();
   return filterInstitutions(institutions, filters);
 }
 
+/** Reads a provider connection's current sync status plus its most recent webhook event, scoped to `userId`. */
 export async function getConnectionStatus(userId: string, connectionId: string) {
   const connection = await prisma.providerConnection.findFirst({
     where: {
@@ -79,6 +82,7 @@ export async function getConnectionStatus(userId: string, connectionId: string) 
   };
 }
 
+/** Lists a user's provider accounts (most recent 50), optionally restricted to unlinked ones via `filters.status === "unlinked"`. */
 export async function listProviderAccounts(
   userId: string,
   filters: { status?: string }

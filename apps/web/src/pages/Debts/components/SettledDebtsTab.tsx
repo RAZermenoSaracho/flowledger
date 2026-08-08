@@ -4,6 +4,7 @@ import type { Debt } from "../../../types/debts.types";
 import { DebtSummaryCard } from "./DebtSummaryCard";
 import { EmptyState } from "./EmptyState";
 
+/** Tab listing fully settled debts. */
 export function SettledDebtsTab({
   settledDebts,
   visibleSettledDebts,

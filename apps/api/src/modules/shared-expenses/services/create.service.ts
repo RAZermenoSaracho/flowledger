@@ -8,6 +8,7 @@ import { getDebtDirection } from "../../debts/utils/debtDirection.js";
 import { assertShareableTransaction, validateSharedExpenseParticipants } from "../utils/assertions.js";
 import { getOwnedTransaction, normalizeSharedExpenseParticipants } from "./read.service.js";
 
+/** Creates a shared-expense record and its participants for a transaction just created inside `tx`, then notifies participants; used inline during transaction creation rather than as a standalone endpoint. */
 export async function createSharedExpenseForTransaction(
   tx: Prisma.TransactionClient,
   ownerUserId: string,
@@ -53,6 +54,7 @@ export async function createSharedExpenseForTransaction(
   return sharedExpense;
 }
 
+/** Notifies each participant they were added, plus a debt-owed/owed-to notification for whichever side of the transaction they're on. */
 export async function notifySharedExpenseParticipants(
   tx: Prisma.TransactionClient,
   ownerUserId: string,
@@ -134,6 +136,7 @@ export async function notifySharedExpenseParticipants(
   await createNotifications(tx, notifications);
 }
 
+/** Validates the target transaction belongs to `userId`, then creates a shared expense with participants in one transaction. */
 export async function createSharedExpense(
   userId: string,
   input: SharedExpenseInput

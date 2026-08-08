@@ -1,6 +1,7 @@
 import { Card } from "../../../components/Card";
 import { formatMoney } from "../../../utils/currency";
 
+/** Income/expenses/balance summary tiles for the transactions list. */
 export function TransactionSummaryCards({
   income,
   expenses,

@@ -3,6 +3,7 @@ import type { Account, AccountSync } from "../../../types/accounts.types";
 import { formatMoney } from "../../../utils/currency";
 import { formatDateTime, formatStatus } from "../utils/accountDisplay";
 
+/** Displays a provider-linked account's sync status and resync/reconnect actions. */
 export function AccountSyncPanel({
   account,
   resyncMessages,

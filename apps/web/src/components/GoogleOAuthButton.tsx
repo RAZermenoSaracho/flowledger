@@ -6,6 +6,7 @@ type GoogleOAuthButtonProps = {
   redirect?: string;
 };
 
+/** Button that redirects the browser to the Google OAuth start URL. */
 export function GoogleOAuthButton({ redirect = routes.dashboard }: GoogleOAuthButtonProps) {
   return (
     <button

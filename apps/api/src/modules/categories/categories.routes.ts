@@ -15,6 +15,7 @@ import {
   putCategory
 } from "./controllers/update.controller.js";
 
+/** Express router for `/categories`. */
 export const categoriesRouter = Router();
 
 categoriesRouter.get(

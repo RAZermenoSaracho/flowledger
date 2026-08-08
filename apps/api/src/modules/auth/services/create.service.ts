@@ -3,6 +3,7 @@ import { HttpError } from "../../../utils/httpError.js";
 import { signToken } from "../utils/tokens.js";
 import bcrypt from "bcryptjs";
 
+/** Creates a new user with a hashed password and issues a token; throws 409 if the email is already registered. */
 export async function registerUser(input: {
   name: string;
   email: string;

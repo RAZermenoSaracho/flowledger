@@ -3,6 +3,7 @@ import { TextInput } from "../../../components/FormField";
 import type { Group } from "../../../types/groups.types";
 import type { useGroupManagement } from "../hooks/useGroupManagement";
 
+/** Section listing a group's members with add/remove management actions. */
 export function GroupMembersSection({
   group,
   canManageActive,

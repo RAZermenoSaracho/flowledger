@@ -5,6 +5,7 @@ import { formatMoney } from "../../../utils/currency";
 import { debtDescription, debtTitle, statusLabel } from "../utils/debtDisplay";
 import { EmptyState } from "./EmptyState";
 
+/** Table listing debts with row selection and highlight support. */
 export function DebtTable({
   title,
   debts,

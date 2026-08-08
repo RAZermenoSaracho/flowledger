@@ -28,6 +28,7 @@ const googleUserInfoSchema = z.object({
   picture: z.string().url().optional()
 });
 
+/** Exchanges an OAuth authorization code for Google access/id tokens. */
 export async function exchangeGoogleCode(code: string) {
   const body = new URLSearchParams({
     code,
@@ -50,6 +51,7 @@ export async function exchangeGoogleCode(code: string) {
   return googleTokenResponseSchema.parse(await response.json());
 }
 
+/** Verifies a Google id token's issuer/audience/email-verified claims, cross-checks it against the userinfo endpoint, and returns the normalized profile. */
 export async function verifyGoogleIdentity(idToken: string, accessToken: string) {
   const tokenInfoUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
   tokenInfoUrl.searchParams.set("id_token", idToken);

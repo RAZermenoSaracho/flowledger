@@ -22,6 +22,7 @@ function matchesSearch(institution: ProviderInstitution, query: string) {
   return haystack.includes(query.toLowerCase());
 }
 
+/** Filters and sorts institutions by provider/country/category/free-text query, all filters combined with AND. */
 export function filterInstitutions(
   institutions: ProviderInstitution[],
   filters: InstitutionCatalogQuery
@@ -44,6 +45,7 @@ export function filterInstitutions(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
+/** Aggregates institutions from every registered provider that implements `listInstitutions`. */
 export async function listAvailableInstitutions() {
   const providers = listProviders().filter(
     (provider) => provider.listInstitutions
@@ -54,6 +56,7 @@ export async function listAvailableInstitutions() {
   ).flat();
 }
 
+/** Aggregates connectors from every registered provider that implements `listConnectors`. */
 export async function listAvailableConnectors() {
   const providers = listProviders().filter(
     (provider) => provider.listConnectors
@@ -64,6 +67,7 @@ export async function listAvailableConnectors() {
   ).flat();
 }
 
+/** Finds one institution by id, optionally also constrained to a specific provider. */
 export function findSelectedInstitution(
   institutions: ProviderInstitution[],
   filters: { provider?: string; institutionId: string }
@@ -75,6 +79,7 @@ export function findSelectedInstitution(
   );
 }
 
+/** Finds the connector for a given provider. */
 export function findSelectedConnector(
   connectors: ProviderConnector[],
   filters: { provider: string }

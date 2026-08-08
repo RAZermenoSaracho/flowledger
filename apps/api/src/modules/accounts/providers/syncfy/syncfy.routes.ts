@@ -6,6 +6,7 @@ import {
   postDeprecatedWebhook
 } from "./controllers/health.controller.js";
 
+/** Express router for legacy/direct Syncfy endpoints: health check plus the deprecated webhook stub routes. */
 const router = Router();
 
 router.get("/health", asyncHandler(getSyncfyHealth));

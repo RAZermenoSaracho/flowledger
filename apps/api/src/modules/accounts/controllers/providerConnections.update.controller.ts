@@ -7,6 +7,7 @@ import {
   resyncProviderAccount
 } from "../services/providerConnections.update.service.js";
 
+/** Triggers a resync of all accounts under a provider connection owned by the authenticated user. */
 export async function postResyncConnection(req: Request, res: Response) {
   const userId = req.user?.id;
   if (!userId) {
@@ -17,6 +18,7 @@ export async function postResyncConnection(req: Request, res: Response) {
   res.json({ resync: serialize(result) });
 }
 
+/** Manually triggers a Syncfy credential refresh for the authenticated user. */
 export async function postRefreshSyncfyCredential(
   req: Request,
   res: Response
@@ -34,6 +36,7 @@ export async function postRefreshSyncfyCredential(
   res.json({ refresh: serialize(result) });
 }
 
+/** Triggers a resync of the connection backing a single provider account. */
 export async function postResyncProviderAccount(req: Request, res: Response) {
   const userId = req.user?.id;
   if (!userId) {

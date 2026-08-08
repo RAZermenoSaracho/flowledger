@@ -1,6 +1,7 @@
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
 
+/** Deletes a transaction owned by `userId`, cascading notifications tied to it and any linked shared expense/participants/settlement requests. */
 export async function deleteTransaction(userId: string, id: string) {
   const existing = await prisma.transaction.findFirst({
     where: { id, userId },

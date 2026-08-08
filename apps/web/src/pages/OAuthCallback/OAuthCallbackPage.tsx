@@ -5,6 +5,7 @@ import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { clearToken, getMe, setToken } from "../../services/auth.client";
 
+/** Completes the Google OAuth redirect by exchanging the callback state for a session and logging the user in. */
 export function OAuthCallbackPage() {
   const auth = useAuth();
   const navigate = useNavigate();

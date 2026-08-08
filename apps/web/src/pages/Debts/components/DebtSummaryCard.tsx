@@ -2,6 +2,7 @@ import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { debtDescription, debtTitle, statusLabel } from "../utils/debtDisplay";
 
+/** Summary card for a single debt, showing description, status, and amount. */
 export function DebtSummaryCard({
   debt,
   viewerUserId,

@@ -34,6 +34,7 @@ function formFromTransaction(transaction: Transaction): TransactionEditForm {
   };
 }
 
+/** Edit form page for a single transaction. */
 export function TransactionEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();

@@ -10,6 +10,7 @@ import { displayPerson } from "../utils/debtDisplay";
 import { EmptyState } from "./EmptyState";
 import { PersonDebtDetail } from "./PersonDebtDetail";
 
+/** Tab listing net balances per person, expandable into per-person debt detail. */
 export function BalancesTab({
   balances,
   visibleBalances,

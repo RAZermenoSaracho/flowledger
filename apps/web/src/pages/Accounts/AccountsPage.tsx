@@ -18,6 +18,7 @@ import { useAccountEditForm } from "./hooks/useAccountEditForm";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
+/** Accounts list page: search/filter/group controls, provider sync widget, and inline edit forms. */
 export function AccountsPage() {
   const auth = useAuth();
 

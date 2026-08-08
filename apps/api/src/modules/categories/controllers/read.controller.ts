@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { listCategories } from "../services/read.service.js";
 
+/** Lists categories visible to the authenticated user, filtered/sorted per query params. */
 export async function getCategories(req: Request, res: Response) {
   const filters = req.query as {
     groupId?: string;

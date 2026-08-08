@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SelectField } from "./FormField";
 import { listCurrencies } from "../services/currencies.client";
 
+/** React Query hook fetching the supported fiat/crypto currency list. */
 export function useCurrenciesQuery() {
   return useQuery({
     queryKey: ["currencies"],
@@ -10,6 +11,7 @@ export function useCurrenciesQuery() {
   });
 }
 
+/** Dropdown for choosing a fiat or crypto currency, grouped by type. */
 export function CurrencySelect({
   label,
   value,

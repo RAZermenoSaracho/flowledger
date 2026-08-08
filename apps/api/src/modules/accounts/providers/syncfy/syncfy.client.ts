@@ -24,6 +24,7 @@ import { buildSyncfyTransactionDataUrl } from "./utils/syncfyEndpoints.js";
 
 const syncfyTransactionPageLimit = 500;
 
+/** Opens a Syncfy session for a Syncfy user id, returning the token used to authorize subsequent data-endpoint calls. */
 export async function createSyncfySession(idUser: string) {
   const url = buildSyncfyApiUrl("/v1/sessions");
 
@@ -57,6 +58,7 @@ function normalizeSyncfyUser(user: unknown): SyncfyUser {
   };
 }
 
+/** Looks up a Syncfy user by the FlowLedger-assigned external user id; returns `undefined` if none exists yet. */
 export async function fetchSyncfyUserByExternalId(externalUserId: string) {
   const url = buildSyncfyApiUrl("/v1/users");
   url.searchParams.set("id_external", externalUserId);
@@ -67,6 +69,7 @@ export async function fetchSyncfyUserByExternalId(externalUserId: string) {
   return user;
 }
 
+/** Creates a new Syncfy user linked to a FlowLedger external user id. */
 export async function createSyncfyUser(input: {
   externalUserId: string;
   name: string;
@@ -85,6 +88,7 @@ export async function createSyncfyUser(input: {
   return normalizeSyncfyUser(extractSyncfyUser(body));
 }
 
+/** Normalizes a raw Syncfy account payload; `fallbackCredentialId` covers responses that omit `id_credential`. */
 export function normalizeSyncfyAccount(
   account: unknown,
   fallbackCredentialId?: string
@@ -115,6 +119,7 @@ export function normalizeSyncfyAccount(
   };
 }
 
+/** Normalizes a raw Syncfy institution (site) payload, deriving `supportedAccountTypes` from its product list plus category. */
 export function normalizeSyncfyInstitution(
   institution: unknown
 ): NormalizedSyncfyInstitution {
@@ -140,6 +145,7 @@ export function normalizeSyncfyInstitution(
   };
 }
 
+/** Normalizes a raw Syncfy transaction payload; throws if it lacks a resolvable `id_credential` (from the payload or `fallbackCredentialId`). */
 export function normalizeSyncfyTransaction(
   transaction: unknown,
   fallbackCredentialId?: string
@@ -181,6 +187,7 @@ export function normalizeSyncfyTransaction(
   };
 }
 
+/** Fetches a Syncfy accounts data endpoint and returns the normalized accounts. */
 export async function fetchSyncfyAccounts(
   endpoint: string,
   token: string,
@@ -194,6 +201,7 @@ export async function fetchSyncfyAccounts(
   );
 }
 
+/** Fetches a Syncfy transactions data endpoint, paging with `skip`/`limit` until a short page is returned, and returns all normalized transactions. */
 export async function fetchSyncfyTransactions(
   endpoint: string,
   token: string,

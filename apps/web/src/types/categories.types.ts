@@ -1,5 +1,6 @@
 import type { CategoryType } from "@flowledger/shared";
 
+/** Category record shape as returned by the API. */
 export type Category = {
   id: string;
   groupId?: string | null;

@@ -3,6 +3,7 @@ const money = new Intl.NumberFormat("en-US", {
   currency: "USD"
 });
 
+/** Income/expense/balance summary tiles for a group. */
 export function GroupSummarySection({
   summary
 }: {

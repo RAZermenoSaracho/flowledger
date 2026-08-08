@@ -11,6 +11,7 @@ import type {
 } from "../types/debts.types";
 import { availableSettlementAmount } from "../utils/debtDisplay";
 
+/** State and handlers for creating settlement requests and approving/rejecting incoming ones. */
 export function useDebtSettlementWorkflow({
   groupById,
   privateExpenseCategories,

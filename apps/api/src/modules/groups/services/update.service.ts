@@ -2,6 +2,7 @@ import { prisma } from "../../../db/prisma.js";
 import { groupInclude } from "../utils/groupInclude.js";
 import { getGroupAdmin } from "./read.service.js";
 
+/** Updates a group's name/description; requires `userId` to be a group admin. */
 export async function updateGroup(
   userId: string,
   groupId: string,
@@ -21,6 +22,7 @@ export async function updateGroup(
   });
 }
 
+/** Marks a group archived; requires `userId` to be a group admin. */
 export async function archiveGroup(userId: string, groupId: string) {
   await getGroupAdmin(userId, groupId);
 
@@ -31,6 +33,7 @@ export async function archiveGroup(userId: string, groupId: string) {
   });
 }
 
+/** Un-archives a group; requires `userId` to be a group admin. */
 export async function restoreGroup(userId: string, groupId: string) {
   await getGroupAdmin(userId, groupId);
 

@@ -3,6 +3,7 @@ import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
 import { getGroupAdmin, getGroupMembership } from "./read.service.js";
 
+/** Removes a departing member's `CategoryUser` access to all of the group's categories. */
 export async function revokeGroupCategoriesFromUser(
   tx: Prisma.TransactionClient,
   groupId: string,
@@ -16,11 +17,13 @@ export async function revokeGroupCategoriesFromUser(
   });
 }
 
+/** Deletes a group; requires `userId` to be a group admin. */
 export async function deleteGroup(userId: string, groupId: string) {
   await getGroupAdmin(userId, groupId);
   await prisma.group.delete({ where: { id: groupId } });
 }
 
+/** Removes a member from a group and revokes their category access; a member may remove themself, otherwise `userId` must be a group admin. */
 export async function removeGroupMember(
   userId: string,
   groupId: string,

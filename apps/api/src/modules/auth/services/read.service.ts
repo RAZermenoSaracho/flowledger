@@ -3,6 +3,7 @@ import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
 import { signToken } from "../utils/tokens.js";
 
+/** Verifies email/password against the stored hash and issues a token; throws 401 on any mismatch (including a Google-only account with no password). */
 export async function authenticateUser(input: {
   email: string;
   password: string;
@@ -21,6 +22,7 @@ export async function authenticateUser(input: {
   return { token: signToken(user), user };
 }
 
+/** Fetches a user by id, throwing if it doesn't exist. */
 export async function getCurrentUser(userId: string) {
   return prisma.user.findUniqueOrThrow({ where: { id: userId } });
 }

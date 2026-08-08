@@ -1,3 +1,4 @@
+/** A `ProviderAccount` joined with its parent `ProviderConnection`, as needed to build sync-status summaries. */
 export type ProviderAccountWithConnection = {
   id: string;
   provider: string;

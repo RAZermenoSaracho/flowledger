@@ -16,6 +16,7 @@ const RATE_TTL_MS = 5 * 60 * 1000;
 let cache: FiatCache | null = null;
 const rateCache = new Map<string, { rate: number; fetchedAt: number }>();
 
+/** Lists supported fiat currencies, cached for 24h; returns `[]` if Frankfurter is unreachable. */
 export async function getFiatCurrencies(): Promise<FiatCurrency[]> {
   const now = Date.now();
   if (cache && now - cache.fetchedAt < TTL_MS) {
@@ -37,12 +38,14 @@ export async function getFiatCurrencies(): Promise<FiatCurrency[]> {
   }
 }
 
+/** Checks whether `code` is a known fiat currency (USD always counts). */
 export async function isFiatCurrencyCode(code: string): Promise<boolean> {
   if (code === "USD") return true;
   const currencies = await getFiatCurrencies();
   return currencies.some((currency) => currency.code === code);
 }
 
+/** Resolves the live rate between two fiat currencies, caching each pair for 5 minutes. */
 export async function getFiatExchangeRate(
   from: string,
   to: string

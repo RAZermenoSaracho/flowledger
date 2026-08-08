@@ -6,6 +6,7 @@ import { SelectField, TextInput } from "../../../components/FormField";
 import type { Group } from "../../../types/groups.types";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
 
+/** One row for a group's shared category, with edit/archive actions when the viewer can manage. */
 export function GroupCategoryItem({
   category,
   canManage,

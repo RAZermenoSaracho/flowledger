@@ -29,6 +29,7 @@ async function withPreferredCurrencyOutstandingAmounts<
   );
 }
 
+/** Lists the user's debts split into owed-to-me/i-owe/settled, plus pending and approved settlement requests, with outstanding amounts converted to their preferred currency. */
 export async function listDebts(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },

@@ -6,6 +6,7 @@ import type { Account, AccountSync } from "../../../types/accounts.types";
 import type { SyncfyWidgetEntrypoint } from "../types/accounts.types";
 import { openSyncfyWidget } from "../utils/syncfyWidget";
 
+/** State and handlers for connecting, resyncing, and reconnecting provider (Syncfy) accounts. */
 export function useAccountProviderSync({
   defaultCurrency
 }: {

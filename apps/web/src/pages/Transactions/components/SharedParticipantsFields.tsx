@@ -8,6 +8,7 @@ import type { Group } from "../../../types/groups.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft } from "../types/transactions.types";
 
+/** Shared-expense toggle and participant fields embedded within the transaction create form. */
 export function SharedParticipantsFields({
   isShared,
   onIsSharedChange,

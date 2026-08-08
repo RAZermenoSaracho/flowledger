@@ -3,6 +3,7 @@ import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { TextArea, TextInput } from "../../../components/FormField";
 
+/** Form card for creating a new group. */
 export function GroupCreateCard({
   isCreateOpen,
   onOpen,

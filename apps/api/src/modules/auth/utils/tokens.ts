@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { env } from "../../../config/env.js";
 
+/** Signs a JWT for `user`, using their id as `sub` and embedding their email. */
 export function signToken(user: { id: string; email: string }) {
   const options: jwt.SignOptions = {
     subject: user.id,

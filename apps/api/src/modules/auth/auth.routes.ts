@@ -7,6 +7,7 @@ import { googleRouter } from "./providers/google/google.routes.js";
 import { register } from "./controllers/create.controller.js";
 import { getMe, login } from "./controllers/read.controller.js";
 
+/** Express router for `/auth` — register, login, `me`, and mounts the Google OAuth sub-router. */
 export const authRouter = Router();
 
 authRouter.post("/register", validate(registerSchema), asyncHandler(register));

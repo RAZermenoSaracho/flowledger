@@ -1,5 +1,6 @@
 import type { CategoryType, TransactionType } from "@flowledger/shared";
 
+/** Income/expense/balance summary totals, both gross and net. */
 export type Summary = {
   totalIncome: number;
   totalGrossIncome: number;
@@ -14,6 +15,7 @@ export type Summary = {
   reportBalance: number;
 };
 
+/** Per-category report row shape. */
 export type CategoryReportRow = {
   categoryId: string | null;
   categoryName: string;
@@ -29,6 +31,7 @@ export type CategoryReportRow = {
   netExpenseTotal: number;
 };
 
+/** `CategoryReportRow` extended with chart display fields (label, total, fill color). */
 export type CategoryChartRow = CategoryReportRow & {
   displayName: string;
   displayTotal: number;
@@ -36,6 +39,7 @@ export type CategoryChartRow = CategoryReportRow & {
   fill: string;
 };
 
+/** One month's cashflow row shape. */
 export type CashflowRow = {
   month: string;
   income: number;

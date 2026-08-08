@@ -9,10 +9,12 @@ import type { SharedExpenseSortBy } from "../../../services/sharedExpenses.clien
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { SharedExpenseListItem } from "./SharedExpenseListItem";
 
+/** Group-by options for the shared expenses list. */
 export const sharedExpenseGroupByDefs: SearchGroupByDef[] = [
   { id: "status", label: "Status" }
 ];
 
+/** Derives the group key/label for a shared expense under a chosen group-by field. */
 export function sharedExpenseGroupKey(
   sharedExpense: SharedExpense,
   groupById: string
@@ -25,6 +27,7 @@ export function sharedExpenseGroupKey(
 
 export { groupByFields };
 
+/** Search/filter/group/sort controls and list container for shared expenses. */
 export function SharedExpensesListCard({
   search,
   onSearchChange,

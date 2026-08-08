@@ -10,6 +10,7 @@ import { Card } from "../../../components/Card";
 import type { CashflowRow } from "../../../types/reports.types";
 import { formatCompactMoney, formatMoney } from "../../../utils/currency";
 
+/** Bar chart of monthly income vs. expenses. */
 export function MonthlyCashflowChart({
   rows,
   currency,

@@ -32,6 +32,7 @@ function emptyForm(defaultCurrency: string): TransactionFormState {
   };
 }
 
+/** Create-transaction form card, including optional shared-expense participant split. */
 export function TransactionFormCard({
   accounts,
   groups,

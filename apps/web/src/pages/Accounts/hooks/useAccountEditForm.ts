@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import * as accountsClient from "../../../services/accounts.client";
 import type { Account } from "../../../types/accounts.types";
 
+/** State and handlers for inline-editing an account in the accounts list. */
 export function useAccountEditForm() {
   const queryClient = useQueryClient();
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);

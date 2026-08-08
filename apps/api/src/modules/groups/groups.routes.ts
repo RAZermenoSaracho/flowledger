@@ -13,6 +13,7 @@ import { deleteGroupController, deleteGroupMember } from "./controllers/delete.c
 import { getGroup, getGroups } from "./controllers/read.controller.js";
 import { postGroupArchive, postGroupRestore, putGroup } from "./controllers/update.controller.js";
 
+/** Router for `/groups` — CRUD, archive/restore, members, and categories. */
 export const groupsRouter = Router();
 
 groupsRouter.get("/", validate(groupFiltersSchema, "query"), asyncHandler(getGroups));

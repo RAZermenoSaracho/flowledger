@@ -4,6 +4,7 @@ import {
   handleProviderWebhook
 } from "../services/providerWebhooks.service.js";
 
+/** Receives and processes an inbound provider webhook; always replies 200 so providers don't retry, even on rejected payloads. */
 export async function postWebhook(req: Request, res: Response) {
   const providerParam = req.params.provider;
   if (!providerParam) {
@@ -43,6 +44,7 @@ export async function postWebhook(req: Request, res: Response) {
   });
 }
 
+/** Health-check endpoint confirming a provider's webhook route is reachable and configured. */
 export async function getWebhookHealth(req: Request, res: Response) {
   const providerParam = req.params.provider;
   if (!providerParam) {

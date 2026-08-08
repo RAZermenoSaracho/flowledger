@@ -22,6 +22,7 @@ import { GroupsListCard } from "./components/GroupsListCard";
 import { useGroupCategoryManagement } from "./hooks/useGroupCategoryManagement";
 import { useGroupManagement } from "./hooks/useGroupManagement";
 
+/** Groups list/detail page: choose a group, manage members/categories, and view its summary. */
 export function GroupsPage() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();

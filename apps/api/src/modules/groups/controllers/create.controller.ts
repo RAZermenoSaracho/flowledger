@@ -3,11 +3,13 @@ import { notFound } from "../../../utils/httpError.js";
 import { serialize } from "../../../utils/serialize.js";
 import { addGroupCategory, addGroupMember, createGroup } from "../services/create.service.js";
 
+/** Creates a group owned by the caller. */
 export async function postGroup(req: Request, res: Response) {
   const group = await createGroup(req.user!.id, req.body);
   res.status(201).json({ group: serialize(group) });
 }
 
+/** Adds a member to the group identified by `req.params.id`. */
 export async function postGroupMember(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");
@@ -16,6 +18,7 @@ export async function postGroupMember(req: Request, res: Response) {
   res.status(201).json({ member: serialize(member) });
 }
 
+/** Adds a shared category to the group identified by `req.params.id`. */
 export async function postGroupCategory(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");

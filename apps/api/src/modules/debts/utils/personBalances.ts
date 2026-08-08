@@ -55,6 +55,7 @@ function otherParty(debt: BalanceDebt, viewerUserId: string) {
   };
 }
 
+/** Groups a viewer's owed-to-me and i-owe debts by counterparty into per-person balance summaries, sorted by largest net balance first. */
 export function buildPersonBalances(
   viewerUserId: string,
   owedToMe: BalanceDebt[],

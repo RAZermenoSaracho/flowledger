@@ -6,6 +6,7 @@ import {
   createSettlementRequest
 } from "../services/create.service.js";
 
+/** Creates a settlement request against the debt identified by `req.params.id`. */
 export async function postSettlementRequest(req: Request, res: Response) {
   const settlementRequest = await createSettlementRequest(
     req.user!.id,
@@ -15,6 +16,7 @@ export async function postSettlementRequest(req: Request, res: Response) {
   res.status(201).json({ settlementRequest: serialize(settlementRequest) });
 }
 
+/** Creates settlement requests for multiple debts in one call. */
 export async function postBatchSettlementRequests(
   req: Request,
   res: Response

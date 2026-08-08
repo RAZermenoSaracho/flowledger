@@ -1,6 +1,7 @@
 import type { Group } from "../../../types/groups.types";
 import { formatMoney } from "../../../utils/currency";
 
+/** Section listing a group's recent transactions. */
 export function GroupTransactionsSection({
   transactions
 }: {

@@ -80,4 +80,5 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 
+/** Validated process environment; throws at startup if required vars are missing or malformed. */
 export const env = envSchema.parse(process.env);

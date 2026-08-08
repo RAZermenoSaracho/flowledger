@@ -4,6 +4,7 @@ import type { ProviderImportedTransaction } from "../../../types/transactions.ty
 import { formatMoney } from "../../../utils/currency";
 import type { ImportedTransactionCardProps } from "../types/transactions.types";
 
+/** Derives income/expense from an imported transaction's signed amount, or null if it's exactly zero. */
 export function importedTransactionType(
   transaction: ProviderImportedTransaction
 ) {
@@ -22,6 +23,7 @@ function providerAccountMetadataValue(
     : null;
 }
 
+/** Display label for the provider account an imported transaction came from. */
 export function providerAccountLabel(transaction: ProviderImportedTransaction) {
   return [
     providerAccountMetadataValue(transaction, "name"),
@@ -52,6 +54,7 @@ function metadataLine(transaction: ProviderImportedTransaction) {
   return `${transaction.provider} · ${institution} · ${providerAccount} · ${linkedAccount}`;
 }
 
+/** One imported-transaction row with category assignment and import/ignore actions. */
 export function ImportedTransactionCard({
   transaction,
   categories,

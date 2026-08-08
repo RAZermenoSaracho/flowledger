@@ -7,10 +7,12 @@ import type { Group } from "../../../types/groups.types";
 import type { ReportAmountMode, ReportFilters } from "../types/reports.types";
 import { MultiSelectFilter } from "./MultiSelectFilter";
 
+/** Net/gross options for the report amount-mode toggle. */
 export const reportAmountModes: { value: ReportAmountMode; label: string }[] = [
   { value: "net", label: "Net" },
   { value: "gross", label: "Gross" }
 ];
+/** Default (empty) `ReportFilters` value. */
 export const emptyReportFilters: ReportFilters = {
   dateFrom: "",
   dateTo: "",
@@ -18,6 +20,7 @@ export const emptyReportFilters: ReportFilters = {
   categoryIds: []
 };
 
+/** Date range, group, and category filter controls for reports. */
 export function ReportFiltersCard({
   filters,
   onFiltersChange,

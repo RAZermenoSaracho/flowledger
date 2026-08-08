@@ -2,6 +2,7 @@ import { apiRequest } from "./api.client";
 import type { SharedExpense } from "../types/sharedExpenses.types";
 import type { SharedExpenseStatus } from "@flowledger/shared";
 
+/** Sortable fields for the shared expenses list. */
 export type SharedExpenseSortBy =
   | "title"
   | "totalAmount"
@@ -9,6 +10,7 @@ export type SharedExpenseSortBy =
   | "createdAt"
   | "updatedAt";
 
+/** Participant payload shape for creating or updating a shared expense. */
 export type SharedExpenseParticipantInput = {
   userId?: string | null;
   participantName: string;
@@ -17,6 +19,7 @@ export type SharedExpenseParticipantInput = {
   status?: "pending" | "partial" | "paid";
 };
 
+/** Fetches shared expenses with status/sort filters. */
 export function listSharedExpenses(
   params: {
     status?: SharedExpenseStatus;
@@ -30,6 +33,7 @@ export function listSharedExpenses(
   });
 }
 
+/** Creates a shared expense from a transaction and its participant splits. */
 export function createSharedExpense(body: {
   transactionId: string;
   title: string;
@@ -42,6 +46,7 @@ export function createSharedExpense(body: {
   });
 }
 
+/** Updates a shared expense's fields and participant splits. */
 export function updateSharedExpense(
   sharedExpenseId: string,
   body: {

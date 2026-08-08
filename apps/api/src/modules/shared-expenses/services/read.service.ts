@@ -2,6 +2,7 @@ import type { SharedExpenseInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 
+/** Fetches a transaction owned by `userId`, or `null` if no `transactionId` was given; throws if `transactionId` was given but doesn't resolve. */
 export async function getOwnedTransaction(userId: string, transactionId?: string) {
   if (!transactionId) return null;
 
@@ -16,6 +17,7 @@ export async function getOwnedTransaction(userId: string, transactionId?: string
   return transaction;
 }
 
+/** Validates participant input (no owner, group-split participants must be app users and group members) and fills in each registered participant's current display name. */
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
   participants: SharedExpenseInput["participants"] = [],
@@ -79,6 +81,7 @@ export async function normalizeSharedExpenseParticipants(
   });
 }
 
+/** Lists shared expenses where `userId` is the owner or a participant, filtered/sorted per `filters`. */
 export async function listSharedExpenses(
   userId: string,
   filters: {
@@ -104,6 +107,7 @@ export async function listSharedExpenses(
   });
 }
 
+/** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant. */
 export async function getSharedExpenseById(userId: string, sharedExpenseId: string) {
   const sharedExpense = await prisma.sharedExpense.findFirst({
     where: {

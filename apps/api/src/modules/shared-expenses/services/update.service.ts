@@ -5,6 +5,7 @@ import { assertShareableTransaction, validateSharedExpenseParticipants } from ".
 import { getOwnedTransaction, normalizeSharedExpenseParticipants } from "./read.service.js";
 import { notifySharedExpenseParticipants } from "./create.service.js";
 
+/** Updates a shared expense owned by `userId`, replacing its participants when new ones are supplied and notifying only participants newly added. */
 export async function updateSharedExpense(
   userId: string,
   sharedExpenseId: string,

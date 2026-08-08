@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react";
 
+/** Styled container div used as a page-section wrapper. */
 export function Card({ className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div

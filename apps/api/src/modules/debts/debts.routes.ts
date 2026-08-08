@@ -20,7 +20,9 @@ import {
   postSettle
 } from "./controllers/update.controller.js";
 
+/** Router for `/debts` — listing debts and creating/settling settlement requests. */
 export const debtsRouter = Router();
+/** Router for `/settlements` — approving and rejecting settlement requests. */
 export const settlementsRouter = Router();
 
 debtsRouter.get("/", asyncHandler(getDebts));

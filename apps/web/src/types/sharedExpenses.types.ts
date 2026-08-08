@@ -1,6 +1,7 @@
 import type { ParticipantStatus, SharedExpenseStatus } from "@flowledger/shared";
 import type { Transaction } from "./transactions.types";
 
+/** Participant record shape on a shared expense. */
 export type SharedExpenseParticipant = {
   id: string;
   userId?: string | null;
@@ -11,6 +12,7 @@ export type SharedExpenseParticipant = {
   status: ParticipantStatus;
 };
 
+/** Shared expense record shape. */
 export type SharedExpense = {
   id: string;
   transactionId: string;

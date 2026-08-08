@@ -7,11 +7,13 @@ import type { SearchGroupByDef } from "../../../components/SearchComponent";
 import type { Account } from "../../../types/accounts.types";
 import type { AccountSortBy } from "../../../services/accounts.client";
 
+/** Group-by options offered on the accounts list. */
 export const accountGroupByDefs: SearchGroupByDef[] = [
   { id: "type", label: "Type" },
   { id: "source", label: "Source" }
 ];
 
+/** Derives the group key/label for an account under a chosen group-by field. */
 export function accountGroupKey(account: Account, groupById: string) {
   if (groupById === "type") {
     return { key: account.type, label: account.type.replace("_", " ") };
@@ -25,6 +27,7 @@ export function accountGroupKey(account: Account, groupById: string) {
 
 export { groupByFields };
 
+/** Search/filter/group/sort controls for the accounts list. */
 export function AccountsFiltersCard({
   search,
   onSearchChange,

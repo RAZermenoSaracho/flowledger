@@ -1,3 +1,4 @@
+/** Coerces a transaction amount value (number or numeric string) into a safe finite number, defaulting to 0. */
 export function parseTransactionAmount(amount: unknown) {
   if (typeof amount === "number") {
     return Number.isFinite(amount) ? amount : 0;

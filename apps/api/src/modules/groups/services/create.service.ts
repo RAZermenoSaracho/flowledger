@@ -5,6 +5,7 @@ import { createNotifications } from "../../notifications/services/create.service
 import { groupInclude } from "../utils/groupInclude.js";
 import { getGroupAdmin } from "./read.service.js";
 
+/** Gives a newly added group member `CategoryUser` access to all the group's active categories. */
 export async function grantGroupCategoriesToUser(
   tx: Prisma.TransactionClient,
   groupId: string,
@@ -26,6 +27,7 @@ export async function grantGroupCategoriesToUser(
   });
 }
 
+/** Creates a group owned by `userId`, seeding the owner as its first admin member. */
 export async function createGroup(
   userId: string,
   input: { name: string; description?: string | null }
@@ -46,6 +48,7 @@ export async function createGroup(
   });
 }
 
+/** Adds a member to a group; requires `userId` to be a group admin and the group to be active. */
 export async function addGroupMember(
   userId: string,
   groupId: string,
@@ -116,6 +119,7 @@ export async function addGroupMember(
   });
 }
 
+/** Adds a shared category to a group, granting all current members access to it; requires `userId` to be a group admin. */
 export async function addGroupCategory(
   userId: string,
   groupId: string,

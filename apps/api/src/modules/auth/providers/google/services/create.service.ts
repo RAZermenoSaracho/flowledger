@@ -13,6 +13,7 @@ import { exchangeGoogleCode, verifyGoogleIdentity } from "./google.client.js";
 
 const googleOAuthProvider = "google";
 
+/** Builds the Google consent-screen URL, embedding a signed state JWT carrying a fresh nonce and the post-login `redirect` path. */
 export function buildGoogleAuthUrl(redirect: string) {
   const nonce = randomBytes(32).toString("base64url");
   const state = signGoogleState({ nonce, redirect });
@@ -78,6 +79,7 @@ async function findOrCreateGoogleUser(profile: GoogleProfile) {
   });
 }
 
+/** Verifies the OAuth state/nonce cookie pair, exchanges the auth code for a Google identity, finds-or-creates the local user, and issues a token. */
 export async function handleGoogleCallback(input: {
   state: string;
   cookieHeader: string | undefined;

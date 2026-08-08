@@ -2,6 +2,7 @@ import { Button } from "../../../components/Button";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { formatMoney } from "../../../utils/currency";
 
+/** "You owe participants" / "Participants owe you" label based on the underlying transaction's type. */
 export function splitDirectionLabel(sharedExpense: SharedExpense) {
   if (sharedExpense.transaction?.type === "income")
     return "You owe participants";
@@ -10,6 +11,7 @@ export function splitDirectionLabel(sharedExpense: SharedExpense) {
   return "No debt direction";
 }
 
+/** One row in the shared expenses list, showing split direction and participant status. */
 export function SharedExpenseListItem({
   sharedExpense,
   isHighlighted,

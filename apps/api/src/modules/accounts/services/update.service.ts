@@ -1,6 +1,7 @@
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
 
+/** Updates an account's editable fields, throwing a 404 if it isn't owned by `userId`. */
 export async function updateAccount(userId: string, id: string, body: any) {
   const existing = await prisma.account.findFirst({
     where: { id, userId }
@@ -13,6 +14,7 @@ export async function updateAccount(userId: string, id: string, body: any) {
   });
 }
 
+/** Marks an account archived, throwing a 404 if it isn't owned by `userId`. */
 export async function archiveAccount(userId: string, id: string) {
   const existing = await prisma.account.findFirst({
     where: { id, userId }
@@ -25,6 +27,7 @@ export async function archiveAccount(userId: string, id: string) {
   });
 }
 
+/** Un-archives a previously archived account, throwing a 404 if it isn't owned by `userId`. */
 export async function restoreAccount(userId: string, id: string) {
   const existing = await prisma.account.findFirst({
     where: { id, userId }

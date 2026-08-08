@@ -47,6 +47,7 @@ function resetSyncfyWidgetContainer() {
   return element;
 }
 
+/** Loads the Syncfy widget SDK, mounts its container, and opens the given connect/resync/update flow, resolving with the settled event. */
 export async function openSyncfyWidget(
   widget: NonNullable<ProviderConnectionFlow["widget"]>,
   options: {

@@ -40,8 +40,11 @@ import {
   postWebhook
 } from "./controllers/providerWebhooks.controller.js";
 
+/** Routes for the authenticated user's own `Account` records (CRUD, archive/restore). */
 export const accountsRouter = Router();
+/** Provider-agnostic institution/connector/connection routes (`/providers/*`). */
 export const providersRouter = Router();
+/** Inbound provider webhook routes (`/providers/webhooks/*`). */
 export const providerWebhooksRouter = Router();
 
 const providerCredentialParamsSchema = z.object({

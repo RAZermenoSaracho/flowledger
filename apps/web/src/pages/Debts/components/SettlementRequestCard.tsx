@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { SettlementRequest } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 
+/** Card displaying one settlement request's amount, note, and status. */
 export function SettlementRequestCard({
   request,
   isHighlighted,

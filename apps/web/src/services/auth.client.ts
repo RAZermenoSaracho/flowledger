@@ -1,6 +1,7 @@
 import { apiRequest, apiUrl, tokenStore } from "./api.client";
 import type { User } from "../types/users.types";
 
+/** Authenticates via email/password. */
 export function login(email: string, password: string) {
   return apiRequest<{ token: string; user: User }>("/auth/login", {
     method: "POST",
@@ -8,6 +9,7 @@ export function login(email: string, password: string) {
   });
 }
 
+/** Registers a new user. */
 export function register(name: string, email: string, password: string) {
   return apiRequest<{ token: string; user: User }>("/auth/register", {
     method: "POST",
@@ -15,10 +17,12 @@ export function register(name: string, email: string, password: string) {
   });
 }
 
+/** Fetches the authenticated user's profile. */
 export function getMe() {
   return apiRequest<{ user: User }>("/auth/me");
 }
 
+/** Builds the Google OAuth start URL, encoding where to redirect after login. */
 export function googleOAuthUrl(redirect: string) {
   return apiUrl(`/auth/google?redirect=${encodeURIComponent(redirect)}`);
 }
@@ -31,10 +35,12 @@ export function getToken() {
   return tokenStore.get();
 }
 
+/** Stores the auth token. */
 export function setToken(token: string) {
   tokenStore.set(token);
 }
 
+/** Clears the stored auth token. */
 export function clearToken() {
   tokenStore.clear();
 }

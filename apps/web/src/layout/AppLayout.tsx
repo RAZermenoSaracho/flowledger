@@ -34,6 +34,7 @@ const navItems = [
 
 const mobileNavItems = navItems;
 
+/** Top-level authenticated app shell: sidebar/nav, notifications, and routed content. */
 export function AppLayout() {
   const auth = useAuth();
   const queryClient = useQueryClient();

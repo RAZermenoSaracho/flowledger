@@ -8,6 +8,7 @@ import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
 import type { useAccountProviderSync } from "../hooks/useAccountProviderSync";
 
+/** Form card for creating a new manual account. */
 export function AddAccountCard({
   sync
 }: {

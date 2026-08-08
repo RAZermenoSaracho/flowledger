@@ -2,6 +2,7 @@ type GoogleIconProps = {
   className?: string;
 };
 
+/** Renders the Google "G" logo as an inline SVG. */
 export function GoogleIcon({ className = "h-5 w-5" }: GoogleIconProps) {
   return (
     <svg

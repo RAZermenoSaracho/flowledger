@@ -16,6 +16,7 @@ import type { CategorySortBy } from "../../services/categories.client";
 import type { Category } from "../../types/categories.types";
 import { matchesSearch } from "../../utils/search";
 
+/** Categories list page: search/filter/group controls plus the create-category form. */
 export function CategoriesPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");

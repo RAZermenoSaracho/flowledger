@@ -22,6 +22,7 @@ function getNumber(value: unknown): number | null {
   return null;
 }
 
+/** Builds a display-ready sync summary for one provider account, falling back to the parent connection's status/failure/timestamps where the provider account itself doesn't carry its own. */
 export function providerAccountSyncSummary(
   providerAccount: ProviderAccountWithConnection
 ) {
@@ -65,6 +66,7 @@ export function providerAccountSyncSummary(
   };
 }
 
+/** Attaches per-provider-account sync summaries to an account for list responses, and derives `source` ("synced" vs "manual") from whether any exist. */
 export function accountListItemWithSyncSummary<
   TAccount extends { providerAccounts: ProviderAccountWithConnection[] }
 >(account: TAccount) {

@@ -11,6 +11,7 @@ import {
   updateTransaction
 } from "../services/update.service.js";
 
+/** Updates the category on a pending imported transaction. */
 export async function patchImportedTransaction(req: Request, res: Response) {
   const importedTransactionId = req.params.id;
   if (!importedTransactionId) throw notFound("Imported transaction");
@@ -24,6 +25,7 @@ export async function patchImportedTransaction(req: Request, res: Response) {
   res.json({ importedTransaction: serialize(importedTransaction) });
 }
 
+/** Marks an imported transaction as ignored so it's excluded from the pending review list. */
 export async function postIgnoreImportedTransaction(
   req: Request,
   res: Response
@@ -39,6 +41,7 @@ export async function postIgnoreImportedTransaction(
   res.json({ importedTransaction: serialize(result) });
 }
 
+/** Reverts an ignored imported transaction back to pending review. */
 export async function postUnignoreImportedTransaction(
   req: Request,
   res: Response
@@ -54,6 +57,7 @@ export async function postUnignoreImportedTransaction(
   res.json({ importedTransaction: serialize(result) });
 }
 
+/** Ignores a batch/selection of imported transactions. */
 export async function postBatchIgnore(req: Request, res: Response) {
   const selection = req.body.selection as ImportedTransactionSelection;
   const result = await batchIgnoreImportedTransactions(
@@ -64,6 +68,7 @@ export async function postBatchIgnore(req: Request, res: Response) {
   res.json({ ignoredCount: result, errors: [] });
 }
 
+/** Un-ignores a batch/selection of imported transactions, reverting them to pending. */
 export async function postBatchUnignore(req: Request, res: Response) {
   const selection = req.body.selection as ImportedTransactionSelection;
   const result = await batchUnignoreImportedTransactions(
@@ -74,6 +79,7 @@ export async function postBatchUnignore(req: Request, res: Response) {
   res.json({ unignoredCount: result, errors: [] });
 }
 
+/** Updates a transaction's fields, keeping any linked shared-expense data in sync. */
 export async function putTransaction(req: Request, res: Response) {
   const transaction = await updateTransaction(
     req.user!.id,

@@ -1,3 +1,4 @@
+/** Fetches the raw supported-currency-code-to-name map from Frankfurter. */
 export async function fetchFrankfurterCurrencies(): Promise<Record<string, string>> {
   const response = await fetch("https://api.frankfurter.app/currencies");
   if (!response.ok) {
@@ -6,6 +7,7 @@ export async function fetchFrankfurterCurrencies(): Promise<Record<string, strin
   return (await response.json()) as Record<string, string>;
 }
 
+/** Fetches the live rate between two fiat currencies from Frankfurter; throws if the response omits a rate for `to`. */
 export async function fetchFrankfurterRate(
   from: string,
   to: string

@@ -4,6 +4,7 @@ import * as groupsClient from "../../../services/groups.client";
 import { searchUsers } from "../../../services/users.client";
 import type { Group } from "../../../types/groups.types";
 
+/** State and handlers for creating, editing, archiving, and managing members of a group. */
 export function useGroupManagement({
   selectedGroupId,
   setSelectedGroupId,

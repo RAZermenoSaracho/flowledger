@@ -25,6 +25,7 @@ const planDescriptions = {
     "FlowLedger One adds priority support, early access to new features, and premium reporting tools on top of everything in Free."
 } as const;
 
+/** User profile/settings page: name, email, avatar, password, plan, and theme controls. */
 export function ProfilePage() {
   const auth = useAuth();
   const queryClient = useQueryClient();

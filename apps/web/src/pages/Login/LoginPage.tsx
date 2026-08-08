@@ -8,6 +8,7 @@ import { GoogleOAuthButton } from "../../components/GoogleOAuthButton";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 
+/** Email/password and Google OAuth login form. */
 export function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();

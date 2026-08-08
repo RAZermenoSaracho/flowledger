@@ -11,6 +11,7 @@ import { deleteSharedExpenseController } from "./controllers/delete.controller.j
 import { getSharedExpense, getSharedExpenses } from "./controllers/read.controller.js";
 import { putSharedExpense } from "./controllers/update.controller.js";
 
+/** Express router mounted at `/shared-expenses`. */
 export const sharedExpensesRouter = Router();
 
 sharedExpensesRouter.get(

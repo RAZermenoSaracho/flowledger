@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { getDebtDirection, isSettlementDirectionCurrent } from "./debtDirection.js";
 import type { debtInclude } from "./debtInclude.js";
 
+/** Remaining unpaid amount on a debt, floored at 0. */
 export function debtOutstanding(debt: {
   shareAmount: Prisma.Decimal;
   paidAmount: Prisma.Decimal;
@@ -9,6 +10,7 @@ export function debtOutstanding(debt: {
   return Math.max(0, debt.shareAmount.toNumber() - debt.paidAmount.toNumber());
 }
 
+/** Sums a debt's pending settlement requests that still match its current debtor/creditor direction. */
 export function pendingSettlementTotal(debt: {
   userId: string | null;
   sharedExpense: {
@@ -34,6 +36,7 @@ export function pendingSettlementTotal(debt: {
     .reduce((sum, request) => sum + request.amount.toNumber(), 0);
 }
 
+/** Enriches a Prisma debt row (loaded via {@link debtInclude}) with resolved direction and outstanding/pending amounts for balance views. */
 export function balanceDebt(
   debt: Prisma.SharedExpenseParticipantGetPayload<{
     include: typeof debtInclude;
@@ -49,12 +52,14 @@ export function balanceDebt(
   };
 }
 
+/** Derives a participant's paid status by comparing `paidAmount` against `shareAmount`. */
 export function participantStatus(shareAmount: number, paidAmount: number) {
   if (paidAmount >= shareAmount) return "paid";
   if (paidAmount > 0) return "partial";
   return "pending";
 }
 
+/** Joins a settlement's free-text note and payment info into a single display string. */
 export function settlementNotes(input: {
   note: string | null;
   paymentInfo: string | null;

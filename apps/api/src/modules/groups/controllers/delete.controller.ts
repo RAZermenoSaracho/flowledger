@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { notFound } from "../../../utils/httpError.js";
 import { deleteGroup, removeGroupMember } from "../services/delete.service.js";
 
+/** Deletes a group the caller administers. */
 export async function deleteGroupController(req: Request, res: Response) {
   const groupId = req.params.id;
   if (!groupId) throw notFound("Group");
@@ -10,6 +11,7 @@ export async function deleteGroupController(req: Request, res: Response) {
   res.status(204).send();
 }
 
+/** Removes a member from a group. */
 export async function deleteGroupMember(req: Request, res: Response) {
   const groupId = req.params.id;
   const memberUserId = req.params.userId;

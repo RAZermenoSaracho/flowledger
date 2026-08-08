@@ -1,6 +1,7 @@
 import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+/** Multi-select dropdown filter with search and an implicit "all" state when nothing is selected. */
 export function MultiSelectFilter({
   label,
   options,

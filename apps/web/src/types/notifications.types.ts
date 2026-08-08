@@ -1,5 +1,6 @@
 import type { NotificationType } from "@flowledger/shared";
 
+/** Notification record shape. */
 export type Notification = {
   id: string;
   userId: string;

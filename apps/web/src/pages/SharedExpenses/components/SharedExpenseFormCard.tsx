@@ -6,6 +6,7 @@ import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
 import type { useSharedExpenseForm } from "../hooks/useSharedExpenseForm";
 
+/** Create/edit form card for a shared expense, including participant split management. */
 export function SharedExpenseFormCard({
   form
 }: {

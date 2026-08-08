@@ -12,6 +12,7 @@ const TTL_MS = 60 * 60 * 1000;
 
 let cache: CryptoCache | null = null;
 
+/** Lists supported crypto currencies, derived from Binance ticker symbols and cached for an hour; returns `[]` if Binance is unreachable. */
 export async function getCryptoCurrencies(): Promise<CryptoCurrency[]> {
   const now = Date.now();
   if (cache && now - cache.fetchedAt < TTL_MS) {
@@ -37,7 +38,7 @@ export async function getCryptoCurrencies(): Promise<CryptoCurrency[]> {
   }
 }
 
-// Treats USDT as ~1 USD; returns null when no direct Binance quote exists.
+/** Resolves a crypto asset's USDT price via Binance, trying both `{code}USDT` and inverse `USDT{code}` symbols; treats USDT/USD as 1 and returns `null` if no quote exists. */
 export async function getCryptoUsdtPrice(code: string): Promise<number | null> {
   if (code === "USDT" || code === "USD") return 1;
 
@@ -51,6 +52,7 @@ export async function getCryptoUsdtPrice(code: string): Promise<number | null> {
   return null;
 }
 
+/** Checks whether `code` is a known crypto currency (USDT always counts). */
 export async function isCryptoCurrencyCode(code: string): Promise<boolean> {
   if (code === "USDT") return true;
   const currencies = await getCryptoCurrencies();

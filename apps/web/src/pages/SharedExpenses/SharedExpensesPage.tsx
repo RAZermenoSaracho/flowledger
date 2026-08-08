@@ -16,6 +16,7 @@ import {
 } from "./components/SharedExpensesListCard";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
 
+/** Shared expenses list page with search/filter/group controls and create/edit form. */
 export function SharedExpensesPage() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();

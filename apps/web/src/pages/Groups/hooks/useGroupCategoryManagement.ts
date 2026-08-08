@@ -5,6 +5,7 @@ import * as categoriesClient from "../../../services/categories.client";
 import * as groupsClient from "../../../services/groups.client";
 import type { Group } from "../../../types/groups.types";
 
+/** State and handlers for adding and archiving a group's shared categories. */
 export function useGroupCategoryManagement({
   selectedGroupId,
   refreshSelectedGroup

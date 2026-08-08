@@ -16,6 +16,7 @@ import {
   providerAccountSummary
 } from "../utils/providerAccountMetadata.js";
 
+/** Starts a provider connection flow for the requested institution (or bare connector, when no institution catalog entry is selected), throwing 404/501 if unavailable or unconfigured. */
 export async function createConnection(
   userId: string,
   body: { institutionId?: string; provider?: string }
@@ -134,6 +135,7 @@ async function createOrLinkProviderAccount(input: {
   });
 }
 
+/** Links each selected provider account to an existing FlowLedger account, or creates one from provider metadata if none is specified. */
 export async function confirmProviderAccounts(
   userId: string,
   accounts: { providerAccountId: string; accountId?: string }[]

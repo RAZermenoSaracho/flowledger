@@ -10,6 +10,7 @@ import {
   googleOAuthStart
 } from "./controllers/create.controller.js";
 
+/** Express router for Google OAuth start (`/`) and callback (`/callback`), mounted at `/auth/google`. */
 export const googleRouter = Router();
 
 googleRouter.get(

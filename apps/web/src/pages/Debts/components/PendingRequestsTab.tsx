@@ -10,6 +10,7 @@ import { ApprovalActions } from "./ApprovalActions";
 import { EmptyState } from "./EmptyState";
 import { SettlementRequestCard } from "./SettlementRequestCard";
 
+/** Tab listing pending settlement requests both sent by and awaiting approval from the user. */
 export function PendingRequestsTab({
   pendingFromMe,
   pendingForMe,

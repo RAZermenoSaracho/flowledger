@@ -4,24 +4,29 @@ import type { ReactNode } from "react";
 import { Button } from "./Button";
 import { SelectField } from "./FormField";
 
+/** One selectable option in a facet filter. */
 export type SearchFacetOption = {
   label: string;
   value: string;
 };
 
+/** A facet filter's id/label/options. */
 export type SearchFacetDef = {
   id: string;
   label: string;
   options: SearchFacetOption[];
 };
 
+/** A group-by option's id/label. */
 export type SearchGroupByDef = {
   id: string;
   label: string;
 };
 
+/** Alias of `SearchFacetOption` for filter dropdowns. */
 export type SearchFilterOption = SearchFacetOption;
 
+/** Sort control's current value/options/change handler. */
 export type SearchSort = {
   label?: string;
   value: string;
@@ -31,6 +36,7 @@ export type SearchSort = {
   onDirectionChange: (direction: "asc" | "desc") => void;
 };
 
+/** Active/archived toggle control's value/handler/labels. */
 export type SearchArchiveToggle = {
   value: "active" | "archived";
   onChange: (value: "active" | "archived") => void;
@@ -61,6 +67,7 @@ type Suggestion = {
   option: SearchFacetOption;
 };
 
+/** Generic search/filter/sort toolbar used across list pages. */
 export function SearchComponent({
   searchValue,
   searchLabel = "Search",

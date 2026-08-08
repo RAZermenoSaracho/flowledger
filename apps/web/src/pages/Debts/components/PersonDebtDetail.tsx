@@ -11,6 +11,7 @@ import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
 import { DebtTable } from "./DebtTable";
 import { EmptyState } from "./EmptyState";
 
+/** Expanded per-person debt breakdown with settlement request form. */
 export function PersonDebtDetail({
   balance,
   summaryCurrency,

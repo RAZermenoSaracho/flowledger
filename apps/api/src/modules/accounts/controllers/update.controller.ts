@@ -6,16 +6,19 @@ import {
   updateAccount
 } from "../services/update.service.js";
 
+/** Updates an account's editable fields for the authenticated user. */
 export async function putAccount(req: Request, res: Response) {
   const account = await updateAccount(req.user!.id, req.params.id!, req.body);
   res.json({ account: serialize(account) });
 }
 
+/** Archives an account owned by the authenticated user. */
 export async function postArchiveAccount(req: Request, res: Response) {
   const account = await archiveAccount(req.user!.id, req.params.id!);
   res.json({ account: serialize(account) });
 }
 
+/** Restores a previously archived account owned by the authenticated user. */
 export async function postRestoreAccount(req: Request, res: Response) {
   const account = await restoreAccount(req.user!.id, req.params.id!);
   res.json({ account: serialize(account) });

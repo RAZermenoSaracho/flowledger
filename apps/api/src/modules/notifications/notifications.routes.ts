@@ -5,6 +5,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getNotifications, getUnreadCount } from "./controllers/read.controller.js";
 import { markAllRead, markRead } from "./controllers/update.controller.js";
 
+/** Express router mounted at `/notifications`. */
 export const notificationsRouter = Router();
 
 notificationsRouter.get("/", asyncHandler(getNotifications));

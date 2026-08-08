@@ -10,6 +10,7 @@ import type {
   ImportedSortBy
 } from "../types/transactions.types";
 
+/** State and handlers for the imported-transactions tab: filters, sort, selection, and batch actions. */
 export function useImportedTransactionsWorkflow({
   activeTab,
   searchParams,

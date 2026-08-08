@@ -16,6 +16,7 @@ const syncfyDataBaseUrl = env.SYNCFY_DATA_BASE_URL;
 const syncfyTransactionLookbackDays = env.SYNCFY_TRANSACTION_LOOKBACK_DAYS;
 const syncfyTransactionPageLimit = 500;
 
+/** Extracts the `accounts` or `transactions` endpoint list from stored endpoint metadata, accepting either an array or a single string. */
 export function getSyncfyEndpointList(
   endpoints: unknown,
   key: "accounts" | "transactions"
@@ -35,6 +36,7 @@ export function getSyncfyEndpointList(
   return endpoint ? [endpoint] : [];
 }
 
+/** Counts the account/transaction endpoints present in stored endpoint metadata, for logging and summary display. */
 export function summarizeSyncfyEndpoints(endpoints: unknown) {
   const accountEndpointCount = getSyncfyEndpointList(
     endpoints,
@@ -55,6 +57,7 @@ export function summarizeSyncfyEndpoints(endpoints: unknown) {
   };
 }
 
+/** Sanitizes an endpoint list, dropping any entry whose host or path doesn't match the expected `accounts`/`transactions` shape. */
 export function sanitizeSyncfyEndpointList(
   endpoints: unknown,
   key: "accounts" | "transactions"
@@ -69,6 +72,7 @@ export function sanitizeSyncfyEndpointList(
     });
 }
 
+/** Builds the metadata object stored on a `ProviderConnection` after a credential refresh, so a later resync can replay it without the original webhook payload. */
 export function buildSyncfyRefreshMetadata(input: {
   providerCredentialId: string;
   providerUserId: string;
@@ -92,6 +96,7 @@ export function buildSyncfyRefreshMetadata(input: {
   };
 }
 
+/** Reads back stored Syncfy refresh metadata from a `ProviderConnection.rawData` value; returns `undefined` if none is present. */
 export function getSyncfyRefreshMetadata(rawData: unknown) {
   const raw = getJsonObject(rawData);
   const metadata = getJsonObject(raw?.syncfyRefreshMetadata);
@@ -104,6 +109,7 @@ export function getSyncfyRefreshMetadata(rawData: unknown) {
   };
 }
 
+/** Builds a paged Syncfy transaction-fetch URL, replacing any existing paging/date-range params with a lookback window ending at `now` (or the current time). */
 export function buildSyncfyTransactionDataUrl(input: {
   endpoint: string;
   token: string;
@@ -135,6 +141,7 @@ export function buildSyncfyTransactionDataUrl(input: {
   return url;
 }
 
+/** Reduces endpoint metadata to a `hasEndpoints` flag plus which endpoint types are present, for display and storage summaries. */
 export function getEndpointSummary(endpoints: unknown) {
   const summary = summarizeSyncfyEndpoints(endpoints);
 
@@ -145,6 +152,7 @@ export function getEndpointSummary(endpoints: unknown) {
   };
 }
 
+/** Builds the composite lookup key used to map Syncfy accounts/transactions to `ProviderAccount` rows by credential + account id. */
 export function providerAccountKey(
   providerCredentialId: string,
   providerAccountId: string
@@ -152,6 +160,7 @@ export function providerAccountKey(
   return `${providerCredentialId}:${providerAccountId}`;
 }
 
+/** Builds the display metadata blob stored on a `ProviderAccount` row from a normalized Syncfy account. */
 export function buildSyncfyProviderAccountMetadata(
   account: Pick<NormalizedSyncfyAccount, "name" | "type" | "currency" | "balance">
 ) {
@@ -163,6 +172,7 @@ export function buildSyncfyProviderAccountMetadata(
   };
 }
 
+/** Hashes account balances (sorted for determinism) into a comparable fingerprint, used to detect balance changes between retry attempts. */
 export function syncfyBalanceFingerprint(accounts: NormalizedSyncfyAccount[]) {
   return JSON.stringify(
     accounts
@@ -180,6 +190,7 @@ export function syncfyBalanceFingerprint(accounts: NormalizedSyncfyAccount[]) {
   );
 }
 
+/** Decides whether a resync retry loop should stop early: stops as soon as new transactions were written, the transaction count or balance fingerprint changed since the previous attempt, or attempts are exhausted. */
 export function shouldStopSyncfyRefreshRetry(input: {
   attemptIndex: number;
   totalAttempts: number;
@@ -207,6 +218,7 @@ export function shouldStopSyncfyRefreshRetry(input: {
   return false;
 }
 
+/** Detects, from an error's message, whether it indicates the user must manually reconnect (MFA/OTP/expired credential/auth failure) rather than a transient failure. */
 export function shouldMarkSyncfyManualReconnect(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return /(mfa|otp|token|credential|unauthorized|forbidden|expired|interactive|login|session|401|403)/i.test(
@@ -214,6 +226,7 @@ export function shouldMarkSyncfyManualReconnect(error: unknown) {
   );
 }
 
+/** Computes the status for a newly-seen imported transaction: `"pending"` if there's no prior status, otherwise the transition computed by {@link nextSyncfyImportedTransactionStatus}. */
 export function resolveSyncfyImportedTransactionStatus(input: {
   existingStatus?: string | null;
   transactionId?: string | null;
@@ -226,6 +239,7 @@ export function resolveSyncfyImportedTransactionStatus(input: {
   });
 }
 
+/** Advances an `"imported"` transaction to `"processed"` once it's linked to a `Transaction`, or back to `"pending"` if not; leaves any other status untouched. */
 export function nextSyncfyImportedTransactionStatus(input: {
   status: string;
   transactionId?: string | null;
@@ -237,6 +251,7 @@ export function nextSyncfyImportedTransactionStatus(input: {
   return input.status;
 }
 
+/** Splits a fetched transaction batch into inserted-or-updated vs. already-present-and-skipped counts, for import summaries. */
 export function summarizeSyncfyImportedTransactionWrites(input: {
   existingTransactionIds: Set<string>;
   transactions: Pick<NormalizedSyncfyTransaction, "syncfyTransactionId">[];
@@ -252,6 +267,7 @@ export function summarizeSyncfyImportedTransactionWrites(input: {
   };
 }
 
+/** Filters a transaction batch down to those not already stored and maps each to the shape needed to insert a `ProviderImportedTransaction`. */
 export function buildPendingSyncfyImportedTransactionCandidates(input: {
   existingTransactionIds: Set<string>;
   transactions: NormalizedSyncfyTransaction[];
@@ -275,6 +291,7 @@ export function buildPendingSyncfyImportedTransactionCandidates(input: {
     }));
 }
 
+/** Counts how many transactions in a batch are not already present in `existingTransactionIds`. */
 export function countNewSyncfyImportedTransactionIds(input: {
   existingTransactionIds: Set<string>;
   transactions: Pick<NormalizedSyncfyTransaction, "syncfyTransactionId">[];
@@ -285,6 +302,7 @@ export function countNewSyncfyImportedTransactionIds(input: {
   ).length;
 }
 
+/** Extracts an error's message and truncates it to 1000 characters, the safe size for storing in a `failureReason` column. */
 export function safeFailureReason(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return message.slice(0, 1000);

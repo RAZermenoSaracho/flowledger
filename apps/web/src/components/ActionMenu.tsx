@@ -66,6 +66,7 @@ export function ActionMenu({
   );
 }
 
+/** Single action row rendered inside `ActionMenu`. */
 export function ActionMenuItem({
   variant = "default",
   className = "",
