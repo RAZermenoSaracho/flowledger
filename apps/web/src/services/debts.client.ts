@@ -1,23 +1,12 @@
 import { apiRequest } from "./api.client";
-import type {
-  Debt,
-  PersonBalance,
-  SettlementRequest
-} from "../types/debts.types";
+import type { Debt, DebtsResponse, SettlementRequest } from "../types/debts.types";
 
-export type DebtsResponse = {
-  iOwe: Debt[];
-  owedToMe: Debt[];
-  balances: PersonBalance[];
-  pendingSettlementRequests: SettlementRequest[];
-  approvedSettlementRequests: SettlementRequest[];
-  settledDebts: Debt[];
-};
-
+/** Fetches the user's debts, computed balances, and settlement requests. */
 export function listDebts() {
   return apiRequest<DebtsResponse>("/debts");
 }
 
+/** Creates a settlement request for a single debt. */
 export function createSettlementRequest(
   debtId: string,
   body: {
@@ -34,6 +23,7 @@ export function createSettlementRequest(
   );
 }
 
+/** Creates settlement requests for multiple debts in one call. */
 export function createBatchSettlementRequests(
   requests: {
     debtId: string;
@@ -50,6 +40,7 @@ export function createBatchSettlementRequests(
   );
 }
 
+/** Settles a debt directly, bypassing the settlement-request approval flow. */
 export function settleDebtDirectly(debtId: string, note?: string | null) {
   return apiRequest<{ debt: Debt }>(`/debts/${debtId}/settle`, {
     method: "POST",
@@ -57,6 +48,7 @@ export function settleDebtDirectly(debtId: string, note?: string | null) {
   });
 }
 
+/** Approves a pending settlement request. */
 export function approveSettlement(
   settlementId: string,
   body: {
@@ -71,6 +63,7 @@ export function approveSettlement(
   });
 }
 
+/** Approves multiple pending settlement requests in one call. */
 export function approveBatchSettlements(
   approvals: {
     settlementRequestId: string;
@@ -85,6 +78,7 @@ export function approveBatchSettlements(
   });
 }
 
+/** Rejects a pending settlement request. */
 export function rejectSettlement(settlementId: string) {
   return apiRequest<{ settlementRequest: SettlementRequest }>(
     `/settlements/${settlementId}/reject`,

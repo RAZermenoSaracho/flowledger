@@ -3,13 +3,17 @@ import type {
   Account,
   Connector,
   Institution,
-  ProviderImportedAccount
+  ProviderImportedAccount,
+  ProviderResyncResult
 } from "../types/accounts.types";
 import type { AccountType } from "@flowledger/shared";
 
+/** Sortable fields for the accounts list. */
 export type AccountSortBy = "name" | "createdAt" | "updatedAt";
+/** Ascending or descending sort direction. */
 export type SortDirection = "asc" | "desc";
 
+/** Fetches the user's accounts, with optional archive/type/source filters and sort. */
 export function listAccounts(
   params: {
     includeArchived?: boolean;
@@ -30,6 +34,7 @@ export function listAccounts(
   });
 }
 
+/** Creates a manual (non-provider-linked) account. */
 export function createAccount(body: {
   name: string;
   type: AccountType;
@@ -43,6 +48,7 @@ export function createAccount(body: {
   });
 }
 
+/** Updates an account's fields. */
 export function updateAccount(
   accountId: string,
   body: {
@@ -59,18 +65,21 @@ export function updateAccount(
   });
 }
 
+/** Archives an account. */
 export function archiveAccount(accountId: string) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}/archive`, {
     method: "POST"
   });
 }
 
+/** Restores an archived account. */
 export function restoreAccount(accountId: string) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}/restore`, {
     method: "POST"
   });
 }
 
+/** Deletes an account. */
 export function deleteAccount(accountId: string) {
   return apiRequest<void>(`/accounts/${accountId}`, { method: "DELETE" });
 }
@@ -78,10 +87,12 @@ export function deleteAccount(accountId: string) {
 // Provider connections (Syncfy and future bank-sync providers) — owned by the
 // accounts backend module since they exist to sync FlowLedger accounts.
 
+/** Fetches available provider connectors (e.g. Syncfy). */
 export function listProviderConnectors() {
   return apiRequest<{ connectors: Connector[] }>("/providers/connectors");
 }
 
+/** Fetches provider institutions matching a search/provider/country/category filter. */
 export function listProviderInstitutions(
   params: {
     q?: string;
@@ -98,6 +109,7 @@ export function listProviderInstitutions(
   );
 }
 
+/** Starts a provider connection flow for an institution or provider. */
 export function createProviderConnection(body: {
   institutionId?: string;
   provider?: string;
@@ -121,6 +133,7 @@ export function createProviderConnection(body: {
   }>("/providers/connections", { method: "POST", body });
 }
 
+/** Polls a provider connection flow's status until it completes or fails. */
 export function getProviderConnectionStatus(connectionId: string) {
   return apiRequest<{
     connection: {
@@ -137,14 +150,7 @@ export function getProviderConnectionStatus(connectionId: string) {
   }>(`/providers/connections/${connectionId}/status`);
 }
 
-export type ProviderResyncResult = {
-  status: string;
-  importedAccounts: number;
-  importedTransactions: number;
-  requiresManualReconnect?: boolean;
-  failureReason?: string;
-};
-
+/** Triggers a resync of an entire provider connection. */
 export function resyncProviderConnection(connectionId: string) {
   return apiRequest<{ resync: ProviderResyncResult }>(
     `/providers/connections/${connectionId}/resync`,
@@ -152,6 +158,7 @@ export function resyncProviderConnection(connectionId: string) {
   );
 }
 
+/** Manually triggers a Syncfy credential refresh. */
 export function refreshSyncfyCredential(providerCredentialId: string) {
   return apiRequest<{ refresh: ProviderResyncResult }>(
     `/providers/syncfy/credentials/${providerCredentialId}/refresh`,
@@ -159,6 +166,7 @@ export function refreshSyncfyCredential(providerCredentialId: string) {
   );
 }
 
+/** Fetches provider accounts, optionally filtered to those not yet linked to a FlowLedger account. */
 export function listProviderAccounts(params: { status?: "unlinked" } = {}) {
   return apiRequest<{ accounts: ProviderImportedAccount[] }>(
     "/providers/accounts",
@@ -166,6 +174,7 @@ export function listProviderAccounts(params: { status?: "unlinked" } = {}) {
   );
 }
 
+/** Triggers a resync of a single provider account. */
 export function resyncProviderAccount(providerAccountId: string) {
   return apiRequest<{ resync: ProviderResyncResult }>(
     `/providers/accounts/${providerAccountId}/resync`,
@@ -173,6 +182,7 @@ export function resyncProviderAccount(providerAccountId: string) {
   );
 }
 
+/** Confirms which fetched provider accounts to link to existing or new FlowLedger accounts. */
 export function confirmProviderAccounts(
   accounts: { providerAccountId: string; accountId?: string }[]
 ) {

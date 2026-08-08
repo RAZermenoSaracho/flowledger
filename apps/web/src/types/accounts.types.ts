@@ -4,6 +4,7 @@ import type {
   ProviderInstitution
 } from "@flowledger/shared";
 
+/** Account record shape as returned by the API. */
 export type Account = {
   id: string;
   name: string;
@@ -21,6 +22,7 @@ export type Account = {
   updatedAt: string;
 };
 
+/** Provider sync status and metadata for an account linked to a bank connection. */
 export type AccountSync = {
   id: string;
   provider: string;
@@ -43,9 +45,21 @@ export type AccountSync = {
   updatedAt: string;
 };
 
+/** Alias of `ProviderInstitution`. */
 export type Institution = ProviderInstitution;
+/** Alias of `ProviderConnector`. */
 export type Connector = ProviderConnector;
 
+/** Outcome of a provider resync/refresh: counts imported plus any reconnect requirement. */
+export type ProviderResyncResult = {
+  status: string;
+  importedAccounts: number;
+  importedTransactions: number;
+  requiresManualReconnect?: boolean;
+  failureReason?: string;
+};
+
+/** Provider account fetched from a connection but not yet linked to a FlowLedger account. */
 export type ProviderImportedAccount = {
   id: string;
   provider: string;

@@ -2,6 +2,7 @@ import type { SettlementStatus } from "@flowledger/shared";
 import type { SharedExpense, SharedExpenseParticipant } from "./sharedExpenses.types";
 import type { PublicUser } from "./users.types";
 
+/** Settlement request record shape. */
 export type SettlementRequest = {
   id: string;
   sharedExpenseParticipantId: string;
@@ -25,6 +26,7 @@ export type SettlementRequest = {
   sharedExpenseParticipant?: Debt;
 };
 
+/** A shared-expense participant's debt, with server-computed outstanding/pending amounts. */
 export type Debt = SharedExpenseParticipant & {
   sharedExpenseId: string;
   debtorUserId?: string | null;
@@ -39,6 +41,7 @@ export type Debt = SharedExpenseParticipant & {
   settlementRequests: SettlementRequest[];
 };
 
+/** Aggregated per-person balance across all shared debts with that person. */
 export type PersonBalance = {
   key: string;
   person: PublicUser | null;
@@ -48,4 +51,14 @@ export type PersonBalance = {
   theyOweMeTotal: number;
   iOweThemTotal: number;
   netBalance: number;
+};
+
+/** Server-computed debts/balances/settlement-request payload returned by `listDebts`. */
+export type DebtsResponse = {
+  iOwe: Debt[];
+  owedToMe: Debt[];
+  balances: PersonBalance[];
+  pendingSettlementRequests: SettlementRequest[];
+  approvedSettlementRequests: SettlementRequest[];
+  settledDebts: Debt[];
 };
