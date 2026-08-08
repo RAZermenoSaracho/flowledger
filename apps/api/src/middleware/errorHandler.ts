@@ -1,7 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
+import { ParseError, QueryValidationError } from "datasieve";
 import { ZodError } from "zod";
 import { HttpError } from "../utils/httpError.js";
 
+/** Express error-handling middleware: maps `ZodError`, datasieve parse/validation errors, and `HttpError` to their respective JSON responses, and logs anything else as a 500. */
 export function errorHandler(
   error: unknown,
   _req: Request,
@@ -12,6 +14,14 @@ export function errorHandler(
     res.status(400).json({
       message: "Validation failed",
       issues: error.flatten()
+    });
+    return;
+  }
+
+  if (error instanceof ParseError || error instanceof QueryValidationError) {
+    res.status(400).json({
+      message: error.message,
+      issues: error.issues
     });
     return;
   }

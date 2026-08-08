@@ -6,10 +6,10 @@ import {
   getTransactionById,
   getTransactionsSummary,
   listImportedTransactions,
-  listTransactions,
-  type TransactionListFilters
+  listTransactions
 } from "../services/read.service.js";
 
+/** Lists provider-imported transactions matching the query filters, alongside total and pending counts. */
 export async function getImportedTransactions(req: Request, res: Response) {
   const filters = req.query as ImportedTransactionFilters;
   const result = await listImportedTransactions(req.user!.id, filters);
@@ -21,6 +21,7 @@ export async function getImportedTransactions(req: Request, res: Response) {
   });
 }
 
+/** Returns the count of the user's imported transactions still awaiting review. */
 export async function getImportedTransactionsPendingCountHandler(
   req: Request,
   res: Response
@@ -29,15 +30,24 @@ export async function getImportedTransactionsPendingCountHandler(
   res.json({ count });
 }
 
+/** Lists transactions matching the DSQL expression in the `query` query param. */
 export async function getTransactions(req: Request, res: Response) {
-  const filters = req.query as unknown as TransactionListFilters;
-  const [transactions, summary] = await Promise.all([
-    listTransactions(req.user!.id, filters),
-    getTransactionsSummary(req.user!.id, filters)
-  ]);
-  res.json({ transactions: serialize(transactions), summary });
+  const rawQuery = req.query.query as string | undefined;
+  const result = await listTransactions(req.user!.id, rawQuery);
+  res.json({ data: serialize(result.data), meta: result.meta });
 }
 
+/** Returns income/expense/balance totals for transactions matching the DSQL expression in the `query` query param. */
+export async function getTransactionsSummaryHandler(
+  req: Request,
+  res: Response
+) {
+  const rawQuery = req.query.query as string | undefined;
+  const summary = await getTransactionsSummary(req.user!.id, rawQuery);
+  res.json(summary);
+}
+
+/** Fetches one transaction by id, scoped to the authenticated user. */
 export async function getTransaction(req: Request, res: Response) {
   const transaction = await getTransactionById(req.user!.id, req.params.id!);
   res.json({ transaction: serialize(transaction) });

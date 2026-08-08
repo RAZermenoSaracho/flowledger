@@ -7,7 +7,6 @@ import {
 import {
   currencyCodeSchema,
   moneySchema,
-  optionalArraySchema,
   optionalDateStringSchema
 } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
@@ -114,28 +113,25 @@ export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
   .partial();
 
-export const transactionFiltersSchema = z.object({
-  dateFrom: optionalDateStringSchema,
-  dateTo: optionalDateStringSchema,
-  amountFrom: moneySchema.optional(),
-  amountTo: moneySchema.optional(),
-  categoryId: z.string().min(1).optional(),
-  categoryIds: optionalArraySchema(z.string().min(1)),
-  groupId: z.string().min(1).optional(),
-  groupIds: optionalArraySchema(z.string().min(1)),
-  accountId: z.string().min(1).optional(),
-  accountIds: optionalArraySchema(z.string().min(1)),
-  executionCurrency: currencyCodeSchema.optional(),
-  executionCurrencies: optionalArraySchema(currencyCodeSchema),
-  type: z.enum(TRANSACTION_TYPES).optional(),
-  types: optionalArraySchema(z.enum(TRANSACTION_TYPES)),
-  transactionFilterType: z.enum(TRANSACTION_FILTER_TYPES).optional(),
-  classification: z.enum(["complete", "needsClassification"]).optional(),
-  search: z.string().trim().max(120).optional(),
-  sortBy: z.enum(["date", "createdAt", "name", "amount"]).optional(),
-  sortDirection: z.enum(["asc", "desc"]).optional(),
-  limit: z.coerce.number().int().positive().max(500).optional()
+// The /transactions and /transactions/summary endpoints accept a single
+// JSON-encoded query-string parameter (a DataSieveQuery<TransactionRecord>
+// -shaped `where`/`search`/`sort`/`pagination`) rather than flat filter
+// params — see apps/api's transactions read.service.ts for why (DSQL's
+// and/or/not trees + typed values don't round-trip reliably through
+// bracket-notation query strings). This schema only validates that the
+// param is present/shaped as a string; the decoded JSON is validated by
+// datasieve's own parse/validate pipeline, except for two virtual leaf
+// fields ("classification", "transactionFilterType") the frontend's
+// domain builder can place anywhere in the `where` tree — read.service.ts
+// walks the tree and validates each such leaf's value against
+// `classificationSchema`/`transactionFilterTypeSchema` below as it
+// rewrites it into a real condition.
+export const transactionsQueryParamSchema = z.object({
+  query: z.string().max(4000).optional()
 });
+
+export const transactionFilterTypeSchema = z.enum(TRANSACTION_FILTER_TYPES);
+export const classificationSchema = z.enum(["complete", "needsClassification"]);
 
 export const providerImportedTransactionFiltersSchema = z.object({
   status: z.enum(PROVIDER_IMPORTED_TRANSACTION_STATUSES).optional(),
@@ -191,7 +187,9 @@ export type TransactionSharedExpenseInput = z.infer<
   typeof transactionSharedExpenseSchema
 >;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
-export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
+export type TransactionsQueryParam = z.infer<typeof transactionsQueryParamSchema>;
+export type TransactionFilterType = z.infer<typeof transactionFilterTypeSchema>;
+export type Classification = z.infer<typeof classificationSchema>;
 export type ProviderImportedTransactionFilters = z.infer<
   typeof providerImportedTransactionFiltersSchema
 >;

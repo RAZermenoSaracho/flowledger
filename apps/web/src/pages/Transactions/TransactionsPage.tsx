@@ -3,49 +3,47 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { groupByFields } from "../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import { providerAccountLabel } from "./components/ImportedTransactionCard";
 import { ImportedTransactionsFiltersCard } from "./components/ImportedTransactionsFiltersCard";
 import { ImportedTransactionsPanel } from "./components/ImportedTransactionsPanel";
-import {
-  TransactionFiltersCard,
-  emptyTransactionFilters,
-  groupByFields,
-  transactionGroupByDefs
-} from "./components/TransactionFiltersCard";
 import { TransactionFormCard } from "./components/TransactionFormCard";
 import { TransactionList } from "./components/TransactionList";
 import { TransactionSummaryCards } from "./components/TransactionSummaryCards";
 import { useImportedTransactionsWorkflow } from "./hooks/useImportedTransactionsWorkflow";
+import {
+  buildTransactionSearchFields,
+  TRANSACTION_DEFAULT_SEARCH_FIELD,
+  TRANSACTION_GROUPABLE_FIELDS,
+  TRANSACTION_SORTABLE_FIELDS
+} from "./utils/transactionSearchFields";
 import { useAuth } from "../../hooks/useAuth";
 import { listAccounts } from "../../services/accounts.client";
 import * as categoriesClient from "../../services/categories.client";
+import { listCurrencies } from "../../services/currencies.client";
 import { listGroups } from "../../services/groups.client";
 import * as transactionsClient from "../../services/transactions.client";
-import type { TransactionSortBy } from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
 import type { TransactionsTab } from "./types/transactions.types";
 
+// groupByFields (components/SearchComponent.tsx) keys its group defs by
+// `id`; SearchBar's GroupableField uses `name` (matching the rest of the
+// generic field-config convention) — trivial adapter between the two.
+const transactionGroupByDefsForBucketing = TRANSACTION_GROUPABLE_FIELDS.map((field) => ({
+  id: field.name,
+  label: field.label
+}));
+
+/** Transactions list page with a personal-transactions tab and an imported-transactions review tab. */
 export function TransactionsPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState(emptyTransactionFilters);
-  const [typeFilterValues, setTypeFilterValues] = useState<string[]>([]);
-  const [accountFilterValues, setAccountFilterValues] = useState<string[]>([]);
-  const [categoryFilterValues, setCategoryFilterValues] = useState<string[]>(
-    []
-  );
-  const [groupFilterValues, setGroupFilterValues] = useState<string[]>([]);
-  const [currencyFilterValues, setCurrencyFilterValues] = useState<string[]>(
-    []
-  );
-  const [transactionGroupBys, setTransactionGroupBys] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<TransactionsTab>(
     searchParams.get("tab") === "imported" ? "imported" : "transactions"
   );
-  const [sortBy, setSortBy] = useState<TransactionSortBy>("date");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const imported = useImportedTransactionsWorkflow({
     activeTab,
     searchParams,
@@ -83,44 +81,47 @@ export function TransactionsPage() {
     queryKey: ["groups"],
     queryFn: async () => (await listGroups()).groups
   });
-  const transactionQueryFilters: transactionsClient.ListTransactionsParams = {
-    search: filters.search || undefined,
-    transactionFilterType:
-      (filters.transactionFilterType as
-        | "normal"
-        | "settlement"
-        | "expenseOffset"
-        | "") || undefined,
-    dateFrom: filters.dateFrom || undefined,
-    dateTo: filters.dateTo || undefined,
-    amountFrom: filters.amountFrom ? Number(filters.amountFrom) : undefined,
-    amountTo: filters.amountTo ? Number(filters.amountTo) : undefined,
-    classification:
-      (filters.classification as "complete" | "needsClassification" | "") ||
-      undefined,
-    types: typeFilterValues as ("income" | "expense" | "transfer")[],
-    accountIds: accountFilterValues,
-    categoryIds: categoryFilterValues,
-    groupIds: groupFilterValues,
-    executionCurrencies: currencyFilterValues,
-    sortBy,
-    sortDirection
-  };
-  const transactionsQuery = useQuery({
-    queryKey: ["transactions", transactionQueryFilters],
-    queryFn: async () =>
-      transactionsClient.listTransactions(transactionQueryFilters)
+  const currenciesQuery = useQuery({
+    queryKey: ["currencies"],
+    queryFn: async () => (await listCurrencies()).currencies
   });
 
   const allTransactionCategories = allCategoriesQuery.data ?? [];
-  const transactionCurrencyOptions = useMemo(() => {
-    const currencies = new Set<string>();
-    for (const transaction of transactionsQuery.data?.transactions ?? []) {
-      currencies.add(transaction.executionCurrency);
-    }
-    return [...currencies].sort();
-  }, [transactionsQuery.data]);
-  const visibleTransactions = transactionsQuery.data?.transactions ?? [];
+  const [transactionQuery, setTransactionQuery] = useState<SearchBarQuery>({});
+
+  const transactionsQuery = useQuery({
+    queryKey: ["transactions", transactionQuery],
+    queryFn: async () =>
+      transactionsClient.listTransactions({
+        where: transactionQuery.where,
+        sort: transactionQuery.sort
+      })
+  });
+  const transactionsSummaryQuery = useQuery({
+    queryKey: ["transactions", "summary", transactionQuery.where],
+    queryFn: async () =>
+      transactionsClient.getTransactionsSummary({ where: transactionQuery.where })
+  });
+
+  const visibleTransactions = transactionsQuery.data?.data ?? [];
+  // Sourced from the full currency list (independent of the current
+  // transaction filter/results), not from `visibleTransactions` — every
+  // condition's value picker must offer every possible value for a
+  // field, regardless of what other conditions already narrow the
+  // result set to. Deriving this from filtered results would make
+  // currencies excluded by an existing condition disappear from the
+  // picker, making it impossible to ever build e.g. an OR across two
+  // currencies.
+  const transactionSearchFields = useMemo(
+    () =>
+      buildTransactionSearchFields({
+        accounts: accountsQuery.data ?? [],
+        categories: allTransactionCategories,
+        groups: groupsQuery.data ?? [],
+        currencyOptions: (currenciesQuery.data ?? []).map((currency) => currency.code)
+      }),
+    [accountsQuery.data, allTransactionCategories, groupsQuery.data, currenciesQuery.data]
+  );
 
   function transactionGroupKey(transaction: Transaction, groupById: string) {
     if (groupById === "category") {
@@ -142,15 +143,16 @@ export function TransactionsPage() {
     return { key: "", label: "" };
   }
 
+  const activeTransactionGroupBys = transactionQuery.groupBy ?? [];
   const groupedTransactions = useMemo(
     () =>
       groupByFields(
         visibleTransactions,
-        transactionGroupBys,
-        transactionGroupByDefs,
+        activeTransactionGroupBys,
+        transactionGroupByDefsForBucketing,
         transactionGroupKey
       ),
-    [visibleTransactions, transactionGroupBys]
+    [visibleTransactions, activeTransactionGroupBys]
   );
   const pendingImportedCount =
     imported.importedTransactionsQuery.data?.pendingCount ?? 0;
@@ -178,19 +180,14 @@ export function TransactionsPage() {
       ];
     });
   }, [imported.importedTransactions]);
-  const transactionSummary = transactionsQuery.data?.summary ?? {
+  const transactionSummary = transactionsSummaryQuery.data ?? {
     income: 0,
     expenses: 0,
     balance: 0
   };
   const summaryCurrency = auth.user?.preferredCurrency || "USD";
   const hasActiveFilters =
-    Object.values(filters).some(Boolean) ||
-    typeFilterValues.length > 0 ||
-    accountFilterValues.length > 0 ||
-    categoryFilterValues.length > 0 ||
-    groupFilterValues.length > 0 ||
-    currencyFilterValues.length > 0;
+    Boolean(transactionQuery.where) || activeTransactionGroupBys.length > 0;
 
   const deleteTransaction = useMutation({
     mutationFn: (transactionId: string) =>
@@ -263,38 +260,17 @@ export function TransactionsPage() {
             }}
           />
           <div className="grid gap-4">
-            <TransactionFiltersCard
-              filters={filters}
-              onFiltersChange={setFilters}
-              typeFilterValues={typeFilterValues}
-              onTypeFilterValuesChange={setTypeFilterValues}
-              accountFilterValues={accountFilterValues}
-              onAccountFilterValuesChange={setAccountFilterValues}
-              categoryFilterValues={categoryFilterValues}
-              onCategoryFilterValuesChange={setCategoryFilterValues}
-              groupFilterValues={groupFilterValues}
-              onGroupFilterValuesChange={setGroupFilterValues}
-              currencyFilterValues={currencyFilterValues}
-              onCurrencyFilterValuesChange={setCurrencyFilterValues}
-              groupBys={transactionGroupBys}
-              onGroupBysChange={setTransactionGroupBys}
-              sortBy={sortBy}
-              sortDirection={sortDirection}
-              onSortByChange={setSortBy}
-              onSortDirectionChange={setSortDirection}
-              onClearFilters={() => {
-                setFilters(emptyTransactionFilters);
-                setTypeFilterValues([]);
-                setAccountFilterValues([]);
-                setCategoryFilterValues([]);
-                setGroupFilterValues([]);
-                setCurrencyFilterValues([]);
-              }}
-              accounts={accountsQuery.data ?? []}
-              categories={allTransactionCategories}
-              groups={groupsQuery.data ?? []}
-              currencyOptions={transactionCurrencyOptions}
-            />
+            <Card>
+              <SearchBar
+                fields={transactionSearchFields}
+                groupableFields={TRANSACTION_GROUPABLE_FIELDS}
+                sortableFields={TRANSACTION_SORTABLE_FIELDS}
+                defaultSearchField={TRANSACTION_DEFAULT_SEARCH_FIELD}
+                initialSort={{ field: "date", direction: "desc" }}
+                placeholder="Search transactions"
+                onQueryChange={setTransactionQuery}
+              />
+            </Card>
             <TransactionSummaryCards
               income={transactionSummary.income}
               expenses={transactionSummary.expenses}

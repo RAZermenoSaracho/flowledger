@@ -1,11 +1,12 @@
+import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { ApiError, apiRequest } from "./api.client";
 import type {
+  DataSieveMeta,
   ProviderImportedTransaction,
   ProviderImportedTransactionStatus,
   Transaction,
   TransactionsSummary
 } from "../types/transactions.types";
-import type { TransactionType } from "@flowledger/shared";
 
 // Batch imported-transaction endpoints (batch-import/batch-ignore/batch-unignore)
 // return per-item failures in the error body; this extracts them for display
@@ -18,52 +19,49 @@ export function getBatchErrors(
   return Array.isArray(body?.errors) ? body.errors : [];
 }
 
-export type TransactionSortBy = "date" | "createdAt" | "name" | "amount";
-export type SortDirection = "asc" | "desc";
+export type { SortDirection };
 
-export type ListTransactionsParams = {
-  dateFrom?: string;
-  dateTo?: string;
-  amountFrom?: number;
-  amountTo?: number;
-  categoryId?: string;
-  categoryIds?: string[];
-  groupId?: string;
-  groupIds?: string[];
-  accountId?: string;
-  accountIds?: string[];
-  executionCurrency?: string;
-  executionCurrencies?: string[];
-  type?: TransactionType;
-  types?: TransactionType[];
-  transactionFilterType?: "normal" | "settlement" | "expenseOffset";
-  classification?: "complete" | "needsClassification";
-  search?: string;
-  sortBy?: TransactionSortBy;
-  sortDirection?: SortDirection;
-  limit?: number;
+// The wire shape /transactions and /transactions/summary accept, sent as
+// one JSON-encoded query-string parameter — see apps/api's transactions
+// read.service.ts for why (DSQL's and/or/not trees + typed values don't
+// round-trip reliably through bracket-notation query strings). Free-text
+// search is folded into `where` as a real (OR name/notes ilike ...)
+// condition by <SearchBar> rather than sent as a separate field — see
+// src/utils/searchDomain.ts. `where` can also include leaf conditions on
+// two virtual field names ("classification", "transactionFilterType")
+// that aren't real Transaction columns — read.service.ts recognizes and
+// expands them wherever they appear in the tree.
+export type TransactionsQuery = {
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
+  pagination?: { kind: "offset"; page: number; pageSize: number };
 };
 
-export function listTransactions(params: ListTransactionsParams = {}) {
-  return apiRequest<{
-    transactions: Transaction[];
-    summary: TransactionsSummary;
-  }>("/transactions", {
-    query: {
-      ...params,
-      amountFrom: params.amountFrom?.toString(),
-      amountTo: params.amountTo?.toString(),
-      limit: params.limit?.toString()
-    } as Record<string, string | string[] | undefined>
+/** Fetches transactions for a DSQL query. */
+export function listTransactions(query: TransactionsQuery = {}) {
+  return apiRequest<{ data: Transaction[]; meta: DataSieveMeta }>(
+    "/transactions",
+    { query: { query: JSON.stringify(query) } }
+  );
+}
+
+/** Fetches income/expense/balance summary totals for a DSQL query. */
+export function getTransactionsSummary(
+  query: Omit<TransactionsQuery, "sort"> = {}
+) {
+  return apiRequest<TransactionsSummary>("/transactions/summary", {
+    query: { query: JSON.stringify(query) }
   });
 }
 
+/** Fetches one transaction by id. */
 export function getTransaction(transactionId: string) {
   return apiRequest<{ transaction: Transaction }>(
     `/transactions/${transactionId}`
   );
 }
 
+/** Creates a transaction. */
 export function createTransaction(body: Record<string, unknown>) {
   return apiRequest<{ transaction: Transaction }>("/transactions", {
     method: "POST",
@@ -71,6 +69,7 @@ export function createTransaction(body: Record<string, unknown>) {
   });
 }
 
+/** Updates a transaction. */
 export function updateTransaction(
   transactionId: string,
   body: Record<string, unknown>
@@ -81,16 +80,19 @@ export function updateTransaction(
   );
 }
 
+/** Deletes a transaction. */
 export function deleteTransaction(transactionId: string) {
   return apiRequest<void>(`/transactions/${transactionId}`, {
     method: "DELETE"
   });
 }
 
+/** Explicit id list or saved-filter selection for batch imported-transaction actions. */
 export type ImportedTransactionSelection =
   | { mode: "ids"; ids: string[] }
   | { mode: "filtered"; filters?: ListImportedTransactionsParams };
 
+/** Filter/sort params for listing imported transactions. */
 export type ListImportedTransactionsParams = {
   status?: ProviderImportedTransactionStatus;
   search?: string;
@@ -106,6 +108,7 @@ export type ListImportedTransactionsParams = {
   sortDirection?: SortDirection;
 };
 
+/** Fetches imported transactions with filters. */
 export function listImportedTransactions(
   params: ListImportedTransactionsParams = {}
 ) {
@@ -122,10 +125,12 @@ export function listImportedTransactions(
   });
 }
 
+/** Fetches the pending imported-transaction count. */
 export function getImportedTransactionsPendingCount() {
   return apiRequest<{ count: number }>("/transactions/imported/pending-count");
 }
 
+/** Updates the category on a pending imported transaction. */
 export function updateImportedTransactionCategory(
   importedTransactionId: string,
   categoryId: string | null
@@ -136,6 +141,7 @@ export function updateImportedTransactionCategory(
   );
 }
 
+/** Imports one imported transaction into the ledger as a real `Transaction`. */
 export function importImportedTransaction(
   importedTransactionId: string,
   categoryId?: string
@@ -146,6 +152,7 @@ export function importImportedTransaction(
   );
 }
 
+/** Marks an imported transaction ignored. */
 export function ignoreImportedTransaction(importedTransactionId: string) {
   return apiRequest<{ importedTransaction: ProviderImportedTransaction }>(
     `/transactions/imported/${importedTransactionId}/ignore`,
@@ -153,6 +160,7 @@ export function ignoreImportedTransaction(importedTransactionId: string) {
   );
 }
 
+/** Reverts an ignored imported transaction back to pending. */
 export function unignoreImportedTransaction(importedTransactionId: string) {
   return apiRequest<{ importedTransaction: ProviderImportedTransaction }>(
     `/transactions/imported/${importedTransactionId}/unignore`,
@@ -160,6 +168,7 @@ export function unignoreImportedTransaction(importedTransactionId: string) {
   );
 }
 
+/** Imports a selection or batch of imported transactions into the ledger. */
 export function batchImportImportedTransactions(
   selection: ImportedTransactionSelection,
   categoryId?: string
@@ -174,6 +183,7 @@ export function batchImportImportedTransactions(
   });
 }
 
+/** Ignores a selection or batch of imported transactions. */
 export function batchIgnoreImportedTransactions(
   selection: ImportedTransactionSelection
 ) {
@@ -183,6 +193,7 @@ export function batchIgnoreImportedTransactions(
   );
 }
 
+/** Un-ignores a selection or batch of imported transactions. */
 export function batchUnignoreImportedTransactions(
   selection: ImportedTransactionSelection
 ) {

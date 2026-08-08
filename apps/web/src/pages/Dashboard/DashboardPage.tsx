@@ -6,6 +6,7 @@ import { listTransactions } from "../../services/transactions.client";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
+/** Landing page summarizing account balances and monthly cashflow. */
 export function DashboardPage() {
   const summaryQuery = useQuery({
     queryKey: ["summary"],
@@ -18,7 +19,12 @@ export function DashboardPage() {
   const transactionsQuery = useQuery({
     queryKey: ["transactions", "recent"],
     queryFn: async () =>
-      (await listTransactions({ limit: 5 })).transactions
+      (
+        await listTransactions({
+          sort: [{ field: "date", direction: "desc" }],
+          pagination: { kind: "offset", page: 1, pageSize: 5 }
+        })
+      ).data
   });
 
   const summary = summaryQuery.data ?? {

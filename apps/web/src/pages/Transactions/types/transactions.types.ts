@@ -27,16 +27,6 @@ export type ParticipantDraft = {
   shareAmount: string;
 };
 
-export type TransactionFilters = {
-  search: string;
-  transactionFilterType: string;
-  dateFrom: string;
-  dateTo: string;
-  amountFrom: string;
-  amountTo: string;
-  classification: string;
-};
-
 export type TransactionEditForm = {
   name: string;
   amount: string;

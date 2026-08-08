@@ -4,8 +4,8 @@ import {
   batchUnignoreProviderImportedTransactionsSchema,
   importProviderImportedTransactionSchema,
   providerImportedTransactionFiltersSchema,
-  transactionFiltersSchema,
   transactionSchema,
+  transactionsQueryParamSchema,
   updateProviderImportedTransactionSchema,
   updateTransactionSchema
 } from "@flowledger/shared";
@@ -22,7 +22,8 @@ import {
   getImportedTransactions,
   getImportedTransactionsPendingCountHandler,
   getTransaction,
-  getTransactions
+  getTransactions,
+  getTransactionsSummaryHandler
 } from "./controllers/read.controller.js";
 import {
   patchImportedTransaction,
@@ -87,8 +88,14 @@ transactionsRouter.post(
 );
 
 transactionsRouter.get(
+  "/summary",
+  validate(transactionsQueryParamSchema, "query"),
+  asyncHandler(getTransactionsSummaryHandler)
+);
+
+transactionsRouter.get(
   "/",
-  validate(transactionFiltersSchema, "query"),
+  validate(transactionsQueryParamSchema, "query"),
   asyncHandler(getTransactions)
 );
 

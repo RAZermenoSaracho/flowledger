@@ -17,6 +17,7 @@ function participantStatus(shareAmount: string, paidAmount: string) {
   return "pending";
 }
 
+/** State and handlers for the create/edit shared-expense form, including participant draft management. */
 export function useSharedExpenseForm() {
   const queryClient = useQueryClient();
   const [transactionId, setTransactionId] = useState("");
@@ -31,7 +32,7 @@ export function useSharedExpenseForm() {
 
   const transactionsQuery = useQuery({
     queryKey: ["transactions", "shared-options"],
-    queryFn: async () => (await listTransactions()).transactions
+    queryFn: async () => (await listTransactions()).data
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
