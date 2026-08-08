@@ -20,8 +20,9 @@ import {
   assertSettlementAccount,
   assertSettlementCategory,
   resolveSettlementExpenseOffsetCategoryId
-} from "../utils/settlementValidation.js";
+} from "./settlementValidation.service.js";
 
+/** Marks a shared expense `settled` once none of its participants have an unpaid balance. */
 export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
   const remainingParticipants = await prisma.sharedExpenseParticipant.count({
     where: {
@@ -38,6 +39,7 @@ export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
   }
 }
 
+/** Marks a debt fully paid by its creditor, bypassing the settlement-request approval flow, and auto-approves any pending requests on it. */
 export async function settleDebtDirectly(userId: string, debtId: string) {
   const result = await prisma.$transaction(async (tx) => {
     const debt = await tx.sharedExpenseParticipant.findFirst({
@@ -111,6 +113,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
   return { debt: balanceDebt(result.debt) };
 }
 
+/** Approves a pending settlement request and creates the matching debtor-expense/creditor-income transaction pair for it. */
 export async function approveSettlement(
   userId: string,
   settlementRequestId: string,
@@ -401,6 +404,7 @@ export async function approveSettlement(
   return result;
 }
 
+/** Approves each entry in `approvals` sequentially, reusing {@link approveSettlement}. */
 export async function approveBatchSettlements(
   userId: string,
   approvals: {
@@ -420,6 +424,7 @@ export async function approveBatchSettlements(
   return results;
 }
 
+/** Rejects a pending settlement request the caller is the creditor on. */
 export async function rejectSettlement(
   userId: string,
   settlementRequestId: string

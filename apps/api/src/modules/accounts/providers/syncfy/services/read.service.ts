@@ -6,6 +6,34 @@ import {
   fetchSyncfyUserByExternalId
 } from "../syncfy.client.js";
 
+/** Lists the Syncfy connections due for auto-sync: active or previously-failed, not requiring manual reconnect, with at least one account in the same state — oldest-synced first. */
+export async function loadActiveSyncfyAutoSyncJobs() {
+  const connections = await prisma.providerConnection.findMany({
+    where: {
+      provider: "syncfy",
+      status: { in: ["active", "sync_failed"] },
+      requiresManualReconnect: false,
+      accounts: {
+        some: {
+          status: { in: ["active", "sync_failed"] },
+          requiresManualReconnect: false,
+          accountId: { not: null }
+        }
+      }
+    },
+    select: {
+      id: true,
+      userId: true
+    },
+    orderBy: [{ lastSyncAt: "asc" }, { createdAt: "asc" }]
+  });
+
+  return connections.map((connection) => ({
+    connectionId: connection.id,
+    userId: connection.userId
+  }));
+}
+
 async function saveSyncfyUserMapping(input: {
   flowLedgerUserId: string;
   email: string;
@@ -31,6 +59,7 @@ async function saveSyncfyUserMapping(input: {
   });
 }
 
+/** Returns the Syncfy user mapped to a FlowLedger user, reusing the stored mapping, an existing Syncfy user matched by external id, or creating a new Syncfy user as a last resort. */
 export async function getOrCreateSyncfyUserForFlowLedgerUser(
   flowLedgerUserId: string
 ) {

@@ -1,30 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-
-export type SyncfySignatureVerification = "valid" | "invalid" | "skipped";
-export type SyncfyWebhookSignatureDiagnostics = {
-  bodyBytes: number;
-  hasSignature: boolean;
-  signatureLength: number;
-  signaturePreview: {
-    first6: string | null;
-    last6: string | null;
-  };
-  signatureShape: {
-    hasSha256Prefix: boolean;
-    hasKeyValue: boolean;
-    hasComma: boolean;
-    hasSemicolon: boolean;
-    hasQuotes: boolean;
-    dotSegmentCount: number;
-  };
-  keyShape: "missing" | "plain" | "json_string" | "json_k" | "json_nested_k" | "json_other";
-  verificationCandidatesTried: {
-    keyMaterial: string[];
-    signatureParsers: string[];
-    digestFormats: string[];
-    parsedSignatureCandidateCount: number;
-  };
-};
+import type {
+  SyncfySignatureVerification,
+  SyncfyWebhookSignatureDiagnostics
+} from "./types/syncfy.types.js";
 
 type SyncfySignatureKeyInput =
   | string
@@ -158,6 +136,7 @@ function safeEqualString(left: string, right: string) {
   );
 }
 
+/** Verifies a Syncfy webhook's HMAC signature against the configured signing key, trying multiple key/secret and digest encodings since Syncfy's format isn't fully documented; returns `"skipped"` if no key is configured. */
 export function verifySyncfyWebhookSignature(input: {
   rawBody: Buffer | undefined;
   signature: string | undefined;
@@ -195,6 +174,7 @@ export function verifySyncfyWebhookSignature(input: {
   return valid ? "valid" : "invalid";
 }
 
+/** Computes non-secret diagnostics (shapes, lengths, candidate counts) about a webhook signature check, for logging when verification fails. */
 export function getSyncfyWebhookSignatureDiagnostics(input: {
   rawBody: Buffer | undefined;
   signature: string | undefined;

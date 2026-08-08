@@ -1,5 +1,5 @@
 import { env } from "../../../../config/env.js";
-import { prisma } from "../../../../db/prisma.js";
+import { loadActiveSyncfyAutoSyncJobs } from "./services/read.service.js";
 import {
   getManualSyncfyRefreshRetryDelaysMs,
   resyncSyncfyConnection
@@ -25,6 +25,7 @@ type SyncfyAutoSyncSchedulerOptions = {
   log?: Pick<typeof console, "info" | "warn" | "error">;
 };
 
+/** Periodically resyncs eligible Syncfy connections on a fixed interval, running jobs with bounded concurrency and skipping a tick if the previous run is still in progress. */
 export class SyncfyAutoSyncScheduler {
   private timer: NodeJS.Timeout | undefined;
   private running = false;
@@ -121,6 +122,7 @@ export class SyncfyAutoSyncScheduler {
   }
 }
 
+/** Reads the auto-sync scheduler's enabled/interval/timeout/concurrency settings from env, plus the shared manual-refresh retry-delay schedule. */
 export function getSyncfyAutoSyncSchedulerConfig() {
   return {
     enabled: env.SYNCFY_AUTO_SYNC_ENABLED,
@@ -131,38 +133,14 @@ export function getSyncfyAutoSyncSchedulerConfig() {
   };
 }
 
+/** Builds a {@link SyncfyAutoSyncScheduler} wired to env config, Prisma-backed job loading, and `resyncSyncfyConnection` as the per-job processor. */
 export function createSyncfyAutoSyncScheduler() {
   const config = getSyncfyAutoSyncSchedulerConfig();
 
   return new SyncfyAutoSyncScheduler({
     ...config,
     log: console,
-    loadJobs: async () => {
-      const connections = await prisma.providerConnection.findMany({
-        where: {
-          provider: "syncfy",
-          status: { in: ["active", "sync_failed"] },
-          requiresManualReconnect: false,
-          accounts: {
-            some: {
-              status: { in: ["active", "sync_failed"] },
-              requiresManualReconnect: false,
-              accountId: { not: null }
-            }
-          }
-        },
-        select: {
-          id: true,
-          userId: true
-        },
-        orderBy: [{ lastSyncAt: "asc" }, { createdAt: "asc" }]
-      });
-
-      return connections.map((connection) => ({
-        connectionId: connection.id,
-        userId: connection.userId
-      }));
-    },
+    loadJobs: loadActiveSyncfyAutoSyncJobs,
     processJob: (job, timeoutMs, retryDelaysMs) =>
       resyncSyncfyConnection({
         userId: job.userId,

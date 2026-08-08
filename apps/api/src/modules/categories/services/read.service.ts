@@ -1,6 +1,19 @@
 import type { CategoryType, Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import { getGroupMembership } from "../../groups/services/read.service.js";
+import { notFound } from "../../../utils/httpError.js";
+import { getGroupAdmin, getGroupMembership } from "../../groups/services/read.service.js";
+
+/** Fetches a category the user is allowed to edit: their own personal category, or a group category where they're a group admin. */
+export async function getEditableCategory(userId: string, categoryId: string) {
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, users: { some: { userId } } }
+  });
+  if (!category) throw notFound("Category");
+  if (category.groupId) {
+    await getGroupAdmin(userId, category.groupId);
+  }
+  return category;
+}
 
 function categoryOrderBy(filters: {
   sortBy?: "name" | "createdAt" | "updatedAt";
@@ -13,6 +26,7 @@ function categoryOrderBy(filters: {
   return [{ type: "asc" }, { name: "asc" }];
 }
 
+/** Lists categories visible to `userId` for the given scope (all/group/personal), archived state, type, and sort filters. */
 export async function listCategories(
   userId: string,
   filters: {

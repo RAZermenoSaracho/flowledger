@@ -5,6 +5,7 @@ import {
   getGroupMembership
 } from "../../groups/services/read.service.js";
 
+/** Throws if any of the given account/category relations don't belong to `userId` (or, for a group transaction, aren't valid group-scoped resources — see {@link assertGroupRelations}). */
 export async function assertOwnedRelations(
   userId: string,
   input: {
@@ -67,6 +68,7 @@ export async function assertOwnedRelations(
   }
 }
 
+/** Throws if `groupId` (when set) isn't a group the user belongs to, or its category/expense-offset-category relations aren't valid for that group. */
 export async function assertGroupRelations(
   userId: string,
   input: {
@@ -106,6 +108,7 @@ export async function assertGroupRelations(
   }
 }
 
+/** Throws if an expense-offset category is set on a non-income transaction. */
 export function assertExpenseOffsetAllowed(input: {
   type?: "income" | "expense" | "transfer";
   expenseOffsetCategoryId?: string | null;
@@ -115,6 +118,7 @@ export function assertExpenseOffsetAllowed(input: {
   }
 }
 
+/** Throws if a transfer is missing its from/to accounts, reuses the same account on both sides, carries category/group fields, or is marked as a shared expense. */
 export function assertTransferAllowed(input: {
   type?: "income" | "expense" | "transfer";
   accountId?: string | null;

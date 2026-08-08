@@ -3,13 +3,17 @@ import { createHmac, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { env } from "../../../config/env.js";
 import { prisma } from "../../../db/prisma.js";
-import type { ProviderKey } from "../types/provider.types.js";
+import type {
+  ProviderKey,
+  ProviderWebhookHandlingResult
+} from "../types/provider.types.js";
 import { getProvider } from "../utils/providerRegistry.js";
 import {
   getSyncfyWebhookSignatureDiagnostics,
   verifySyncfyWebhookSignature
 } from "../providers/syncfy/syncfy.webhookSecurity.js";
 
+/** Shape of one event inside a Syncfy webhook payload; `.passthrough()` on `payload` preserves fields we don't model yet. */
 export const syncfyWebhookEventSchema = z.object({
   header: z.object({
     event: z.object({
@@ -29,6 +33,7 @@ export const syncfyWebhookEventSchema = z.object({
     .passthrough()
 });
 
+/** Shape of the full Syncfy webhook request body: a batch id (`rid`) plus zero or more events. */
 export const syncfyWebhookSchema = z.object({
   rid: z.string().optional(),
   events: z.array(syncfyWebhookEventSchema).default([])
@@ -76,6 +81,7 @@ function rawBodyString(rawBody: Buffer | undefined) {
   return rawBody?.toString("utf8") ?? "";
 }
 
+/** Derives a deterministic event id from the event's own content when Syncfy omits `header.event.eid`, so retried deliveries still dedupe. */
 export function generatedSyncfyEventEid(
   rid: string | undefined,
   event: SyncfyWebhookEvent,
@@ -151,6 +157,7 @@ async function recordInvalidWebhook(input: {
   });
 }
 
+/** Checks whether `error` is Prisma's P2002 unique-constraint violation. */
 export function isPrismaUniqueConstraintError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -158,6 +165,7 @@ export function isPrismaUniqueConstraintError(error: unknown) {
   );
 }
 
+/** Builds the `ProviderWebhookEvent` row data for one Syncfy event, in the initial `"received"`/unprocessed state. */
 export function buildSyncfyWebhookEventRecordData(input: {
   providerEventId: string;
   userId?: string;
@@ -184,6 +192,7 @@ export function buildSyncfyWebhookEventRecordData(input: {
   };
 }
 
+/** Persists a Syncfy webhook event; if a concurrent delivery already inserted the same `providerEventId`, returns the existing row with `shouldProcess: false` instead of throwing. Dependencies are injected so this can be unit-tested without Prisma. */
 export async function recordSyncfyEventWithDependencies(input: {
   rid?: string;
   event: SyncfyWebhookEvent;
@@ -273,17 +282,7 @@ function processRecordedEvent(input: {
     .catch(() => undefined);
 }
 
-export type ProviderWebhookHandlingResult =
-  | { kind: "generic"; result: unknown }
-  | { kind: "invalid_signature" }
-  | { kind: "invalid_payload" }
-  | {
-      kind: "processed";
-      rid?: string;
-      signatureVerification: ReturnType<typeof verifySyncfyWebhookSignature>;
-      acceptedEvents: number;
-    };
-
+/** Routes an inbound webhook by provider: non-Syncfy providers are recorded and forwarded without signature checks, while Syncfy payloads go through HMAC verification and per-event schema validation before being recorded and dispatched to the adapter. */
 export async function handleProviderWebhook(input: {
   providerParam: string;
   headers: Record<string, string | string[] | undefined>;
@@ -426,6 +425,7 @@ export async function handleProviderWebhook(input: {
   };
 }
 
+/** Builds the health-check payload for a provider's webhook route, throwing 404 if the provider isn't registered. */
 export function getProviderWebhookHealth(providerParam: string) {
   getProvider(providerParam as ProviderKey);
 

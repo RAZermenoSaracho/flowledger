@@ -6,19 +6,22 @@ import {
   assertGroupRelations,
   assertOwnedRelations,
   assertTransferAllowed
-} from "../utils/transactionValidation.js";
+} from "./transactionValidation.service.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
-  assertImportedTransactionCategory,
-  clearProviderPendingNotifications,
   importedTransactionInclude,
   importedTransactionOrderBy,
   importedTransactionSelectionWhere,
   importedTransactionType,
   importValidationError
 } from "../utils/importedTransactionQuery.js";
+import {
+  assertImportedTransactionCategory,
+  clearProviderPendingNotifications
+} from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
+/** Validates relations (account/category/group/transfer/expense-offset) and creates a transaction, optionally with an attached shared expense. */
 export async function createTransaction(userId: string, body: any) {
   assertExpenseOffsetAllowed(body);
   assertTransferAllowed(body);
@@ -82,6 +85,7 @@ export async function createTransaction(userId: string, body: any) {
   });
 }
 
+/** Converts one pending provider-imported transaction into a real `Transaction`, marking the source row `processed`. */
 export async function importProviderImportedTransaction(input: {
   id: string;
   userId: string;
@@ -166,6 +170,7 @@ export async function importProviderImportedTransaction(input: {
   });
 }
 
+/** Imports a selection/batch of pending imported transactions; validates every row up front and throws with all per-row errors if any fail before importing any of them. */
 export async function batchImportProviderImportedTransactions(
   userId: string,
   body: {

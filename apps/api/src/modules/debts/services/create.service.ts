@@ -9,8 +9,9 @@ import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import {
   assertSettlementAccount,
   assertSettlementCategory
-} from "../utils/settlementValidation.js";
+} from "./settlementValidation.service.js";
 
+/** Creates a settlement request for a debt, validating direction, outstanding balance, and account/category ownership before notifying the creditor. */
 export async function createSettlementRequest(
   userId: string,
   debtId: string,
@@ -129,6 +130,7 @@ export async function createSettlementRequest(
   return settlementRequest;
 }
 
+/** Creates a settlement request for each entry in `requests`, sequentially, reusing {@link createSettlementRequest}. */
 export async function createBatchSettlementRequests(
   userId: string,
   requests: {

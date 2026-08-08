@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
 
+/** Throws if `accountId` isn't an active account owned by `userId`; used to validate both sides of a settlement. */
 export async function assertSettlementAccount(
   client: Prisma.TransactionClient | typeof prisma,
   userId: string,
@@ -16,6 +17,7 @@ export async function assertSettlementAccount(
   return account;
 }
 
+/** Throws if `categoryId` isn't an active category of the given `type`, visible to `userId` (personal or, if `groupId` is set, that group's). */
 export async function assertSettlementCategory(
   client: Prisma.TransactionClient | typeof prisma,
   userId: string,
@@ -73,6 +75,11 @@ async function findSettlementExpenseOffsetCategory(
   });
 }
 
+/**
+ * Resolves the expense-offset category id for a settlement's creditor-side income transaction:
+ * the explicitly requested category if the caller supplied one (even `null`, to clear it),
+ * otherwise falls back to `defaultCategoryId` (typically the original expense's own category).
+ */
 export async function resolveSettlementExpenseOffsetCategoryId(
   tx: Prisma.TransactionClient,
   input: {

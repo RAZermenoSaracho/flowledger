@@ -1,7 +1,9 @@
 import { env } from "../../../../../config/env.js";
 
+/** Cookie name carrying the OAuth state nonce between the start and callback legs. */
 export const googleStateCookieName = "flowledger_google_oauth_state";
 
+/** Parses a raw `Cookie` header into a name-to-value map, URI-decoding values. */
 export function parseCookies(header: string | undefined) {
   const cookies = new Map<string, string>();
 
@@ -17,6 +19,7 @@ export function parseCookies(header: string | undefined) {
   return cookies;
 }
 
+/** Builds the `Set-Cookie` header value for the OAuth state cookie, scoped to the callback path and `Secure` in production. */
 export function googleStateCookie(nonce: string, maxAgeSeconds: number) {
   const parts = [
     `${googleStateCookieName}=${encodeURIComponent(nonce)}`,
@@ -31,13 +34,4 @@ export function googleStateCookie(nonce: string, maxAgeSeconds: number) {
   }
 
   return parts.join("; ");
-}
-
-export function redirectOAuthFailure(
-  res: { redirect: (url: string) => void },
-  message: string
-) {
-  const url = new URL("/login", env.WEB_APP_URL);
-  url.searchParams.set("oauthError", message);
-  res.redirect(url.toString());
 }

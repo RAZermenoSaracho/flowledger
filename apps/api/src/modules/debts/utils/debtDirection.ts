@@ -1,18 +1,6 @@
-type DebtDirectionInput = {
-  userId: string | null;
-  sharedExpense: {
-    ownerUserId: string;
-    transaction: {
-      type: "income" | "expense" | "transfer";
-    };
-  };
-};
+import type { DebtDirection, DebtDirectionInput } from "../types/debts.types.js";
 
-export type DebtDirection = {
-  debtorUserId: string | null;
-  creditorUserId: string | null;
-};
-
+/** Derives the debtor/creditor pair for a debt from its underlying transaction type. */
 export function getDebtDirection(debt: DebtDirectionInput): DebtDirection | null {
   const participantUserId = debt.userId;
 
@@ -33,11 +21,13 @@ export function getDebtDirection(debt: DebtDirectionInput): DebtDirection | null
   return null;
 }
 
+/** Whether `userId` is the debtor or creditor on this debt. */
 export function isDebtRelevantToUser(debt: DebtDirectionInput, userId: string) {
   const direction = getDebtDirection(debt);
   return direction?.debtorUserId === userId || direction?.creditorUserId === userId;
 }
 
+/** Whether a settlement request's debtor/creditor still match the debt's current direction (guards against a settlement approved after the underlying transaction changed). */
 export function isSettlementDirectionCurrent(
   debt: DebtDirectionInput,
   settlementRequest: { debtorUserId: string; creditorUserId: string }

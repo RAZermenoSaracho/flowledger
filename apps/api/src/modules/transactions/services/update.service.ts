@@ -6,19 +6,22 @@ import {
   assertGroupRelations,
   assertOwnedRelations,
   assertTransferAllowed
-} from "../utils/transactionValidation.js";
+} from "./transactionValidation.service.js";
 import { deleteSharedTransactionData } from "../utils/sharedTransactionCleanup.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
-  clearProviderPendingNotifications,
   importedTransactionInclude,
   importedTransactionSelectionWhere,
-  assertImportedTransactionCategory,
   importedTransactionType,
   importValidationError
 } from "../utils/importedTransactionQuery.js";
+import {
+  assertImportedTransactionCategory,
+  clearProviderPendingNotifications
+} from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
+/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and syncing any linked shared expense. */
 export async function updateTransaction(userId: string, id: string, body: any) {
   const existing = await prisma.transaction.findFirst({
     where: { id, userId },
@@ -132,6 +135,7 @@ export async function updateTransaction(userId: string, id: string, body: any) {
   });
 }
 
+/** Updates the category on a pending imported transaction; throws if it's not still pending. */
 export async function updateImportedTransactionCategory(
   userId: string,
   id: string,
@@ -164,6 +168,7 @@ export async function updateImportedTransactionCategory(
   });
 }
 
+/** Marks a pending imported transaction as ignored; throws if it isn't currently pending. */
 export async function ignoreImportedTransaction(userId: string, id: string) {
   return prisma.$transaction(async (tx) => {
     const updated = await tx.providerImportedTransaction.updateMany({
@@ -195,6 +200,7 @@ export async function ignoreImportedTransaction(userId: string, id: string) {
   });
 }
 
+/** Reverts an ignored imported transaction back to pending; throws if it isn't currently ignored. */
 export async function unignoreImportedTransaction(userId: string, id: string) {
   return prisma.$transaction(async (tx) => {
     const updated = await tx.providerImportedTransaction.updateMany({
@@ -224,6 +230,7 @@ export async function unignoreImportedTransaction(userId: string, id: string) {
   });
 }
 
+/** Ignores a selection/batch of imported transactions; throws with all per-row errors if any selected row isn't pending. */
 export async function batchIgnoreImportedTransactions(
   userId: string,
   selection: ImportedTransactionSelection
@@ -263,6 +270,7 @@ export async function batchIgnoreImportedTransactions(
   });
 }
 
+/** Un-ignores a selection/batch of imported transactions; throws with all per-row errors if any selected row isn't ignored. */
 export async function batchUnignoreImportedTransactions(
   userId: string,
   selection: ImportedTransactionSelection

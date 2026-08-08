@@ -1,3 +1,5 @@
+import type { CategoryReportRow, ReportAmountMode } from "../types/reports.types.js";
+
 const CHART_COLORS = [
   "#176b52",
   "#f97359",
@@ -8,23 +10,6 @@ const CHART_COLORS = [
   "#be185d",
   "#475569"
 ];
-
-export type CategoryReportRow = {
-  categoryId: string | null;
-  categoryName: string;
-  categoryType: "income" | "expense" | null;
-  categoryColor: string | null;
-  type: "income" | "expense";
-  total: number;
-  grossIncomeTotal: number;
-  incomeOffsetTotal: number;
-  netIncomeTotal: number;
-  grossExpenseTotal: number;
-  reimbursementTotal: number;
-  netExpenseTotal: number;
-};
-
-export type ReportAmountMode = "net" | "gross";
 
 function categoryDisplayTotal(
   row: CategoryReportRow,
@@ -38,6 +23,7 @@ function categoryDisplayTotal(
   return amountMode === "gross" ? row.grossIncomeTotal : row.netIncomeTotal;
 }
 
+/** Filters {@link CategoryReportRow}s to one report type, sorted descending by total, with display label/color/chart-safe total added for the frontend's chart. */
 export function prepareCategoryChartRows(
   rows: CategoryReportRow[],
   type: "income" | "expense",
