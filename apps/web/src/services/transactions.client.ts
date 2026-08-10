@@ -3,14 +3,11 @@ import { ApiError, apiRequest } from "./api.client";
 import type {
   DataSieveMeta,
   ProviderImportedTransaction,
-  ProviderImportedTransactionStatus,
   Transaction,
   TransactionsSummary
 } from "../types/transactions.types";
 
-// Batch imported-transaction endpoints (batch-import/batch-ignore/batch-unignore)
-// return per-item failures in the error body; this extracts them for display
-// without callers needing to know about ApiError.
+/** Extracts per-item failures from a batch imported-transaction action's (batch-import/batch-ignore/batch-unignore) error body, without callers needing to know about `ApiError`. */
 export function getBatchErrors(
   error: unknown
 ): { id: string; message: string }[] {
@@ -21,16 +18,18 @@ export function getBatchErrors(
 
 export type { SortDirection };
 
-// The wire shape /transactions and /transactions/summary accept, sent as
-// one JSON-encoded query-string parameter — see apps/api's transactions
-// read.service.ts for why (DSQL's and/or/not trees + typed values don't
-// round-trip reliably through bracket-notation query strings). Free-text
-// search is folded into `where` as a real (OR name/notes ilike ...)
-// condition by <SearchBar> rather than sent as a separate field — see
-// src/utils/searchDomain.ts. `where` can also include leaf conditions on
-// two virtual field names ("classification", "transactionFilterType")
-// that aren't real Transaction columns — read.service.ts recognizes and
-// expands them wherever they appear in the tree.
+/**
+ * The wire shape `/transactions` and `/transactions/summary` accept, sent
+ * as one JSON-encoded query-string parameter — see apps/api's transactions
+ * `read.service.ts` for why (DSQL's and/or/not trees + typed values don't
+ * round-trip reliably through bracket-notation query strings). Free-text
+ * search is folded into `where` as a real (OR name/notes ilike ...)
+ * condition by `<SearchBar>` rather than sent as a separate field — see
+ * `src/utils/searchDomain.ts`. `where` can also include leaf conditions on
+ * two virtual field names ("classification", "transactionFilterType")
+ * that aren't real `Transaction` columns — `read.service.ts` recognizes
+ * and expands them wherever they appear in the tree.
+ */
 export type TransactionsQuery = {
   where?: WhereNode;
   sort?: { field: string; direction: SortDirection }[];
@@ -87,41 +86,33 @@ export function deleteTransaction(transactionId: string) {
   });
 }
 
+/**
+ * The wire shape `/transactions/imported` accepts, sent as one JSON-encoded
+ * query-string parameter — same convention as `TransactionsQuery` (see its
+ * comment above). `where` may include a leaf condition on one virtual field
+ * name ("search", free text) that isn't a real column — apps/api's
+ * read.service.ts expands it wherever it appears in the tree.
+ */
+export type ImportedTransactionsQuery = {
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
+};
+
 /** Explicit id list or saved-filter selection for batch imported-transaction actions. */
 export type ImportedTransactionSelection =
   | { mode: "ids"; ids: string[] }
-  | { mode: "filtered"; filters?: ListImportedTransactionsParams };
+  | { mode: "filtered"; where?: WhereNode };
 
-/** Filter/sort params for listing imported transactions. */
-export type ListImportedTransactionsParams = {
-  status?: ProviderImportedTransactionStatus;
-  search?: string;
-  provider?: string;
-  accountId?: string;
-  providerAccountId?: string;
-  categoryId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  amountFrom?: number;
-  amountTo?: number;
-  sortBy?: "transactionDate" | "amount" | "description" | "provider" | "status";
-  sortDirection?: SortDirection;
-};
-
-/** Fetches imported transactions with filters. */
+/** Fetches imported transactions for a DSQL query. */
 export function listImportedTransactions(
-  params: ListImportedTransactionsParams = {}
+  query: ImportedTransactionsQuery = {}
 ) {
   return apiRequest<{
     importedTransactions: ProviderImportedTransaction[];
     total: number;
     pendingCount: number;
   }>("/transactions/imported", {
-    query: {
-      ...params,
-      amountFrom: params.amountFrom?.toString(),
-      amountTo: params.amountTo?.toString()
-    } as Record<string, string | undefined>
+    query: { query: JSON.stringify(query) }
   });
 }
 

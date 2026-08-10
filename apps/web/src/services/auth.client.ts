@@ -27,10 +27,12 @@ export function googleOAuthUrl(redirect: string) {
   return apiUrl(`/auth/google?redirect=${encodeURIComponent(redirect)}`);
 }
 
-// Session-token access for auth-flow call sites (route guards, the auth
-// context, OAuth callback handling). Not a data-fetching concern, but kept
-// here rather than accessed directly so nothing outside services/ reaches
-// into services/api.client.ts.
+/**
+ * Reads the stored auth token, for auth-flow call sites (route guards, the
+ * auth context, OAuth callback handling). Not a data-fetching concern, but
+ * kept here rather than read directly from `tokenStore` so nothing outside
+ * `services/` reaches into `services/api.client.ts`.
+ */
 export function getToken() {
   return tokenStore.get();
 }

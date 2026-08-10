@@ -1,20 +1,16 @@
+import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type { Category } from "../types/categories.types";
 import type { CategoryType } from "@flowledger/shared";
 
-/** Sortable fields for the categories list. */
-export type CategorySortBy = "name" | "createdAt" | "updatedAt";
-/** Ascending or descending sort direction. */
-export type SortDirection = "asc" | "desc";
+export type { SortDirection };
 
-/** Filter/sort params for listing categories. */
+/** The wire shape `GET /categories` accepts — see apps/api's categories read.service.ts. `groupId`/`scope` choose which categories are visible at all; `where`/`sort` filter within that set. */
 export type ListCategoriesParams = {
   groupId?: string;
   scope?: "all";
-  includeArchived?: boolean;
-  sortBy?: CategorySortBy;
-  sortDirection?: SortDirection;
-  types?: CategoryType[];
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
 };
 
 /** Fetches categories, optionally merging personal and group categories via `scope: "all"`. */
@@ -23,10 +19,7 @@ export function listCategories(params: ListCategoriesParams = {}) {
     query: {
       groupId: params.groupId,
       scope: params.scope,
-      includeArchived: params.includeArchived ? "true" : undefined,
-      sortBy: params.sortBy,
-      sortDirection: params.sortDirection,
-      types: params.types
+      query: JSON.stringify({ where: params.where, sort: params.sort })
     }
   });
 }

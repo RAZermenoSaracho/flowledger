@@ -1,3 +1,5 @@
+import type { AccountType } from "@flowledger/shared";
+import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type {
   Account,
@@ -6,31 +8,19 @@ import type {
   ProviderImportedAccount,
   ProviderResyncResult
 } from "../types/accounts.types";
-import type { AccountType } from "@flowledger/shared";
 
-/** Sortable fields for the accounts list. */
-export type AccountSortBy = "name" | "createdAt" | "updatedAt";
-/** Ascending or descending sort direction. */
-export type SortDirection = "asc" | "desc";
+export type { SortDirection };
 
-/** Fetches the user's accounts, with optional archive/type/source filters and sort. */
-export function listAccounts(
-  params: {
-    includeArchived?: boolean;
-    sortBy?: AccountSortBy;
-    sortDirection?: SortDirection;
-    types?: AccountType[];
-    sources?: ("manual" | "synced")[];
-  } = {}
-) {
+/** The wire shape `GET /accounts` accepts — see apps/api's accounts read.service.ts. */
+export type AccountsQuery = {
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
+};
+
+/** Fetches the user's accounts for a DSQL query. */
+export function listAccounts(query: AccountsQuery = {}) {
   return apiRequest<{ accounts: Account[] }>("/accounts", {
-    query: {
-      includeArchived: params.includeArchived ? "true" : undefined,
-      sortBy: params.sortBy,
-      sortDirection: params.sortDirection,
-      types: params.types,
-      sources: params.sources
-    }
+    query: { query: JSON.stringify(query) }
   });
 }
 

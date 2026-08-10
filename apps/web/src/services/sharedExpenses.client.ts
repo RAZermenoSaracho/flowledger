@@ -1,14 +1,9 @@
+import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type { SharedExpense } from "../types/sharedExpenses.types";
 import type { SharedExpenseStatus } from "@flowledger/shared";
 
-/** Sortable fields for the shared expenses list. */
-export type SharedExpenseSortBy =
-  | "title"
-  | "totalAmount"
-  | "status"
-  | "createdAt"
-  | "updatedAt";
+export type { SortDirection };
 
 /** Participant payload shape for creating or updating a shared expense. */
 export type SharedExpenseParticipantInput = {
@@ -19,17 +14,16 @@ export type SharedExpenseParticipantInput = {
   status?: "pending" | "partial" | "paid";
 };
 
-/** Fetches shared expenses with status/sort filters. */
-export function listSharedExpenses(
-  params: {
-    status?: SharedExpenseStatus;
-    statuses?: SharedExpenseStatus[];
-    sortBy?: SharedExpenseSortBy;
-    sortDirection?: "asc" | "desc";
-  } = {}
-) {
+/** The wire shape `GET /shared-expenses` accepts — see apps/api's shared-expenses read.service.ts. */
+export type SharedExpensesQuery = {
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
+};
+
+/** Fetches shared expenses for a DSQL query. */
+export function listSharedExpenses(query: SharedExpensesQuery = {}) {
   return apiRequest<{ sharedExpenses: SharedExpense[] }>("/shared-expenses", {
-    query: params
+    query: { query: JSON.stringify(query) }
   });
 }
 

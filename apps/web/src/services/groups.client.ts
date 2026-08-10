@@ -1,47 +1,27 @@
+import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type { Category } from "../types/categories.types";
 import type { Group, GroupMember } from "../types/groups.types";
 import type { CategoryType } from "@flowledger/shared";
-import type { CategorySortBy, SortDirection } from "./categories.client";
 
-/** Filter/sort params for listing groups. */
+export type { SortDirection };
+
+/** The wire shape `GET /groups` accepts — see apps/api's groups read.service.ts. */
 export type ListGroupsParams = {
-  includeArchived?: boolean;
-  sortBy?: CategorySortBy;
-  sortDirection?: SortDirection;
+  where?: WhereNode;
+  sort?: { field: string; direction: SortDirection }[];
 };
 
-/** Fetches the user's groups with archive/sort filters. */
+/** Fetches the user's groups for a DSQL query. */
 export function listGroups(params: ListGroupsParams = {}) {
   return apiRequest<{ groups: Group[] }>("/groups", {
-    query: {
-      includeArchived: params.includeArchived ? "true" : undefined,
-      sortBy: params.sortBy,
-      sortDirection: params.sortDirection
-    }
+    query: { query: JSON.stringify(params) }
   });
 }
 
-/** Options for fetching one group, controlling its nested categories' filter/sort. */
-export type GetGroupParams = {
-  includeArchivedCategories?: boolean;
-  categorySortBy?: CategorySortBy;
-  categorySortDirection?: SortDirection;
-  categoryTypes?: CategoryType[];
-};
-
-/** Fetches one group with its categories and members. */
-export function getGroup(groupId: string, params: GetGroupParams = {}) {
-  return apiRequest<{ group: Group }>(`/groups/${groupId}`, {
-    query: {
-      includeArchivedCategories: params.includeArchivedCategories
-        ? "true"
-        : undefined,
-      categorySortBy: params.categorySortBy,
-      categorySortDirection: params.categorySortDirection,
-      categoryTypes: params.categoryTypes
-    }
-  });
+/** Fetches one group with its active categories and members. */
+export function getGroup(groupId: string) {
+  return apiRequest<{ group: Group }>(`/groups/${groupId}`);
 }
 
 /** Creates a group. */
