@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 /**
- * Three-dot dropdown for row-level actions on small screens. Meant to be
- * paired with an inline `hidden lg:flex` button row so the same actions
- * render directly at lg+ and collapse into this menu below it.
+ * Three-dot dropdown for row-level actions. Visibility is entirely caller-
+ * controlled via `className` (see `RecordCard`, which shows this only when
+ * its own width-based measurement decides inline buttons wouldn't fit) —
+ * this component has no built-in viewport breakpoint of its own.
  */
 export function ActionMenu({
   label,
@@ -44,7 +45,7 @@ export function ActionMenu({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className={`${className} lg:hidden`}>
+    <div ref={containerRef} className={className}>
       <button
         type="button"
         className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
