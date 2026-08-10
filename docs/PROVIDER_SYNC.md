@@ -4,7 +4,7 @@
 
 ## Provider abstraction
 
-FlowLedger uses a `FinancialProviderAdapter` interface (`apps/api/src/modules/providers/provider.types.ts`) that any bank integration must implement. This allows future providers (Plaid, Belvo, MX, open banking APIs) to be added without touching shared business logic.
+FlowLedger uses a `FinancialProviderAdapter` interface (`apps/api/src/modules/accounts/types/provider.types.ts`) that any bank integration must implement. This allows future providers (Plaid, Belvo, MX, open banking APIs) to be added without touching shared business logic.
 
 The adapter defines optional capabilities:
 
@@ -80,7 +80,7 @@ No authentication. Verified via HMAC signature.
 
 ### Signature verification
 
-Located: `apps/api/src/modules/providers/syncfy/syncfy.webhookSecurity.ts`
+Located: `apps/api/src/modules/accounts/providers/syncfy/syncfy.webhookSecurity.ts`
 
 The `SYNCFY_WEBHOOK_SIGNATURE_KEY` env var holds the HMAC key. The key can be:
 - A raw UTF-8 string
@@ -117,7 +117,7 @@ POST /providers/webhooks/syncfy
 
 ### Event processing (async, fire-and-forget)
 
-`processSyncfyWebhookEvent()` in `syncfy.service.ts`:
+`processSyncfyWebhookEvent()` in `accounts/providers/syncfy/services/create.service.ts`:
 
 1. Claim event: update `status: "received"` → `"processing"` (idempotent — already-claimed events return `"ignored"`)
 2. Check event name: only `credentials.refreshed` is processed; others are marked `"ignored"`
@@ -151,7 +151,7 @@ When storing endpoint paths in `ProviderConnection.rawData.syncfyRefreshMetadata
 
 ## Auto-sync scheduler
 
-Located: `apps/api/src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts`
+Located: `apps/api/src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts`
 
 The scheduler is created and started in `server.ts` on boot.
 
@@ -210,7 +210,7 @@ These are lightweight services that fetch public market data for display purpose
 
 | Provider | Module | Purpose | Cache TTL |
 |---|---|---|---|
-| **Frankfurter** | `apps/api/src/modules/providers/frankfurter/frankfurter.service.ts` | Fiat currency list (`GET https://api.frankfurter.app/currencies`) | 24 hours |
-| **Binance** | `apps/api/src/modules/providers/binance/binance.service.ts` | Crypto base asset list (`GET https://api.binance.com/api/v3/ticker/price`) | 1 hour |
+| **Frankfurter** | `apps/api/src/modules/currencies/providers/frankfurter/frankfurter.client.ts` | Fiat currency list (`GET https://api.frankfurter.app/currencies`) | 24 hours |
+| **Binance** | `apps/api/src/modules/currencies/providers/binance/binance.client.ts` | Crypto base asset list (`GET https://api.binance.com/api/v3/ticker/price`) | 1 hour |
 
 Both services use an in-memory cache with a plain timestamp object. Both degrade gracefully on upstream failure (log and return empty array). Results are served to the frontend via `GET /currencies` (no auth required).

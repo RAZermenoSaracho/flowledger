@@ -6,6 +6,12 @@ See the root `CLAUDE.md` for monorepo-level constraints, secrets policy, and bra
 
 ---
 
+## Comment standard
+
+Full standard lives in root `CLAUDE.md`'s "Comment standard" section — read it before writing or editing any code here. Summary: every exported function/class/type/interface requires a `/** ... */` TSDoc block; an inline `//` is only for a genuinely non-obvious *why*; never narrate a fix or session ("fixed this", "this now correctly...") or restate the next line.
+
+---
+
 ## Stack
 
 | Layer | Tech |
@@ -73,6 +79,8 @@ src/modules/
 ```
 
 To add a module, create the `<domain>/` directory with whichever layers it needs, add `<domain>.routes.ts`, export a `Router`, then mount it in `server.ts`.
+
+`src/db/` holds infrastructure shared across every module — `prisma.ts` (the Prisma client singleton) and `sieve.ts` (`createSieve()`, the datasieve engine factory each module's `read.service.ts` calls to get a model-bound query engine, e.g. `createSieve(prisma.transaction)`). It is not a module itself and has no routes/controllers — only modules import from it, never the reverse.
 
 ### Providers
 

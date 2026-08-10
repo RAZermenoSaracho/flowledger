@@ -6,6 +6,12 @@ See the root `CLAUDE.md` for monorepo-level constraints, secrets policy, and bra
 
 ---
 
+## Comment standard
+
+Full standard lives in root `CLAUDE.md`'s "Comment standard" section — read it before writing or editing any code here. Summary: every exported function/component/hook/type requires a `/** ... */` TSDoc block; an inline `//` is only for a genuinely non-obvious *why*; never narrate a fix or session ("fixed this", "this now correctly...") or restate the next line.
+
+---
+
 ## Stack
 
 | Layer | Tech |
@@ -234,6 +240,8 @@ is usage, not potential:
   example: nothing outside `Transactions/components/TransactionList.tsx` uses it.
 - **Not imported anywhere** → don't silently delete it; it may be dead code or something meant to
   be wired up and never was. Flag it instead.
+
+Current shared components living in `src/components/`: `Card`, `Button`, `FormField` (TextInput/SelectField/TextArea), `RecordCard` (list-row layout with mobile three-dot actions), `SearchBar`/`FilterBuilder` (the query-building UI), `AddRecordButton`, `PageHeader` (title+action row above a full-width `SearchBar`), `ActionMenu`. A new component belongs here only once a second page module actually needs it — see the bar above; don't add to this list preemptively.
 
 **Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
 

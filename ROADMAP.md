@@ -164,10 +164,10 @@ Implemented:
 
 Implemented:
 
-- I Owe
-- Owed To Me
+- Outstanding Balances (unified per-person net-balance view, replacing separate "I Owe"/"Owed To Me" lists)
 - Pending Settlement Requests
-- Settled Debts
+- Settled History
+- Shared Expenses (tab within Debts)
 
 ## Notifications
 

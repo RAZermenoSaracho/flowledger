@@ -301,6 +301,7 @@ A transaction fetched from a provider and staged for user review. Becomes a Tran
 | `transactionId` | String? (unique) | FK → Transaction (set on import) |
 | `categoryId` | String? | Pre-selected category |
 | `provider` | String | `"syncfy"` |
+| `providerUserId` | String? | Provider's internal user ID |
 | `providerTransactionId` | String | Provider's transaction ID |
 | `providerCredentialId` | String | Provider credential |
 | `providerAccountId` | String | Provider account |
@@ -310,6 +311,7 @@ A transaction fetched from a provider and staged for user review. Becomes a Tran
 | `transactionDate` | DateTime | Transaction date |
 | `refreshDate` | DateTime? | When provider refreshed it |
 | `status` | String | `pending`, `processed`, `ignored`, `imported` |
+| `errorMessage` | String? | Error detail if import/processing failed |
 | `rawData` | Json | Raw provider response |
 
 Unique: `(provider, providerTransactionId)`
