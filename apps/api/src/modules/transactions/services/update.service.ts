@@ -11,9 +11,9 @@ import { deleteSharedTransactionData } from "../utils/sharedTransactionCleanup.j
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
   importedTransactionInclude,
-  importedTransactionSelectionWhere,
   importedTransactionType,
-  importValidationError
+  importValidationError,
+  resolveImportedTransactionSelectionIds
 } from "../utils/importedTransactionQuery.js";
 import {
   assertImportedTransactionCategory,
@@ -235,9 +235,11 @@ export async function batchIgnoreImportedTransactions(
   userId: string,
   selection: ImportedTransactionSelection
 ) {
+  const ids = await resolveImportedTransactionSelectionIds(userId, selection);
+
   return prisma.$transaction(async (tx) => {
     const rows = await tx.providerImportedTransaction.findMany({
-      where: importedTransactionSelectionWhere(userId, selection),
+      where: { userId, id: { in: ids } },
       select: { id: true, status: true }
     });
     const errors = rows
@@ -275,9 +277,11 @@ export async function batchUnignoreImportedTransactions(
   userId: string,
   selection: ImportedTransactionSelection
 ) {
+  const ids = await resolveImportedTransactionSelectionIds(userId, selection);
+
   return prisma.$transaction(async (tx) => {
     const rows = await tx.providerImportedTransaction.findMany({
-      where: importedTransactionSelectionWhere(userId, selection),
+      where: { userId, id: { in: ids } },
       select: { id: true, status: true }
     });
     const errors = rows

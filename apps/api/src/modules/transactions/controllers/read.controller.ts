@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { serialize } from "../../../utils/serialize.js";
-import type { ImportedTransactionFilters } from "../types/transactions.types.js";
 import {
   getImportedTransactionsPendingCount,
   getTransactionById,
@@ -9,10 +8,10 @@ import {
   listTransactions
 } from "../services/read.service.js";
 
-/** Lists provider-imported transactions matching the query filters, alongside total and pending counts. */
+/** Lists provider-imported transactions matching the DSQL expression in the `query` query param, alongside total and pending counts. */
 export async function getImportedTransactions(req: Request, res: Response) {
-  const filters = req.query as ImportedTransactionFilters;
-  const result = await listImportedTransactions(req.user!.id, filters);
+  const rawQuery = req.query.query as string | undefined;
+  const result = await listImportedTransactions(req.user!.id, rawQuery);
 
   res.json({
     importedTransactions: serialize(result.importedTransactions),

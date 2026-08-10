@@ -81,28 +81,86 @@ export type TransactionsQueryInput = {
 /** Review status of a provider-imported transaction awaiting confirmation. */
 export type ImportedTransactionStatus = "pending" | "processed" | "ignored";
 
-/** Filter/sort params accepted by the imported-transactions list and review endpoints. */
-export type ImportedTransactionFilters = {
-  status?: ImportedTransactionStatus;
-  search?: string;
-  provider?: string;
-  accountId?: string;
-  providerAccountId?: string;
-  categoryId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  amountFrom?: number;
-  amountTo?: number;
-  sortBy?: "transactionDate" | "amount" | "description" | "provider" | "status";
-  sortDirection?: "asc" | "desc";
+/** Minimal category shape embedded in an {@link ImportedTransactionRecord}. */
+type ImportedTransactionCategoryRef = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Minimal `providerAccount` shape embedded in an
+ * {@link ImportedTransactionRecord} — just enough for the `accountId` dot-path
+ * facet (`providerAccount.accountId`, "linked to this FlowLedger account")
+ * that `read.service.ts`'s DSQL `where` filters through.
+ */
+type ImportedTransactionProviderAccountRef = {
+  id: string;
+  accountId: string | null;
+};
+
+/**
+ * Plain domain shape for `ProviderImportedTransaction`, written for
+ * datasieve's generic inference (`DataSieveQuery<ImportedTransactionRecord>`)
+ * — this is what `read.service.ts` builds `where`/`sort` against. Unlike
+ * {@link TransactionRecord}, the actual API response is NOT hydrated via a
+ * DSQL `include` built from this shape: the full nested
+ * `providerAccount.account`/`providerAccount.connection`/`category`/
+ * `transaction` tree the frontend needs (see `importedTransactionInclude`
+ * in `utils/importedTransactionQuery.ts`) is deep enough that hand-mirroring
+ * it as a second DSQL-shaped include risks drifting from the one raw-Prisma
+ * include already relied on by create/update services. Instead, datasieve
+ * only resolves *which ids* match (`resolveImportedTransactionIds`), and a
+ * follow-up raw-Prisma `findMany` with the proven `importedTransactionInclude`
+ * hydrates those ids in order.
+ */
+export interface ImportedTransactionRecord {
+  id: string;
+  userId: string | null;
+  connectionId: string | null;
+  providerAccountRefId: string | null;
+  transactionId: string | null;
+  categoryId: string | null;
+  provider: string;
+  providerUserId: string | null;
+  providerCredentialId: string;
+  providerAccountId: string;
+  providerTransactionId: string;
+  description: string;
+  amount: number;
+  currency: string;
+  transactionDate: Date;
+  refreshDate: Date | null;
+  status: ImportedTransactionStatus;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  category: ImportedTransactionCategoryRef | null;
+  providerAccount: ImportedTransactionProviderAccountRef | null;
+}
+
+/**
+ * Untrusted shape of the decoded `query` request param for `GET
+ * /transactions/imported`. `where` is a {@link RawWhereNode}, not a real
+ * `WhereInput<ImportedTransactionRecord>`: it may contain a leaf condition
+ * on one virtual field name ("search") that isn't a real column —
+ * `read.service.ts`'s `resolveImportedTransactionIds` rewrites it in place
+ * into a real `id in [...]` condition (resolved via a narrow raw-Prisma
+ * precompute over the fields the old free-text search spanned) before
+ * anything reaches datasieve. Every other leaf condition passes through
+ * untouched.
+ */
+export type ImportedTransactionsQueryInput = {
+  where?: RawWhereNode;
+  sort?: DataSieveQuery<ImportedTransactionRecord>["sort"];
 };
 
 /**
  * Which imported transactions a batch action (import/ignore/unignore)
- * applies to: an explicit id list, or "everything matching the given
- * filters" (re-evaluated server-side at execution time, not a snapshot
- * of ids taken when the filter was displayed).
+ * applies to: an explicit id list, or "everything matching the given DSQL
+ * `where` tree" (re-evaluated server-side at execution time via the same
+ * `resolveImportedTransactionIds` the list endpoint uses, not a snapshot of
+ * ids taken when the filter was displayed).
  */
 export type ImportedTransactionSelection =
   | { mode: "ids"; ids: string[] }
-  | { mode: "filtered"; filters?: ImportedTransactionFilters };
+  | { mode: "filtered"; where?: RawWhereNode };

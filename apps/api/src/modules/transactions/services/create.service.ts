@@ -10,10 +10,9 @@ import {
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
   importedTransactionInclude,
-  importedTransactionOrderBy,
-  importedTransactionSelectionWhere,
   importedTransactionType,
-  importValidationError
+  importValidationError,
+  resolveImportedTransactionSelectionIds
 } from "../utils/importedTransactionQuery.js";
 import {
   assertImportedTransactionCategory,
@@ -180,11 +179,9 @@ export async function batchImportProviderImportedTransactions(
 ) {
   const selection = body.selection;
   const batchCategoryId = body.categoryId;
+  const ids = await resolveImportedTransactionSelectionIds(userId, selection);
   const rows = await prisma.providerImportedTransaction.findMany({
-    where: importedTransactionSelectionWhere(userId, selection),
-    orderBy: importedTransactionOrderBy(
-      selection.mode === "filtered" ? (selection.filters ?? {}) : {}
-    )
+    where: { userId, id: { in: ids } }
   });
   const errors: { id: string; message: string }[] = [];
 

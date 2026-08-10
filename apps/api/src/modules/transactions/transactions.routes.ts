@@ -2,8 +2,8 @@ import {
   batchIgnoreProviderImportedTransactionsSchema,
   batchImportProviderImportedTransactionsSchema,
   batchUnignoreProviderImportedTransactionsSchema,
+  importedTransactionsQueryParamSchema,
   importProviderImportedTransactionSchema,
-  providerImportedTransactionFiltersSchema,
   transactionSchema,
   transactionsQueryParamSchema,
   updateProviderImportedTransactionSchema,
@@ -34,11 +34,12 @@ import {
   putTransaction
 } from "./controllers/update.controller.js";
 
+/** Router for `/transactions` — CRUD, summary, and the imported-transactions review/batch-action endpoints. */
 export const transactionsRouter = Router();
 
 transactionsRouter.get(
   "/imported",
-  validate(providerImportedTransactionFiltersSchema, "query"),
+  validate(importedTransactionsQueryParamSchema, "query"),
   asyncHandler(getImportedTransactions)
 );
 

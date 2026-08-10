@@ -11,14 +11,13 @@ import { createSieve } from "../../../db/sieve.js";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import type {
-  ImportedTransactionFilters,
+  ImportedTransactionsQueryInput,
   TransactionRecord,
   TransactionsQueryInput
 } from "../types/transactions.types.js";
 import {
   importedTransactionInclude,
-  importedTransactionOrderBy,
-  importedTransactionWhere
+  resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
 
 const transactionsSieve = createSieve(prisma.transaction);
@@ -225,6 +224,7 @@ const transactionInclude = {
   group: true
 } as const;
 
+/** Lists `userId`'s transactions matching the DSQL expression in `rawQuery` (the decoded `query` request param). */
 export async function listTransactions(userId: string, rawQuery: string | undefined) {
   const input = parseTransactionsQueryParam(rawQuery);
   const where = await buildTransactionsWhere(userId, input);
@@ -242,6 +242,7 @@ export async function listTransactions(userId: string, rawQuery: string | undefi
   });
 }
 
+/** Returns income/expense/balance totals for `userId`'s transactions matching the DSQL expression in `rawQuery`. */
 export async function getTransactionsSummary(
   userId: string,
   rawQuery: string | undefined
@@ -274,6 +275,7 @@ export async function getTransactionsSummary(
   return { income, expenses, balance: income - expenses };
 }
 
+/** Fetches one transaction by id, scoped to `userId`, with its account/category/group relations and settlement/shared-expense data. */
 export async function getTransactionById(userId: string, id: string) {
   const transaction = await prisma.transaction.findFirst({
     where: { id, userId },
@@ -293,26 +295,65 @@ export async function getTransactionById(userId: string, id: string) {
   return transaction;
 }
 
+function parseImportedTransactionsQueryParam(raw: string | undefined) {
+  if (!raw) return {} as ImportedTransactionsQueryInput;
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    throw badRequest("Invalid imported-transactions query: not valid JSON");
+  }
+
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    throw badRequest("Invalid imported-transactions query: must be a JSON object");
+  }
+
+  return decoded as ImportedTransactionsQueryInput;
+}
+
+// `resolveImportedTransactionIds` only resolves *which* ids match (DSQL
+// filtering/sorting); the actual response is hydrated via a second,
+// raw-Prisma fetch using the same `importedTransactionInclude` create/
+// update services already rely on — see `ImportedTransactionRecord`'s doc
+// comment for why this stays two steps instead of one DSQL `include`.
+async function hydrateImportedTransactions(orderedIds: string[]) {
+  if (orderedIds.length === 0) return [];
+
+  const rows = await prisma.providerImportedTransaction.findMany({
+    where: { id: { in: orderedIds } },
+    include: importedTransactionInclude
+  });
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  return orderedIds.flatMap((id) => {
+    const row = rowsById.get(id);
+    return row ? [row] : [];
+  });
+}
+
+/** Lists `userId`'s provider-imported transactions matching the DSQL expression in `rawQuery`, alongside total and pending counts. */
 export async function listImportedTransactions(
   userId: string,
-  filters: ImportedTransactionFilters
+  rawQuery: string | undefined
 ) {
-  const where = importedTransactionWhere(userId, filters);
-  const [importedTransactions, total, pendingCount] = await Promise.all([
-    prisma.providerImportedTransaction.findMany({
-      where,
-      include: importedTransactionInclude,
-      orderBy: importedTransactionOrderBy(filters)
-    }),
-    prisma.providerImportedTransaction.count({ where }),
+  const input = parseImportedTransactionsQueryParam(rawQuery);
+  const ids = await resolveImportedTransactionIds(
+    userId,
+    input.where,
+    input.sort ?? [{ field: "transactionDate", direction: "desc" }]
+  );
+
+  const [importedTransactions, pendingCount] = await Promise.all([
+    hydrateImportedTransactions(ids),
     prisma.providerImportedTransaction.count({
       where: { userId, status: "pending" }
     })
   ]);
 
-  return { importedTransactions, total, pendingCount };
+  return { importedTransactions, total: ids.length, pendingCount };
 }
 
+/** Counts `userId`'s imported transactions still awaiting review. */
 export async function getImportedTransactionsPendingCount(userId: string) {
   return prisma.providerImportedTransaction.count({
     where: { userId, status: "pending" }
