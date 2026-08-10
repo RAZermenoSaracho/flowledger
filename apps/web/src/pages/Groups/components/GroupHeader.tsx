@@ -46,10 +46,10 @@ export function GroupHeader({
   }
 
   return (
-    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+    <div className="min-w-0 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{group.name}</h2>
+          <h2 className="break-words text-lg font-semibold">{group.name}</h2>
           {group.isArchived ? (
             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               Archived
@@ -57,7 +57,7 @@ export function GroupHeader({
           ) : null}
         </div>
         {group.description ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="break-words text-sm text-slate-500 dark:text-slate-400">
             {group.description}
           </p>
         ) : null}

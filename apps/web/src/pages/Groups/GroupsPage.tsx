@@ -1,18 +1,11 @@
-import type { CategoryType } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { useAuth } from "../../hooks/useAuth";
-import type { CategorySortBy } from "../../services/categories.client";
+import type { SearchBarQuery } from "../../components/SearchBar";
 import * as groupsClient from "../../services/groups.client";
-import { matchesSearch } from "../../utils/search";
-import {
-  categoryGroupByDefs,
-  groupByFields as groupCategoriesByFields,
-  groupCategoryGroupKey,
-  GroupCategoriesSection
-} from "./components/GroupCategoriesSection";
+import { GroupCategoriesSection } from "./components/GroupCategoriesSection";
 import { GroupCreateCard } from "./components/GroupCreateCard";
 import { GroupHeader } from "./components/GroupHeader";
 import { GroupMembersSection } from "./components/GroupMembersSection";
@@ -27,58 +20,23 @@ export function GroupsPage() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();
   const highlightedGroupId = searchParams.get("groupId");
-  const [groupArchiveMode, setGroupArchiveMode] = useState<
-    "active" | "archived"
-  >("active");
-  const [categoryArchiveMode, setCategoryArchiveMode] = useState<
-    "active" | "archived"
-  >("active");
-  const [groupSearch, setGroupSearch] = useState("");
-  const [groupSortBy, setGroupSortBy] = useState<CategorySortBy>("name");
-  const [groupSortDirection, setGroupSortDirection] = useState<"asc" | "desc">(
-    "asc"
-  );
-  const [categorySearch, setCategorySearch] = useState("");
-  const [categoryTypeFilterValues, setCategoryTypeFilterValues] = useState<
-    string[]
-  >([]);
-  const [categoryGroupBys, setCategoryGroupBys] = useState<string[]>([]);
-  const [categorySortBy, setCategorySortBy] = useState<CategorySortBy>("name");
-  const [categorySortDirection, setCategorySortDirection] = useState<
-    "asc" | "desc"
-  >("asc");
+  const [groupQuery, setGroupQuery] = useState<SearchBarQuery>({});
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const groupsQuery = useQuery({
-    queryKey: ["groups", groupArchiveMode, groupSortBy, groupSortDirection],
+    queryKey: ["groups", groupQuery],
     queryFn: async () =>
       (
         await groupsClient.listGroups({
-          includeArchived: groupArchiveMode === "archived",
-          sortBy: groupSortBy,
-          sortDirection: groupSortDirection
+          where: groupQuery.where,
+          sort: groupQuery.sort
         })
       ).groups
   });
   const selectedGroupQuery = useQuery({
-    queryKey: [
-      "groups",
-      selectedGroupId,
-      categoryArchiveMode,
-      categorySortBy,
-      categorySortDirection,
-      categoryTypeFilterValues
-    ],
+    queryKey: ["groups", selectedGroupId],
     enabled: Boolean(selectedGroupId),
-    queryFn: async () =>
-      (
-        await groupsClient.getGroup(selectedGroupId!, {
-          includeArchivedCategories: categoryArchiveMode === "archived",
-          categorySortBy,
-          categorySortDirection,
-          categoryTypes: categoryTypeFilterValues as CategoryType[]
-        })
-      ).group
+    queryFn: async () => (await groupsClient.getGroup(selectedGroupId!)).group
   });
 
   const selectedGroup =
@@ -89,27 +47,7 @@ export function GroupsPage() {
     totalExpenses: 0,
     balance: 0
   };
-  const visibleGroups = useMemo(() => {
-    return (groupsQuery.data ?? []).filter((group) =>
-      matchesSearch([group.name, group.description], groupSearch)
-    );
-  }, [groupSearch, groupsQuery.data]);
-  const visibleGroupCategories = useMemo(() => {
-    return (selectedGroup?.categories ?? []).filter((category) =>
-      matchesSearch([category.name, category.type], categorySearch)
-    );
-  }, [categorySearch, selectedGroup?.categories]);
-
-  const groupedGroupCategories = useMemo(
-    () =>
-      groupCategoriesByFields(
-        visibleGroupCategories,
-        categoryGroupBys,
-        categoryGroupByDefs,
-        groupCategoryGroupKey
-      ),
-    [visibleGroupCategories, categoryGroupBys]
-  );
+  const visibleGroups = groupsQuery.data ?? [];
   const canManage = selectedGroup?.members.some(
     (member) => member.userId === auth.user?.id && member.role === "admin"
   );
@@ -146,7 +84,6 @@ export function GroupsPage() {
       <div className="grid gap-6 content-start xl:sticky xl:top-6">
         <GroupCreateCard
           isCreateOpen={management.isCreateOpen}
-          onOpen={() => management.setIsCreateOpen(true)}
           onClose={management.closeCreateForm}
           name={management.name}
           onNameChange={management.setName}
@@ -156,14 +93,8 @@ export function GroupsPage() {
           isSaving={management.createGroup.isPending}
         />
         <GroupsListCard
-          groupSearch={groupSearch}
-          onGroupSearchChange={setGroupSearch}
-          groupSortBy={groupSortBy}
-          groupSortDirection={groupSortDirection}
-          onGroupSortByChange={setGroupSortBy}
-          onGroupSortDirectionChange={setGroupSortDirection}
-          groupArchiveMode={groupArchiveMode}
-          onGroupArchiveModeChange={setGroupArchiveMode}
+          onQueryChange={setGroupQuery}
+          onAddGroup={() => management.setIsCreateOpen(true)}
           visibleGroups={visibleGroups}
           selectedGroupId={selectedGroupId}
           onSelectGroup={(groupId) => {
@@ -174,7 +105,7 @@ export function GroupsPage() {
           }}
         />
       </div>
-      <Card className="lg:p-6">
+      <Card className="min-w-0 lg:p-6">
         {selectedGroup ? (
           <div className="grid gap-8">
             <GroupHeader
@@ -188,22 +119,9 @@ export function GroupsPage() {
               management={management}
             />
             <GroupCategoriesSection
+              groupId={selectedGroup.id}
               canManage={canManage}
               canManageActive={canManageActive}
-              categorySearch={categorySearch}
-              onCategorySearchChange={setCategorySearch}
-              categoryTypeFilterValues={categoryTypeFilterValues}
-              onCategoryTypeFilterValuesChange={setCategoryTypeFilterValues}
-              categoryGroupBys={categoryGroupBys}
-              onCategoryGroupBysChange={setCategoryGroupBys}
-              categorySortBy={categorySortBy}
-              categorySortDirection={categorySortDirection}
-              onCategorySortByChange={setCategorySortBy}
-              onCategorySortDirectionChange={setCategorySortDirection}
-              categoryArchiveMode={categoryArchiveMode}
-              onCategoryArchiveModeChange={setCategoryArchiveMode}
-              groupedGroupCategories={groupedGroupCategories}
-              visibleGroupCategoriesCount={visibleGroupCategories.length}
               categoryManagement={categoryManagement}
             />
             <GroupSummarySection summary={groupSummary} />

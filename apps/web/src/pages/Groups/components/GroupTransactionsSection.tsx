@@ -19,8 +19,8 @@ export function GroupTransactionsSection({
             className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
           >
             <div className="flex flex-col justify-between gap-1 sm:flex-row">
-              <p className="font-medium">{transaction.name}</p>
-              <p className="font-semibold">
+              <p className="min-w-0 truncate font-medium">{transaction.name}</p>
+              <p className="shrink-0 font-semibold">
                 {formatMoney(transaction.amount, transaction.executionCurrency)}
               </p>
             </div>

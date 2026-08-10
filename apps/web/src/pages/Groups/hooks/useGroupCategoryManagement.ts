@@ -35,6 +35,7 @@ export function useGroupCategoryManagement({
     onSuccess: async () => {
       setCategoryName("");
       await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
     }
   });
 
@@ -53,6 +54,7 @@ export function useGroupCategoryManagement({
     onSuccess: async () => {
       closeCategoryEditForm();
       await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
   });
@@ -62,6 +64,7 @@ export function useGroupCategoryManagement({
       categoriesClient.archiveCategory(categoryId),
     onSuccess: async () => {
       await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
   });
@@ -69,7 +72,10 @@ export function useGroupCategoryManagement({
   const restoreCategory = useMutation({
     mutationFn: (categoryId: string) =>
       categoriesClient.restoreCategory(categoryId),
-    onSuccess: refreshSelectedGroup
+    onSuccess: async () => {
+      await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
+    }
   });
 
   const deleteCategory = useMutation({
@@ -77,6 +83,7 @@ export function useGroupCategoryManagement({
       categoriesClient.deleteCategory(categoryId),
     onSuccess: async () => {
       await refreshSelectedGroup();
+      await queryClient.invalidateQueries({ queryKey: ["categories"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
   });

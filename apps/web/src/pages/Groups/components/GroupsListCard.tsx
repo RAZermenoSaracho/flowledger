@@ -1,60 +1,58 @@
+import { AddRecordButton } from "../../../components/AddRecordButton";
 import { Card } from "../../../components/Card";
-import { SearchComponent } from "../../../components/SearchComponent";
-import type { CategorySortBy } from "../../../services/categories.client";
+import { PageHeader } from "../../../components/PageHeader";
+import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
+import {
+  createConditionWithValue,
+  createEmptyGroup
+} from "../../../utils/searchDomain";
 import type { Group } from "../../../types/groups.types";
+import {
+  buildGroupSearchFields,
+  GROUP_DEFAULT_SEARCH_FIELD,
+  GROUP_SORTABLE_FIELDS
+} from "../utils/groupSearchFields";
+
+const groupSearchFields = buildGroupSearchFields();
+
+// Archived groups are excluded by default — same default the old
+// dedicated Active/Archived toggle had — but expressed as an ordinary,
+// visible, removable FilterBuilder condition instead of hidden logic.
+const initialGroupDomain = {
+  ...createEmptyGroup("and"),
+  children: [createConditionWithValue("isArchived", "=", "false")]
+};
 
 /** Search/sort/list card for choosing which group is selected. */
 export function GroupsListCard({
-  groupSearch,
-  onGroupSearchChange,
-  groupSortBy,
-  groupSortDirection,
-  onGroupSortByChange,
-  onGroupSortDirectionChange,
-  groupArchiveMode,
-  onGroupArchiveModeChange,
+  onQueryChange,
+  onAddGroup,
   visibleGroups,
   selectedGroupId,
   onSelectGroup
 }: {
-  groupSearch: string;
-  onGroupSearchChange: (value: string) => void;
-  groupSortBy: CategorySortBy;
-  groupSortDirection: "asc" | "desc";
-  onGroupSortByChange: (value: CategorySortBy) => void;
-  onGroupSortDirectionChange: (value: "asc" | "desc") => void;
-  groupArchiveMode: "active" | "archived";
-  onGroupArchiveModeChange: (value: "active" | "archived") => void;
+  onQueryChange: (query: SearchBarQuery) => void;
+  onAddGroup: () => void;
   visibleGroups: Group[];
   selectedGroupId: string | null;
   onSelectGroup: (groupId: string) => void;
 }) {
   return (
     <Card>
-      <h2 className="text-lg font-semibold">Groups</h2>
-      <div className="mt-4">
-        <SearchComponent
-          layout="compact"
-          searchValue={groupSearch}
-          searchPlaceholder="Search groups"
-          onSearchChange={onGroupSearchChange}
-          sort={{
-            value: groupSortBy,
-            direction: groupSortDirection,
-            onChange: (value) => onGroupSortByChange(value as CategorySortBy),
-            onDirectionChange: onGroupSortDirectionChange,
-            options: [
-              { label: "Name", value: "name" },
-              { label: "Created date", value: "createdAt" },
-              { label: "Updated date", value: "updatedAt" }
-            ]
-          }}
-          archiveToggle={{
-            value: groupArchiveMode,
-            onChange: onGroupArchiveModeChange
-          }}
+      <PageHeader
+        title="Groups"
+        action={<AddRecordButton label="group" onClick={onAddGroup} />}
+      >
+        <SearchBar
+          fields={groupSearchFields}
+          sortableFields={GROUP_SORTABLE_FIELDS}
+          defaultSearchField={GROUP_DEFAULT_SEARCH_FIELD}
+          initialSort={{ field: "name", direction: "asc" }}
+          initialDomain={initialGroupDomain}
+          placeholder="Search groups"
+          onQueryChange={onQueryChange}
         />
-      </div>
+      </PageHeader>
       <div className="mt-4 grid max-h-[55vh] gap-3 overflow-y-auto pr-1">
         {visibleGroups.map((group) => (
           <button

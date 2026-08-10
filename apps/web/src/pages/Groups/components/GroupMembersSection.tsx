@@ -20,10 +20,10 @@ export function GroupMembersSection({
         {group.members.map((member) => (
           <div
             key={member.id}
-            className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
+            className="min-w-0 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
           >
-            <p className="font-medium">{member.user.name}</p>
-            <p className="text-slate-500 dark:text-slate-400">
+            <p className="break-words font-medium">{member.user.name}</p>
+            <p className="break-words text-slate-500 dark:text-slate-400">
               {member.user.email} · {member.role}
             </p>
           </div>
@@ -49,9 +49,9 @@ export function GroupMembersSection({
                     key={user.id}
                     className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
                   >
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-slate-500 dark:text-slate-400">
+                    <div className="min-w-0">
+                      <p className="break-words font-medium">{user.name}</p>
+                      <p className="break-words text-slate-500 dark:text-slate-400">
                         {user.email}
                       </p>
                     </div>
