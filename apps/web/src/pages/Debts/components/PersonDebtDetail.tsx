@@ -67,7 +67,7 @@ export function PersonDebtDetail({
       : "";
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
         <div>
           <h2 className="text-lg font-semibold">{displayPerson(balance)}</h2>
@@ -108,7 +108,7 @@ export function PersonDebtDetail({
         />
 
         <div className="grid gap-3">
-          <div className="flex flex-col justify-between gap-2 lg:flex-row lg:items-end">
+          <div className="min-w-0 flex flex-col justify-between gap-2 lg:flex-row lg:items-end">
             <div>
               <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
                 Batch settlement

@@ -1,6 +1,10 @@
 import { Card } from "../../../components/Card";
-import { SearchComponent } from "../../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import type { Debt } from "../../../types/debts.types";
+import {
+  SETTLED_DEBT_DEFAULT_SEARCH_FIELD,
+  settledDebtSearchFields
+} from "../utils/debtSearchFields";
 import { DebtSummaryCard } from "./DebtSummaryCard";
 import { EmptyState } from "./EmptyState";
 
@@ -8,15 +12,13 @@ import { EmptyState } from "./EmptyState";
 export function SettledDebtsTab({
   settledDebts,
   visibleSettledDebts,
-  settledSearch,
-  onSettledSearchChange,
+  onSettledQueryChange,
   viewerUserId,
   highlightedDebtId
 }: {
   settledDebts: Debt[];
   visibleSettledDebts: Debt[];
-  settledSearch: string;
-  onSettledSearchChange: (value: string) => void;
+  onSettledQueryChange: (query: SearchBarQuery) => void;
   viewerUserId?: string;
   highlightedDebtId?: string | null;
 }) {
@@ -34,10 +36,11 @@ export function SettledDebtsTab({
         </p>
       </div>
       <div className="mt-4">
-        <SearchComponent
-          searchValue={settledSearch}
-          searchPlaceholder="Search settled debts"
-          onSearchChange={onSettledSearchChange}
+        <SearchBar
+          fields={settledDebtSearchFields}
+          defaultSearchField={SETTLED_DEBT_DEFAULT_SEARCH_FIELD}
+          placeholder="Search settled debts"
+          onQueryChange={onSettledQueryChange}
         />
       </div>
       <div className="mt-4 grid gap-3">

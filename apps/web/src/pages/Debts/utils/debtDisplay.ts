@@ -1,10 +1,5 @@
-import type {
-  Debt,
-  PersonBalance,
-  SettlementRequest
-} from "../../../types/debts.types";
+import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
-import { matchesSearch } from "../../../utils/search";
 
 /** Shared expense title for a debt. */
 export function debtTitle(debt: Debt) {
@@ -89,49 +84,3 @@ export function availableSettlementAmount(debt: Debt) {
   return Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount);
 }
 
-/** Checks whether a debt matches a free-text search across its title, description, status, and parties. */
-export function debtMatchesSearch(
-  debt: Debt,
-  search: string,
-  viewerUserId?: string
-) {
-  return matchesSearch(
-    [
-      debtTitle(debt),
-      debtDescription(debt, viewerUserId),
-      statusLabel(debt),
-      debt.participantName,
-      debt.user?.name,
-      debt.user?.email,
-      debt.sharedExpense.owner?.name,
-      debt.sharedExpense.owner?.email,
-      debt.sharedExpense.transaction?.name,
-      debt.shareAmount,
-      debt.paidAmount,
-      debt.outstandingAmount
-    ],
-    search
-  );
-}
-
-/** Checks whether a settlement request matches a free-text search across its debt, parties, and note. */
-export function settlementRequestMatchesSearch(
-  request: SettlementRequest,
-  search: string
-) {
-  const debt = request.sharedExpenseParticipant;
-  return matchesSearch(
-    [
-      debt?.sharedExpense.title,
-      debt?.sharedExpense.transaction?.name,
-      request.debtor?.name,
-      request.debtor?.email,
-      request.creditor?.name,
-      request.creditor?.email,
-      request.amount,
-      request.status,
-      request.note
-    ],
-    search
-  );
-}

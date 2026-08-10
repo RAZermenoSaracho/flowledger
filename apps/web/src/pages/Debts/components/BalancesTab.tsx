@@ -1,12 +1,16 @@
 import type { FormEvent } from "react";
 import { Card } from "../../../components/Card";
-import { SearchComponent } from "../../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import type { SettlementDraft } from "../types/debts.types";
 import { displayPerson } from "../utils/debtDisplay";
+import {
+  BALANCE_DEFAULT_SEARCH_FIELD,
+  balanceSearchFields
+} from "../utils/debtSearchFields";
 import { EmptyState } from "./EmptyState";
 import { PersonDebtDetail } from "./PersonDebtDetail";
 
@@ -14,8 +18,7 @@ import { PersonDebtDetail } from "./PersonDebtDetail";
 export function BalancesTab({
   balances,
   visibleBalances,
-  balanceSearch,
-  onBalanceSearchChange,
+  onBalanceQueryChange,
   selectedBalance,
   onSelectPerson,
   summaryCurrency,
@@ -36,8 +39,7 @@ export function BalancesTab({
 }: {
   balances: PersonBalance[];
   visibleBalances: PersonBalance[];
-  balanceSearch: string;
-  onBalanceSearchChange: (value: string) => void;
+  onBalanceQueryChange: (query: SearchBarQuery) => void;
   selectedBalance: PersonBalance | null | undefined;
   onSelectPerson: (key: string) => void;
   summaryCurrency: string;
@@ -61,10 +63,10 @@ export function BalancesTab({
   onSubmitBatchSettlement: (event: FormEvent) => Promise<void>;
 }) {
   return (
-    <div className="grid gap-4">
-      <Card>
+    <div className="grid min-w-0 gap-4">
+      <Card className="min-w-0">
         <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">Outstanding balances</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               One net balance per person across all unsettled debts, converted
@@ -77,13 +79,14 @@ export function BalancesTab({
           </p>
         </div>
         <div className="mt-4">
-          <SearchComponent
-            searchValue={balanceSearch}
-            searchPlaceholder="Search people or debts"
-            onSearchChange={onBalanceSearchChange}
+          <SearchBar
+            fields={balanceSearchFields}
+            defaultSearchField={BALANCE_DEFAULT_SEARCH_FIELD}
+            placeholder="Search people or debts"
+            onQueryChange={onBalanceQueryChange}
           />
         </div>
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 min-w-0 overflow-x-auto">
           {balances.length === 0 ? (
             <EmptyState>No outstanding balances.</EmptyState>
           ) : visibleBalances.length === 0 ? (

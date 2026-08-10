@@ -1,11 +1,15 @@
 import type { FormEvent } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
-import { SearchComponent } from "../../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { SettlementRequest } from "../../../types/debts.types";
 import type { SettlementApprovalDraft } from "../types/debts.types";
+import {
+  SETTLEMENT_REQUEST_DEFAULT_SEARCH_FIELD,
+  settlementRequestSearchFields
+} from "../utils/debtSearchFields";
 import { ApprovalActions } from "./ApprovalActions";
 import { EmptyState } from "./EmptyState";
 import { SettlementRequestCard } from "./SettlementRequestCard";
@@ -16,10 +20,8 @@ export function PendingRequestsTab({
   pendingForMe,
   visiblePendingFromMe,
   visiblePendingForMe,
-  pendingFromMeSearch,
-  onPendingFromMeSearchChange,
-  pendingForMeSearch,
-  onPendingForMeSearchChange,
+  onPendingFromMeQueryChange,
+  onPendingForMeQueryChange,
   highlightedSettlementId,
   selectedApprovalIds,
   onToggleApprovalSelection,
@@ -39,10 +41,8 @@ export function PendingRequestsTab({
   pendingForMe: SettlementRequest[];
   visiblePendingFromMe: SettlementRequest[];
   visiblePendingForMe: SettlementRequest[];
-  pendingFromMeSearch: string;
-  onPendingFromMeSearchChange: (value: string) => void;
-  pendingForMeSearch: string;
-  onPendingForMeSearchChange: (value: string) => void;
+  onPendingFromMeQueryChange: (query: SearchBarQuery) => void;
+  onPendingForMeQueryChange: (query: SearchBarQuery) => void;
   highlightedSettlementId?: string | null;
   selectedApprovalIds: Set<string>;
   onToggleApprovalSelection: (settlementId: string) => void;
@@ -103,10 +103,11 @@ export function PendingRequestsTab({
               Requests by me
             </h3>
             <div className="mt-3">
-              <SearchComponent
-                searchValue={pendingFromMeSearch}
-                searchPlaceholder="Search requests by me"
-                onSearchChange={onPendingFromMeSearchChange}
+              <SearchBar
+                fields={settlementRequestSearchFields}
+                defaultSearchField={SETTLEMENT_REQUEST_DEFAULT_SEARCH_FIELD}
+                placeholder="Search requests by me"
+                onQueryChange={onPendingFromMeQueryChange}
               />
             </div>
           </div>
@@ -130,10 +131,11 @@ export function PendingRequestsTab({
               Awaiting my approval
             </h3>
             <div className="mt-3">
-              <SearchComponent
-                searchValue={pendingForMeSearch}
-                searchPlaceholder="Search approvals"
-                onSearchChange={onPendingForMeSearchChange}
+              <SearchBar
+                fields={settlementRequestSearchFields}
+                defaultSearchField={SETTLEMENT_REQUEST_DEFAULT_SEARCH_FIELD}
+                placeholder="Search approvals"
+                onQueryChange={onPendingForMeQueryChange}
               />
             </div>
           </div>
