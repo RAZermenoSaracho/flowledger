@@ -1,5 +1,5 @@
 import {
-  sharedExpenseFiltersSchema,
+  sharedExpensesQueryParamSchema,
   sharedExpenseSchema,
   updateSharedExpenseSchema
 } from "@flowledger/shared";
@@ -16,7 +16,7 @@ export const sharedExpensesRouter = Router();
 
 sharedExpensesRouter.get(
   "/",
-  validate(sharedExpenseFiltersSchema, "query"),
+  validate(sharedExpensesQueryParamSchema, "query"),
   asyncHandler(getSharedExpenses)
 );
 sharedExpensesRouter.post(
