@@ -1,5 +1,5 @@
 import {
-  groupFiltersSchema,
+  groupsQueryParamSchema,
   groupCategorySchema,
   groupMemberSchema,
   groupSchema,
@@ -16,7 +16,7 @@ import { postGroupArchive, postGroupRestore, putGroup } from "./controllers/upda
 /** Router for `/groups` — CRUD, archive/restore, members, and categories. */
 export const groupsRouter = Router();
 
-groupsRouter.get("/", validate(groupFiltersSchema, "query"), asyncHandler(getGroups));
+groupsRouter.get("/", validate(groupsQueryParamSchema, "query"), asyncHandler(getGroups));
 groupsRouter.post("/", validate(groupSchema), asyncHandler(postGroup));
 groupsRouter.put("/:id", validate(updateGroupSchema), asyncHandler(putGroup));
 groupsRouter.post("/:id/archive", asyncHandler(postGroupArchive));

@@ -1,6 +1,10 @@
 import { prisma } from "../../../db/prisma.js";
-import { HttpError, notFound } from "../../../utils/httpError.js";
-import { groupInclude } from "../utils/groupInclude.js";
+import { createSieve } from "../../../db/sieve.js";
+import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
+import type { GroupListRecord, GroupsQueryInput } from "../types/groups.types.js";
+import { groupInclude, groupListInclude } from "../utils/groupInclude.js";
+
+const groupsSieve = createSieve(prisma.group);
 
 /** Looks up `userId`'s membership row for `groupId`, or `null` if `groupId` is not given; throws if given but the user isn't a member. */
 export async function getGroupMembership(
@@ -63,50 +67,62 @@ export async function assertCategory(
   return category;
 }
 
-/** Lists groups `userId` belongs to, with optional archive-inclusion and sort filters. */
-export async function listGroups(
-  userId: string,
-  filters: {
-    includeArchived?: string;
-    sortBy?: "name" | "createdAt" | "updatedAt";
-    sortDirection?: "asc" | "desc";
-  }
-) {
-  return prisma.group.findMany({
-    where: {
-      members: { some: { userId } },
-      ...(filters.includeArchived === "true" ? {} : { isArchived: false })
-    },
-    include: groupInclude(userId),
-    orderBy: filters.sortBy
-      ? { [filters.sortBy]: filters.sortDirection ?? "asc" }
-      : { createdAt: "desc" }
+// DSQL can't express `members: { some: { userId } }` (a to-many relation
+// filtered by a nested condition — see categories/services/read.service.ts's
+// identical comment for the pattern this follows). Membership is resolved
+// here, once, via a narrow raw-Prisma id lookup, then folded into the DSQL
+// `where` as an ordinary `id in` condition.
+async function getVisibleGroupIds(userId: string) {
+  const rows = await prisma.group.findMany({
+    where: { members: { some: { userId } } },
+    select: { id: true }
   });
+  return rows.map((row) => row.id);
 }
 
-/** Fetches one group (categories/members filtered per params) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
-export async function getGroupById(
-  userId: string,
-  groupId: string,
-  includeArchivedCategories: boolean,
-  categorySort?: {
-    sortBy?: "name" | "createdAt" | "updatedAt";
-    sortDirection?: "asc" | "desc";
-  },
-  categoryTypes?: string[]
-) {
+function parseGroupsQueryParam(raw: string | undefined) {
+  if (!raw) return {} as GroupsQueryInput;
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    throw badRequest("Invalid groups query: not valid JSON");
+  }
+
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    throw badRequest("Invalid groups query: must be a JSON object");
+  }
+
+  return decoded as GroupsQueryInput;
+}
+
+/** Lists groups `userId` belongs to, per a DSQL query. */
+export async function listGroups(userId: string, rawQuery: string | undefined) {
+  const input = parseGroupsQueryParam(rawQuery);
+  const visibleIds = await getVisibleGroupIds(userId);
+  const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
+  const where = input.where
+    ? { and: [scopeCondition, input.where] }
+    : scopeCondition;
+
+  const result = await groupsSieve.query<GroupListRecord>({
+    where,
+    sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
+    include: groupListInclude()
+  });
+  return result.data;
+}
+
+/** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
+export async function getGroupById(userId: string, groupId: string) {
   await getGroupMembership(userId, groupId);
 
   const [group, transactionTotals] = await Promise.all([
     prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        ...groupInclude(
-          userId,
-          includeArchivedCategories,
-          categorySort,
-          categoryTypes
-        ),
+        ...groupInclude(userId),
         transactions: {
           where: { userId },
           include: { account: true, category: true },
