@@ -1,20 +1,24 @@
-import type { SharedExpenseStatus } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import type { SearchBarQuery } from "../../components/SearchBar";
 import { useAuth } from "../../hooks/useAuth";
 import * as sharedExpensesClient from "../../services/sharedExpenses.client";
-import type { SharedExpenseSortBy } from "../../services/sharedExpenses.client";
-import { matchesSearch } from "../../utils/search";
 import { SharedExpenseFormCard } from "./components/SharedExpenseFormCard";
-import { splitDirectionLabel } from "./components/SharedExpenseListItem";
 import {
   groupByFields,
-  sharedExpenseGroupByDefs,
   sharedExpenseGroupKey,
   SharedExpensesListCard
 } from "./components/SharedExpensesListCard";
+import { SHARED_EXPENSE_GROUPABLE_FIELDS } from "./utils/sharedExpenseSearchFields";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
+
+// groupByFields (components/SearchComponent.tsx) keys its group defs by
+// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
+// the two (see TransactionsPage.tsx for the same pattern).
+const sharedExpenseGroupByDefsForBucketing = SHARED_EXPENSE_GROUPABLE_FIELDS.map(
+  (field) => ({ id: field.name, label: field.label })
+);
 
 /** Shared expenses list page with search/filter/group controls and create/edit form. */
 export function SharedExpensesPage() {
@@ -22,57 +26,34 @@ export function SharedExpensesPage() {
   const [searchParams] = useSearchParams();
   const highlightedSharedExpenseId = searchParams.get("sharedExpenseId");
   const highlightedParticipantId = searchParams.get("participantId");
-  const [search, setSearch] = useState("");
-  const [statusFilterValues, setStatusFilterValues] = useState<string[]>([]);
-  const [groupBys, setGroupBys] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<SharedExpenseSortBy>("createdAt");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sharedExpenseQuery, setSharedExpenseQuery] = useState<SearchBarQuery>(
+    {}
+  );
 
   const form = useSharedExpenseForm();
 
   const sharedExpensesQuery = useQuery({
-    queryKey: ["shared-expenses", statusFilterValues, sortBy, sortDirection],
+    queryKey: ["shared-expenses", sharedExpenseQuery],
     queryFn: async () =>
       (
         await sharedExpensesClient.listSharedExpenses({
-          statuses:
-            statusFilterValues.length > 0
-              ? (statusFilterValues as SharedExpenseStatus[])
-              : undefined,
-          sortBy,
-          sortDirection
+          where: sharedExpenseQuery.where,
+          sort: sharedExpenseQuery.sort
         })
       ).sharedExpenses
   });
 
-  const visibleSharedExpenses = useMemo(
-    () =>
-      (sharedExpensesQuery.data ?? []).filter((sharedExpense) =>
-        matchesSearch(
-          [
-            sharedExpense.title,
-            sharedExpense.status,
-            splitDirectionLabel(sharedExpense),
-            sharedExpense.transaction?.name,
-            ...sharedExpense.participants.map(
-              (participant) => participant.participantName
-            )
-          ],
-          search
-        )
-      ),
-    [search, sharedExpensesQuery.data]
-  );
-
+  const visibleSharedExpenses = sharedExpensesQuery.data ?? [];
+  const activeGroupBys = sharedExpenseQuery.groupBy ?? [];
   const groupedSharedExpenses = useMemo(
     () =>
       groupByFields(
         visibleSharedExpenses,
-        groupBys,
-        sharedExpenseGroupByDefs,
+        activeGroupBys,
+        sharedExpenseGroupByDefsForBucketing,
         sharedExpenseGroupKey
       ),
-    [visibleSharedExpenses, groupBys]
+    [visibleSharedExpenses, activeGroupBys]
   );
 
   useEffect(() => {
@@ -98,16 +79,8 @@ export function SharedExpensesPage() {
     <div className="grid gap-6">
       <SharedExpenseFormCard form={form} />
       <SharedExpensesListCard
-        search={search}
-        onSearchChange={setSearch}
-        statusFilterValues={statusFilterValues}
-        onStatusFilterValuesChange={setStatusFilterValues}
-        groupBys={groupBys}
-        onGroupBysChange={setGroupBys}
-        sortBy={sortBy}
-        sortDirection={sortDirection}
-        onSortByChange={setSortBy}
-        onSortDirectionChange={setSortDirection}
+        onQueryChange={setSharedExpenseQuery}
+        onAddSharedExpense={() => form.setIsFormOpen(true)}
         groupedSharedExpenses={groupedSharedExpenses}
         visibleCount={visibleSharedExpenses.length}
         highlightedSharedExpenseId={highlightedSharedExpenseId}

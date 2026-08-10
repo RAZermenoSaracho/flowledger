@@ -1,4 +1,4 @@
-import { Button } from "../../../components/Button";
+import { RecordCard, type RecordCardAction } from "../../../components/RecordCard";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { formatMoney } from "../../../utils/currency";
 
@@ -25,41 +25,33 @@ export function SharedExpenseListItem({
   canEdit: boolean;
   onEdit: () => void;
 }) {
+  const actions: RecordCardAction[] | undefined = canEdit
+    ? [{ key: "edit", label: "Edit", onClick: onEdit }]
+    : undefined;
+
   return (
-    <div
+    <RecordCard
       id={`shared-expense-${sharedExpense.id}`}
-      className={`rounded-md border p-3 transition ${
+      highlightClassName={
         isHighlighted
           ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
-          : "border-slate-200 dark:border-slate-800"
-      }`}
-    >
-      <div className="flex flex-col justify-between gap-2 sm:flex-row">
-        <div>
-          <p className="font-semibold">{sharedExpense.title}</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {sharedExpense.status} · {splitDirectionLabel(sharedExpense)}
-          </p>
-        </div>
-        <p className="font-semibold">
-          {formatMoney(
-            sharedExpense.totalAmount,
-            sharedExpense.transaction?.executionCurrency ?? "USD"
-          )}
+          : undefined
+      }
+      title={<p className="truncate font-semibold">{sharedExpense.title}</p>}
+      subtitle={
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {sharedExpense.status} · {splitDirectionLabel(sharedExpense)} ·{" "}
+          <span className="font-semibold text-ink dark:text-slate-100">
+            {formatMoney(
+              sharedExpense.totalAmount,
+              sharedExpense.transaction?.executionCurrency ?? "USD"
+            )}
+          </span>
         </p>
-      </div>
-      <div className="mt-3">
-        {canEdit ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full sm:w-auto"
-            onClick={onEdit}
-          >
-            Edit
-          </Button>
-        ) : null}
-      </div>
+      }
+      actions={actions}
+      actionsLabel={`Actions for ${sharedExpense.title}`}
+    >
       <div className="mt-3 grid gap-2">
         {sharedExpense.participants.map((participant) => (
           <div
@@ -80,6 +72,6 @@ export function SharedExpenseListItem({
           </div>
         ))}
       </div>
-    </div>
+    </RecordCard>
   );
 }

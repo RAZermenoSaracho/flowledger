@@ -12,19 +12,7 @@ export function SharedExpenseFormCard({
 }: {
   form: ReturnType<typeof useSharedExpenseForm>;
 }) {
-  if (!form.isFormOpen) {
-    return (
-      <Card>
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={() => form.setIsFormOpen(true)}
-        >
-          Add shared expense
-        </Button>
-      </Card>
-    );
-  }
+  if (!form.isFormOpen) return null;
 
   return (
     <Card>

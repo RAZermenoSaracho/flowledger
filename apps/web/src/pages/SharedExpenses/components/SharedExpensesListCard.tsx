@@ -1,18 +1,16 @@
-import { SHARED_EXPENSE_STATUSES } from "@flowledger/shared";
+import { AddRecordButton } from "../../../components/AddRecordButton";
 import { Card } from "../../../components/Card";
-import {
-  groupByFields,
-  SearchComponent
-} from "../../../components/SearchComponent";
-import type { SearchGroupByDef } from "../../../components/SearchComponent";
-import type { SharedExpenseSortBy } from "../../../services/sharedExpenses.client";
+import { PageHeader } from "../../../components/PageHeader";
+import { groupByFields } from "../../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
+import {
+  buildSharedExpenseSearchFields,
+  SHARED_EXPENSE_DEFAULT_SEARCH_FIELD,
+  SHARED_EXPENSE_GROUPABLE_FIELDS,
+  SHARED_EXPENSE_SORTABLE_FIELDS
+} from "../utils/sharedExpenseSearchFields";
 import { SharedExpenseListItem } from "./SharedExpenseListItem";
-
-/** Group-by options for the shared expenses list. */
-export const sharedExpenseGroupByDefs: SearchGroupByDef[] = [
-  { id: "status", label: "Status" }
-];
 
 /** Derives the group key/label for a shared expense under a chosen group-by field. */
 export function sharedExpenseGroupKey(
@@ -27,18 +25,12 @@ export function sharedExpenseGroupKey(
 
 export { groupByFields };
 
+const sharedExpenseSearchFields = buildSharedExpenseSearchFields();
+
 /** Search/filter/group/sort controls and list container for shared expenses. */
 export function SharedExpensesListCard({
-  search,
-  onSearchChange,
-  statusFilterValues,
-  onStatusFilterValuesChange,
-  groupBys,
-  onGroupBysChange,
-  sortBy,
-  sortDirection,
-  onSortByChange,
-  onSortDirectionChange,
+  onQueryChange,
+  onAddSharedExpense,
   groupedSharedExpenses,
   visibleCount,
   highlightedSharedExpenseId,
@@ -46,16 +38,8 @@ export function SharedExpensesListCard({
   currentUserId,
   onEdit
 }: {
-  search: string;
-  onSearchChange: (value: string) => void;
-  statusFilterValues: string[];
-  onStatusFilterValuesChange: (values: string[]) => void;
-  groupBys: string[];
-  onGroupBysChange: (values: string[]) => void;
-  sortBy: SharedExpenseSortBy;
-  sortDirection: "asc" | "desc";
-  onSortByChange: (value: SharedExpenseSortBy) => void;
-  onSortDirectionChange: (value: "asc" | "desc") => void;
+  onQueryChange: (query: SearchBarQuery) => void;
+  onAddSharedExpense: () => void;
   groupedSharedExpenses: {
     key: string;
     label: string;
@@ -69,44 +53,25 @@ export function SharedExpensesListCard({
 }) {
   return (
     <Card>
-      <h2 className="text-lg font-semibold">Shared expenses</h2>
-      <div className="mt-4">
-        <SearchComponent
-          searchValue={search}
-          searchPlaceholder="Search shared expenses"
-          onSearchChange={onSearchChange}
-          facets={[
-            {
-              id: "status",
-              label: "Status",
-              options: SHARED_EXPENSE_STATUSES.map((item) => ({
-                label: item,
-                value: item
-              }))
-            }
-          ]}
-          activeFacetValues={{ status: statusFilterValues }}
-          onFacetValuesChange={(facetId, values) =>
-            facetId === "status" && onStatusFilterValuesChange(values)
-          }
-          groupBys={sharedExpenseGroupByDefs}
-          activeGroupBys={groupBys}
-          onGroupBysChange={onGroupBysChange}
-          sort={{
-            value: sortBy,
-            direction: sortDirection,
-            onChange: (value) => onSortByChange(value as SharedExpenseSortBy),
-            onDirectionChange: onSortDirectionChange,
-            options: [
-              { label: "Created date", value: "createdAt" },
-              { label: "Updated date", value: "updatedAt" },
-              { label: "Title", value: "title" },
-              { label: "Total amount", value: "totalAmount" },
-              { label: "Status", value: "status" }
-            ]
-          }}
+      <PageHeader
+        title="Shared expenses"
+        action={
+          <AddRecordButton
+            label="shared expense"
+            onClick={onAddSharedExpense}
+          />
+        }
+      >
+        <SearchBar
+          fields={sharedExpenseSearchFields}
+          groupableFields={SHARED_EXPENSE_GROUPABLE_FIELDS}
+          sortableFields={SHARED_EXPENSE_SORTABLE_FIELDS}
+          defaultSearchField={SHARED_EXPENSE_DEFAULT_SEARCH_FIELD}
+          initialSort={{ field: "createdAt", direction: "desc" }}
+          placeholder="Search shared expenses"
+          onQueryChange={onQueryChange}
         />
-      </div>
+      </PageHeader>
       <div className="mt-4 grid gap-4">
         {groupedSharedExpenses.map((section) => (
           <div key={section.key || "all"} className="grid gap-3">
