@@ -13,7 +13,6 @@ import { BrandLogo } from "../components/BrandLogo";
 import { Button } from "../components/Button";
 import { routes } from "../constants/routes";
 import { useAuth } from "../hooks/useAuth";
-import { getMe, getToken } from "../services/auth.client";
 import {
   getUnreadCount,
   listNotifications,
@@ -86,17 +85,6 @@ export function AppLayout() {
   const mobileSidebarSide: MobileSidebarSide =
     auth.user?.mobileSidebarSide ?? "left";
 
-  useQuery({
-    queryKey: ["me"],
-    enabled: Boolean(getToken()) && !auth.user,
-    queryFn: async () => {
-      const response = await getMe();
-      auth.setUser(response.user);
-      return response.user;
-    },
-    retry: false
-  });
-
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
@@ -114,7 +102,7 @@ export function AppLayout() {
 
   const logout = () => {
     setIsMobileMenuOpen(false);
-    auth.logout();
+    void auth.logout();
     navigate(routes.login);
   };
 
