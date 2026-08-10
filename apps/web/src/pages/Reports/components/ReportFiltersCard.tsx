@@ -1,3 +1,5 @@
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { CurrencySelect } from "../../../components/CurrencySelect";
@@ -42,6 +44,11 @@ export function ReportFiltersCard({
   reportAmountMode: ReportAmountMode;
   onReportAmountModeChange: (mode: ReportAmountMode) => void;
 }) {
+  // Collapsed by default only below `lg`: the `lg:hidden` toggle and the
+  // `hidden lg:block` content wrapper below mean desktop always renders
+  // the form open regardless of this state — this is a mobile-only affordance,
+  // the form itself (and its desktop behavior) is otherwise untouched.
+  const [isOpenOnMobile, setIsOpenOnMobile] = useState(false);
   const setGroupIds = (groupIds: string[]) => {
     const nextCategoryIds = groupIds.length
       ? filters.categoryIds.filter((categoryId) =>
@@ -69,7 +76,28 @@ export function ReportFiltersCard({
 
   return (
     <Card>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 lg:hidden"
+        aria-expanded={isOpenOnMobile}
+        aria-controls="report-filters-content"
+        onClick={() => setIsOpenOnMobile((current) => !current)}
+      >
+        <span className="text-sm font-semibold text-ink dark:text-slate-100">
+          Filters{hasActiveFilters ? " (active)" : ""}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-500 transition dark:text-slate-400 ${
+            isOpenOnMobile ? "rotate-180" : ""
+          }`}
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        id="report-filters-content"
+        className={`${isOpenOnMobile ? "mt-4 block" : "hidden"} lg:mt-0 lg:block`}
+      >
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <TextInput
             label="From"
@@ -156,6 +184,7 @@ export function ReportFiltersCard({
               })}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </Card>
