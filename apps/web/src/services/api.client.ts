@@ -1,12 +1,23 @@
 /** Base URL of the API, from `VITE_API_URL` or a localhost fallback. */
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-const TOKEN_KEY = "flowledger.token";
 
-/** localStorage-backed getter/setter/clearer for the auth token. */
+let accessToken: string | null = null;
+
+/**
+ * In-memory getter/setter/clearer for the access token. Deliberately not
+ * persisted to `localStorage`/`sessionStorage` — a page reload always starts
+ * from `null`, and the caller (`AuthProvider`) is responsible for restoring a
+ * session via a silent `/auth/refresh` call against the httpOnly refresh
+ * cookie.
+ */
 export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY)
+  get: () => accessToken,
+  set: (token: string) => {
+    accessToken = token;
+  },
+  clear: () => {
+    accessToken = null;
+  }
 };
 
 /** Error subclass carrying the parsed error response body from a failed API request. */
@@ -37,10 +48,46 @@ export function apiUrl(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-/** Generic authenticated fetch wrapper used by every `<module>.client.ts` function; attaches the bearer token and throws `ApiError` on non-2xx responses. */
+let refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Attempts to obtain a fresh access token from the httpOnly refresh cookie
+ * via `POST /auth/refresh`, storing it in `tokenStore` on success. Uses a
+ * raw `fetch` (not `apiRequest`) so it can never recurse into itself, and
+ * de-dupes concurrent callers onto a single in-flight request.
+ */
+export function refreshAccessToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include"
+    })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        const data = (await response.json()) as { token: string };
+        tokenStore.set(data.token);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+/**
+ * Generic authenticated fetch wrapper used by every `<module>.client.ts`
+ * function; attaches the bearer token, sends/receives the httpOnly refresh
+ * cookie, and throws `ApiError` on non-2xx responses. On a 401 from any
+ * non-`/auth` path, attempts one silent token refresh and retries the
+ * request before giving up.
+ */
 export async function apiRequest<T>(
   path: string,
-  options: ApiOptions = {}
+  options: ApiOptions = {},
+  isRetry = false
 ): Promise<T> {
   const url = new URL(`${API_URL}${path}`);
 
@@ -65,12 +112,20 @@ export async function apiRequest<T>(
         : undefined;
   const response = await fetch(url, {
     method: options.method ?? "GET",
+    credentials: "include",
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
     body: requestBody
   });
+
+  if (response.status === 401 && !isRetry && !path.startsWith("/auth/")) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return apiRequest<T>(path, options, true);
+    }
+  }
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as {

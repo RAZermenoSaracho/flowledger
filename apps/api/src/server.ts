@@ -34,7 +34,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(moduleDir, "../uploads");
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(cors());
+app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(
   express.json({
     limit: "1mb",

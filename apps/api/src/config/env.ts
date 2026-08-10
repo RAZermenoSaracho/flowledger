@@ -45,7 +45,9 @@ if (workspaceRoot) {
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  JWT_EXPIRES_IN: z.string().default("15m"),
+  REFRESH_TOKEN_EXPIRES_IN_DAYS: z.coerce.number().int().positive().default(30),
+  REFRESH_TOKEN_COOKIE_DOMAIN: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(4000),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

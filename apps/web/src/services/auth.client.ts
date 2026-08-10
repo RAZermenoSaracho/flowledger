@@ -22,6 +22,22 @@ export function getMe() {
   return apiRequest<{ user: User }>("/auth/me");
 }
 
+/** Silently restores a session from the httpOnly refresh cookie; throws if there is no valid refresh token. */
+export function refreshSession() {
+  return apiRequest<{ token: string; user: User }>("/auth/refresh", {
+    method: "POST"
+  });
+}
+
+/** Revokes the refresh token server-side and clears the local access token; best-effort — local state is cleared even if the request fails. */
+export async function logout() {
+  try {
+    await apiRequest("/auth/logout", { method: "POST" });
+  } finally {
+    clearToken();
+  }
+}
+
 /** Builds the Google OAuth start URL, encoding where to redirect after login. */
 export function googleOAuthUrl(redirect: string) {
   return apiUrl(`/auth/google?redirect=${encodeURIComponent(redirect)}`);
