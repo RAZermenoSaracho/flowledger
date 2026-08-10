@@ -2,19 +2,48 @@ import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useMemo, useState } from "react";
-import { ActionMenu, ActionMenuItem } from "../../components/ActionMenu";
+import { AddRecordButton } from "../../components/AddRecordButton";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { SelectField, TextInput } from "../../components/FormField";
+import { PageHeader } from "../../components/PageHeader";
+import { RecordCard, type RecordCardAction } from "../../components/RecordCard";
+import { groupByFields } from "../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import {
-  groupByFields,
-  SearchComponent
-} from "../../components/SearchComponent";
-import type { SearchGroupByDef } from "../../components/SearchComponent";
+  createConditionWithValue,
+  createEmptyGroup
+} from "../../utils/searchDomain";
 import * as categoriesClient from "../../services/categories.client";
-import type { CategorySortBy } from "../../services/categories.client";
 import type { Category } from "../../types/categories.types";
-import { matchesSearch } from "../../utils/search";
+import {
+  buildCategorySearchFields,
+  CATEGORY_DEFAULT_SEARCH_FIELD,
+  CATEGORY_GROUPABLE_FIELDS,
+  CATEGORY_SORTABLE_FIELDS
+} from "./utils/categorySearchFields";
+
+// groupByFields (components/SearchComponent.tsx) keys its group defs by
+// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
+// the two (see TransactionsPage.tsx for the same pattern).
+const categoryGroupByDefsForBucketing = CATEGORY_GROUPABLE_FIELDS.map((field) => ({
+  id: field.name,
+  label: field.label
+}));
+
+// Archived categories are excluded by default — same default the old
+// dedicated Active/Archived toggle had — but expressed as an ordinary,
+// visible, removable FilterBuilder condition instead of hidden logic.
+const initialCategoryDomain = {
+  ...createEmptyGroup("and"),
+  children: [createConditionWithValue("isArchived", "=", "false")]
+};
+
+function categoryGroupKey(category: Category, groupById: string) {
+  if (groupById === "type")
+    return { key: category.type, label: category.type };
+  return { key: "", label: "" };
+}
 
 /** Categories list page: search/filter/group controls plus the create-category form. */
 export function CategoriesPage() {
@@ -29,52 +58,32 @@ export function CategoriesPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<CategoryType>("expense");
   const [editColor, setEditColor] = useState("#176b52");
-  const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
-    "active"
-  );
-  const [search, setSearch] = useState("");
-  const [typeFilterValues, setTypeFilterValues] = useState<string[]>([]);
-  const [groupBys, setGroupBys] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<CategorySortBy>("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [categoryQuery, setCategoryQuery] = useState<SearchBarQuery>({});
 
-  const groupByDefs: SearchGroupByDef[] = [{ id: "type", label: "Type" }];
-
-  function categoryGroupKey(category: Category, groupById: string) {
-    if (groupById === "type")
-      return { key: category.type, label: category.type };
-    return { key: "", label: "" };
-  }
+  const categorySearchFields = useMemo(() => buildCategorySearchFields(), []);
 
   const categoriesQuery = useQuery({
-    queryKey: [
-      "categories",
-      archiveMode,
-      sortBy,
-      sortDirection,
-      typeFilterValues
-    ],
+    queryKey: ["categories", categoryQuery],
     queryFn: async () =>
       (
         await categoriesClient.listCategories({
-          includeArchived: archiveMode === "archived",
-          sortBy,
-          sortDirection,
-          types: typeFilterValues as CategoryType[]
+          where: categoryQuery.where,
+          sort: categoryQuery.sort
         })
       ).categories
   });
 
-  const visibleCategories = useMemo(() => {
-    return (categoriesQuery.data ?? []).filter((category) =>
-      matchesSearch([category.name, category.type], search)
-    );
-  }, [categoriesQuery.data, search]);
-
+  const visibleCategories = categoriesQuery.data ?? [];
+  const activeGroupBys = categoryQuery.groupBy ?? [];
   const groupedCategories = useMemo(
     () =>
-      groupByFields(visibleCategories, groupBys, groupByDefs, categoryGroupKey),
-    [visibleCategories, groupBys]
+      groupByFields(
+        visibleCategories,
+        activeGroupBys,
+        categoryGroupByDefsForBucketing,
+        categoryGroupKey
+      ),
+    [visibleCategories, activeGroupBys]
   );
 
   const createCategory = useMutation({
@@ -181,9 +190,8 @@ export function CategoriesPage() {
 
   return (
     <div className="grid gap-6">
-      <Card>
-        {isFormOpen ? (
-          <>
+      {isFormOpen ? (
+        <Card>
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <h2 className="text-lg font-semibold">New category</h2>
               <Button
@@ -230,58 +238,29 @@ export function CategoriesPage() {
                 </Button>
               </div>
             </form>
-          </>
-        ) : (
-          <Button
-            type="button"
-            className="w-full sm:w-auto"
-            onClick={() => setIsFormOpen(true)}
-          >
-            Add category
-          </Button>
-        )}
-      </Card>
+        </Card>
+      ) : null}
       <Card>
-        <h2 className="text-lg font-semibold">Categories</h2>
-        <div className="mt-4">
-          <SearchComponent
-            searchValue={search}
-            searchPlaceholder="Search categories"
-            onSearchChange={setSearch}
-            facets={[
-              {
-                id: "type",
-                label: "Type",
-                options: CATEGORY_TYPES.map((item) => ({
-                  label: item,
-                  value: item
-                }))
-              }
-            ]}
-            activeFacetValues={{ type: typeFilterValues }}
-            onFacetValuesChange={(facetId, values) =>
-              facetId === "type" && setTypeFilterValues(values)
-            }
-            groupBys={groupByDefs}
-            activeGroupBys={groupBys}
-            onGroupBysChange={setGroupBys}
-            sort={{
-              value: sortBy,
-              direction: sortDirection,
-              onChange: (value) => setSortBy(value as CategorySortBy),
-              onDirectionChange: setSortDirection,
-              options: [
-                { label: "Name", value: "name" },
-                { label: "Created date", value: "createdAt" },
-                { label: "Updated date", value: "updatedAt" }
-              ]
-            }}
-            archiveToggle={{
-              value: archiveMode,
-              onChange: setArchiveMode
-            }}
+        <PageHeader
+          title="Categories"
+          action={
+            <AddRecordButton
+              label="category"
+              onClick={() => setIsFormOpen(true)}
+            />
+          }
+        >
+          <SearchBar
+            fields={categorySearchFields}
+            groupableFields={CATEGORY_GROUPABLE_FIELDS}
+            sortableFields={CATEGORY_SORTABLE_FIELDS}
+            defaultSearchField={CATEGORY_DEFAULT_SEARCH_FIELD}
+            initialSort={{ field: "name", direction: "asc" }}
+            initialDomain={initialCategoryDomain}
+            placeholder="Search categories"
+            onQueryChange={setCategoryQuery}
           />
-        </div>
+        </PageHeader>
         <div className="mt-4 grid gap-4">
           {groupedCategories.map((section) => (
             <div key={section.key || "all"} className="grid gap-3">
@@ -291,12 +270,12 @@ export function CategoriesPage() {
                 </h3>
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
-                {section.items.map((category) => (
-                  <div
-                    key={category.id}
-                    className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
-                  >
-                    {editingCategoryId === category.id ? (
+                {section.items.map((category) =>
+                  editingCategoryId === category.id ? (
+                    <div
+                      key={category.id}
+                      className="rounded-md border border-slate-200 p-3 dark:border-slate-800"
+                    >
                       <form className="grid gap-3" onSubmit={submitEdit}>
                         <TextInput
                           label="Name"
@@ -343,110 +322,68 @@ export function CategoriesPage() {
                           </Button>
                         </div>
                       </form>
-                    ) : (
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span
-                              className="h-4 w-4 shrink-0 rounded-full"
-                              style={{
-                                background: category.color ?? "#cbd5e1"
-                              }}
-                            />
-                            <p className="truncate font-semibold">
-                              {category.name}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <div className="hidden gap-2 lg:flex">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => openEditForm(category)}
-                              >
-                                Edit
-                              </Button>
-                              {category.isArchived ? (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  disabled={restoreCategory.isPending}
-                                  onClick={() =>
-                                    restoreCategory.mutate(category.id)
-                                  }
-                                >
-                                  Restore
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  disabled={archiveCategory.isPending}
-                                  onClick={() =>
-                                    archiveCategory.mutate(category.id)
-                                  }
-                                >
-                                  Archive
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="danger"
-                                disabled={deleteCategory.isPending}
-                                onClick={() => confirmDelete(category)}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                            <ActionMenu label={`Actions for ${category.name}`}>
-                              <ActionMenuItem
-                                onClick={() => openEditForm(category)}
-                              >
-                                Edit
-                              </ActionMenuItem>
-                              {category.isArchived ? (
-                                <ActionMenuItem
-                                  disabled={restoreCategory.isPending}
-                                  onClick={() =>
-                                    restoreCategory.mutate(category.id)
-                                  }
-                                >
-                                  Restore
-                                </ActionMenuItem>
-                              ) : (
-                                <ActionMenuItem
-                                  disabled={archiveCategory.isPending}
-                                  onClick={() =>
-                                    archiveCategory.mutate(category.id)
-                                  }
-                                >
-                                  Archive
-                                </ActionMenuItem>
-                              )}
-                              <ActionMenuItem
-                                variant="danger"
-                                disabled={deleteCategory.isPending}
-                                onClick={() => confirmDelete(category)}
-                              >
-                                Delete
-                              </ActionMenuItem>
-                            </ActionMenu>
-                          </div>
-                        </div>
-                        <div className="pl-7">
+                    </div>
+                  ) : (
+                    <RecordCard
+                      key={category.id}
+                      leading={
+                        <span
+                          className="h-4 w-4 shrink-0 rounded-full"
+                          style={{ background: category.color ?? "#cbd5e1" }}
+                        />
+                      }
+                      title={
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-semibold">
+                            {category.name}
+                          </p>
                           {category.isArchived ? (
                             <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                               Archived
                             </span>
                           ) : null}
-                          <p className="text-sm text-slate-500 dark:text-slate-400">
-                            {category.type}
-                          </p>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      }
+                      subtitle={
+                        <p className="text-slate-500 dark:text-slate-400">
+                          {category.type}
+                        </p>
+                      }
+                      actions={
+                        [
+                          {
+                            key: "edit",
+                            label: "Edit",
+                            onClick: () => openEditForm(category)
+                          },
+                          category.isArchived
+                            ? {
+                                key: "restore",
+                                label: "Restore",
+                                disabled: restoreCategory.isPending,
+                                onClick: () =>
+                                  restoreCategory.mutate(category.id)
+                              }
+                            : {
+                                key: "archive",
+                                label: "Archive",
+                                disabled: archiveCategory.isPending,
+                                onClick: () =>
+                                  archiveCategory.mutate(category.id)
+                              },
+                          {
+                            key: "delete",
+                            label: "Delete",
+                            variant: "danger",
+                            disabled: deleteCategory.isPending,
+                            onClick: () => confirmDelete(category)
+                          }
+                        ] satisfies RecordCardAction[]
+                      }
+                      actionsLabel={`Actions for ${category.name}`}
+                    />
+                  )
+                )}
               </div>
             </div>
           ))}
