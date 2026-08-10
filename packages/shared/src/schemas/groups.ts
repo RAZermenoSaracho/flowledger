@@ -11,10 +11,11 @@ export const updateGroupSchema = groupSchema.partial().refine(
   "At least one group field is required"
 );
 
-export const groupFiltersSchema = z.object({
-  includeArchived: z.enum(["true", "false"]).optional(),
-  sortBy: z.enum(["name", "createdAt", "updatedAt"]).optional(),
-  sortDirection: z.enum(["asc", "desc"]).optional()
+// GET /groups accepts a single JSON-encoded `query` param (DSQL where/sort),
+// same shape and rationale as transactions'/accounts' query param — see
+// apps/api's groups read.service.ts.
+export const groupsQueryParamSchema = z.object({
+  query: z.string().max(4000).optional()
 });
 
 export const groupMemberSchema = z.object({
@@ -25,6 +26,6 @@ export const groupCategorySchema = categorySchema;
 
 export type GroupInput = z.infer<typeof groupSchema>;
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
-export type GroupFilters = z.infer<typeof groupFiltersSchema>;
+export type GroupsQueryParam = z.infer<typeof groupsQueryParamSchema>;
 export type GroupMemberInput = z.infer<typeof groupMemberSchema>;
 export type GroupCategoryInput = z.infer<typeof groupCategorySchema>;

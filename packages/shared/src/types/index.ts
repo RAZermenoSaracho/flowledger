@@ -19,7 +19,9 @@ export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type PlanType = (typeof PLAN_TYPES)[number];
 export type MobileSidebarSide = (typeof MOBILE_SIDEBAR_SIDES)[number];
+/** A group member's role — `admin` can manage members/categories/settings, `member` cannot. */
 export type GroupRole = "admin" | "member";
+/** Broad classification of a provider institution/connector, used for filtering the connection picker UI. */
 export type InstitutionCategory =
   | "bank"
   | "broker"
@@ -28,6 +30,7 @@ export type InstitutionCategory =
   | "government"
   | "other";
 
+/** Non-sensitive user fields safe to expose to other users (e.g. group members, shared-expense participants) — never `passwordHash` or other secrets. */
 export type PublicUser = {
   id: string;
   name: string;
@@ -36,6 +39,7 @@ export type PublicUser = {
   updatedAt: string;
 };
 
+/** Aggregate income/expense/balance totals for a reporting period, distinguishing gross amounts from amounts net of expense reimbursements/offsets. */
 export type SummaryReport = {
   totalIncome: number;
   totalGrossIncome: number;
@@ -47,6 +51,7 @@ export type SummaryReport = {
   currentBalance: number;
 };
 
+/** One bank/institution a provider can connect to, as returned by the provider's institution catalog. */
 export type ProviderInstitution = {
   provider: string;
   institutionId: string;
@@ -58,6 +63,7 @@ export type ProviderInstitution = {
   rawData: Record<string, unknown>;
 };
 
+/** One connector option a provider offers for starting a new connection flow (may or may not map 1:1 to a `ProviderInstitution`). */
 export type ProviderConnector = {
   provider: string;
   connectorId: string;
@@ -69,6 +75,7 @@ export type ProviderConnector = {
   coverageLabel: string;
 };
 
+/** Everything the frontend needs to render/continue a provider's connection flow — a redirect URL, an embedded widget, or both, depending on the provider. */
 export type ProviderConnectionFlow = {
   provider: string;
   connectorId?: string;
