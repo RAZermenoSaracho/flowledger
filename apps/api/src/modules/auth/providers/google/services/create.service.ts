@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import { env } from "../../../../../config/env.js";
 import { prisma } from "../../../../../db/prisma.js";
 import { HttpError } from "../../../../../utils/httpError.js";
-import { signToken } from "../../../utils/tokens.js";
+import { signAccessToken } from "../../../utils/tokens.js";
+import { issueRefreshToken } from "../../../services/create.service.js";
 import type { GoogleProfile } from "../types/google.types.js";
 import {
   googleStateCookieName,
@@ -79,7 +80,7 @@ async function findOrCreateGoogleUser(profile: GoogleProfile) {
   });
 }
 
-/** Verifies the OAuth state/nonce cookie pair, exchanges the auth code for a Google identity, finds-or-creates the local user, and issues a token. */
+/** Verifies the OAuth state/nonce cookie pair, exchanges the auth code for a Google identity, finds-or-creates the local user, and issues an access+refresh token pair exactly like a regular login. */
 export async function handleGoogleCallback(input: {
   state: string;
   cookieHeader: string | undefined;
@@ -103,6 +104,7 @@ export async function handleGoogleCallback(input: {
     googleTokens.access_token
   );
   const user = await findOrCreateGoogleUser(googleProfile);
+  const refreshToken = await issueRefreshToken(user.id);
 
-  return { token: signToken(user), redirect: state.redirect };
+  return { token: signAccessToken(user), refreshToken, redirect: state.redirect };
 }

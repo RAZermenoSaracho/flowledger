@@ -7,6 +7,7 @@ import { env } from "../../../../../config/env.js";
 import { HttpError } from "../../../../../utils/httpError.js";
 import { buildGoogleAuthUrl, handleGoogleCallback } from "../services/create.service.js";
 import { googleStateCookie } from "../utils/googleStateCookie.js";
+import { buildRefreshTokenCookie } from "../../../utils/refreshTokenCookie.js";
 
 function redirectOAuthFailure(res: Response, message: string) {
   const url = new URL("/login", env.WEB_APP_URL);
@@ -27,7 +28,7 @@ export async function googleOAuthStart(req: Request, res: Response) {
 export async function googleOAuthCallback(req: Request, res: Response) {
   try {
     const query = req.query as unknown as GoogleOAuthCallbackQuery;
-    const { token, redirect } = await handleGoogleCallback({
+    const { token, refreshToken, redirect } = await handleGoogleCallback({
       state: query.state,
       cookieHeader: req.headers.cookie,
       code: query.code,
@@ -38,7 +39,10 @@ export async function googleOAuthCallback(req: Request, res: Response) {
     const fragment = new URLSearchParams({ token, redirect });
     redirectUrl.hash = fragment.toString();
 
-    res.setHeader("Set-Cookie", googleStateCookie("", 0));
+    res.setHeader("Set-Cookie", [
+      googleStateCookie("", 0),
+      buildRefreshTokenCookie(refreshToken.token, refreshToken.expiresAt)
+    ]);
     res.redirect(redirectUrl.toString());
   } catch (caught) {
     res.setHeader("Set-Cookie", googleStateCookie("", 0));
