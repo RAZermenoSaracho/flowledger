@@ -36,13 +36,13 @@ function getCompactFormatter(currency: string): Intl.NumberFormat | null {
   return formatter;
 }
 
-// Falls back to "<amount> <code>" for currencies Intl doesn't recognize (e.g. crypto assets).
+/** Formats `amount` as currency (e.g. "$1,234.56"), falling back to "`<amount> <code>`" for currencies `Intl` doesn't recognize (e.g. crypto assets). */
 export function formatMoney(amount: number, currency: string): string {
   const formatter = getFormatter(currency);
   return formatter ? formatter.format(amount) : `${amount.toFixed(2)} ${currency}`;
 }
 
-// Same fallback as formatMoney, using compact notation (e.g. "$1.2K") for chart axes.
+/** Same fallback as {@link formatMoney}, using compact notation (e.g. "$1.2K") for chart axes. */
 export function formatCompactMoney(amount: number, currency: string): string {
   const formatter = getCompactFormatter(currency);
   return formatter ? formatter.format(amount) : `${amount.toFixed(2)} ${currency}`;
