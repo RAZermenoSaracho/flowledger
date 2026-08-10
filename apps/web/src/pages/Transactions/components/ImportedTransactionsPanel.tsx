@@ -71,14 +71,9 @@ export function ImportedTransactionsPanel({
 
   return (
     <Card>
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-lg font-semibold">Imported Transactions</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {totalCount} matching row{totalCount === 1 ? "" : "s"}.
-          </p>
-        </div>
-      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        {totalCount} matching row{totalCount === 1 ? "" : "s"}.
+      </p>
 
       <ImportedTransactionSelectionToolbar
         totalFilteredCount={totalCount}

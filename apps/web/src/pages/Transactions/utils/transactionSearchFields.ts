@@ -5,14 +5,17 @@ import type {
   SortableField
 } from "../../../utils/searchDomain";
 
-// Every scalar field on the Prisma Transaction model (database/prisma/schema.prisma),
-// plus two virtual fields ("classification", "transactionFilterType") that
-// aren't real columns — apps/api's transactions read.service.ts recognizes
-// them by name wherever they appear in the `where` tree and expands them
-// into the real condition they mean. Deliberately exhaustive: every field
-// is included, even ones that may not be useful to filter by day to day
-// (id, userId, exchangeRate, ...) — trim what you don't want exposed
-// rather than the config pre-deciding for you.
+/**
+ * Every scalar field on the Prisma `Transaction` model
+ * (`database/prisma/schema.prisma`), plus two virtual fields
+ * ("classification", "transactionFilterType") that aren't real columns —
+ * apps/api's transactions `read.service.ts` recognizes them by name
+ * wherever they appear in the `where` tree and expands them into the real
+ * condition they mean. Deliberately exhaustive: every field is included,
+ * even ones that may not be useful to filter by day to day (id, userId,
+ * exchangeRate, ...) — trim what you don't want exposed rather than the
+ * config pre-deciding for you.
+ */
 export function buildTransactionSearchFields(options: {
   accounts: { id: string; name: string }[];
   categories: { id: string; name: string }[];
@@ -92,12 +95,14 @@ export function buildTransactionSearchFields(options: {
   ];
 }
 
+/** Fields `<SearchBar>`'s "Group by" picker offers on the Transactions page. */
 export const TRANSACTION_GROUPABLE_FIELDS: GroupableField[] = [
   { name: "category", label: "Category" },
   { name: "account", label: "Account" },
   { name: "month", label: "Month" }
 ];
 
+/** Fields `<SearchBar>`'s "Sort by" picker offers on the Transactions page. */
 export const TRANSACTION_SORTABLE_FIELDS: SortableField[] = [
   { name: "date", label: "Date" },
   { name: "name", label: "Name" },
@@ -105,4 +110,5 @@ export const TRANSACTION_SORTABLE_FIELDS: SortableField[] = [
   { name: "createdAt", label: "Created date" }
 ];
 
+/** Field the Transactions page's quick-search box targets. */
 export const TRANSACTION_DEFAULT_SEARCH_FIELD = "name";

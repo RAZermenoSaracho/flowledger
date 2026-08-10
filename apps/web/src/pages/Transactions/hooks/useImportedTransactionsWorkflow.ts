@@ -1,75 +1,60 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { SetURLSearchParams } from "react-router-dom";
+import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
-import type { ListImportedTransactionsParams } from "../../../services/transactions.client";
+import type { ImportedTransactionSelection } from "../../../services/transactions.client";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
-import { emptyImportedFilters } from "../components/ImportedTransactionsFiltersCard";
-import type {
-  ImportedFilters,
-  ImportedSortBy
-} from "../types/transactions.types";
 
-/** State and handlers for the imported-transactions tab: filters, sort, selection, and batch actions. */
+/** State and handlers for the imported-transactions tab: filters, selection, and batch actions. */
 export function useImportedTransactionsWorkflow({
-  activeTab,
-  searchParams,
-  setSearchParams
+  searchParams
 }: {
-  activeTab: "transactions" | "imported";
   searchParams: URLSearchParams;
-  setSearchParams: SetURLSearchParams;
 }) {
   const queryClient = useQueryClient();
-  const [importedFilters, setImportedFilters] = useState<ImportedFilters>({
-    ...emptyImportedFilters,
-    status:
-      searchParams.get("status") === "processed" ||
-      searchParams.get("status") === "ignored" ||
-      searchParams.get("status") === "pending"
-        ? searchParams.get("status")!
-        : emptyImportedFilters.status
-  });
-  const [importedSortBy, setImportedSortBy] =
-    useState<ImportedSortBy>("transactionDate");
-  const [importedSortDirection, setImportedSortDirection] = useState<
-    "asc" | "desc"
-  >("desc");
+  const initialStatus =
+    searchParams.get("status") === "processed" ||
+    searchParams.get("status") === "ignored" ||
+    searchParams.get("status") === "pending"
+      ? searchParams.get("status")
+      : null;
+  const [importedQuery, setImportedQuery] = useState<SearchBarQuery>(() =>
+    initialStatus
+      ? { where: { field: "status", op: "=", value: initialStatus } }
+      : {}
+  );
   const [selectedImportedIds, setSelectedImportedIds] = useState<string[]>([]);
   const [selectAllFilteredImported, setSelectAllFilteredImported] =
     useState(false);
   const [batchCategoryId, setBatchCategoryId] = useState("");
 
-  const importedQueryFilters: ListImportedTransactionsParams = {
-    status:
-      (importedFilters.status as "pending" | "processed" | "ignored" | "") ||
-      undefined,
-    search: importedFilters.search || undefined,
-    provider: importedFilters.provider || undefined,
-    accountId: importedFilters.accountId || undefined,
-    providerAccountId: importedFilters.providerAccountId || undefined,
-    categoryId: importedFilters.categoryId || undefined,
-    dateFrom: importedFilters.dateFrom || undefined,
-    dateTo: importedFilters.dateTo || undefined,
-    amountFrom: importedFilters.amountFrom
-      ? Number(importedFilters.amountFrom)
-      : undefined,
-    amountTo: importedFilters.amountTo
-      ? Number(importedFilters.amountTo)
-      : undefined,
-    sortBy: importedSortBy,
-    sortDirection: importedSortDirection
-  };
   const importedTransactionsQuery = useQuery({
-    queryKey: ["transactions", "imported", importedQueryFilters],
+    queryKey: ["transactions", "imported", importedQuery],
     queryFn: async () =>
-      transactionsClient.listImportedTransactions(importedQueryFilters)
+      transactionsClient.listImportedTransactions({
+        where: importedQuery.where,
+        sort: importedQuery.sort
+      })
   });
   const importedTransactions =
     importedTransactionsQuery.data?.importedTransactions ?? [];
-  const importedSelection = selectAllFilteredImported
-    ? { mode: "filtered" as const, filters: importedQueryFilters }
-    : { mode: "ids" as const, ids: selectedImportedIds };
+  const importedSelection: ImportedTransactionSelection =
+    selectAllFilteredImported
+      ? { mode: "filtered", where: importedQuery.where }
+      : { mode: "ids", ids: selectedImportedIds };
+
+  // Import/Ignore only make sense while every currently-visible row is
+  // pending; Unignore only while every visible row is ignored. Derived
+  // from the actual fetched rows (not from inspecting the `where` tree,
+  // which — now that filtering is a general FilterBuilder condition, not a
+  // single-select facet — can't reliably answer "is the user viewing only
+  // pending rows" on its own).
+  const isPendingFilter =
+    importedTransactions.length > 0 &&
+    importedTransactions.every((transaction) => transaction.status === "pending");
+  const isIgnoredFilter =
+    importedTransactions.length > 0 &&
+    importedTransactions.every((transaction) => transaction.status === "ignored");
 
   async function invalidateImportedWorkflow() {
     await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -158,18 +143,10 @@ export function useImportedTransactionsWorkflow({
     }
   });
 
-  function updateImportedFilter(nextFilters: ImportedFilters) {
-    setImportedFilters(nextFilters);
+  function updateImportedQuery(nextQuery: SearchBarQuery) {
+    setImportedQuery(nextQuery);
     setSelectedImportedIds([]);
     setSelectAllFilteredImported(false);
-
-    if (activeTab === "imported") {
-      const params = new URLSearchParams(searchParams);
-      params.set("tab", "imported");
-      if (nextFilters.status) params.set("status", nextFilters.status);
-      else params.delete("status");
-      setSearchParams(params, { replace: true });
-    }
   }
 
   function toggleImportedSelection(id: string) {
@@ -201,13 +178,10 @@ export function useImportedTransactionsWorkflow({
   }
 
   return {
-    importedFilters,
-    setImportedFilters,
-    updateImportedFilter,
-    importedSortBy,
-    setImportedSortBy,
-    importedSortDirection,
-    setImportedSortDirection,
+    importedQuery,
+    updateImportedQuery,
+    isPendingFilter,
+    isIgnoredFilter,
     selectedImportedIds,
     selectAllFilteredImported,
     setSelectAllFilteredImported,

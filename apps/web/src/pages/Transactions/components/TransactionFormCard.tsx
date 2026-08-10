@@ -32,23 +32,27 @@ function emptyForm(defaultCurrency: string): TransactionFormState {
   };
 }
 
-/** Create-transaction form card, including optional shared-expense participant split. */
+/** Create-transaction form card, including optional shared-expense participant split. Open/closed state is controlled by the caller (see `AddRecordButton` in TransactionsPage.tsx). */
 export function TransactionFormCard({
+  isOpen,
+  onClose,
   accounts,
   groups,
   personalCategories,
   defaultCurrency,
   onCreated
 }: {
+  isOpen: boolean;
+  onClose: () => void;
   accounts: Account[];
   groups: Group[];
   personalCategories: Category[];
   defaultCurrency: string;
+  /** Called after `saveTransaction` already invalidates `transactions`/`accounts`/`groups`/`summary`/`cashflow` — only needed for behavior beyond that (e.g. closing a dialog); a no-op is a valid implementation. */
   onCreated: () => Promise<void>;
 }) {
   const auth = useAuth();
   const queryClient = useQueryClient();
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [areSharedFieldsOpen, setAreSharedFieldsOpen] = useState(true);
   const [form, setForm] = useState<TransactionFormState>(() =>
     emptyForm(defaultCurrency)
@@ -111,7 +115,7 @@ export function TransactionFormCard({
     },
     onSuccess: async () => {
       setForm(emptyForm(defaultCurrency));
-      setIsFormOpen(false);
+      onClose();
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
@@ -134,7 +138,7 @@ export function TransactionFormCard({
     setUserSearch("");
     setParticipants([]);
     setAreSharedFieldsOpen(true);
-    setIsFormOpen(false);
+    onClose();
   }
 
   function clearSharedTransactionDrafts() {
@@ -230,10 +234,11 @@ export function TransactionFormCard({
     );
   }
 
+  if (!isOpen) return null;
+
   return (
     <Card>
-      {isFormOpen ? (
-        <>
+      <>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <h2 className="text-lg font-semibold">New transaction</h2>
             <Button
@@ -307,23 +312,7 @@ export function TransactionFormCard({
               </Button>
             </div>
           </form>
-        </>
-      ) : (
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={() => {
-            setForm(emptyForm(defaultCurrency));
-            setParticipantName("");
-            setUserSearch("");
-            setParticipants([]);
-            setAreSharedFieldsOpen(true);
-            setIsFormOpen(true);
-          }}
-        >
-          Add transaction
-        </Button>
-      )}
+      </>
     </Card>
   );
 }

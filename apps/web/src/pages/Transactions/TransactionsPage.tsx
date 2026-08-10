@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { AddRecordButton } from "../../components/AddRecordButton";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { useCurrenciesQuery } from "../../components/CurrencySelect";
+import { PageHeader } from "../../components/PageHeader";
 import { groupByFields } from "../../components/SearchComponent";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import { providerAccountLabel } from "./components/ImportedTransactionCard";
@@ -10,7 +13,6 @@ import { ImportedTransactionsFiltersCard } from "./components/ImportedTransactio
 import { ImportedTransactionsPanel } from "./components/ImportedTransactionsPanel";
 import { TransactionFormCard } from "./components/TransactionFormCard";
 import { TransactionList } from "./components/TransactionList";
-import { TransactionSummaryCards } from "./components/TransactionSummaryCards";
 import { useImportedTransactionsWorkflow } from "./hooks/useImportedTransactionsWorkflow";
 import {
   buildTransactionSearchFields,
@@ -21,7 +23,6 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { listAccounts } from "../../services/accounts.client";
 import * as categoriesClient from "../../services/categories.client";
-import { listCurrencies } from "../../services/currencies.client";
 import { listGroups } from "../../services/groups.client";
 import * as transactionsClient from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
@@ -35,32 +36,41 @@ const transactionGroupByDefsForBucketing = TRANSACTION_GROUPABLE_FIELDS.map((fie
   label: field.label
 }));
 
+function isTransactionsTab(value: string | null): value is TransactionsTab {
+  return value === "transactions" || value === "imported";
+}
+
 /** Transactions list page with a personal-transactions tab and an imported-transactions review tab. */
 export function TransactionsPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TransactionsTab>(
-    searchParams.get("tab") === "imported" ? "imported" : "transactions"
-  );
-  const imported = useImportedTransactionsWorkflow({
-    activeTab,
-    searchParams,
-    setSearchParams
-  });
+  // The URL's `tab` param is the single source of truth for which tab is
+  // active (mirrors DebtsPage's `activeTab`) — deriving it fresh every
+  // render, rather than mirroring it into separate useState, means there's
+  // no stale-state case where the URL says one tab but the rendered
+  // content still shows another (e.g. navigating away from `?tab=imported`
+  // via a plain link that omits the param entirely).
+  const requestedTab = searchParams.get("tab");
+  const activeTab: TransactionsTab = isTransactionsTab(requestedTab)
+    ? requestedTab
+    : "transactions";
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+  const imported = useImportedTransactionsWorkflow({ searchParams });
+  // Bumped to force the imported tab's <SearchBar> to remount (re-reading
+  // its `initialDomain` fresh) when the URL's `status` param changes while
+  // already on that tab — e.g. the "Show pending" banner button below, or
+  // an external link like the notification bell's — since switching *into*
+  // the tab already remounts it naturally (conditionally rendered) and
+  // picks up a fresh `status` on its own.
+  const [importedSearchBarResetKey, setImportedSearchBarResetKey] = useState(0);
+  const importedStatusParam = searchParams.get("status");
 
   useEffect(() => {
-    const tab = searchParams.get("tab");
     const status = searchParams.get("status");
-
-    if (tab === "imported") setActiveTab("imported");
-    if (
-      status === "pending" ||
-      status === "processed" ||
-      status === "ignored"
-    ) {
-      imported.setImportedFilters((current) => ({ ...current, status }));
+    if (status === "pending" || status === "processed" || status === "ignored") {
+      setImportedSearchBarResetKey((key) => key + 1);
     }
   }, [searchParams]);
 
@@ -81,10 +91,14 @@ export function TransactionsPage() {
     queryKey: ["groups"],
     queryFn: async () => (await listGroups()).groups
   });
-  const currenciesQuery = useQuery({
-    queryKey: ["currencies"],
-    queryFn: async () => (await listCurrencies()).currencies
-  });
+  const currenciesQuery = useCurrenciesQuery();
+  const currencyCodes = useMemo(
+    () => [
+      ...(currenciesQuery.data?.fiat ?? []),
+      ...(currenciesQuery.data?.crypto ?? [])
+    ].map((currency) => currency.code),
+    [currenciesQuery.data]
+  );
 
   const allTransactionCategories = allCategoriesQuery.data ?? [];
   const [transactionQuery, setTransactionQuery] = useState<SearchBarQuery>({});
@@ -96,11 +110,6 @@ export function TransactionsPage() {
         where: transactionQuery.where,
         sort: transactionQuery.sort
       })
-  });
-  const transactionsSummaryQuery = useQuery({
-    queryKey: ["transactions", "summary", transactionQuery.where],
-    queryFn: async () =>
-      transactionsClient.getTransactionsSummary({ where: transactionQuery.where })
   });
 
   const visibleTransactions = transactionsQuery.data?.data ?? [];
@@ -118,9 +127,9 @@ export function TransactionsPage() {
         accounts: accountsQuery.data ?? [],
         categories: allTransactionCategories,
         groups: groupsQuery.data ?? [],
-        currencyOptions: (currenciesQuery.data ?? []).map((currency) => currency.code)
+        currencyOptions: currencyCodes
       }),
-    [accountsQuery.data, allTransactionCategories, groupsQuery.data, currenciesQuery.data]
+    [accountsQuery.data, allTransactionCategories, groupsQuery.data, currencyCodes]
   );
 
   function transactionGroupKey(transaction: Transaction, groupById: string) {
@@ -180,14 +189,6 @@ export function TransactionsPage() {
       ];
     });
   }, [imported.importedTransactions]);
-  const transactionSummary = transactionsSummaryQuery.data ?? {
-    income: 0,
-    expenses: 0,
-    balance: 0
-  };
-  const summaryCurrency = auth.user?.preferredCurrency || "USD";
-  const hasActiveFilters =
-    Boolean(transactionQuery.where) || activeTransactionGroupBys.length > 0;
 
   const deleteTransaction = useMutation({
     mutationFn: (transactionId: string) =>
@@ -214,20 +215,19 @@ export function TransactionsPage() {
   }
 
   function switchTab(tab: TransactionsTab) {
-    setActiveTab(tab);
     const params = new URLSearchParams(searchParams);
     params.set("tab", tab === "imported" ? "imported" : "transactions");
-    if (tab === "imported" && imported.importedFilters.status) {
-      params.set("status", imported.importedFilters.status);
-    } else {
-      params.delete("status");
-    }
+    if (tab !== "imported") params.delete("status");
     setSearchParams(params, { replace: true });
   }
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap gap-2">
+      {/* Desktop-only: on mobile, switching between Transactions and
+          Imported Transactions happens exclusively through the sidebar
+          drawer's dropdown (mirrors Debts' in-page tab bar, also
+          `hidden ... lg:grid`) — no redundant control competing with it. */}
+      <div className="hidden gap-2 lg:flex lg:flex-wrap">
         {(
           [
             ["transactions", "Transactions"],
@@ -251,34 +251,36 @@ export function TransactionsPage() {
       {activeTab === "transactions" ? (
         <>
           <TransactionFormCard
+            isOpen={isTransactionFormOpen}
+            onClose={() => setIsTransactionFormOpen(false)}
             accounts={accountsQuery.data ?? []}
             groups={groupsQuery.data ?? []}
             personalCategories={categoriesQuery.data ?? []}
             defaultCurrency={auth.user?.preferredCurrency || "USD"}
-            onCreated={async () => {
-              // no-op: mutation inside the form already invalidates queries
-            }}
+            onCreated={async () => {}}
           />
           <div className="grid gap-4">
             <Card>
-              <SearchBar
-                fields={transactionSearchFields}
-                groupableFields={TRANSACTION_GROUPABLE_FIELDS}
-                sortableFields={TRANSACTION_SORTABLE_FIELDS}
-                defaultSearchField={TRANSACTION_DEFAULT_SEARCH_FIELD}
-                initialSort={{ field: "date", direction: "desc" }}
-                placeholder="Search transactions"
-                onQueryChange={setTransactionQuery}
-              />
+              <PageHeader
+                title="Transactions"
+                action={
+                  <AddRecordButton
+                    label="transaction"
+                    onClick={() => setIsTransactionFormOpen(true)}
+                  />
+                }
+              >
+                <SearchBar
+                  fields={transactionSearchFields}
+                  groupableFields={TRANSACTION_GROUPABLE_FIELDS}
+                  sortableFields={TRANSACTION_SORTABLE_FIELDS}
+                  defaultSearchField={TRANSACTION_DEFAULT_SEARCH_FIELD}
+                  initialSort={{ field: "date", direction: "desc" }}
+                  placeholder="Search transactions"
+                  onQueryChange={setTransactionQuery}
+                />
+              </PageHeader>
             </Card>
-            <TransactionSummaryCards
-              income={transactionSummary.income}
-              expenses={transactionSummary.expenses}
-              balance={transactionSummary.balance}
-              currency={summaryCurrency}
-              hasActiveFilters={hasActiveFilters}
-              transactionCount={visibleTransactions.length}
-            />
             <TransactionList
               groupedTransactions={groupedTransactions}
               totalCount={visibleTransactions.length}
@@ -305,12 +307,12 @@ export function TransactionsPage() {
                   type="button"
                   variant="secondary"
                   className="w-full sm:w-auto"
-                  onClick={() =>
-                    imported.updateImportedFilter({
-                      ...imported.importedFilters,
-                      status: "pending"
-                    })
-                  }
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams);
+                    params.set("tab", "imported");
+                    params.set("status", "pending");
+                    setSearchParams(params, { replace: true });
+                  }}
                 >
                   Show pending
                 </Button>
@@ -319,12 +321,15 @@ export function TransactionsPage() {
           ) : null}
 
           <ImportedTransactionsFiltersCard
-            filters={imported.importedFilters}
-            onFiltersChange={imported.updateImportedFilter}
-            sortBy={imported.importedSortBy}
-            sortDirection={imported.importedSortDirection}
-            onSortByChange={imported.setImportedSortBy}
-            onSortDirectionChange={imported.setImportedSortDirection}
+            resetKey={importedSearchBarResetKey}
+            initialStatus={
+              importedStatusParam === "pending" ||
+              importedStatusParam === "processed" ||
+              importedStatusParam === "ignored"
+                ? importedStatusParam
+                : null
+            }
+            onQueryChange={imported.updateImportedQuery}
             accounts={accountsQuery.data ?? []}
             categories={categoriesQuery.data ?? []}
             providerAccountOptions={importedAccountOptions}
@@ -337,8 +342,8 @@ export function TransactionsPage() {
             selectedImportedIds={imported.selectedImportedIds}
             selectAllFilteredImported={imported.selectAllFilteredImported}
             batchCategoryId={imported.batchCategoryId}
-            isPendingFilter={imported.importedFilters.status === "pending"}
-            isIgnoredFilter={imported.importedFilters.status === "ignored"}
+            isPendingFilter={imported.isPendingFilter}
+            isIgnoredFilter={imported.isIgnoredFilter}
             isBatchImporting={
               imported.batchImportImportedTransactions.isPending
             }

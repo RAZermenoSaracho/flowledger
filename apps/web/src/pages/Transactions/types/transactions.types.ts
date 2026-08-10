@@ -1,8 +1,10 @@
 import type { Category } from "../../../types/categories.types";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 
+/** Which of the Transactions page's two tabs is active. */
 export type TransactionsTab = "transactions" | "imported";
 
+/** Draft state for the create-transaction form, before it's parsed/validated into a request body. */
 export type TransactionFormState = {
   name: string;
   amount: string;
@@ -18,6 +20,7 @@ export type TransactionFormState = {
   sharedTitle: string;
 };
 
+/** Draft state for one shared-expense participant being added to a transaction's split, before save. */
 export type ParticipantDraft = {
   draftId: string;
   userId?: string | null;
@@ -27,6 +30,7 @@ export type ParticipantDraft = {
   shareAmount: string;
 };
 
+/** Draft state for the edit-transaction form, before it's parsed/validated into a request body. */
 export type TransactionEditForm = {
   name: string;
   amount: string;
@@ -40,26 +44,7 @@ export type TransactionEditForm = {
   notes: string;
 };
 
-export type ImportedFilters = {
-  status: string;
-  search: string;
-  provider: string;
-  accountId: string;
-  providerAccountId: string;
-  categoryId: string;
-  dateFrom: string;
-  dateTo: string;
-  amountFrom: string;
-  amountTo: string;
-};
-
-export type ImportedSortBy =
-  | "transactionDate"
-  | "amount"
-  | "description"
-  | "provider"
-  | "status";
-
+/** Props for one row in the Imported Transactions review list. */
 export type ImportedTransactionCardProps = {
   transaction: ProviderImportedTransaction;
   categories: Category[];
@@ -75,6 +60,7 @@ export type ImportedTransactionCardProps = {
   onUnignore: () => void;
 };
 
+/** Props for the bulk-selection/batch-action toolbar above the Imported Transactions review list. */
 export type ImportedTransactionSelectionToolbarProps = {
   totalFilteredCount: number;
   visibleCount: number;
