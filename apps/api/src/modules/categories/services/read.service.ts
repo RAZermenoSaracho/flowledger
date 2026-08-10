@@ -1,7 +1,13 @@
-import type { CategoryType, Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import { notFound } from "../../../utils/httpError.js";
+import { createSieve } from "../../../db/sieve.js";
+import { badRequest, notFound } from "../../../utils/httpError.js";
 import { getGroupAdmin, getGroupMembership } from "../../groups/services/read.service.js";
+import type {
+  CategoriesQueryInput,
+  CategoryListRecord
+} from "../types/categories.types.js";
+
+const categoriesSieve = createSieve(prisma.category);
 
 /** Fetches a category the user is allowed to edit: their own personal category, or a group category where they're a group admin. */
 export async function getEditableCategory(userId: string, categoryId: string) {
@@ -15,69 +21,81 @@ export async function getEditableCategory(userId: string, categoryId: string) {
   return category;
 }
 
-function categoryOrderBy(filters: {
-  sortBy?: "name" | "createdAt" | "updatedAt";
-  sortDirection?: "asc" | "desc";
-}): Prisma.CategoryOrderByWithRelationInput[] {
-  if (filters.sortBy) {
-    return [{ [filters.sortBy]: filters.sortDirection ?? "asc" }];
-  }
-
-  return [{ type: "asc" }, { name: "asc" }];
-}
-
-/** Lists categories visible to `userId` for the given scope (all/group/personal), archived state, type, and sort filters. */
-export async function listCategories(
+// DSQL can't express `users: { some: { userId } }` (a to-many relation
+// filtered by a nested condition — see @razsdev/datasieve-prisma's
+// translate/where.ts "known limitations"), which is how category
+// visibility/ownership is actually enforced (join-table membership, not a
+// column on Category itself). So visibility is resolved here, once, via a
+// narrow raw-Prisma id lookup, then folded into the DSQL `where` as an
+// ordinary `id in` condition — same pattern transactions uses for its one
+// unsupported case (see transactions/services/read.service.ts).
+async function getVisibleCategoryIds(
   userId: string,
-  filters: {
-    groupId?: string;
-    scope?: "all";
-    includeArchived?: string;
-    sortBy?: "name" | "createdAt" | "updatedAt";
-    sortDirection?: "asc" | "desc";
-    types?: string[];
-  }
+  scope: { groupId?: string; scope?: "all" }
 ) {
-  const archivedFilter =
-    filters.includeArchived === "true" ? {} : { isArchived: false };
-  const typeFilter = filters.types?.length
-    ? { type: { in: filters.types as CategoryType[] } }
-    : {};
-  const orderBy = categoryOrderBy(filters);
-
-  if (filters.scope === "all") {
-    return prisma.category.findMany({
+  if (scope.scope === "all") {
+    const rows = await prisma.category.findMany({
       where: {
-        ...archivedFilter,
-        ...typeFilter,
         users: { some: { userId } },
         OR: [{ groupId: null }, { group: { members: { some: { userId } } } }]
       },
-      orderBy
+      select: { id: true }
     });
+    return rows.map((row) => row.id);
   }
 
-  if (filters.groupId) {
-    await getGroupMembership(userId, filters.groupId);
-
-    return prisma.category.findMany({
-      where: {
-        groupId: filters.groupId,
-        ...archivedFilter,
-        ...typeFilter,
-        users: { some: { userId } }
-      },
-      orderBy
+  if (scope.groupId) {
+    await getGroupMembership(userId, scope.groupId);
+    const rows = await prisma.category.findMany({
+      where: { groupId: scope.groupId, users: { some: { userId } } },
+      select: { id: true }
     });
+    return rows.map((row) => row.id);
   }
 
-  return prisma.category.findMany({
-    where: {
-      groupId: null,
-      ...archivedFilter,
-      ...typeFilter,
-      users: { some: { userId } }
-    },
-    orderBy
+  const rows = await prisma.category.findMany({
+    where: { groupId: null, users: { some: { userId } } },
+    select: { id: true }
   });
+  return rows.map((row) => row.id);
+}
+
+function parseCategoriesQueryParam(raw: string | undefined) {
+  if (!raw) return {} as CategoriesQueryInput;
+
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    throw badRequest("Invalid categories query: not valid JSON");
+  }
+
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    throw badRequest("Invalid categories query: must be a JSON object");
+  }
+
+  return decoded as CategoriesQueryInput;
+}
+
+/** Lists categories visible to `userId` for the given scope (all/group/personal), per a DSQL query within that scope. */
+export async function listCategories(
+  userId: string,
+  scope: { groupId?: string; scope?: "all" },
+  rawQuery: string | undefined
+) {
+  const input = parseCategoriesQueryParam(rawQuery);
+  const visibleIds = await getVisibleCategoryIds(userId, scope);
+  const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
+  const where = input.where
+    ? { and: [scopeCondition, input.where] }
+    : scopeCondition;
+
+  const result = await categoriesSieve.query<CategoryListRecord>({
+    where,
+    sort: input.sort ?? [
+      { field: "type", direction: "asc" },
+      { field: "name", direction: "asc" }
+    ]
+  });
+  return result.data;
 }

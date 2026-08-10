@@ -1,5 +1,5 @@
 import {
-  categoryFiltersSchema,
+  categoriesQueryParamSchema,
   categorySchema,
   updateCategorySchema
 } from "@flowledger/shared";
@@ -20,7 +20,7 @@ export const categoriesRouter = Router();
 
 categoriesRouter.get(
   "/",
-  validate(categoryFiltersSchema, "query"),
+  validate(categoriesQueryParamSchema, "query"),
   asyncHandler(getCategories)
 );
 categoriesRouter.post("/", validate(categorySchema), asyncHandler(postCategory));
