@@ -1,5 +1,5 @@
 import {
-  accountFiltersSchema,
+  accountsQueryParamSchema,
   accountSchema,
   confirmProviderAccountsSchema,
   createProviderConnectionSchema,
@@ -53,7 +53,7 @@ const providerCredentialParamsSchema = z.object({
 
 accountsRouter.get(
   "/",
-  validate(accountFiltersSchema, "query"),
+  validate(accountsQueryParamSchema, "query"),
   asyncHandler(getAccounts)
 );
 

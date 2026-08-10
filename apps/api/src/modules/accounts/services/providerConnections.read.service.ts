@@ -1,5 +1,7 @@
 import { prisma } from "../../../db/prisma.js";
+import { createSieve } from "../../../db/sieve.js";
 import { HttpError } from "../../../utils/httpError.js";
+import type { ProviderAccountListRecord } from "../types/accounts.types.js";
 import {
   filterInstitutions,
   listAvailableConnectors,
@@ -82,23 +84,26 @@ export async function getConnectionStatus(userId: string, connectionId: string) 
   };
 }
 
+const providerAccountsSieve = createSieve(prisma.providerAccount);
+
 /** Lists a user's provider accounts (most recent 50), optionally restricted to unlinked ones via `filters.status === "unlinked"`. */
 export async function listProviderAccounts(
   userId: string,
   filters: { status?: string }
 ) {
-  const accounts = await prisma.providerAccount.findMany({
+  const result = await providerAccountsSieve.query<ProviderAccountListRecord>({
     where: {
-      userId,
-      ...(filters.status === "unlinked" ? { accountId: null } : {})
+      and: [
+        { field: "userId", op: "=", value: userId },
+        ...(filters.status === "unlinked"
+          ? [{ field: "accountId", op: "isNull" as const }]
+          : [])
+      ]
     },
-    include: {
-      account: true,
-      connection: true
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50
+    sort: [{ field: "createdAt", direction: "desc" }],
+    pagination: { kind: "offset", page: 1, pageSize: 50 },
+    include: { account: true, connection: true }
   });
 
-  return accounts.map(providerAccountSummary);
+  return result.data.map(providerAccountSummary);
 }

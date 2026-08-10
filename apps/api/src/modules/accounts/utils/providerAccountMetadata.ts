@@ -1,4 +1,5 @@
-import { AccountType, Prisma } from "@prisma/client";
+import { AccountType } from "@prisma/client";
+import type { ProviderAccountListRecord } from "../types/accounts.types.js";
 
 /** Narrows an unknown value to a plain object, or `{}` if it isn't one (arrays included). */
 export function getRecord(value: unknown): Record<string, unknown> {
@@ -39,9 +40,7 @@ export function normalizeAccountType(value: unknown): AccountType {
 
 /** Builds a display summary of an imported provider account from its raw `accountMetadata`, its confirmation/link status, and any account it's linked to. */
 export function providerAccountSummary(
-  providerAccount: Prisma.ProviderAccountGetPayload<{
-    include: { account: true; connection: true };
-  }>
+  providerAccount: ProviderAccountListRecord
 ) {
   const metadata = getRecord(providerAccount.accountMetadata);
 
