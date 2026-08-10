@@ -1,9 +1,16 @@
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
-import { signToken } from "../utils/tokens.js";
+import { generateRefreshToken, signAccessToken } from "../utils/tokens.js";
 import bcrypt from "bcryptjs";
 
-/** Creates a new user with a hashed password and issues a token; throws 409 if the email is already registered. */
+/** Persists a new refresh token for `userId`, returning its plaintext value and expiry. */
+export async function issueRefreshToken(userId: string) {
+  const { token, tokenHash, expiresAt } = generateRefreshToken();
+  await prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
+  return { token, expiresAt };
+}
+
+/** Creates a new user with a hashed password and issues an access+refresh token pair; throws 409 if the email is already registered. */
 export async function registerUser(input: {
   name: string;
   email: string;
@@ -26,5 +33,6 @@ export async function registerUser(input: {
     }
   });
 
-  return { token: signToken(user), user };
+  const refreshToken = await issueRefreshToken(user.id);
+  return { token: signAccessToken(user), refreshToken, user };
 }
