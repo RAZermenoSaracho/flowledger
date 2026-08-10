@@ -14,6 +14,7 @@ import { imageExtension } from "../utils/imageExtension.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const avatarUploadDir = path.resolve(moduleDir, "../../../../uploads/avatars");
+/** Maximum accepted avatar upload size, in bytes. */
 export const maxAvatarBytes = 2 * 1024 * 1024;
 const avatarContentTypes = new Set([
   "image/jpeg",
@@ -22,6 +23,7 @@ const avatarContentTypes = new Set([
   "image/gif"
 ]);
 
+/** Updates a user's name/email/preferred currency; rejects if the new email is already registered to a different user. */
 export async function updateProfile(
   userId: string,
   input: UpdateUserProfileInput
@@ -46,6 +48,7 @@ export async function updateProfile(
   });
 }
 
+/** Validates and writes an uploaded avatar image to disk, then points the user's `avatarUrl` at it. */
 export async function uploadAvatar(
   userId: string,
   avatar: { filename?: string; contentType?: string; data: Buffer }
@@ -80,6 +83,7 @@ export async function uploadAvatar(
   });
 }
 
+/** Changes a user's password after verifying `input.currentPassword` against the stored hash. */
 export async function updatePassword(
   userId: string,
   input: UpdateUserPasswordInput
@@ -100,6 +104,7 @@ export async function updatePassword(
   });
 }
 
+/** Updates a user's plan tier. */
 export async function updatePlan(userId: string, input: UpdateUserPlanInput) {
   return prisma.user.update({
     where: { id: userId },
@@ -107,6 +112,7 @@ export async function updatePlan(userId: string, input: UpdateUserPlanInput) {
   });
 }
 
+/** Updates which side of the screen a user's mobile sidebar opens from. */
 export async function updateSidebarSide(
   userId: string,
   input: UpdateUserSidebarSideInput

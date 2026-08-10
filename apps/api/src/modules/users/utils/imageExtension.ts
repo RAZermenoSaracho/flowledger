@@ -1,3 +1,4 @@
+/** Verifies `data`'s file-signature bytes actually match the claimed `contentType` and returns the corresponding extension, or `null` if they don't match any supported image format — never trusts `contentType` alone. */
 export function imageExtension(data: Buffer, contentType: string) {
   if (
     contentType === "image/png" &&

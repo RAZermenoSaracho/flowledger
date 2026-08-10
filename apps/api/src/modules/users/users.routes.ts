@@ -17,6 +17,7 @@ import {
   postAvatar
 } from "./controllers/update.controller.js";
 
+/** Router for `/users` — profile, avatar, password/plan/sidebar-side updates, and user search. */
 export const usersRouter = Router();
 
 usersRouter.get(
