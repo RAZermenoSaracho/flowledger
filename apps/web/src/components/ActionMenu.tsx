@@ -9,10 +9,13 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
  */
 export function ActionMenu({
   label,
-  children
+  children,
+  className = "relative shrink-0"
 }: {
   label: string;
   children: ReactNode;
+  /** Positioning classes for the root element — defaults to an inline `relative` box; pass an `absolute ...` class to corner-anchor it directly (see `RecordCard`, which does this instead of wrapping `<ActionMenu>` in its own extra positioned div). */
+  className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,7 +44,7 @@ export function ActionMenu({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className="relative shrink-0 lg:hidden">
+    <div ref={containerRef} className={`${className} lg:hidden`}>
       <button
         type="button"
         className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
@@ -56,7 +59,7 @@ export function ActionMenu({
       {isOpen ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-2 grid w-48 gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          className="absolute right-0 top-full z-20 mt-2 grid w-[min(12rem,calc(100vw-1.5rem))] gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900"
           onClick={() => setIsOpen(false)}
         >
           {children}

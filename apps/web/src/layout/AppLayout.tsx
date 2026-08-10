@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   Link,
@@ -33,6 +34,47 @@ const navItems = [
 ] as const;
 
 const mobileNavItems = navItems;
+
+/** A mobile-drawer nav item that expands in place into `?tab=` sub-pages instead of linking straight to its base route. */
+type MobileExpandableNavConfig = {
+  basePath: string;
+  defaultTab: string;
+  subPages: readonly { tab: string; label: string }[];
+};
+
+// Mirrors DebtsPage's own `debtsTabs`/TransactionsPage's own tab ids (kept
+// as separate literal lists rather than imports: the app shell isn't a
+// dependency of either page module, matching how `notificationTarget`
+// below already targets these same `?tab=` values without importing from
+// pages/Debts or pages/Transactions).
+const debtsMobileSubPages = [
+  { tab: "balances", label: "Outstanding Balances" },
+  { tab: "pending", label: "Pending Settlement Requests" },
+  { tab: "settled", label: "Settled History" },
+  { tab: "sharedExpenses", label: "Shared Expenses" }
+] as const;
+
+const transactionsMobileSubPages = [
+  { tab: "transactions", label: "Transactions" },
+  { tab: "imported", label: "Imported Transactions" }
+] as const;
+
+// Keyed by route path — every entry here renders as an expandable dropdown
+// in the mobile drawer instead of a plain link; every other item in
+// `navItems` stays a plain link. Desktop nav (`PrimaryNavLinks`) is
+// unaffected — this config only feeds `MobilePrimaryNavLinks`.
+const mobileExpandableNav: Record<string, MobileExpandableNavConfig> = {
+  [routes.debts]: {
+    basePath: routes.debts,
+    defaultTab: "balances",
+    subPages: debtsMobileSubPages
+  },
+  [routes.transactions]: {
+    basePath: routes.transactions,
+    defaultTab: "transactions",
+    subPages: transactionsMobileSubPages
+  }
+};
 
 /** Top-level authenticated app shell: sidebar/nav, notifications, and routed content. */
 export function AppLayout() {
@@ -124,7 +166,15 @@ export function AppLayout() {
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* overflow-y must be set explicitly alongside overflow-x: hidden —
+            per the CSS overflow spec, a "visible" axis paired with a
+            non-visible axis on the other computes to "auto" instead,
+            which would silently turn <main> into its own vertical scroll
+            container (nested inside the document's own scroll) on any
+            page tall enough to exceed it. Nested scroll containers are a
+            known trigger for iOS Safari misrendering `position: fixed`
+            elements (e.g. the bottom nav) on long pages. */}
+        <main className="mx-auto max-w-7xl min-w-0 overflow-x-hidden overflow-y-visible px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
@@ -491,7 +541,7 @@ function MobileSidebarDrawer({
             className="flex-1 space-y-1 overflow-y-auto px-4 py-5"
             aria-label="Mobile full navigation"
           >
-            <PrimaryNavLinks items={items} onNavigate={onClose} />
+            <MobilePrimaryNavLinks items={items} onNavigate={onClose} />
             {authUserName ? (
               <NavLink
                 to={routes.profile}
@@ -652,6 +702,116 @@ function CloseIcon() {
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
     </svg>
+  );
+}
+
+/** Mobile-drawer nav links: identical to the desktop sidebar's, except items in `mobileExpandableNav` (Debts, Transactions) expand in place into their `?tab=` sub-pages instead of linking straight to the page — the in-page tab switcher on those pages is desktop-only (see DebtsPage.tsx/TransactionsPage.tsx). */
+function MobilePrimaryNavLinks({
+  items,
+  onNavigate
+}: {
+  items: readonly (readonly [string, string])[];
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      {items.map(([label, href]) => {
+        const expandable = mobileExpandableNav[href];
+        if (!expandable) {
+          return (
+            <NavLink
+              key={href}
+              to={href}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                `block rounded-md px-3 py-2 text-sm font-medium ${
+                  isActive
+                    ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`
+              }
+            >
+              {label}
+            </NavLink>
+          );
+        }
+
+        return (
+          <MobileExpandableNavItem
+            key={href}
+            label={label}
+            config={expandable}
+            onNavigate={onNavigate}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** One expandable mobile-drawer nav item (Debts, Transactions): a toggle button revealing `config.subPages` as `?tab=` links on the item's own base route. Shared by every entry in `mobileExpandableNav` — extend that config rather than adding a parallel expand/collapse implementation. */
+function MobileExpandableNavItem({
+  label,
+  config,
+  onNavigate
+}: {
+  label: string;
+  config: MobileExpandableNavConfig;
+  onNavigate?: () => void;
+}) {
+  const location = useLocation();
+  const isOnBasePage = location.pathname === config.basePath;
+  const activeTab = isOnBasePage
+    ? (new URLSearchParams(location.search).get("tab") ?? config.defaultTab)
+    : null;
+  const [isExpanded, setIsExpanded] = useState(isOnBasePage);
+  const panelId = `mobile-${config.basePath.replace(/\//g, "")}-subpages`;
+
+  useEffect(() => {
+    if (isOnBasePage) setIsExpanded(true);
+  }, [isOnBasePage]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium ${
+          isOnBasePage
+            ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+            : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        }`}
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        onClick={() => setIsExpanded((current) => !current)}
+      >
+        <span>{label}</span>
+        <ChevronDown
+          className={`h-4 w-4 transition ${isExpanded ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+      {isExpanded ? (
+        <div
+          id={panelId}
+          className="ml-3 mt-1 grid gap-1 border-l border-slate-200 pl-3 dark:border-slate-700"
+        >
+          {config.subPages.map((subPage) => (
+            <NavLink
+              key={subPage.tab}
+              to={`${config.basePath}?tab=${subPage.tab}`}
+              onClick={onNavigate}
+              className={`block rounded-md px-3 py-2 text-sm font-medium ${
+                activeTab === subPage.tab
+                  ? "bg-mint text-pine dark:bg-emerald-950 dark:text-emerald-200"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              {subPage.label}
+            </NavLink>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

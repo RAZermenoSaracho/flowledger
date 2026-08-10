@@ -447,9 +447,7 @@ function FacetPill({
   );
 }
 
-// Groups a filtered list by the active group-by ids (in selection order),
-// returning ordered sections with header labels. A single flat section is
-// returned when no group-bys are active.
+/** Groups a filtered list by the active group-by ids (in selection order), returning ordered sections with header labels. A single flat section is returned when no group-bys are active. */
 export function groupByFields<T>(
   items: T[],
   activeGroupByIds: string[],

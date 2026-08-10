@@ -35,18 +35,21 @@ function defaultSearchOperator(field: SearchFieldConfig | undefined): Operator {
   return field?.type === "string" ? "ilike" : "=";
 }
 
-// Generic, model-agnostic searchbar: free-text box + an Odoo-style
-// dropdown (Filter | Group | Sort). Filter opens <FilterBuilder>, a
-// separate AND/OR condition-tree popup. Every field/operator/label comes
-// from props — this file has no knowledge of any specific module's data
-// model. See src/utils/searchDomain.ts for the query language these
-// compile to.
+/**
+ * Generic, model-agnostic searchbar: free-text box + an Odoo-style
+ * dropdown (Filter | Group | Sort). Filter opens `<FilterBuilder>`, a
+ * separate AND/OR condition-tree popup. Every field/operator/label comes
+ * from props — this file has no knowledge of any specific module's data
+ * model. See `src/utils/searchDomain.ts` for the query language these
+ * compile to.
+ */
 export function SearchBar({
   fields,
   groupableFields = [],
   sortableFields = [],
   defaultSearchField,
   initialSort,
+  initialDomain,
   placeholder = "Search",
   onQueryChange
 }: {
@@ -62,10 +65,20 @@ export function SearchBar({
    */
   defaultSearchField?: string;
   initialSort?: { field: string; direction: SortDirection };
+  /**
+   * Domain tree the search starts with (e.g. an `isArchived = false`
+   * condition) — an ordinary, visible, removable/editable pill like any
+   * condition the user builds themselves, not hidden default filtering.
+   * Build with `createConditionWithValue`/`createEmptyGroup`. Only read
+   * once, on mount, same as `initialSort`.
+   */
+  initialDomain?: DomainGroupNode;
   placeholder?: string;
   onQueryChange: (query: SearchBarQuery) => void;
 }) {
-  const [domain, setDomain] = useState<DomainGroupNode>(() => createEmptyGroup("and"));
+  const [domain, setDomain] = useState<DomainGroupNode>(
+    () => initialDomain ?? createEmptyGroup("and")
+  );
   const [groupBys, setGroupBys] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState(initialSort?.field ?? sortableFields[0]?.name ?? "");
   const [sortDirection, setSortDirection] = useState<SortDirection>(
@@ -153,53 +166,62 @@ export function SearchBar({
   return (
     <div className="w-full">
       <div className="relative min-w-0" ref={containerRef}>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 focus-within:border-pine focus-within:ring-2 focus-within:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:focus-within:ring-emerald-900">
-          <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <div className="flex h-10 items-center overflow-hidden rounded-md border border-slate-200 bg-white focus-within:border-pine focus-within:ring-2 focus-within:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:focus-within:ring-emerald-900">
+          <Search
+            className="ml-3 h-4 w-4 shrink-0 text-slate-400"
+            aria-hidden="true"
+          />
 
-          {domain.children.map((child) => (
-            <FilterPill
-              key={child.id}
-              text={domainToSummaryText(child, fields)}
-              onRemove={() => setDomain(removeNode(domain, child.id))}
-            />
-          ))}
-
-          {groupBys.map((groupById) => {
-            const groupBy = groupableFields.find((entry) => entry.name === groupById);
-            if (!groupBy) return null;
-            return (
+          {/* Pills + free-text input scroll laterally in their own track;
+              the chevron trigger below is a normal flex sibling (not an
+              absolute overlay) so it never moves and this row's h-10 never
+              grows, no matter how many pills accumulate. */}
+          <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden px-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
+            {domain.children.map((child) => (
               <FilterPill
-                key={`group-${groupById}`}
-                text={`Group by ${groupBy.label}`}
-                onRemove={() => toggleGroupBy(groupById)}
+                key={child.id}
+                text={domainToSummaryText(child, fields)}
+                onRemove={() => setDomain(removeNode(domain, child.id))}
               />
-            );
-          })}
+            ))}
 
-          {defaultSearchField ? (
-            <input
-              className="min-w-32 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400 dark:text-slate-100"
-              type="search"
-              aria-label={placeholder}
-              placeholder={
-                domain.children.length === 0 && groupBys.length === 0 ? placeholder : ""
-              }
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  commitSearchDraft();
+            {groupBys.map((groupById) => {
+              const groupBy = groupableFields.find((entry) => entry.name === groupById);
+              if (!groupBy) return null;
+              return (
+                <FilterPill
+                  key={`group-${groupById}`}
+                  text={`Group by ${groupBy.label}`}
+                  onRemove={() => toggleGroupBy(groupById)}
+                />
+              );
+            })}
+
+            {defaultSearchField ? (
+              <input
+                className="min-w-32 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400 dark:text-slate-100"
+                type="search"
+                aria-label={placeholder}
+                placeholder={
+                  domain.children.length === 0 && groupBys.length === 0 ? placeholder : ""
                 }
-              }}
-            />
-          ) : (
-            <span className="flex-1" />
-          )}
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitSearchDraft();
+                  }
+                }}
+              />
+            ) : (
+              <span className="min-w-32 flex-1" />
+            )}
+          </div>
 
           <button
             type="button"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-slate-200 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
             aria-haspopup="menu"
             aria-expanded={isPanelOpen}
             aria-label="Filter, group, and sort"
