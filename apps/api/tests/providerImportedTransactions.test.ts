@@ -4,26 +4,8 @@ const {
   batchIgnoreProviderImportedTransactionsSchema,
   batchImportProviderImportedTransactionsSchema,
   importProviderImportedTransactionSchema,
-  providerImportedTransactionFiltersSchema,
   updateProviderImportedTransactionSchema
 } = await import("@flowledger/shared");
-
-assert.equal(
-  providerImportedTransactionFiltersSchema.parse({ status: "pending" }).status,
-  "pending"
-);
-assert.equal(
-  providerImportedTransactionFiltersSchema.parse({ status: "processed" })
-    .status,
-  "processed"
-);
-assert.equal(
-  providerImportedTransactionFiltersSchema.parse({ status: "ignored" }).status,
-  "ignored"
-);
-assert.throws(() =>
-  providerImportedTransactionFiltersSchema.parse({ status: "not_ignored" })
-);
 
 assert.deepEqual(
   updateProviderImportedTransactionSchema.parse({ categoryId: null }),
@@ -50,13 +32,13 @@ assert.deepEqual(
   batchIgnoreProviderImportedTransactionsSchema.parse({
     selection: {
       mode: "filtered",
-      filters: { status: "pending", provider: "syncfy" }
+      where: { field: "status", op: "=", value: "pending" }
     }
   }),
   {
     selection: {
       mode: "filtered",
-      filters: { status: "pending", provider: "syncfy" }
+      where: { field: "status", op: "=", value: "pending" }
     }
   }
 );

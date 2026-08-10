@@ -14,13 +14,13 @@ const {
   generatedSyncfyEventEid,
   recordSyncfyEventWithDependencies,
   syncfyWebhookSchema
-} = await import("../src/modules/providers/providerWebhooks.routes.ts");
+} = await import("../src/modules/accounts/services/providerWebhooks.service.ts");
 const { syncfyProvider } =
-  await import("../src/modules/providers/syncfy/syncfy.adapter.ts");
+  await import("../src/modules/accounts/providers/syncfy/syncfy.adapter.ts");
 const { normalizeSyncfyInstitution } =
-  await import("../src/modules/providers/syncfy/syncfy.service.ts");
+  await import("../src/modules/accounts/providers/syncfy/syncfy.client.ts");
 const { accountListItemWithSyncSummary } =
-  await import("../src/modules/accounts/accounts.routes.ts");
+  await import("../src/modules/accounts/utils/accountSyncSummary.ts");
 
 const webhookPayload = {
   rid: "rid_1",

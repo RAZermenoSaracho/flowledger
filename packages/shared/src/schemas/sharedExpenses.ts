@@ -21,5 +21,15 @@ export const updateSharedExpenseSchema = sharedExpenseSchema.partial().extend({
   participants: z.array(sharedExpenseParticipantSchema).optional()
 });
 
+// GET /shared-expenses accepts a single JSON-encoded `query` param (DSQL
+// where/sort), same shape and rationale as transactions'/accounts' query
+// param — see apps/api's shared-expenses read.service.ts.
+export const sharedExpensesQueryParamSchema = z.object({
+  query: z.string().max(4000).optional()
+});
+
 export type SharedExpenseInput = z.infer<typeof sharedExpenseSchema>;
 export type UpdateSharedExpenseInput = z.infer<typeof updateSharedExpenseSchema>;
+export type SharedExpensesQueryParam = z.infer<
+  typeof sharedExpensesQueryParamSchema
+>;

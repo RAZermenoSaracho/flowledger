@@ -41,10 +41,10 @@ All test files are in `apps/api/tests/`.
 **Covers:** webhook parsing, event deduplication, Syncfy adapter normalization, account sync summary
 
 Imports (with env var stub preamble):
-- `providerWebhooks.routes.ts` — `generatedSyncfyEventEid`, `recordSyncfyEventWithDependencies`, `syncfyWebhookSchema`
-- `syncfy.adapter.ts` — `syncfyProvider`
-- `syncfy.service.ts` — `normalizeSyncfyInstitution`
-- `accounts.routes.ts` — `accountListItemWithSyncSummary`
+- `accounts/services/providerWebhooks.service.ts` — `generatedSyncfyEventEid`, `recordSyncfyEventWithDependencies`, `syncfyWebhookSchema`
+- `accounts/providers/syncfy/syncfy.adapter.ts` — `syncfyProvider`
+- `accounts/providers/syncfy/syncfy.client.ts` — `normalizeSyncfyInstitution`
+- `accounts/utils/accountSyncSummary.ts` — `accountListItemWithSyncSummary`
 
 Tests:
 - `syncfyWebhookSchema.parse()` — parses a valid webhook payload with `rid` and `events` array.
@@ -62,17 +62,16 @@ Tests:
 **Covers:** `packages/shared/src/schemas/` — imported transaction Zod schemas
 
 Tests:
-- `providerImportedTransactionFiltersSchema` — accepts `"pending"`, `"processed"`, `"ignored"` status values; rejects invalid status.
 - `updateProviderImportedTransactionSchema` — accepts `{ categoryId: null }` (unassign category).
 - `importProviderImportedTransactionSchema` — accepts empty object and `{ categoryId }`.
 - `batchImportProviderImportedTransactionsSchema` — accepts `{ selection: { mode: "ids", ids: [...] }, categoryId }`.
-- `batchIgnoreProviderImportedTransactionsSchema` — accepts `{ selection: { mode: "filtered", filters: { status, provider } } }`.
+- `batchIgnoreProviderImportedTransactionsSchema` — accepts `{ selection: { mode: "filtered", where: {...} } }` (a DSQL condition tree, not a flat filters object — see `importedTransactionsQueryParamSchema`/`ImportedTransactionSelection` for the shape).
 
 ---
 
 ### `syncfyAutoSync.test.ts`
 
-**Covers:** `syncfy.service.ts` (sync internals), `syncfyAutoSyncScheduler.ts`
+**Covers:** `accounts/providers/syncfy/utils/syncfyEndpoints.ts`, `syncfy.client.ts`, `services/update.service.ts`, and `syncfyAutoSyncScheduler.ts` (all under `accounts/providers/syncfy/`)
 
 Sets mock env vars before importing (SYNCFY_AUTO_SYNC_ENABLED=true, INTERVAL_MINUTES=17, JOB_TIMEOUT_MS=45678, CONCURRENCY=3).
 
@@ -104,7 +103,7 @@ Scheduler tests:
 
 ### `syncfyWebhookSecurity.test.ts`
 
-**Covers:** `apps/api/src/modules/providers/syncfy/syncfy.webhookSecurity.ts`
+**Covers:** `apps/api/src/modules/accounts/providers/syncfy/syncfy.webhookSecurity.ts`
 
 Tests `verifySyncfyWebhookSignature()` and `getSyncfyWebhookSignatureDiagnostics()` with:
 
@@ -128,7 +127,7 @@ Tests `verifySyncfyWebhookSignature()` and `getSyncfyWebhookSignatureDiagnostics
 
 ### `transactionCalculations.test.ts`
 
-**Covers:** `apps/api/src/modules/transactions/transactionCalculations.ts`
+**Covers:** `apps/api/src/modules/transactions/utils/transactionCalculations.ts`
 
 Tests `calculateAccountBalance()`:
 - Income adds to balance for the matching `accountId`

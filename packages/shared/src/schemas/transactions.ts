@@ -1,10 +1,9 @@
 import { z } from "zod";
 import {
-  PROVIDER_IMPORTED_TRANSACTION_STATUSES,
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
-import { moneySchema, optionalDateStringSchema } from "./common.js";
+import { currencyCodeSchema, moneySchema } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
 export const transactionSharedExpenseSchema = z.object({
@@ -15,6 +14,7 @@ export const transactionSharedExpenseSchema = z.object({
 const baseTransactionSchema = z.object({
   name: z.string().trim().min(1).max(160),
   amount: moneySchema,
+  executionCurrency: currencyCodeSchema.optional(),
   type: z.enum(TRANSACTION_TYPES),
   date: z
     .string()
@@ -108,35 +108,39 @@ export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
   .partial();
 
-export const transactionFiltersSchema = z.object({
-  dateFrom: optionalDateStringSchema,
-  dateTo: optionalDateStringSchema,
-  amountFrom: moneySchema.optional(),
-  amountTo: moneySchema.optional(),
-  categoryId: z.string().min(1).optional(),
-  groupId: z.string().min(1).optional(),
-  accountId: z.string().min(1).optional(),
-  type: z.enum(TRANSACTION_TYPES).optional(),
-  transactionFilterType: z.enum(TRANSACTION_FILTER_TYPES).optional(),
-  classification: z.enum(["complete", "needsClassification"]).optional(),
-  search: z.string().trim().max(120).optional()
+// The /transactions and /transactions/summary endpoints accept a single
+// JSON-encoded query-string parameter (a DataSieveQuery<TransactionRecord>
+// -shaped `where`/`search`/`sort`/`pagination`) rather than flat filter
+// params — see apps/api's transactions read.service.ts for why (DSQL's
+// and/or/not trees + typed values don't round-trip reliably through
+// bracket-notation query strings). This schema only validates that the
+// param is present/shaped as a string; the decoded JSON is validated by
+// datasieve's own parse/validate pipeline, except for two virtual leaf
+// fields ("classification", "transactionFilterType") the frontend's
+// domain builder can place anywhere in the `where` tree — read.service.ts
+// walks the tree and validates each such leaf's value against
+// `classificationSchema`/`transactionFilterTypeSchema` below as it
+// rewrites it into a real condition.
+export const transactionsQueryParamSchema = z.object({
+  query: z.string().max(4000).optional()
 });
 
-export const providerImportedTransactionFiltersSchema = z.object({
-  status: z.enum(PROVIDER_IMPORTED_TRANSACTION_STATUSES).optional(),
-  search: z.string().trim().max(120).optional(),
-  provider: z.string().trim().max(80).optional(),
-  accountId: z.string().min(1).optional(),
-  providerAccountId: z.string().min(1).optional(),
-  categoryId: z.string().min(1).optional(),
-  dateFrom: optionalDateStringSchema,
-  dateTo: optionalDateStringSchema,
-  amountFrom: moneySchema.optional(),
-  amountTo: moneySchema.optional(),
-  sortBy: z
-    .enum(["transactionDate", "amount", "description", "provider", "status"])
-    .optional(),
-  sortDirection: z.enum(["asc", "desc"]).optional()
+export const transactionFilterTypeSchema = z.enum(TRANSACTION_FILTER_TYPES);
+export const classificationSchema = z.enum(["complete", "needsClassification"]);
+
+// Same "query" param shape as transactionsQueryParamSchema: the deep
+// where/sort tree is JSON-encoded, decoded and validated by datasieve's own
+// parse/validate pipeline in read.service.ts, not by Zod here (matches
+// TransactionsQueryInput's convention — see that type's doc comment). One
+// difference from the main transactions list: the imported-transactions
+// `where` tree may contain a leaf condition on the virtual field "search"
+// (free text — spans description/provider/category name/linked-account
+// name/institution name/raw metadata, none of which are a single real
+// column DSQL could target at once), which read.service.ts's
+// `resolveImportedTransactionIds` rewrites into a real `id in [...]`
+// condition before the rest reaches datasieve.
+export const importedTransactionsQueryParamSchema = z.object({
+  query: z.string().max(4000).optional()
 });
 
 export const updateProviderImportedTransactionSchema = z.object({
@@ -154,7 +158,10 @@ const importedTransactionSelectionSchema = z.discriminatedUnion("mode", [
   }),
   z.object({
     mode: z.literal("filtered"),
-    filters: providerImportedTransactionFiltersSchema.optional()
+    // Untyped/unvalidated here on purpose — same DSQL `where` tree shape
+    // (and same validation-deferred-to-datasieve rationale) as
+    // `importedTransactionsQueryParamSchema.query`'s decoded contents.
+    where: z.unknown().optional()
   })
 ]);
 
@@ -167,12 +174,18 @@ export const batchIgnoreProviderImportedTransactionsSchema = z.object({
   selection: importedTransactionSelectionSchema
 });
 
+export const batchUnignoreProviderImportedTransactionsSchema = z.object({
+  selection: importedTransactionSelectionSchema
+});
+
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type TransactionSharedExpenseInput = z.infer<
   typeof transactionSharedExpenseSchema
 >;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
-export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
-export type ProviderImportedTransactionFilters = z.infer<
-  typeof providerImportedTransactionFiltersSchema
+export type TransactionsQueryParam = z.infer<typeof transactionsQueryParamSchema>;
+export type ImportedTransactionsQueryParam = z.infer<
+  typeof importedTransactionsQueryParamSchema
 >;
+export type TransactionFilterType = z.infer<typeof transactionFilterTypeSchema>;
+export type Classification = z.infer<typeof classificationSchema>;

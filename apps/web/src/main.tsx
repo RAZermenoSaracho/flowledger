@@ -9,18 +9,19 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ThemeProvider } from "./hooks/useTheme";
 import { AppLayout } from "./layout/AppLayout";
 import { ProtectedRoute } from "./layout/ProtectedRoute";
-import { AccountsPage } from "./pages/AccountsPage";
-import { CategoriesPage } from "./pages/CategoriesPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { DebtsPage } from "./pages/DebtsPage";
-import { LoginPage } from "./pages/LoginPage";
-import { GroupsPage } from "./pages/GroupsPage";
-import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { RegisterPage } from "./pages/RegisterPage";
-import { ReportsPage } from "./pages/ReportsPage";
-import { TransactionDetailPage } from "./pages/TransactionDetailPage";
-import { TransactionsPage } from "./pages/TransactionsPage";
+import { AccountsPage } from "./pages/Accounts/AccountsPage";
+import { CategoriesPage } from "./pages/Categories/CategoriesPage";
+import { DashboardPage } from "./pages/Dashboard/DashboardPage";
+import { DebtsPage } from "./pages/Debts/DebtsPage";
+import { LoginPage } from "./pages/Login/LoginPage";
+import { GroupsPage } from "./pages/Groups/GroupsPage";
+import { OAuthCallbackPage } from "./pages/OAuthCallback/OAuthCallbackPage";
+import { ProfilePage } from "./pages/Profile/ProfilePage";
+import { RegisterPage } from "./pages/Register/RegisterPage";
+import { ReportsPage } from "./pages/Reports/ReportsPage";
+import { TransactionDetailPage } from "./pages/Transactions/TransactionDetailPage";
+import { TransactionEditPage } from "./pages/Transactions/TransactionEditPage";
+import { TransactionsPage } from "./pages/Transactions/TransactionsPage";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route
                   path="/transactions/:id"
                   element={<TransactionDetailPage />}
+                />
+                <Route
+                  path="/transactions/:id/edit"
+                  element={<TransactionEditPage />}
                 />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />

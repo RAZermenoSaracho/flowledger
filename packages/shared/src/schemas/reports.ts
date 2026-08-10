@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { optionalDateStringSchema } from "./common.js";
+import { currencyCodeSchema, optionalDateStringSchema } from "./common.js";
 
 const optionalIdArraySchema = z
   .preprocess(
@@ -17,7 +17,9 @@ export const reportFiltersSchema = z.object({
   groupIds: optionalIdArraySchema,
   categoryIds: optionalIdArraySchema,
   groupId: z.string().min(1).optional(),
-  categoryId: z.string().min(1).optional()
+  categoryId: z.string().min(1).optional(),
+  currency: currencyCodeSchema.optional(),
+  amountMode: z.enum(["net", "gross"]).optional()
 });
 
 export type ReportFilters = z.infer<typeof reportFiltersSchema>;

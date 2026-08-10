@@ -69,6 +69,8 @@ model User {
   passwordHash                 String?
   avatarUrl                    String?
   planType                     String                        @default("free")
+  preferredCurrency            String?
+  mobileSidebarSide            String                        @default("left")
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   authAccounts                 UserAuthAccount[]
@@ -109,6 +111,7 @@ model Account {
   name                            String
   type                            AccountType
   identifier                      String?
+  currency                        String            @default("USD")
   initialBalance                  Decimal           @default(0) @db.Decimal(12, 2)
   isArchived                      Boolean           @default(false)
   archivedAt                      DateTime?
@@ -160,6 +163,9 @@ model Transaction {
   userId                      String
   name                        String
   amount                      Decimal                      @db.Decimal(12, 2)
+  executionCurrency           String                       @default("USD")
+  exchangeRate                Decimal                      @default(1) @db.Decimal(20, 8)
+  amountInPreferredCurrency   Decimal                      @db.Decimal(12, 2)
   type                        TransactionType
   date                        DateTime
   categoryId                  String?
@@ -257,6 +263,7 @@ model SharedExpenseParticipant {
   sharedExpenseId    String
   userId             String?
   participantName    String
+  currency           String              @default("USD")
   shareAmount        Decimal             @db.Decimal(12, 2)
   paidAmount         Decimal             @default(0) @db.Decimal(12, 2)
   status             ParticipantStatus   @default(pending)

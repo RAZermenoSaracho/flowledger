@@ -118,108 +118,9 @@ Database responsibilities:
 
 # Current Features
 
-## Authentication
+FlowLedger currently supports authentication (email/password + Google OAuth), manual and provider-linked accounts, personal and group categories, groups (replacing the original "Household" model — all new development must use Group terminology), income/expense/transfer transactions with an imported-transaction review workflow, shared expenses with settlement workflows, per-person debt balances, summary/category/monthly-cashflow reports, and in-app notifications.
 
-Implemented:
-
-- Email/password authentication
-- JWT sessions
-- Google OAuth
-
----
-
-## Accounts
-
-Implemented:
-
-- Manual accounts
-- Provider accounts
-- Initial balances
-- Account archiving
-
----
-
-## Categories
-
-Implemented:
-
-- Personal categories
-- Group categories
-- Category archiving
-
----
-
-## Groups
-
-Implemented:
-
-- Group creation
-- Group membership
-- Shared categories
-- Shared expenses
-
-Groups replace the original Household model.
-
-All new development must use Group terminology.
-
----
-
-## Transactions
-
-Implemented:
-
-- Income transactions
-- Expense transactions
-- Transfer transactions
-- Imported transactions
-- Transaction relationships
-
-Capabilities:
-
-- Search
-- Filtering
-- Sorting
-- Detail views
-
----
-
-## Shared Expenses
-
-Implemented:
-
-- Shared expense creation
-- Participant tracking
-- Settlement workflows
-
----
-
-## Debts
-
-Implemented:
-
-- I Owe
-- Owed To Me
-- Pending Settlement Requests
-- Settled Debts
-
----
-
-## Reports
-
-Implemented:
-
-- Summary reports
-- Category reports
-- Monthly cashflow reports
-
----
-
-## Notifications
-
-Implemented:
-
-- Settlement notifications
-- Imported transaction notifications
+For the authoritative, up-to-date feature-by-feature status (including what's planned next), see `ROADMAP.md` — this section intentionally doesn't duplicate that list.
 
 ---
 
@@ -249,23 +150,24 @@ All new integrations should extend the existing provider architecture.
 
 # Provider Architecture
 
-Core provider files:
+The generic provider abstraction (adapter contract, registry, generic `/providers/*` and `/providers/webhooks/*` routes) lives on the `accounts` module, since account-provider syncing is what it exists for — not in a standalone `providers` module:
 
-apps/api/src/modules/providers
+apps/api/src/modules/accounts
 
 Important files:
 
-- provider.types.ts
-- providerRegistry.ts
-- providers.routes.ts
-- providerWebhooks.routes.ts
+- types/provider.types.ts
+- utils/providerRegistry.ts
+- services/providerConnections.\*.ts
+- services/providerWebhooks.service.ts
 
-Current Syncfy implementation:
+Current Syncfy implementation (`accounts/providers/syncfy/`):
 
 - syncfy.adapter.ts
-- syncfy.routes.ts
-- syncfy.service.ts
+- syncfy.client.ts
 - syncfy.webhookSecurity.ts
+- syncfyAutoSyncScheduler.ts
+- services/ (create/read/update split)
 
 ---
 
@@ -480,33 +382,22 @@ bash npm run prisma:seed
 
 # Documentation
 
-- `CLAUDE.md` — agent orientation and quick-start
-- `docs/ARCHITECTURE.md` — full stack details, directory tree, env vars
-- `docs/API_REFERENCE.md` — all API routes
+- `CLAUDE.md` — agent orientation and quick-start, plus root-level conventions and architecture pointers
+- `apps/api/CLAUDE.md` / `apps/web/CLAUDE.md` / `database/CLAUDE.md` / `packages/shared/CLAUDE.md` — per-app/package structure and conventions
 - `docs/DATA_MODEL.md` — all Prisma models and enums
 - `docs/DOMAIN_LOGIC.md` — shared expenses, debts, settlements, reports
 - `docs/PROVIDER_SYNC.md` — Syncfy integration and auto-sync scheduler
 - `docs/AUTH_FLOW.md` — JWT, OAuth flows
-- `docs/FRONTEND_MAP.md` — pages, components, hooks
-- `docs/CONVENTIONS.md` — code patterns and naming rules
 - `docs/TESTING.md` — test file map
+- `ROADMAP.md` — full milestone status and product direction
 
 ---
 
 # Current Development Priorities
 
-Completed:
+The Full Currency Logic group (Milestones 7-10) is complete — accounts, transactions, and debts all carry explicit currency fields, with live exchange rates from Frankfurter (fiat) and Binance (crypto). Current priority is the Full Crypto Adaptation group (Milestones 11-15), starting with Milestone 11: Binance API Integration.
 
-1. Syncfy auto-sync scheduler (Milestone 5 complete — `SyncfyAutoSyncScheduler` runs on boot when `SYNCFY_AUTO_SYNC_ENABLED=true`).
-2. Webhook HMAC security with multi-format signature support.
-3. Credential refresh with bounded retry/backoff.
-
-Active focus:
-
-1. Imported transaction review improvements.
-2. Financial automation features (Milestone 6 — categorization, rules, dedup).
-
-See ROADMAP.md for the complete implementation sequence.
+See `ROADMAP.md` for the complete, authoritative implementation sequence and status — this section intentionally doesn't restate it.
 
 ---
 

@@ -3,6 +3,7 @@ export * from "./schemas/accounts.js";
 export * from "./schemas/auth.js";
 export * from "./schemas/categories.js";
 export * from "./schemas/common.js";
+export * from "./schemas/currencies.js";
 export * from "./schemas/debts.js";
 export * from "./schemas/groups.js";
 export * from "./schemas/notifications.js";

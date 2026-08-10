@@ -1,6 +1,12 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { apiRequest, tokenStore } from "../services/api";
-import type { User } from "../types/api";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
+import * as authClient from "../services/auth.client";
+import type { User } from "../types/users.types";
 
 type AuthContextValue = {
   user: User | null;
@@ -12,11 +18,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-type AuthResponse = {
-  token: string;
-  user: User;
-};
-
+/** React context provider holding the authenticated user and login/register/logout actions. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
@@ -25,23 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       setUser,
       login: async (email, password) => {
-        const response = await apiRequest<AuthResponse>("/auth/login", {
-          method: "POST",
-          body: { email, password }
-        });
-        tokenStore.set(response.token);
+        const response = await authClient.login(email, password);
+        authClient.setToken(response.token);
         setUser(response.user);
       },
       register: async (name, email, password) => {
-        const response = await apiRequest<AuthResponse>("/auth/register", {
-          method: "POST",
-          body: { name, email, password }
-        });
-        tokenStore.set(response.token);
+        const response = await authClient.register(name, email, password);
+        authClient.setToken(response.token);
         setUser(response.user);
       },
       logout: () => {
-        tokenStore.clear();
+        authClient.clearToken();
         setUser(null);
       }
     }),
@@ -51,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** Reads the current `AuthProvider` context; throws if used outside it. */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");

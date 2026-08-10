@@ -14,7 +14,7 @@ Groups are the multi-user collaboration unit in FlowLedger. They replace the old
 
 ### Membership rules
 - Only group members can access group categories or create group-scoped transactions.
-- The `getGroupMembership()` helper in `groups.service.ts` enforces this in transaction and category operations.
+- The `getGroupMembership()` helper in `groups/services/read.service.ts` enforces this in transaction and category operations.
 
 ---
 

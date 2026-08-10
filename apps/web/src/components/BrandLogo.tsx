@@ -2,6 +2,7 @@ import type { SVGProps } from "react";
 
 type BrandLogoProps = SVGProps<SVGSVGElement>;
 
+/** Renders the FlowLedger brand mark and wordmark as an inline SVG. */
 export function BrandLogo({
   className = "h-12 w-auto",
   ...props

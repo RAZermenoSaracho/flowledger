@@ -85,6 +85,7 @@ async function main() {
         categoryId: salary.id,
         name: "Monthly salary",
         amount: 4200,
+        amountInPreferredCurrency: 4200,
         type: "income",
         date: new Date()
       },
@@ -95,6 +96,7 @@ async function main() {
         categoryId: groceries.id,
         name: "Market run",
         amount: 86.45,
+        amountInPreferredCurrency: 86.45,
         type: "expense",
         date: new Date(),
         notes: "Demo transaction"

@@ -19,23 +19,28 @@ const {
   buildSyncfyProviderAccountMetadata,
   buildSyncfyTransactionDataUrl,
   countNewSyncfyImportedTransactionIds,
-  fetchSyncfyTransactions,
   getSyncfyRefreshMetadata,
   getSyncfyEndpointList,
-  getManualSyncfyRefreshRetryDelaysMs,
-  normalizeSyncfyTransaction,
   nextSyncfyImportedTransactionStatus,
   resolveSyncfyImportedTransactionStatus,
   shouldStopSyncfyRefreshRetry,
   summarizeSyncfyEndpoints,
   summarizeSyncfyImportedTransactionWrites,
   shouldMarkSyncfyManualReconnect
-} = await import("../src/modules/providers/syncfy/syncfy.service.ts");
+} = await import(
+  "../src/modules/accounts/providers/syncfy/utils/syncfyEndpoints.ts"
+);
+const { fetchSyncfyTransactions, normalizeSyncfyTransaction } = await import(
+  "../src/modules/accounts/providers/syncfy/syncfy.client.ts"
+);
+const { getManualSyncfyRefreshRetryDelaysMs } = await import(
+  "../src/modules/accounts/providers/syncfy/services/update.service.ts"
+);
 const { SyncfyAutoSyncScheduler } = await import(
-  "../src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts"
+  "../src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts"
 );
 const { getSyncfyAutoSyncSchedulerConfig } = await import(
-  "../src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts"
+  "../src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts"
 );
 
 assert.equal(

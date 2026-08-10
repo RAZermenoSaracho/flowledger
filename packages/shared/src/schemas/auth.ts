@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PLAN_TYPES } from "../constants/index.js";
+import { MOBILE_SIDEBAR_SIDES, PLAN_TYPES } from "../constants/index.js";
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -35,7 +35,8 @@ export const googleOAuthCallbackQuerySchema = z.object({
 
 export const updateUserProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(255)
+  email: z.string().trim().email().max(255),
+  preferredCurrency: z.string().min(1).max(10).nullable().optional()
 });
 
 export const updateUserPasswordSchema = z
@@ -53,6 +54,10 @@ export const updateUserPlanSchema = z.object({
   planType: z.enum(PLAN_TYPES)
 });
 
+export const updateUserSidebarSideSchema = z.object({
+  mobileSidebarSide: z.enum(MOBILE_SIDEBAR_SIDES)
+});
+
 export const userSearchQuerySchema = z.object({
   q: z.string().trim().min(1).max(120),
   limit: z.coerce.number().int().positive().max(25).default(10)
@@ -65,4 +70,7 @@ export type GoogleOAuthCallbackQuery = z.infer<typeof googleOAuthCallbackQuerySc
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type UpdateUserPasswordInput = z.infer<typeof updateUserPasswordSchema>;
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;
+export type UpdateUserSidebarSideInput = z.infer<
+  typeof updateUserSidebarSideSchema
+>;
 export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;

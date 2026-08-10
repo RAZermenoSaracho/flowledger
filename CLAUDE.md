@@ -17,19 +17,13 @@ flowledger/
 │   └── prisma/
 │       └── schema.prisma   # Single source of truth for the data model
 ├── CLAUDE.md         # This file (read first every session)
-├── AGENTS.md         # Agent coding rules and project guidance
-├── RULES.md          # Universal engineering and security rules
 ├── ROADMAP.md        # Product milestones and vision
 ├── README.md         # Human-facing setup and operations
 └── docs/             # Deep-dive documentation
-    ├── ARCHITECTURE.md
     ├── DATA_MODEL.md
-    ├── API_REFERENCE.md
-    ├── FRONTEND_MAP.md
     ├── AUTH_FLOW.md
     ├── PROVIDER_SYNC.md
     ├── DOMAIN_LOGIC.md
-    ├── CONVENTIONS.md
     └── TESTING.md
 ```
 
@@ -70,7 +64,7 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 
 ## Key architectural decisions
 
-- **Provider abstraction layer** — All bank integrations go through `FinancialProviderAdapter` (`provider.types.ts`). Never hardcode Syncfy-specific logic outside the `syncfy/` subdirectory.
+- **Provider abstraction layer** — All bank integrations go through `FinancialProviderAdapter` (`apps/api/src/modules/accounts/types/provider.types.ts`). Never hardcode Syncfy-specific logic outside `apps/api/src/modules/accounts/providers/syncfy/`. Providers live inside the module that owns their domain (e.g. Google OAuth under `auth/providers/google/`, Binance/Frankfurter under `currencies/providers/`) — see `apps/api/CLAUDE.md` for the full pattern.
 - **Imported transaction staging** — Provider transactions land in `ProviderImportedTransaction` (status `pending`) and only become user `Transaction` records after explicit review. This prevents accidental imports and preserves provider metadata.
 - **JWT auth only** — All authenticated routes require `Authorization: Bearer <token>`. The `requireAuth` middleware populates `req.user`. No session cookies.
 - **Shared Zod schemas** — All request validation uses schemas from `@flowledger/shared`. Backend and frontend share the same contracts.
@@ -87,9 +81,9 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | `database/prisma/schema.prisma` | Data model — all relationships, enums, indices |
 | `apps/api/src/server.ts` | Route mounting, middleware order, scheduler startup |
 | `apps/api/src/config/env.ts` | All environment variables and their defaults |
-| `apps/api/src/modules/providers/provider.types.ts` | Provider adapter contract |
-| `apps/api/src/modules/providers/syncfy/syncfy.service.ts` | Core Syncfy import logic |
-| `apps/api/src/modules/providers/syncfy/syncfyAutoSyncScheduler.ts` | Background sync scheduler |
+| `apps/api/src/modules/accounts/types/provider.types.ts` | Provider adapter contract |
+| `apps/api/src/modules/accounts/providers/syncfy/services/create.service.ts` | Core Syncfy import logic |
+| `apps/api/src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts` | Background sync scheduler |
 | `packages/shared/src/schemas/` | Shared Zod schemas — always prefer these over ad-hoc validation |
 
 ---
@@ -106,6 +100,71 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 - Extend `FinancialProviderAdapter` for new providers — do not create parallel provider-specific systems.
 - Use "Group" terminology throughout — never introduce "Household".
 - All API input must be validated with shared Zod schemas.
+- See "Comment standard" and "File-role structure" below — both are required reading before writing or editing any code in this repo.
+
+---
+
+## Comment standard
+
+Every exported function, class, type, interface, component, and hook gets a `/** ... */` TSDoc block immediately above it, explaining:
+- what it does (one sentence, if not already obvious from the name)
+- parameters and return value, when their meaning isn't obvious from names/types alone
+- any non-obvious behavior, edge case, or invariant a caller needs to know
+
+An inline `//` comment is acceptable only when it explains a genuinely non-obvious **why** — a hidden constraint, a workaround for a specific limitation, a subtle invariant — that cannot be inferred from reading the code and its names. Prefer fixing the naming/structure so the comment becomes unnecessary over adding one. Private/unexported helpers don't need TSDoc, but a `//` on one still has to clear this same "non-obvious why" bar.
+
+**Never write:**
+- A comment narrating a fix, a session, or a past state of the code (`// fixed this bug`, `// this now correctly handles...`, `// regression test for #123`, `// removed the old approach`). That belongs in a commit message or PR description — it rots the moment the code changes again.
+- A comment that just restates the next line (`// increment count` above `count++`).
+- A `no-op: ...` explanation on an empty callback. If a caller has nothing to do because other code already handles it, document that once, at the definition of the thing that handles it — not at every call site relying on it.
+- A comment re-explaining something already documented at a higher level (e.g. re-stating a mutation's invalidation behavior at every call site instead of once on the mutation).
+
+**Before / after:**
+
+```ts
+// Before
+onCreated={async () => {
+  // no-op: mutation inside the form already invalidates queries
+}}
+
+// After — documented once, at the mutation that owns the behavior:
+/** Called after `saveTransaction` already invalidates transactions/accounts/etc. — only needed for behavior beyond that; a no-op is valid. */
+onCreated: () => Promise<void>;
+...
+onCreated={async () => {}}
+```
+
+```ts
+// Before
+// This function now correctly handles the case where accountId is null
+function resolveAccount(accountId: string | null) { ... }
+
+// After
+/** Resolves an account by id, or `null` for an unlinked/manual record. */
+function resolveAccount(accountId: string | null) { ... }
+```
+
+## File-role structure
+
+A file's role is fixed by its location: types only in a module's `types.ts` file (or `types/` folder), services only in `services/` files, API clients only in `<module>.client.ts` files, controllers only in `controllers/` files. Never define a type, a service function, a client call, or a controller handler inline in a file of a different role — relocate it, even if it's small. See `apps/api/CLAUDE.md` and `apps/web/CLAUDE.md` for the exact per-app layering these roles map to, including the full accepted folder structure for each app.
+
+---
+
+## Naming conventions
+
+| Thing | Convention | Example |
+|---|---|---|
+| Files | `camelCase.ts` | `transactions.routes.ts` |
+| Routes file | `<module>.routes.ts` | `accounts.routes.ts` |
+| Service file | `<role>.service.ts` under a module's `services/` folder | `read.service.ts` |
+| Test file | `<subject>.test.ts` | `syncfyAutoSync.test.ts` |
+| Prisma models | `PascalCase` | `TransactionRelation` |
+| DB columns | `camelCase` (Prisma convention) | `createdAt`, `providerCredentialId` |
+| Env vars | `SCREAMING_SNAKE_CASE` | `SYNCFY_AUTO_SYNC_ENABLED` |
+| API routes | `kebab-case` | `/shared-expenses`, `/monthly-cashflow` |
+| React components | `PascalCase.tsx` | `AppLayout.tsx` |
+| Custom hooks | `useCamelCase.ts` | `useAuth.ts` |
+| Vite env vars | `VITE_*` prefix | `VITE_API_URL` |
 
 ---
 
@@ -113,12 +172,12 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 
 | Doc | Contents |
 |---|---|
-| `docs/ARCHITECTURE.md` | Stack details, monorepo layout, middleware chain |
 | `docs/DATA_MODEL.md` | All Prisma models, relationships, enum values |
-| `docs/API_REFERENCE.md` | Every API route, method, auth requirement, purpose |
-| `docs/FRONTEND_MAP.md` | Pages, components, hooks, API queries |
 | `docs/AUTH_FLOW.md` | JWT, Google OAuth, middleware, token storage |
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
 | `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements |
-| `docs/CONVENTIONS.md` | Code patterns, error handling, validation, naming |
 | `docs/TESTING.md` | Test files, what each covers, how to run |
+| `apps/api/CLAUDE.md` | Backend module system, request lifecycle, provider pattern |
+| `apps/web/CLAUDE.md` | Frontend routing, page-module structure, shared components |
+| `database/CLAUDE.md` | Schema conventions, migration workflow |
+| `packages/shared/CLAUDE.md` | Schema/type/constant package structure |

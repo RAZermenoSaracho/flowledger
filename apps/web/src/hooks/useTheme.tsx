@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+/** Light/dark/system theme preference value. */
 export type ThemePreference = "light" | "dark" | "system";
 
 type ThemeContextValue = {
@@ -30,6 +31,7 @@ function applyTheme(preference: ThemePreference) {
   document.documentElement.style.colorScheme = shouldUseDarkMode ? "dark" : "light";
 }
 
+/** React context provider managing theme preference and applying it to the document. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(getStoredPreference);
 
@@ -58,6 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/** Reads the current `ThemeProvider` context; throws if used outside it. */
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (!context) {

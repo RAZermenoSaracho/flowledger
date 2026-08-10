@@ -7,9 +7,15 @@ export const categorySchema = z.object({
   color: z.string().trim().max(32).optional().nullable()
 });
 
-export const categoryFiltersSchema = z.object({
+// groupId/scope choose *which* categories are visible at all (an
+// authorization boundary — see apps/api's categories read.service.ts);
+// `query` is a JSON-encoded DSQL where/sort blob that only ever filters
+// within that already-resolved set, same shape and rationale as
+// transactions' query param.
+export const categoriesQueryParamSchema = z.object({
   groupId: z.string().min(1).optional(),
-  includeArchived: z.enum(["true", "false"]).optional()
+  scope: z.enum(["all"]).optional(),
+  query: z.string().max(4000).optional()
 });
 
 export const updateCategorySchema = categorySchema
@@ -20,5 +26,5 @@ export const updateCategorySchema = categorySchema
   );
 
 export type CategoryInput = z.infer<typeof categorySchema>;
-export type CategoryFilters = z.infer<typeof categoryFiltersSchema>;
+export type CategoriesQueryParam = z.infer<typeof categoriesQueryParamSchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

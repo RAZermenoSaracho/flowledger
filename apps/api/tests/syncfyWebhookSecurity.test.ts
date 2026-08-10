@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import {
   getSyncfyWebhookSignatureDiagnostics,
   verifySyncfyWebhookSignature
-} from "../src/modules/providers/syncfy/syncfy.webhookSecurity.ts";
+} from "../src/modules/accounts/providers/syncfy/syncfy.webhookSecurity.ts";
 
 const rawBody = Buffer.from('{"events":[{"header":{"event":{"eid":"evt_1"}}}]}');
 const signatureKey = "test-syncfy-webhook-key";

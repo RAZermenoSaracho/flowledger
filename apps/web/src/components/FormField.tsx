@@ -8,6 +8,7 @@ type BaseProps = {
   label: string;
 };
 
+/** Labeled text input field. */
 export function TextInput({
   label,
   className = "",
@@ -24,6 +25,7 @@ export function TextInput({
   );
 }
 
+/** Labeled select field. */
 export function SelectField({
   label,
   className = "",
@@ -40,6 +42,7 @@ export function SelectField({
   );
 }
 
+/** Labeled textarea field. */
 export function TextArea({
   label,
   className = "",

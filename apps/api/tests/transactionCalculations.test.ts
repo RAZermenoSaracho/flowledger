@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   calculateAccountBalance,
   calculateMonthlyCashflow
-} from "../src/modules/transactions/transactionCalculations.ts";
+} from "../src/modules/transactions/utils/transactionCalculations.ts";
 
 const amount = (value: number) => ({ toNumber: () => value });
 

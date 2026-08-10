@@ -8,6 +8,7 @@ type TokenPayload = {
   email: string;
 };
 
+/** Validates the `Authorization: Bearer` JWT and attaches `{ id, email }` to `req.user`; rejects with 401 if missing or invalid. */
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const header = req.header("authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
