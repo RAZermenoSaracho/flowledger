@@ -63,7 +63,11 @@ export function useAccountProviderSync({
   const linkableAccountsQuery = useQuery({
     queryKey: ["accounts", "linkable"],
     queryFn: async () =>
-      (await accountsClient.listAccounts({ includeArchived: false })).accounts
+      (
+        await accountsClient.listAccounts({
+          where: { field: "isArchived", op: "=", value: false }
+        })
+      ).accounts
   });
 
   async function invalidateProviderData() {

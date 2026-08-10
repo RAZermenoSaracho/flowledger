@@ -19,22 +19,7 @@ export function AddAccountCard({
     await sync.createAccount.mutateAsync();
   }
 
-  if (!sync.isFormOpen) {
-    return (
-      <Card>
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={() => {
-            sync.setAddMode(null);
-            sync.setIsFormOpen(true);
-          }}
-        >
-          Add account
-        </Button>
-      </Card>
-    );
-  }
+  if (!sync.isFormOpen) return null;
 
   return (
     <Card>

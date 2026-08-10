@@ -1,36 +1,61 @@
-import type { AccountType } from "@flowledger/shared";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AddRecordButton } from "../../components/AddRecordButton";
 import { Card } from "../../components/Card";
+import { PageHeader } from "../../components/PageHeader";
+import { groupByFields } from "../../components/SearchComponent";
+import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
+import {
+  createConditionWithValue,
+  createEmptyGroup
+} from "../../utils/searchDomain";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
-import type { AccountSortBy } from "../../services/accounts.client";
-import { matchesSearch } from "../../utils/search";
-import {
-  AccountsFiltersCard,
-  accountGroupByDefs,
-  accountGroupKey,
-  groupByFields
-} from "./components/AccountsFiltersCard";
 import { AccountListItem } from "./components/AccountListItem";
 import { AddAccountCard } from "./components/AddAccountCard";
 import { useAccountEditForm } from "./hooks/useAccountEditForm";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
+import type { Account } from "../../types/accounts.types";
+import {
+  ACCOUNT_DEFAULT_SEARCH_FIELD,
+  ACCOUNT_GROUPABLE_FIELDS,
+  ACCOUNT_SORTABLE_FIELDS,
+  buildAccountSearchFields
+} from "./utils/accountSearchFields";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
+
+// Archived accounts are excluded by default — same default the old
+// dedicated Active/Archived toggle had — but expressed as an ordinary,
+// visible, removable FilterBuilder condition instead of hidden logic.
+const initialAccountDomain = {
+  ...createEmptyGroup("and"),
+  children: [createConditionWithValue("isArchived", "=", "false")]
+};
+
+// groupByFields (components/SearchComponent.tsx) keys its group defs by
+// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
+// the two (see TransactionsPage.tsx for the same pattern).
+const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map((field) => ({
+  id: field.name,
+  label: field.label
+}));
+
+function accountGroupKey(account: Account, groupById: string) {
+  if (groupById === "type") {
+    return { key: account.type, label: account.type.replace("_", " ") };
+  }
+  if (groupById === "source") {
+    const source = account.source ?? "manual";
+    return { key: source, label: source === "synced" ? "Synced" : "Manual" };
+  }
+  return { key: "", label: "" };
+}
 
 /** Accounts list page: search/filter/group controls, provider sync widget, and inline edit forms. */
 export function AccountsPage() {
   const auth = useAuth();
 
-  const [archiveMode, setArchiveMode] = useState<"active" | "archived">(
-    "active"
-  );
-  const [search, setSearch] = useState("");
-  const [typeFilterValues, setTypeFilterValues] = useState<string[]>([]);
-  const [sourceFilterValues, setSourceFilterValues] = useState<string[]>([]);
-  const [groupBys, setGroupBys] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<AccountSortBy>("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [accountQuery, setAccountQuery] = useState<SearchBarQuery>({});
   const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(
     new Set()
   );
@@ -47,23 +72,15 @@ export function AccountsPage() {
     });
   }
 
+  const accountSearchFields = useMemo(() => buildAccountSearchFields(), []);
+
   const accountsQuery = useQuery({
-    queryKey: [
-      "accounts",
-      archiveMode,
-      sortBy,
-      sortDirection,
-      typeFilterValues,
-      sourceFilterValues
-    ],
+    queryKey: ["accounts", accountQuery],
     queryFn: async () =>
       (
         await accountsClient.listAccounts({
-          includeArchived: archiveMode === "archived",
-          sortBy,
-          sortDirection,
-          types: typeFilterValues as AccountType[],
-          sources: sourceFilterValues as ("manual" | "synced")[]
+          where: accountQuery.where,
+          sort: accountQuery.sort
         })
       ).accounts
   });
@@ -73,32 +90,17 @@ export function AccountsPage() {
   });
   const editForm = useAccountEditForm();
 
-  const visibleAccounts = useMemo(() => {
-    return (accountsQuery.data ?? []).filter((account) =>
-      matchesSearch(
-        [
-          account.name,
-          account.type,
-          account.identifier,
-          account.source,
-          ...(account.sync ?? []).flatMap((accountSync) => [
-            accountSync.provider,
-            accountSync.institutionName,
-            accountSync.accountName,
-            accountSync.status,
-            accountSync.connectionStatus,
-            accountSync.failureReason
-          ])
-        ],
-        search
-      )
-    );
-  }, [accountsQuery.data, search]);
-
+  const visibleAccounts = accountsQuery.data ?? [];
+  const activeGroupBys = accountQuery.groupBy ?? [];
   const groupedAccounts = useMemo(
     () =>
-      groupByFields(visibleAccounts, groupBys, accountGroupByDefs, accountGroupKey),
-    [visibleAccounts, groupBys]
+      groupByFields(
+        visibleAccounts,
+        activeGroupBys,
+        accountGroupByDefsForBucketing,
+        accountGroupKey
+      ),
+    [visibleAccounts, activeGroupBys]
   );
 
   return (
@@ -106,25 +108,29 @@ export function AccountsPage() {
       <AddAccountCard sync={sync} />
 
       <Card>
-        <h2 className="text-lg font-semibold">Accounts</h2>
-        <div className="mt-4">
-          <AccountsFiltersCard
-            search={search}
-            onSearchChange={setSearch}
-            typeFilterValues={typeFilterValues}
-            onTypeFilterValuesChange={setTypeFilterValues}
-            sourceFilterValues={sourceFilterValues}
-            onSourceFilterValuesChange={setSourceFilterValues}
-            groupBys={groupBys}
-            onGroupBysChange={setGroupBys}
-            sortBy={sortBy}
-            sortDirection={sortDirection}
-            onSortByChange={setSortBy}
-            onSortDirectionChange={setSortDirection}
-            archiveMode={archiveMode}
-            onArchiveModeChange={setArchiveMode}
+        <PageHeader
+          title="Accounts"
+          action={
+            <AddRecordButton
+              label="account"
+              onClick={() => {
+                sync.setAddMode(null);
+                sync.setIsFormOpen(true);
+              }}
+            />
+          }
+        >
+          <SearchBar
+            fields={accountSearchFields}
+            groupableFields={ACCOUNT_GROUPABLE_FIELDS}
+            sortableFields={ACCOUNT_SORTABLE_FIELDS}
+            defaultSearchField={ACCOUNT_DEFAULT_SEARCH_FIELD}
+            initialSort={{ field: "name", direction: "asc" }}
+            initialDomain={initialAccountDomain}
+            placeholder="Search accounts"
+            onQueryChange={setAccountQuery}
           />
-        </div>
+        </PageHeader>
 
         <div className="mt-4 grid gap-4">
           {groupedAccounts.map((section) => (
