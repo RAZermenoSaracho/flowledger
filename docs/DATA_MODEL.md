@@ -34,9 +34,24 @@ Core user record. All user-owned data cascades on delete.
 | `avatarUrl` | String? | URL to avatar image |
 | `planType` | String | Default `"free"` |
 | `preferredCurrency` | String? | ISO 4217 code (e.g. `"MXN"`); null means no preference |
+| `mobileSidebarSide` | String | Default `"left"`; which side the mobile nav sidebar opens from |
 | `createdAt` / `updatedAt` | DateTime | Auto-managed |
 
-Relations: `authAccounts`, `accounts`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`
+Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`
+
+---
+
+### RefreshToken
+
+An opaque, rotating refresh token backing a user's session (see `docs/AUTH_FLOW.md`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `userId` | String | FK → User |
+| `tokenHash` | String (unique) | SHA-256 hash of the opaque token value; the plaintext is never stored |
+| `expiresAt` | DateTime | |
+| `revokedAt` | DateTime? | Set on rotation (single-use) or logout |
 
 ---
 
@@ -67,6 +82,7 @@ A financial account owned by a user. Can be manual (user-created) or linked to a
 | `name` | String | Display name |
 | `type` | AccountType | Enum |
 | `identifier` | String? | Last 4 digits, IBAN tail, etc. |
+| `currency` | String | ISO 4217 code, default `"USD"`; the account's native currency |
 | `initialBalance` | Decimal(12,2) | Starting balance |
 | `isArchived` | Boolean | Soft delete |
 | `archivedAt` | DateTime? | When archived |
@@ -87,6 +103,7 @@ A transaction category. Can be personal (no group) or group-scoped.
 | `type` | CategoryType | `income` or `expense` |
 | `color` | String? | Hex color for UI |
 | `isArchived` | Boolean | Soft delete |
+| `archivedAt` | DateTime? | When archived |
 
 Relations: `users` (CategoryUser), `transactions`, `expenseOffsetTransactions`, `providerImportedTransactions`
 
@@ -111,7 +128,10 @@ A financial transaction. The core financial record.
 | `id` | String (cuid) | PK |
 | `userId` | String | FK → User (owner) |
 | `name` | String | Description / merchant |
-| `amount` | Decimal(12,2) | Always positive; type indicates direction |
+| `amount` | Decimal(12,2) | Always positive; type indicates direction. Denominated in `executionCurrency` |
+| `executionCurrency` | String | ISO 4217 code, default `"USD"`; the currency the transaction was recorded in |
+| `exchangeRate` | Decimal(20,8) | Default `1`; rate from `executionCurrency` to the owner's `preferredCurrency` at creation/edit time |
+| `amountInPreferredCurrency` | Decimal(12,2) | `amount * exchangeRate`, snapshotted at creation/edit time — not re-converted if the user's `preferredCurrency` changes later |
 | `type` | TransactionType | `income`, `expense`, `transfer` |
 | `date` | DateTime | Transaction date |
 | `categoryId` | String? | FK → Category |
@@ -155,6 +175,7 @@ A shared group (replaces old "Household" concept). Groups own categories and con
 | `description` | String? | Optional description |
 | `ownerUserId` | String | FK → User (creator / admin) |
 | `isArchived` | Boolean | Soft delete |
+| `archivedAt` | DateTime? | When archived |
 
 Relations: `members` (GroupMember), `categories`, `transactions`
 
@@ -200,6 +221,7 @@ One participant's share of a shared expense. Can be a registered user or a named
 | `sharedExpenseId` | String | FK → SharedExpense |
 | `userId` | String? | FK → User (null for non-registered participants) |
 | `participantName` | String | Display name |
+| `currency` | String | ISO 4217 code, default `"USD"`; inherited from the underlying transaction's `executionCurrency` |
 | `shareAmount` | Decimal(12,2) | What they owe |
 | `paidAmount` | Decimal(12,2) | What they've paid so far |
 | `status` | ParticipantStatus | `pending`, `partial`, `paid` |
@@ -278,11 +300,15 @@ A bank account imported from a provider. Links to a user's FlowLedger Account on
 | `connectionId` | String? | FK → ProviderConnection |
 | `accountId` | String? | FK → Account (null until confirmed) |
 | `provider` | String | `"syncfy"` |
+| `providerUserId` | String? | Provider's internal user ID |
 | `providerCredentialId` | String | Provider credential |
 | `providerAccountId` | String | Provider's account ID |
+| `institutionMetadata` | Json? | Raw institution data |
 | `accountMetadata` | Json? | `{name, type, currency, balance}` |
 | `status` | String | `active`, `sync_failed`, `reconnect_required` |
+| `failureReason` | String? | Error message if failed |
 | `requiresManualReconnect` | Boolean | True when connection requires re-auth |
+| `lastSyncAt` / `lastSyncSuccessAt` / `lastSyncFailureAt` | DateTime? | Sync timestamps — tracked per-account in addition to per-connection, since `accountSyncSummary.ts` falls back to the parent `ProviderConnection`'s values when an account's own are unset |
 | `rawData` | Json? | Raw provider response |
 
 Unique: `(provider, providerCredentialId, providerAccountId)`
@@ -328,7 +354,11 @@ Audit log of all incoming webhook events from providers.
 |---|---|---|
 | `userId` | String? | Resolved FlowLedger user |
 | `provider` | String | `"syncfy"` |
+| `providerUserId` | String? | Provider's internal user ID (`id_user`), from the event header |
+| `providerExternalId` | String? | The FlowLedger user ID as Syncfy echoes it back (`id_external`) |
+| `providerCredentialId` | String? | Provider credential (`id_credential`), from the event payload |
 | `providerEventId` | String | Provider's event ID (or generated) |
+| `rid` | String? | Syncfy's batch/request ID for the webhook delivery that carried this event |
 | `eventName` | String | Event type (e.g., `credentials.refreshed`) |
 | `rawPayload` | Json | Parsed event payload |
 | `rawHeaders` | Json | Sanitized request headers (signature fields redacted) |
@@ -355,5 +385,6 @@ User
  │                     └── ProviderImportedTransaction → Transaction (on import)
  ├── ProviderWebhookEvent
  ├── Notification
- └── UserAuthAccount (Google OAuth mapping, Syncfy user mapping)
+ ├── UserAuthAccount (Google OAuth mapping, Syncfy user mapping)
+ └── RefreshToken (session rotation)
 ```
