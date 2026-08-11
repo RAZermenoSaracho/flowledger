@@ -49,7 +49,9 @@ src/modules/<domain>/
   <domain>.routes.ts         imports controllers, wires Express routes. No logic.
 ```
 
-Routes are mounted in `src/server.ts`. A module only gets the layers it actually needs:
+Routes are mounted in `src/app.ts`, which exports the configured Express `app` with no side effects (no `listen()`, no scheduler) so `supertest` can drive it directly in tests. `src/server.ts` is the actual bootstrap: imports `app`, calls `app.listen()`, starts the Syncfy auto-sync scheduler, and wires process signal handlers — it has no logic worth unit testing and is excluded from coverage (see `docs/TESTING.md`).
+
+A module only gets the layers it actually needs:
 - No create/update/delete logic (e.g. `reports`, which is read-only) → only `read.service.ts` + `read.controller.ts` exist.
 - A module whose domain naturally splits into more than one router (e.g. `debts` also owns settlement approval/rejection, `accounts` also owns provider-connection endpoints) exports multiple routers from the same `<domain>.routes.ts` rather than inventing extra route files.
 - Split a service file further (e.g. `read.service.ts` → multiple files) if it grows too large for one responsibility to stay readable.
@@ -169,6 +171,23 @@ router.post('/thing', requireAuth, validate(mySchema), asyncHandler(postThing));
 
 ---
 
+## Testing
+
+Vitest, with three kinds of test living in different places — see `docs/TESTING.md` for the full architecture and examples:
+
+- **Unit** (`services/tests/`, `utils/tests/`, `controllers/tests/`, mirroring each source file) — `services/` tests mock `PrismaClient` with `vitest-mock-extended` (`mockDeep<PrismaClient>()`); never hit a real database.
+- **Module route integration** (`<module>/tests/<module>.routes.test.ts`) — `supertest` against the exported `app` from `src/app.ts`, real Postgres via `@testcontainers/postgresql`.
+- **Cross-module integration/e2e** (`src/tests/integration/`, `src/tests/e2e/`) — same testcontainers Postgres, exercising 2+ modules or a full request flow through the real HTTP layer.
+
+```bash
+npm run test -w apps/api            # unit + integration + e2e
+npm run test:coverage -w apps/api   # with coverage report
+```
+
+Integration/e2e suites require Docker running locally. Unit tests never do.
+
+---
+
 ## Environment variables
 
 All env vars are parsed and validated at startup by `src/config/env.ts` (Zod schema). Never read `process.env.*` directly — import from `config/env.ts`:
@@ -198,7 +217,8 @@ import { asyncHandler } from './utils/asyncHandler.js'; // .js even though sourc
 npm run dev            # builds shared, then runs API with tsx (hot reload)
 npm run build          # tsc compile to dist/
 npm run typecheck      # type-check without emitting
-npm run test -w apps/api  # run API tests only
+npm run test -w apps/api           # run API tests only
+npm run test:coverage -w apps/api  # with coverage report
 ```
 
 API listens on `env.API_PORT` (default `4000`). Requires a running PostgreSQL instance and all vars in `.env`.
@@ -227,8 +247,10 @@ API listens on `env.API_PORT` (default `4000`). Requires a running PostgreSQL in
 
 | File | Why |
 |---|---|
-| `src/server.ts` | Route mounting order, middleware chain, scheduler startup |
+| `src/app.ts` | Route mounting order, middleware chain — the app `supertest` drives in tests |
+| `src/server.ts` | Bootstrap only: `listen()`, scheduler startup, signal handlers |
 | `src/config/env.ts` | All env vars and their Zod defaults |
 | `src/modules/accounts/types/provider.types.ts` | `FinancialProviderAdapter` interface — required reading before any provider work |
 | `src/middleware/auth.ts` | `requireAuth` implementation and `req.user` shape |
 | `src/utils/asyncHandler.ts` + `src/utils/httpError.ts` | Core error-handling utilities used everywhere |
+| `docs/TESTING.md` | Test architecture, coverage thresholds, Prisma-mock/testcontainers/supertest patterns |

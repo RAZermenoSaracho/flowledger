@@ -23,7 +23,8 @@ Full standard lives in root `CLAUDE.md`'s "Comment standard" section — read it
 | Data fetching | TanStack Query v5 (`@tanstack/react-query`) |
 | Routing | React Router v6 |
 | Charts | Recharts |
-| Auth | JWT in `localStorage` via `tokenStore` |
+| Auth | JWT access token in-memory via `tokenStore`, httpOnly cookie for silent refresh |
+| Testing | Vitest, `@testing-library/react`, `@testing-library/user-event`, `jsdom`, `msw` |
 
 ---
 
@@ -268,6 +269,17 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 
 ---
 
+## Testing
+
+Vitest with `jsdom`, mirroring each `components/`, `hooks/`, and `utils/` folder (top-level and per-page-module) with a sibling `tests/` folder — one test file per source file. `msw` intercepts the `fetch` calls made by `services/*.client.ts` functions, so components/hooks are tested through the same client calls they use in production, never by mocking a `.client.ts` module directly. `src/tests/utils/renderWithProviders.tsx` wraps `QueryClientProvider`/`MemoryRouter` (and `AuthProvider`/`ThemeProvider` when needed) for component tests. Full architecture and examples: `docs/TESTING.md`.
+
+```bash
+npm run test -w apps/web            # run web tests only
+npm run test:coverage -w apps/web   # with coverage report
+```
+
+---
+
 ## How to build and run
 
 ```bash
@@ -275,6 +287,7 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 npm run dev         # builds shared, then runs Vite dev server on port 5173
 npm run build       # Vite production build to apps/web/dist/
 npm run typecheck   # type-check without emitting
+npm run test -w apps/web  # run tests (see "Testing" above)
 ```
 
 Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http://localhost:4000` if unset.
@@ -309,3 +322,5 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 | `src/hooks/useAuth.tsx` | Auth context shape and how token/user state is managed |
 | `src/layout/AppLayout.tsx` | Sidebar nav, notification bell, mobile layout — shared shell for all auth'd pages |
 | `src/types/` | Per-client global API response types (`<client>.types.ts`) — check here before adding a new response shape |
+| `src/tests/mocks/server.ts` + `src/tests/setup.ts` | msw server/handlers and Vitest global setup — read before writing a component/hook test |
+| `docs/TESTING.md` | Test architecture, coverage thresholds, `renderWithProviders`/msw patterns |

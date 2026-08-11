@@ -14,6 +14,7 @@
     "build": "npm run build -w @flowledger/shared && npm run build -w @flowledger/api && npm run build -w @flowledger/web",
     "lint": "eslint .",
     "test": "npm run test -w @flowledger/shared && npm run test -w @flowledger/api && npm run test -w @flowledger/web",
+    "test:coverage": "npm run test:coverage -w @flowledger/shared && npm run test:coverage -w @flowledger/api && npm run test:coverage -w @flowledger/web",
     "format": "prettier --write .",
     "typecheck": "npm run typecheck -w @flowledger/shared && npm run typecheck -w @flowledger/api && npm run typecheck -w @flowledger/web",
     "prisma:generate": "prisma generate --schema database/prisma/schema.prisma",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@eslint/js": "^9.15.0",
     "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^9.1.0",
     "npm-run-all": "^4.1.5",
@@ -33,6 +35,7 @@
     "prisma": "^6.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.16.0"
+    "typescript-eslint": "^8.16.0",
+    "vitest": "^4.1.10"
   }
 }

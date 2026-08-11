@@ -401,7 +401,10 @@ export async function approveSettlement(
   });
 
   await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
-  return result;
+  return {
+    settlementRequest: result.settlementRequest,
+    debt: balanceDebt(result.debt)
+  };
 }
 
 /** Approves each entry in `approvals` sequentially, reusing {@link approveSettlement}. */

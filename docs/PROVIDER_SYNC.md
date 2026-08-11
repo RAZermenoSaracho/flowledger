@@ -47,6 +47,8 @@ On first connection:
 4. Widget handles bank credential entry — FlowLedger never sees bank credentials
 5. On widget completion, Syncfy calls the configured webhook URL with a `credentials.refreshed` event
 
+Since the webhook is processed asynchronously (see "Event processing" below), the frontend polls `GET /providers/connections/:id/status` — returns the connection's current `status`/sync fields, its account/imported-transaction counts, and its most recent `ProviderWebhookEvent` — to detect when the widget's connection has finished syncing.
+
 ### Manual resync flow
 
 After a user re-authenticates via the widget (`setEntrypointCredential(idCredential)`):
@@ -67,6 +69,8 @@ The same `POST /providers/syncfy/credentials/:providerCredentialId/refresh` endp
 ### Connection resync (by connection ID)
 
 `POST /providers/connections/:id/resync` — used by the accounts page to trigger a full resync of a connection. Also calls `resyncSyncfyConnection()`.
+
+`POST /providers/accounts/:id/resync` — a per-account convenience route: resolves the `ProviderAccount`'s owning `ProviderConnection` and resyncs that whole connection (`resyncProviderAccount()` in `providerConnections.update.service.ts`). It does not resync only that one account.
 
 ---
 
@@ -106,12 +110,13 @@ POST /providers/webhooks/syncfy
   1. sanitizeWebhookHeaders() — redact signature/auth headers before storing
   2. verifySyncfyWebhookSignature() — verify HMAC
      → if "invalid": record failed event, return 200 (to prevent Syncfy retries)
-  3. Parse body with syncfyWebhookSchema
+  3. Parse body with syncfyWebhookSchema — a batch `rid` plus zero or more events
+     → if the body fails schema validation: record failed event, return 200 (same as an invalid signature)
   4. For each event:
-     a. Generate/use event ID (eid from Syncfy, or deterministic hash if absent)
+     a. Generate/use event ID (eid from Syncfy, or deterministic hash of the event + rid if absent)
      b. Resolve FlowLedger userId from Syncfy id_user via UserAuthAccount
-     c. Upsert ProviderWebhookEvent — deduplication via unique (provider, providerEventId)
-  5. Return 200 with accepted event count
+     c. Insert ProviderWebhookEvent (unique on `(provider, providerEventId)`) — on a concurrent duplicate insert, fetches and reuses the already-recorded row instead of processing it again
+  5. Return 200 with the batch `rid`, signature verification result, and accepted event count
   6. Async: processRecordedEvent() → handleWebhook() → processSyncfyWebhookEvent()
 ```
 
@@ -206,11 +211,11 @@ Transaction ← created, ProviderImportedTransaction.transactionId set, status: 
 
 ## Market data providers (read-only, no FinancialProviderAdapter)
 
-These are lightweight services that fetch public market data for display purposes. They do not implement `FinancialProviderAdapter` and are not registered in `providerRegistry.ts`.
+Frankfurter and Binance are lightweight external clients — they don't implement `FinancialProviderAdapter` and aren't registered in `providerRegistry.ts`. Beyond listing supported currencies for display, together they back `getExchangeRate(from, to)` in `apps/api/src/modules/currencies/services/read.service.ts`, the single live currency-conversion function used throughout the app: transaction `exchangeRate`/`amountInPreferredCurrency` (`docs/DOMAIN_LOGIC.md` → Transactions → Currency), account balance conversion, report currency conversion, and settlement currency conversion (`docs/DOMAIN_LOGIC.md` → Reports, Debts, Settlement workflow).
 
 | Provider | Module | Purpose | Cache TTL |
 |---|---|---|---|
-| **Frankfurter** | `apps/api/src/modules/currencies/providers/frankfurter/frankfurter.client.ts` | Fiat currency list (`GET https://api.frankfurter.app/currencies`) | 24 hours |
-| **Binance** | `apps/api/src/modules/currencies/providers/binance/binance.client.ts` | Crypto base asset list (`GET https://api.binance.com/api/v3/ticker/price`) | 1 hour |
+| **Frankfurter** | `apps/api/src/modules/currencies/providers/frankfurter/` | Fiat currency list (`GET .../currencies`); direct fiat→fiat rate lookup (`GET .../latest?from=&to=`) | 24 hours (list) / 5 minutes (rate, per currency pair) |
+| **Binance** | `apps/api/src/modules/currencies/providers/binance/` | Crypto base asset list, derived from ticker symbols; USDT-quoted price per asset (`GET .../ticker/price`) | 1 hour (derived crypto list) / 1 minute (raw ticker prices, shared by both uses) |
 
-Both services use an in-memory cache with a plain timestamp object. Both degrade gracefully on upstream failure (log and return empty array). Results are served to the frontend via `GET /currencies` (no auth required).
+`getExchangeRate()`'s bridging logic: if both currencies are fiat, the rate comes straight from Frankfurter. If either side is a crypto asset, each side's USD value is resolved independently (fiat via Frankfurter, crypto via its Binance USDT price — treating USDT/USD as 1) and the rate is `usdPerFrom / usdPerTo`. A crypto asset with no Binance quote makes `getExchangeRate()` throw `HttpError(502)` rather than silently degrading; only the currency *list* endpoints degrade gracefully (log and return `[]`) on upstream failure. Both list results and the `/rate` lookup are served to the frontend via `GET /currencies` and `GET /currencies/rate` (no auth required).

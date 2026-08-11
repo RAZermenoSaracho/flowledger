@@ -38,6 +38,7 @@ npm run build                 # production build of all workspaces
 npm run start                 # build + run API node + Vite preview (port 5174)
 npm run typecheck             # type-check all workspaces
 npm run test                  # run all test suites
+npm run test:coverage         # run all test suites with coverage reports
 npm run lint                  # ESLint across monorepo
 npm run prisma:generate       # regenerate Prisma client after schema changes
 npm run prisma:migrate        # run pending migrations (dev)
@@ -88,6 +89,12 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 
 ---
 
+## Testing
+
+Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with an identical config shape. Tests live in a `tests/` folder next to the code they cover — one test file per source file, same base name (`services/create.service.ts` → `services/tests/create.service.test.ts`). Module-level and cross-module tests have their own placement rules. Coverage thresholds are highest on `utils/` (pure business logic), moderate on `services/`/`hooks/`, and unenforced on thin wiring (`controllers/`, routes files). Full architecture, stack, and how-to-write-a-test examples: **`docs/TESTING.md`** — read it before adding or modifying any test.
+
+---
+
 ## Constraints for agents
 
 - Work on branch `razs_ai`, not `main`.
@@ -100,6 +107,7 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 - Extend `FinancialProviderAdapter` for new providers — do not create parallel provider-specific systems.
 - Use "Group" terminology throughout — never introduce "Household".
 - All API input must be validated with shared Zod schemas.
+- Every new/changed `controllers/`, `services/`, `utils/`, `hooks/`, or `components/` file gets a matching test file under that folder's `tests/` — see `docs/TESTING.md`.
 - See "Comment standard" and "File-role structure" below — both are required reading before writing or editing any code in this repo.
 
 ---
@@ -146,7 +154,7 @@ function resolveAccount(accountId: string | null) { ... }
 
 ## File-role structure
 
-A file's role is fixed by its location: types only in a module's `types.ts` file (or `types/` folder), services only in `services/` files, API clients only in `<module>.client.ts` files, controllers only in `controllers/` files. Never define a type, a service function, a client call, or a controller handler inline in a file of a different role — relocate it, even if it's small. See `apps/api/CLAUDE.md` and `apps/web/CLAUDE.md` for the exact per-app layering these roles map to, including the full accepted folder structure for each app.
+A file's role is fixed by its location: types only in a module's `types.ts` file (or `types/` folder), services only in `services/` files, API clients only in `<module>.client.ts` files, controllers only in `controllers/` files, tests only in a `tests/` folder. Never define a type, a service function, a client call, a controller handler, or a test inline in a file of a different role — relocate it, even if it's small. See `apps/api/CLAUDE.md` and `apps/web/CLAUDE.md` for the exact per-app layering these roles map to, including the full accepted folder structure for each app; see `docs/TESTING.md` for the testing-specific placement rules.
 
 ---
 
@@ -157,7 +165,7 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 | Files | `camelCase.ts` | `transactions.routes.ts` |
 | Routes file | `<module>.routes.ts` | `accounts.routes.ts` |
 | Service file | `<role>.service.ts` under a module's `services/` folder | `read.service.ts` |
-| Test file | `<subject>.test.ts` | `syncfyAutoSync.test.ts` |
+| Test file | `<subject>.test.ts`, in that subject's `tests/` folder | `services/tests/create.service.test.ts` |
 | Prisma models | `PascalCase` | `TransactionRelation` |
 | DB columns | `camelCase` (Prisma convention) | `createdAt`, `providerCredentialId` |
 | Env vars | `SCREAMING_SNAKE_CASE` | `SYNCFY_AUTO_SYNC_ENABLED` |
@@ -176,7 +184,7 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 | `docs/AUTH_FLOW.md` | JWT, Google OAuth, middleware, token storage |
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
 | `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements |
-| `docs/TESTING.md` | Test files, what each covers, how to run |
+| `docs/TESTING.md` | Test architecture, stack, coverage thresholds, how to write and run tests |
 | `apps/api/CLAUDE.md` | Backend module system, request lifecycle, provider pattern |
 | `apps/web/CLAUDE.md` | Frontend routing, page-module structure, shared components |
 | `database/CLAUDE.md` | Schema conventions, migration workflow |
