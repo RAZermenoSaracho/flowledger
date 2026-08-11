@@ -313,7 +313,10 @@ describe("approveSettlement", () => {
       })
     );
     expect(createNotificationsMock).toHaveBeenCalled();
-    expect(result.debt).toBeDefined();
+    // The returned debt goes through balanceDebt() (same as
+    // settleDebtDirectly's return), so it carries the computed
+    // outstandingAmount a caller needs without a follow-up fetch.
+    expect(result.debt.outstandingAmount).toBe(50);
   });
 });
 
