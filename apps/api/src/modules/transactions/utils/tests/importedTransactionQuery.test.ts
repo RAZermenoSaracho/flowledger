@@ -1,10 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import {
   importedTransactionSearchWhere,
   importedTransactionType,
   importValidationError,
+  resolveImportedTransactionIds,
   resolveImportedTransactionSelectionIds
 } from "../importedTransactionQuery.js";
 
@@ -78,6 +79,102 @@ describe("importValidationError", () => {
       id: "it-1",
       message: "Missing category"
     });
+  });
+});
+
+describe("resolveImportedTransactionIds", () => {
+  beforeEach(() => {
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(0);
+  });
+
+  it("resolves ids scoped to the user when rawWhere is undefined", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" },
+      { id: "it-2" }
+    ] as never);
+
+    const ids = await resolveImportedTransactionIds("user-1", undefined);
+
+    expect(ids).toEqual(["it-1", "it-2"]);
+  });
+
+  it("expands 'and'/'or'/'not' nodes without throwing and still resolves ids", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" }
+    ] as never);
+
+    const ids = await resolveImportedTransactionIds("user-1", {
+      and: [
+        { or: [{ field: "status", op: "=", value: "pending" }] },
+        { not: { field: "status", op: "=", value: "ignored" } }
+      ]
+    });
+
+    expect(ids).toEqual(["it-1"]);
+  });
+
+  it("resolves the virtual 'search' field into an id-in condition via a lookup query, caching repeated terms", async () => {
+    prismaMock.providerImportedTransaction.findMany
+      .mockResolvedValueOnce([{ id: "matched-1" }] as never) // search lookup
+      .mockResolvedValueOnce([{ id: "matched-1" }] as never); // sieve hydration
+
+    const ids = await resolveImportedTransactionIds("user-1", {
+      or: [
+        { field: "search", op: "contains", value: "coffee" },
+        { field: "search", op: "contains", value: "coffee" }
+      ]
+    });
+
+    expect(ids).toEqual(["matched-1"]);
+    // Only one lookup query for the search term despite it appearing twice,
+    // plus the sieve's own hydration call — two findMany calls total.
+    expect(prismaMock.providerImportedTransaction.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a blank search term as no condition, skipping the lookup query", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" }
+    ] as never);
+
+    await resolveImportedTransactionIds("user-1", {
+      field: "search",
+      op: "contains",
+      value: "   "
+    });
+
+    // Only the sieve's own hydration call — no search lookup query fired.
+    expect(prismaMock.providerImportedTransaction.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a 'not' node whose inner condition expands to nothing", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" }
+    ] as never);
+
+    const ids = await resolveImportedTransactionIds("user-1", {
+      not: { field: "search", op: "contains", value: "" }
+    });
+
+    expect(ids).toEqual(["it-1"]);
+    // No search lookup fired — only the sieve's own hydration call.
+    expect(prismaMock.providerImportedTransaction.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveImportedTransactionSelectionIds — 'filtered' mode", () => {
+  it("delegates to resolveImportedTransactionIds using the selection's where", async () => {
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(0);
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" },
+      { id: "it-2" }
+    ] as never);
+
+    const ids = await resolveImportedTransactionSelectionIds("user-1", {
+      mode: "filtered",
+      where: { field: "status", op: "=", value: "pending" }
+    });
+
+    expect(ids).toEqual(["it-1", "it-2"]);
   });
 });
 
