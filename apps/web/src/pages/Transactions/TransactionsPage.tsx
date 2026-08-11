@@ -100,7 +100,17 @@ export function TransactionsPage() {
     [currenciesQuery.data]
   );
 
-  const allTransactionCategories = allCategoriesQuery.data ?? [];
+  // Memoized: an inline `data ?? []` fallback produces a fresh array
+  // reference on every render whenever `data` is undefined, which would
+  // invalidate `transactionSearchFields` below every render, which in
+  // turn feeds SearchBar's `fields` prop — SearchBar re-fires its own
+  // onQueryChange effect whenever `fields` changes identity, causing an
+  // unbounded render loop (see ImportedTransactionsFiltersCard.tsx for
+  // the same hazard called out explicitly).
+  const allTransactionCategories = useMemo(
+    () => allCategoriesQuery.data ?? [],
+    [allCategoriesQuery.data]
+  );
   const [transactionQuery, setTransactionQuery] = useState<SearchBarQuery>({});
 
   const transactionsQuery = useQuery({

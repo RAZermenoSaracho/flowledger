@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { ImportedTransactionSelection } from "../../../services/transactions.client";
@@ -36,8 +36,17 @@ export function useImportedTransactionsWorkflow({
         sort: importedQuery.sort
       })
   });
-  const importedTransactions =
-    importedTransactionsQuery.data?.importedTransactions ?? [];
+  // Memoized: an inline `data ?? []` fallback produces a fresh array
+  // reference on every render whenever `data` is undefined, which
+  // propagates into ImportedTransactionsFiltersCard's `fields`
+  // useMemo (via `providerAccountOptions`/`importedAccountOptions` in
+  // TransactionsPage.tsx) and re-triggers SearchBar's onQueryChange
+  // effect every render — an unbounded render loop (same hazard fixed
+  // in TransactionsPage.tsx's `allTransactionCategories`).
+  const importedTransactions = useMemo(
+    () => importedTransactionsQuery.data?.importedTransactions ?? [],
+    [importedTransactionsQuery.data]
+  );
   const importedSelection: ImportedTransactionSelection =
     selectAllFilteredImported
       ? { mode: "filtered", where: importedQuery.where }
