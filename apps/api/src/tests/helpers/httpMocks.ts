@@ -12,11 +12,13 @@ export function mockRequest(overrides: Partial<Request> = {}): Request {
   } as unknown as Request;
 }
 
-/** Builds a fake `Response` for controller unit tests: `status`/`json`/`send` are chainable `vi.fn()` spies. */
+/** Builds a fake `Response` for controller unit tests: `status`/`json`/`send`/`setHeader`/`redirect` are chainable `vi.fn()` spies. */
 export function mockResponse(): Response {
   const res: Partial<Response> = {};
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
   res.send = vi.fn().mockReturnValue(res);
+  res.setHeader = vi.fn().mockReturnValue(res);
+  res.redirect = vi.fn();
   return res as Response;
 }
