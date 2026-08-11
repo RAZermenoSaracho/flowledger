@@ -99,6 +99,17 @@ If you change a schema or type and the apps aren't picking it up, rebuild shared
 
 ---
 
+## Testing
+
+Vitest. Each `src/schemas/<domain>.ts` gets a sibling `src/schemas/tests/<domain>.test.ts` covering `.parse()`/`.safeParse()` on valid and invalid input for every schema in that file. `constants/` and `types/` are excluded from coverage (static data / types, not logic) and don't need dedicated test files. Coverage target: ~90–95% on `schemas/` (schema-validation edge cases are cheap to get wrong and expensive to get wrong silently). Full architecture: `docs/TESTING.md`.
+
+```bash
+npm run test -w packages/shared            # run shared tests only
+npm run test:coverage -w packages/shared   # with coverage report
+```
+
+---
+
 ## What to never do
 
 - Import from `apps/api` or `apps/web` — this package has no knowledge of either app
@@ -117,3 +128,4 @@ If you change a schema or type and the apps aren't picking it up, rebuild shared
 | `src/schemas/common.ts` | Shared schema primitives used across many domain schemas |
 | `src/constants/index.ts` | All shared enum constants — check before adding a new one |
 | `src/types/index.ts` | All shared TypeScript types and how they relate to constants |
+| `docs/TESTING.md` | Test architecture, coverage thresholds, how to write a schema test |

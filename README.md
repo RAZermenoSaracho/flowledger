@@ -354,6 +354,14 @@ Testing:
 
 bash npm run test 
 
+Test coverage (writes an HTML + lcov report per workspace):
+
+bash npm run test:coverage 
+
+See `docs/TESTING.md` for the test architecture, stack (Vitest everywhere, supertest +
+testcontainers-postgres + vitest-mock-extended in the API, Testing Library + msw in the web app),
+and coverage thresholds.
+
 Linting:
 
 bash npm run lint 
@@ -388,7 +396,7 @@ bash npm run prisma:seed
 - `docs/DOMAIN_LOGIC.md` — shared expenses, debts, settlements, reports
 - `docs/PROVIDER_SYNC.md` — Syncfy integration and auto-sync scheduler
 - `docs/AUTH_FLOW.md` — JWT, OAuth flows
-- `docs/TESTING.md` — test file map
+- `docs/TESTING.md` — test architecture, stack, coverage thresholds, how to write and run tests
 - `ROADMAP.md` — full milestone status and product direction
 
 ---
