@@ -19,4 +19,18 @@ export const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
 
 beforeEach(() => {
   mockReset(prismaMock);
+
+  // datasieve's Prisma adapter (used by every module's `createSieve()`-based
+  // read.service.ts) drives both non-paginated and offset-paginated queries
+  // through `prisma.$transaction([count(), findMany()])`; other services use
+  // the interactive-callback form (`prisma.$transaction(async (tx) => ...)`).
+  // Passing either form straight through keeps individual test files from
+  // having to know `$transaction` is involved at all.
+  prismaMock.$transaction.mockImplementation((arg: unknown) => {
+    if (Array.isArray(arg)) return Promise.all(arg);
+    if (typeof arg === "function") {
+      return (arg as (tx: DeepMockProxy<PrismaClient>) => unknown)(prismaMock);
+    }
+    return Promise.resolve(arg);
+  });
 });
