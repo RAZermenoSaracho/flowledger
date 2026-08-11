@@ -19,6 +19,7 @@ export default defineConfig({
         "src/main.tsx",
         "src/polyfills.ts",
         "src/constants/**",
+        "src/**/config/**",
         "src/vite-env.d.ts"
       ],
       thresholds: {
