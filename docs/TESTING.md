@@ -147,21 +147,29 @@ describe("createTransaction", () => {
 ```ts
 // apps/api/src/modules/debts/tests/debts.routes.test.ts
 import request from "supertest";
+import type { Express } from "express";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { app } from "../../../app.js";
 import { startTestDatabase, stopTestDatabase } from "../../../tests/helpers/testDatabase.js";
 import { createAuthedUser } from "../../../tests/helpers/authTestUser.js";
 
+let app: Express;
+
 describe("GET /debts", () => {
   beforeAll(async () => {
+    // app.js constructs the real PrismaClient at import time, which reads
+    // DATABASE_URL at construction (not lazily on first query) — so app.js
+    // must be dynamically imported *after* startTestDatabase() points
+    // DATABASE_URL at the container, never statically imported at the top
+    // of the file.
     await startTestDatabase();
+    ({ app } = await import("../../../app.js"));
   });
   afterAll(async () => {
     await stopTestDatabase();
   });
 
   it("returns only the requesting user's debt participants", async () => {
-    const { token } = await createAuthedUser();
+    const { token } = await createAuthedUser(app);
 
     const response = await request(app)
       .get("/debts")
