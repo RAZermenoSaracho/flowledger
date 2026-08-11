@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
+/**
+ * `transaction.groupBy` is Prisma's most heavily overloaded generic method —
+ * `vitest-mock-extended`'s typing can't express `.mockResolvedValue(...)` on
+ * it directly, so this narrows it to a plain mock-like shape for test use.
+ */
+interface GroupByMock {
+  mockResolvedValue: (value: unknown) => GroupByMock;
+  mockResolvedValueOnce: (value: unknown) => GroupByMock;
+}
+const groupByMock = prismaMock.transaction.groupBy as unknown as GroupByMock;
+
 vi.mock("../../utils/importedTransactionQuery.js", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("../../utils/importedTransactionQuery.js")
@@ -184,7 +195,7 @@ describe("listTransactions — 'transactionFilterType' virtual field", () => {
 
 describe("getTransactionsSummary", () => {
   it("computes income/expenses/balance from the grouped aggregation", async () => {
-    prismaMock.transaction.groupBy.mockResolvedValue([
+    groupByMock.mockResolvedValue([
       { type: "income", total: "1000" },
       { type: "expense", total: "400" }
     ] as never);
@@ -195,7 +206,7 @@ describe("getTransactionsSummary", () => {
   });
 
   it("defaults missing income/expense buckets to 0", async () => {
-    prismaMock.transaction.groupBy.mockResolvedValue([] as never);
+    groupByMock.mockResolvedValue([] as never);
 
     expect(await getTransactionsSummary("user-1", undefined)).toEqual({
       income: 0,

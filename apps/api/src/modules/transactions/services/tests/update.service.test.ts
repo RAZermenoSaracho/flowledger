@@ -103,7 +103,7 @@ describe("updateTransaction", () => {
       existingTransaction() as never
     );
     const tx = mockTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -130,7 +130,7 @@ describe("updateTransaction", () => {
       amountInPreferredCurrency: 1700
     });
     const tx = mockTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -144,7 +144,7 @@ describe("updateTransaction", () => {
       existingTransaction() as never
     );
     const tx = mockTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -163,7 +163,7 @@ describe("updateTransaction", () => {
         update: vi.fn().mockResolvedValue({ id: "txn-1", type: "transfer" })
       }
     });
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -226,7 +226,7 @@ describe("ignoreImportedTransaction", () => {
         findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "it-1", status: "ignored" })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -241,7 +241,7 @@ describe("ignoreImportedTransaction", () => {
         findFirst: vi.fn().mockResolvedValue(null)
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -257,7 +257,7 @@ describe("ignoreImportedTransaction", () => {
         findFirst: vi.fn().mockResolvedValue({ id: "it-1", status: "processed" })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -275,7 +275,7 @@ describe("unignoreImportedTransaction", () => {
         findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "it-1", status: "pending" })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -290,7 +290,7 @@ describe("unignoreImportedTransaction", () => {
         findFirst: vi.fn().mockResolvedValue({ id: "it-1", status: "pending" })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -309,7 +309,7 @@ describe("batchIgnoreImportedTransactions", () => {
         updateMany: vi.fn()
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -335,7 +335,7 @@ describe("batchIgnoreImportedTransactions", () => {
         updateMany: vi.fn().mockResolvedValue({ count: 2 })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -357,7 +357,7 @@ describe("batchUnignoreImportedTransactions", () => {
         updateMany: vi.fn()
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -379,7 +379,7 @@ describe("batchUnignoreImportedTransactions", () => {
         updateMany: vi.fn().mockResolvedValue({ count: 1 })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 

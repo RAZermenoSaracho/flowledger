@@ -132,7 +132,7 @@ describe("handleGoogleCallback", () => {
       },
       user: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -176,7 +176,7 @@ describe("handleGoogleCallback", () => {
         update: vi.fn().mockResolvedValue({ id: "user-1", avatarUrl: "https://example.com/pic.jpg" })
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -222,7 +222,7 @@ describe("handleGoogleCallback", () => {
         update: vi.fn()
       }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 

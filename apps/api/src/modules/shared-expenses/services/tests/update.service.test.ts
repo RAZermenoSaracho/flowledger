@@ -62,7 +62,7 @@ describe("updateSharedExpense", () => {
     );
     getOwnedTransactionMock.mockResolvedValue(null);
     const tx = mockUpdatedTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -89,7 +89,7 @@ describe("updateSharedExpense", () => {
       { userId: "user-2" },
       { userId: "user-3" }
     ]);
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -120,7 +120,7 @@ describe("updateSharedExpense", () => {
       { userId: "user-2", participantName: "Existing", shareAmount: 100, paidAmount: 0, status: "pending" }
     ] as never);
     const tx = mockUpdatedTx([{ userId: "user-2" }]);
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 

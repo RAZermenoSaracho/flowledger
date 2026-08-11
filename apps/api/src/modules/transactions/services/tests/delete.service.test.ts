@@ -20,7 +20,7 @@ describe("deleteTransaction", () => {
       notification: { deleteMany: vi.fn() },
       transaction: { delete: vi.fn() }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -48,7 +48,7 @@ describe("deleteTransaction", () => {
       notification: { deleteMany: vi.fn() },
       transaction: { delete: vi.fn() }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 

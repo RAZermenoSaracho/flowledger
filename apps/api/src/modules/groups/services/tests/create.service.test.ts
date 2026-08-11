@@ -123,7 +123,7 @@ describe("addGroupMember", () => {
     prismaMock.group.findUnique.mockResolvedValue({ isArchived: false } as never);
     prismaMock.user.findUnique.mockResolvedValue({ id: "user-2" } as never);
     prismaMock.groupMember.findUnique.mockResolvedValue(null);
-    prismaMock.$transaction.mockImplementation((arg: unknown) => {
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) => {
       if (typeof arg === "function") {
         const tx = {
           group: { findUnique: vi.fn().mockResolvedValue({ id: "group-1", name: "Roommates" }) },
@@ -175,7 +175,7 @@ describe("addGroupCategory", () => {
     prismaMock.group.findUnique.mockResolvedValue({ isArchived: false } as never);
 
     const categoryCreate = vi.fn().mockResolvedValue({ id: "cat-1" });
-    prismaMock.$transaction.mockImplementation((arg: unknown) => {
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) => {
       if (typeof arg === "function") {
         const tx = {
           groupMember: {

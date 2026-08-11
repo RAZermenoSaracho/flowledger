@@ -72,7 +72,7 @@ describe("createTransaction", () => {
       amountInPreferredCurrency: 100
     });
     const tx = mockTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -98,7 +98,7 @@ describe("createTransaction", () => {
       amountInPreferredCurrency: 100
     });
     const tx = mockTx();
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
@@ -182,7 +182,7 @@ describe("importProviderImportedTransaction", () => {
       },
       transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
     };
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 

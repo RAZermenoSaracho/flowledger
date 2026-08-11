@@ -29,14 +29,14 @@ const { getManualSyncfyRefreshRetryDelaysMs } = await import(
 
 describe("getSyncfyAutoSyncSchedulerConfig", () => {
   it("reads scheduler settings from env plus the retry-delay schedule", () => {
-    vi.mocked(getManualSyncfyRefreshRetryDelaysMs).mockReturnValue([1000, 5000]);
+    vi.mocked(getManualSyncfyRefreshRetryDelaysMs).mockReturnValue([0, 5000]);
 
     expect(getSyncfyAutoSyncSchedulerConfig()).toEqual({
       enabled: true,
       intervalMinutes: 17,
       jobTimeoutMs: 45678,
       concurrency: 3,
-      retryDelaysMs: [1000, 5000]
+      retryDelaysMs: [0, 5000]
     });
   });
 });

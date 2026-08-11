@@ -80,7 +80,7 @@ describe("syncfyProvider.createUser", () => {
       rawData: { raw: true }
     } as never);
 
-    const result = await syncfyProvider.createUser({
+    const result = await syncfyProvider.createUser!({
       externalUserId: "user-1"
     } as never);
 
@@ -99,14 +99,14 @@ describe("syncfyProvider.createUser", () => {
 describe("syncfyProvider.createSession", () => {
   it("throws a 400 when neither providerUserId nor externalUserId is given", async () => {
     await expect(
-      syncfyProvider.createSession({} as never)
+      syncfyProvider.createSession!({} as never)
     ).rejects.toThrow("Syncfy session requires a provider user id");
   });
 
   it("creates a session using providerUserId when present", async () => {
     createSyncfySessionMock.mockResolvedValue({ token: "tok-1" });
 
-    const result = await syncfyProvider.createSession({
+    const result = await syncfyProvider.createSession!({
       providerUserId: "su-1",
       externalUserId: "user-1"
     } as never);
@@ -118,7 +118,7 @@ describe("syncfyProvider.createSession", () => {
   it("falls back to externalUserId when providerUserId is absent", async () => {
     createSyncfySessionMock.mockResolvedValue({ token: "tok-2" });
 
-    await syncfyProvider.createSession({ externalUserId: "user-1" } as never);
+    await syncfyProvider.createSession!({ externalUserId: "user-1" } as never);
 
     expect(createSyncfySessionMock).toHaveBeenCalledWith("user-1");
   });
@@ -127,7 +127,7 @@ describe("syncfyProvider.createSession", () => {
 describe("syncfyProvider.createConnectionFlow", () => {
   it("throws a 400 when there's no FlowLedger user id", async () => {
     await expect(
-      syncfyProvider.createConnectionFlow({} as never)
+      syncfyProvider.createConnectionFlow!({} as never)
     ).rejects.toThrow("Syncfy connection requires a FlowLedger user");
   });
 
@@ -138,7 +138,7 @@ describe("syncfyProvider.createConnectionFlow", () => {
     } as never);
     createSyncfySessionMock.mockResolvedValue({ token: "tok-1" });
 
-    const result = await syncfyProvider.createConnectionFlow({
+    const result = await syncfyProvider.createConnectionFlow!({
       providerUserId: "user-1"
     } as never);
 

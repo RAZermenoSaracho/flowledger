@@ -153,7 +153,7 @@ describe("createSharedExpense", () => {
       executionCurrency: "USD"
     } as never);
     normalizeSharedExpenseParticipantsMock.mockResolvedValue([] as never);
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function"
         ? (arg as (tx: unknown) => unknown)(mockTx())
         : Promise.resolve(arg)

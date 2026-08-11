@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
+/**
+ * `transaction.groupBy` is Prisma's most heavily overloaded generic method —
+ * `vitest-mock-extended`'s typing can't express `.mockResolvedValue(...)` on
+ * it directly, so this narrows it to a plain mock-like shape for test use.
+ */
+interface GroupByMock {
+  mockResolvedValue: (value: unknown) => GroupByMock;
+  mockResolvedValueOnce: (value: unknown) => GroupByMock;
+}
+const groupByMock = prismaMock.transaction.groupBy as unknown as GroupByMock;
+
 vi.mock("../../../currencies/services/read.service.js", () => ({
   getExchangeRate: vi.fn()
 }));
@@ -30,7 +41,7 @@ describe("getSummaryReport", () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       preferredCurrency: "mxn"
     } as never);
-    prismaMock.transaction.groupBy.mockResolvedValue([]);
+    groupByMock.mockResolvedValue([]);
 
     const result = await getSummaryReport("user-1", {});
 
@@ -38,7 +49,7 @@ describe("getSummaryReport", () => {
   });
 
   it("uses the explicit filter currency over the user's preference", async () => {
-    prismaMock.transaction.groupBy.mockResolvedValue([]);
+    groupByMock.mockResolvedValue([]);
 
     const result = await getSummaryReport("user-1", { currency: "EUR" });
 
@@ -47,7 +58,7 @@ describe("getSummaryReport", () => {
   });
 
   it("sums same-currency rows without calling getExchangeRate", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([groupByRow(1000)] as never) // income
       .mockResolvedValueOnce([groupByRow(1000)] as never) // net income
       .mockResolvedValueOnce([groupByRow(400)] as never) // expense
@@ -65,7 +76,7 @@ describe("getSummaryReport", () => {
 
   it("converts a different-currency row using the live exchange rate", async () => {
     getExchangeRateMock.mockResolvedValue(17);
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([groupByRow(100, "USD")] as never)
       .mockResolvedValueOnce([groupByRow(100, "USD")] as never)
       .mockResolvedValueOnce([] as never)
@@ -78,7 +89,7 @@ describe("getSummaryReport", () => {
   });
 
   it("uses gross amounts for reportIncome/reportExpenses in gross mode", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([groupByRow(1000)] as never) // income
       .mockResolvedValueOnce([groupByRow(800)] as never) // net income (after offset)
       .mockResolvedValueOnce([groupByRow(400)] as never) // expense
@@ -94,7 +105,7 @@ describe("getSummaryReport", () => {
   });
 
   it("uses net amounts for reportIncome/reportExpenses by default", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([groupByRow(1000)] as never)
       .mockResolvedValueOnce([groupByRow(800)] as never)
       .mockResolvedValueOnce([groupByRow(400)] as never)
@@ -109,7 +120,7 @@ describe("getSummaryReport", () => {
 
 describe("getByCategoryReport", () => {
   it("maps grouped rows to category chart rows with names from the category lookup", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([
         groupByRow(300, "USD", { categoryId: "food", type: "expense" })
       ] as never)
@@ -130,7 +141,7 @@ describe("getByCategoryReport", () => {
   });
 
   it("labels an uncategorized row as 'Uncategorized'", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([
         groupByRow(50, "USD", { categoryId: null, type: "expense" })
       ] as never)
@@ -144,7 +155,7 @@ describe("getByCategoryReport", () => {
   });
 
   it("nets expense reimbursements against their original category's total", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([
         groupByRow(300, "USD", { categoryId: "food", type: "expense" })
       ] as never)
@@ -166,7 +177,7 @@ describe("getByCategoryReport", () => {
   });
 
   it("includes a reimbursement-only category (fully offset, not in the main rows)", async () => {
-    prismaMock.transaction.groupBy
+    groupByMock
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([
         groupByRow(50, "USD", { expenseOffsetCategoryId: "settlement" })

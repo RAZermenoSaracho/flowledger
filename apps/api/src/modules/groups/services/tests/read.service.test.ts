@@ -8,6 +8,17 @@ import {
   listGroups
 } from "../read.service.js";
 
+/**
+ * `transaction.groupBy` is Prisma's most heavily overloaded generic method —
+ * `vitest-mock-extended`'s typing can't express `.mockResolvedValue(...)` on
+ * it directly, so this narrows it to a plain mock-like shape for test use.
+ */
+interface GroupByMock {
+  mockResolvedValue: (value: unknown) => GroupByMock;
+  mockResolvedValueOnce: (value: unknown) => GroupByMock;
+}
+const groupByMock = prismaMock.transaction.groupBy as unknown as GroupByMock;
+
 describe("getGroupMembership", () => {
   it("returns null when no groupId is given", async () => {
     expect(await getGroupMembership("user-1", undefined)).toBeNull();
@@ -118,7 +129,7 @@ describe("getGroupById", () => {
   it("throws a 404 when the group doesn't exist", async () => {
     prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
     prismaMock.group.findUnique.mockResolvedValue(null);
-    prismaMock.transaction.groupBy.mockResolvedValue([] as never);
+    groupByMock.mockResolvedValue([] as never);
 
     await expect(getGroupById("user-1", "group-1")).rejects.toThrow(
       "Group not found"
@@ -128,7 +139,7 @@ describe("getGroupById", () => {
   it("computes income/expense/balance summary from grouped transaction totals", async () => {
     prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
     prismaMock.group.findUnique.mockResolvedValue({ id: "group-1" } as never);
-    prismaMock.transaction.groupBy.mockResolvedValue([
+    groupByMock.mockResolvedValue([
       { type: "income", _sum: { amount: { toNumber: () => 1000 } } },
       { type: "expense", _sum: { amount: { toNumber: () => 400 } } }
     ] as never);

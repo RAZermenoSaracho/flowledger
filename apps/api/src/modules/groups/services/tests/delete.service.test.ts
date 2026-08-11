@@ -42,7 +42,7 @@ describe("removeGroupMember", () => {
   it("allows a member to remove themself without requiring admin", async () => {
     getGroupMembershipMock.mockResolvedValue({} as never);
     prismaMock.groupMember.findUnique.mockResolvedValue({ id: "m1" } as never);
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function"
         ? (arg as (tx: unknown) => unknown)({
             categoryUser: { deleteMany: vi.fn() },
@@ -60,7 +60,7 @@ describe("removeGroupMember", () => {
   it("requires admin to remove someone else", async () => {
     getGroupAdminMock.mockResolvedValue({} as never);
     prismaMock.groupMember.findUnique.mockResolvedValue({ id: "m1" } as never);
-    prismaMock.$transaction.mockImplementation((arg: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
       typeof arg === "function"
         ? (arg as (tx: unknown) => unknown)({
             categoryUser: { deleteMany: vi.fn() },
