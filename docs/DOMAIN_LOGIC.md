@@ -45,6 +45,10 @@ In reports, expense offset amounts are subtracted from the expense category's ne
 
 Transfers: cannot have categories, groups, or shared expenses. Source and destination accounts must differ.
 
+### Currency
+
+Every `Transaction` is denominated in `executionCurrency` (defaults to the account's currency, falling back to the user's `preferredCurrency`, falling back to `"USD"`). `resolveTransactionCurrencyFields()` in `transactions/utils/transactionCurrency.ts` looks up the live rate from `executionCurrency` to the user's `preferredCurrency` (via `currencies/services/read.service.ts`'s `getExchangeRate()`) and snapshots it as `exchangeRate`, with `amountInPreferredCurrency = amount * exchangeRate`. This snapshot is only recomputed when the transaction's `executionCurrency` or `amount` changes — it does not retroactively update if the user later changes their `preferredCurrency`.
+
 ### Account balance calculation
 
 `calculateAccountBalance(accountId, transactions, initialBalance?)` in `transactionCalculations.ts`:
@@ -54,7 +58,7 @@ Transfers: cannot have categories, groups, or shared expenses. Source and destin
 - transfer with `accountId = accountId` (source) → -amount
 - transfer with `transferToAccountId = accountId` (destination) → +amount
 
-Balance = `initialBalance + (sum of above)`
+Balance = `initialBalance + (sum of above)`, computed in the account's own native currency (`amount`, not `amountInPreferredCurrency`). `GET /accounts` additionally converts each account's balance to the user's `preferredCurrency` at the live rate, returned as `currentBalanceInPreferredCurrency`.
 
 ### Transaction relationships
 
@@ -83,7 +87,7 @@ Sum of `shareAmount` across all participants should equal the transaction amount
 
 ### Debt direction logic
 
-Located: `apps/api/src/modules/debts/debtDirection.ts`
+Located: `apps/api/src/modules/debts/utils/debtDirection.ts`
 
 Debt direction depends on the transaction type:
 
@@ -106,13 +110,14 @@ The debt view (`GET /debts`) returns:
 
 - **iOwe** — participations where `debtorUserId = userId` AND `outstandingAmount > 0`
 - **owedToMe** — participations where `creditorUserId = userId` AND `outstandingAmount > 0`
+- **balances** — `iOwe`/`owedToMe` grouped by counterparty (`buildPersonBalances()` in `debts/utils/personBalances.ts`) into per-person summaries (`theyOweMeTotal`, `iOweThemTotal`, `netBalance`), sorted by largest absolute net balance first
 - **pendingSettlementRequests** — `SettlementRequest` where `status = "pending"` AND user is debtor or creditor
 - **approvedSettlementRequests** — approved requests where debtor is the current user (awaiting transaction registration)
 - **settledDebts** — participations with `outstandingAmount = 0`
 
-`outstandingAmount = shareAmount - paidAmount`
+`outstandingAmount = shareAmount - paidAmount`, in the debt's own `currency` (inherited from the underlying transaction). `pendingSettlementAmount` = sum of pending settlement requests for a debt (cannot submit a new request that exceeds `outstanding - pending`).
 
-`pendingSettlementAmount` = sum of pending settlement requests for a debt (cannot submit a new request that exceeds `outstanding - pending`).
+Each debt is also converted to the viewer's `preferredCurrency` at the live rate, returned as `outstandingAmountInPreferredCurrency` — `balances` totals are computed from this converted amount so debts in different currencies can be summed per counterparty.
 
 ---
 
@@ -141,12 +146,13 @@ Body: `{ accountId, categoryId, expenseOffsetCategoryId? }`
 2. Verifies amount still fits outstanding balance
 3. Updates `SharedExpenseParticipant.paidAmount += amount`, recalculates `status`
 4. Marks `SettlementRequest.status = "approved"`
-5. Creates debtor transaction: `type = "expense"`, amount, date = now, account/category from request
-6. Creates creditor transaction: `type = "income"`, amount, date = now, account/category from approval, `expenseOffsetCategoryId` if applicable
-7. Creates `TransactionRelation` pairs between debtor and creditor transactions
-8. Links both transactions to the `SettlementRequest`
-9. Notifies debtor: `settlement_approved` notification with transaction IDs
-10. If all participants are paid: marks `SharedExpense.status = "settled"`
+5. Converts `SettlementRequest.amount` (denominated in the debt's `currency`) into the debtor's account currency and, separately, the creditor's account currency, each at the live exchange rate at approval time (`convertSettlementAmount()` in `debts/utils/settlementCurrency.ts`) — **not** the rate captured when the debt was created, and not necessarily the same converted amount on both sides if the two accounts use different currencies
+6. Creates debtor transaction: `type = "expense"`, the debtor-currency-converted amount, date = now, account/category from request
+7. Creates creditor transaction: `type = "income"`, the creditor-currency-converted amount, date = now, account/category from approval, `expenseOffsetCategoryId` if applicable
+8. Creates `TransactionRelation` pairs between debtor and creditor transactions
+9. Links both transactions to the `SettlementRequest`
+10. Notifies debtor: `settlement_approved` notification with transaction IDs
+11. If all participants are paid: marks `SharedExpense.status = "settled"`
 
 ### Rejection (creditor)
 
@@ -161,11 +167,19 @@ Body: `{ accountId, categoryId, expenseOffsetCategoryId? }`
 
 Creditor manually marks the full debt as paid immediately (no settlement request flow). Updates `paidAmount` to full `shareAmount`, marks status `paid`. Cancels any pending settlement requests for this participant.
 
+### Batch requests and approvals
+
+`POST /debts/settlement-requests/batch` and `POST /settlements/approve/batch` accept an array of requests/approvals and process them sequentially, each reusing the single-item request/approval logic above.
+
 ---
 
 ## Reports
 
-Located: `apps/api/src/modules/reports/reports.routes.ts` and `transactionCalculations.ts`
+Located: `apps/api/src/modules/reports/services/read.service.ts`, `reports/utils/reportCurrency.ts`, `reports/utils/categoryChartRows.ts`, and `transactions/utils/transactionCalculations.ts`.
+
+### Report currency
+
+Each report resolves a single `targetCurrency` (`resolveReportCurrency()`): the caller's explicit `filters.currency`, or else the user's `preferredCurrency` (falling back to `"USD"`). Transactions are stored (and, for the summary/category reports, grouped by Prisma `groupBy`) per their own `executionCurrency`; each currency's subtotal is then converted to `targetCurrency` at the live exchange rate and summed (`collapseCurrencySums()` / `sumCurrencyRows()` in `read.service.ts`, `convertAmount()` in `reportCurrency.ts` for the cashflow report). Every report response includes the resolved `currency` alongside its figures.
 
 ### Summary
 
@@ -174,40 +188,42 @@ Located: `apps/api/src/modules/reports/reports.routes.ts` and `transactionCalcul
 - `totalGrossExpenses` — sum of all expense transactions
 - `totalExpenseReimbursements` — sum of income transactions that have `expenseOffsetCategoryId`
 - `totalNetExpenses` = `totalGrossExpenses - totalExpenseReimbursements`
-- `currentBalance` = `totalGrossIncome - totalGrossExpenses`
+- `currentBalance` = `totalGrossIncome - totalGrossExpenses` (always gross, regardless of `amountMode`)
+- `reportIncome` / `reportExpenses` — `filters.amountMode` (`"net"`, the default, or `"gross"`) selects between the net and gross totals above
+- `reportBalance` = `reportIncome - reportExpenses`
 
 Transfers are excluded from all summary calculations.
 
 ### Category report
 
-Groups transactions by `(categoryId, type)`. Separately aggregates:
+Groups transactions by `(categoryId, type, executionCurrency)`, then collapses to `targetCurrency`. Separately aggregates:
 - Expense reimbursements per expense category (from income transactions with `expenseOffsetCategoryId`)
 - Income offset amounts per income category (from income transactions with `expenseOffsetCategoryId`)
 
-Net expense = gross expense - reimbursements. Net income = gross income - income offsets.
+Net expense = gross expense - reimbursements. Net income = gross income - income offsets. `filters.amountMode` selects which figure each row displays and which rows are included (`prepareCategoryChartRows()` in `categoryChartRows.ts` — e.g. in `"gross"` mode a category with only reimbursements and no gross expense is dropped). Rows are chart-ready: sorted by displayed total descending, with a display color/label attached.
 
 ### Monthly cashflow
 
-`calculateMonthlyCashflow(transactions, options?)` in `transactionCalculations.ts`:
+`calculateMonthlyCashflow(transactions, filters?)` in `transactionCalculations.ts` — a pure function operating on whatever `amount` it's given. The caller (`getMonthlyCashflowReport()`) first converts every transaction's `amount` from its own `executionCurrency` to `targetCurrency` (`convertAmount()`), so the amounts this function sums are already in the report's target currency.
 
 Groups by `YYYY-MM`. For each month:
 - `grossIncome` — sum of income
 - `incomeOffsets` — income with `expenseOffsetCategoryId`
 - `netIncome` = `grossIncome - incomeOffsets`
 - `grossExpenses` — sum of expenses
-- `expenseReimbursements` — income with matching `expenseOffsetCategoryId` (filtered by `options.categoryIds`)
+- `expenseReimbursements` — income with matching `expenseOffsetCategoryId` (filtered by `filters.categoryIds`)
 - `netExpenses` = `grossExpenses - expenseReimbursements`
 - `income` = `grossIncome` (alias)
 - `expenses` = `grossExpenses` (alias)
 - `balance` = `grossIncome - grossExpenses`
 
-Transfers are excluded from cashflow. Category filters apply to both `categoryId` and `expenseOffsetCategoryId`.
+The route layer then adds `reportIncome`/`reportExpenses` per row, selected by `filters.amountMode` the same way as the summary report. Transfers are excluded from cashflow. Category filters apply to both `categoryId` and `expenseOffsetCategoryId`.
 
 ---
 
 ## Notifications
 
-Notifications are created by service functions (`notifications.service.ts`) whenever significant domain events occur:
+Notifications are created by calling `createNotifications()` (`notifications/services/create.service.ts`) whenever significant domain events occur:
 
 | Event | Type | Who receives |
 |---|---|---|
@@ -222,4 +238,4 @@ Notifications are created by service functions (`notifications.service.ts`) when
 
 The `provider_transactions_pending` notification is upserted (one per user, updated with current count). It is automatically marked read when all pending imported transactions are resolved.
 
-Navigation targets for notifications are computed in `AppLayout.tsx` → `notificationTarget()`.
+Navigation targets for notifications are computed in `apps/web/src/layout/utils/notificationTarget.ts` → `notificationTarget()`.
