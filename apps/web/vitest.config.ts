@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    mockReset: true,
     setupFiles: ["src/tests/setup.ts"],
     include: ["src/**/tests/**/*.test.{ts,tsx}"],
     coverage: {

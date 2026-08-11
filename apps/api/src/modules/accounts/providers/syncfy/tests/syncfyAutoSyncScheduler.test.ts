@@ -14,7 +14,7 @@ vi.mock("../services/read.service.js", () => ({
 }));
 
 vi.mock("../services/update.service.js", () => ({
-  getManualSyncfyRefreshRetryDelaysMs: vi.fn().mockReturnValue([1000, 5000]),
+  getManualSyncfyRefreshRetryDelaysMs: vi.fn(),
   resyncSyncfyConnection: vi.fn()
 }));
 
@@ -23,9 +23,14 @@ const {
   getSyncfyAutoSyncSchedulerConfig,
   SyncfyAutoSyncScheduler
 } = await import("../syncfyAutoSyncScheduler.js");
+const { getManualSyncfyRefreshRetryDelaysMs } = await import(
+  "../services/update.service.js"
+);
 
 describe("getSyncfyAutoSyncSchedulerConfig", () => {
   it("reads scheduler settings from env plus the retry-delay schedule", () => {
+    vi.mocked(getManualSyncfyRefreshRetryDelaysMs).mockReturnValue([1000, 5000]);
+
     expect(getSyncfyAutoSyncSchedulerConfig()).toEqual({
       enabled: true,
       intervalMinutes: 17,
