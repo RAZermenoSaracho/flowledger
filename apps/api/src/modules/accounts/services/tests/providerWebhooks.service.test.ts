@@ -347,4 +347,125 @@ describe("handleProviderWebhook — syncfy provider", () => {
     });
     expect(prismaMock.providerWebhookEvent.create).toHaveBeenCalledOnce();
   });
+
+  it("redacts sensitive headers (including array values) while passing through others", async () => {
+    getProviderMock.mockReturnValue({ key: "syncfy" } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("invalid");
+    prismaMock.providerWebhookEvent.create.mockResolvedValue({} as never);
+
+    await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: {
+        authorization: ["Bearer secret"],
+        cookie: "session=abc",
+        "content-type": "application/json"
+      },
+      rawBody: Buffer.from("{}"),
+      body: webhookPayload
+    });
+
+    const [{ data }] = prismaMock.providerWebhookEvent.create.mock.calls[0] as [
+      { data: { rawHeaders: Record<string, unknown> } }
+    ];
+    expect(data.rawHeaders).toMatchObject({
+      authorization: { redacted: true, present: true, length: "Bearer secret".length },
+      cookie: { redacted: true, present: true },
+      "content-type": "application/json"
+    });
+  });
+
+  it("redacts a sensitive header even when its value is absent", async () => {
+    getProviderMock.mockReturnValue({ key: "syncfy" } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("invalid");
+    prismaMock.providerWebhookEvent.create.mockResolvedValue({} as never);
+
+    await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: { authorization: undefined },
+      rawBody: Buffer.from("{}"),
+      body: webhookPayload
+    });
+
+    const [{ data }] = prismaMock.providerWebhookEvent.create.mock.calls[0] as [
+      { data: { rawHeaders: Record<string, unknown> } }
+    ];
+    expect(data.rawHeaders).toMatchObject({
+      authorization: { redacted: true, present: false, length: 0 }
+    });
+  });
+
+  it("finds the signature under a fallback header name and unwraps an array value", async () => {
+    getProviderMock.mockReturnValue({ key: "syncfy" } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
+    prismaMock.providerWebhookEvent.create.mockResolvedValue({ id: "row-1" } as never);
+    prismaMock.userAuthAccount.findUnique.mockResolvedValue(null);
+
+    await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: { "x-syncfy-signature": ["sig-value"] },
+      rawBody: Buffer.from(JSON.stringify(webhookPayload)),
+      body: webhookPayload
+    });
+
+    expect(verifySyncfyWebhookSignatureMock).toHaveBeenCalledWith(
+      expect.objectContaining({ signature: "sig-value" })
+    );
+  });
+
+  it("does not dispatch to the provider adapter when it has no handleWebhook", async () => {
+    getProviderMock.mockReturnValue({ key: "syncfy" } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
+    prismaMock.providerWebhookEvent.create.mockResolvedValue({ id: "row-1" } as never);
+    prismaMock.userAuthAccount.findUnique.mockResolvedValue(null);
+
+    const result = await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: {},
+      rawBody: Buffer.from(JSON.stringify(webhookPayload)),
+      body: webhookPayload
+    });
+
+    expect(result).toMatchObject({ kind: "processed", acceptedEvents: 1 });
+  });
+
+  it("does not dispatch a duplicate event (shouldProcess: false)", async () => {
+    const handleWebhook = vi.fn().mockResolvedValue({ status: "processed" });
+    getProviderMock.mockReturnValue({ key: "syncfy", handleWebhook } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
+    const duplicateError = new Prisma.PrismaClientKnownRequestError("dup", {
+      code: "P2002",
+      clientVersion: "test"
+    });
+    prismaMock.providerWebhookEvent.create.mockRejectedValue(duplicateError);
+    prismaMock.providerWebhookEvent.findUnique.mockResolvedValue({
+      id: "existing-row"
+    } as never);
+    prismaMock.userAuthAccount.findUnique.mockResolvedValue(null);
+
+    const result = await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: {},
+      rawBody: Buffer.from(JSON.stringify(webhookPayload)),
+      body: webhookPayload
+    });
+
+    expect(result).toMatchObject({ kind: "processed", acceptedEvents: 1 });
+    expect(handleWebhook).not.toHaveBeenCalled();
+  });
+
+  it("excludes an event from acceptedEvents when recording it rejects", async () => {
+    getProviderMock.mockReturnValue({ key: "syncfy" } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
+    prismaMock.providerWebhookEvent.create.mockResolvedValue({ id: "row-1" } as never);
+    prismaMock.userAuthAccount.findUnique.mockRejectedValue(new Error("db down"));
+
+    const result = await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: {},
+      rawBody: Buffer.from(JSON.stringify(webhookPayload)),
+      body: webhookPayload
+    });
+
+    expect(result).toMatchObject({ kind: "processed", acceptedEvents: 0 });
+  });
 });
