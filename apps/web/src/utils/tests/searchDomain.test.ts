@@ -99,6 +99,10 @@ describe("defaultValueForField", () => {
   it("defaults to an empty string otherwise", () => {
     expect(defaultValueForField(stringField, "=")).toBe("");
   });
+
+  it("defaults to an empty string for an options field with no options", () => {
+    expect(defaultValueForField({ ...enumFieldWithOptions, options: [] }, "=")).toBe("");
+  });
 });
 
 describe("createCondition", () => {
@@ -218,6 +222,44 @@ describe("updateNode / removeNode / addChild / countConditions", () => {
     expect(nestedGroup.children).toEqual([newLeaf]);
   });
 
+  it("updateNode leaves an unrelated leaf condition untouched while walking past it", () => {
+    const untouched = conditionNode({ id: "untouched" });
+    const target = conditionNode({ id: "target" });
+    const root: DomainGroupNode = {
+      type: "group",
+      id: "root",
+      connector: "and",
+      children: [untouched, target]
+    };
+
+    const updated = updateNode(root, "target", (node) => ({
+      ...(node as DomainConditionNode),
+      value: "rent"
+    }));
+
+    expect(updated.children[0]).toBe(untouched);
+    expect((updated.children[1] as DomainConditionNode).value).toBe("rent");
+  });
+
+  it("addChild leaves an unrelated leaf condition untouched while walking past it", () => {
+    const untouched = conditionNode({ id: "untouched" });
+    const root: DomainGroupNode = {
+      type: "group",
+      id: "root",
+      connector: "and",
+      children: [
+        untouched,
+        { type: "group", id: "nested", connector: "or", children: [] }
+      ]
+    };
+    const newLeaf = conditionNode({ id: "new" });
+
+    const updated = addChild(root, "nested", newLeaf);
+
+    expect(updated.children[0]).toBe(untouched);
+    expect((updated.children[1] as DomainGroupNode).children).toEqual([newLeaf]);
+  });
+
   it("countConditions counts only leaves, recursing through nested groups", () => {
     const root: DomainGroupNode = {
       type: "group",
@@ -273,6 +315,35 @@ describe("domainToWhere", () => {
     });
   });
 
+  it("leaves both bounds as strings for a between on a non-number field", () => {
+    const node = conditionNode({
+      fieldName: "date",
+      operator: "between",
+      value: ["2024-01-01", "2024-01-31"]
+    });
+    expect(domainToWhere(node, [...fields, dateField])).toEqual({
+      field: "date",
+      op: "between",
+      value: ["2024-01-01", "2024-01-31"]
+    });
+  });
+
+  it("passes the value array through unchanged for in/notIn", () => {
+    const inNode = conditionNode({ fieldName: "name", operator: "in", value: ["a", "b"] });
+    expect(domainToWhere(inNode, fields)).toEqual({
+      field: "name",
+      op: "in",
+      value: ["a", "b"]
+    });
+
+    const notInNode = conditionNode({ fieldName: "name", operator: "notIn", value: ["a"] });
+    expect(domainToWhere(notInNode, fields)).toEqual({
+      field: "name",
+      op: "notIn",
+      value: ["a"]
+    });
+  });
+
   it("coerces the scalar value to a number for a number field", () => {
     const node = conditionNode({ fieldName: "amount", operator: ">", value: "42" });
     expect(domainToWhere(node, fields)).toEqual({ field: "amount", op: ">", value: 42 });
@@ -325,6 +396,24 @@ describe("domainToWhere", () => {
     });
   });
 
+  it("combines multiple complete children with an 'and' connector", () => {
+    const group: DomainGroupNode = {
+      type: "group",
+      id: "g1",
+      connector: "and",
+      children: [
+        conditionNode({ id: "a", operator: "=", value: "groceries" }),
+        conditionNode({ id: "b", fieldName: "amount", operator: ">", value: "10" })
+      ]
+    };
+    expect(domainToWhere(group, fields)).toEqual({
+      and: [
+        { field: "name", op: "=", value: "groceries" },
+        { field: "amount", op: ">", value: 10 }
+      ]
+    });
+  });
+
   it("returns undefined for an empty group", () => {
     expect(domainToWhere(createEmptyGroup(), fields)).toBeUndefined();
   });
@@ -359,6 +448,43 @@ describe("matchesWhere", () => {
     ).toBe(true);
   });
 
+  it("resolves to undefined when a nested path's intermediate value isn't an object", () => {
+    expect(
+      matchesWhere({ account: null }, { field: "account.name", op: "isNull" })
+    ).toBe(true);
+  });
+
+  it("evaluates != ", () => {
+    expect(matchesWhere({ status: "pending" }, { field: "status", op: "!=", value: "settled" })).toBe(
+      true
+    );
+    expect(matchesWhere({ status: "pending" }, { field: "status", op: "!=", value: "pending" })).toBe(
+      false
+    );
+  });
+
+  it("evaluates >= and <=", () => {
+    expect(matchesWhere({ amount: 10 }, { field: "amount", op: ">=", value: 10 })).toBe(true);
+    expect(matchesWhere({ amount: 9 }, { field: "amount", op: ">=", value: 10 })).toBe(false);
+    expect(matchesWhere({ amount: 10 }, { field: "amount", op: "<=", value: 10 })).toBe(true);
+    expect(matchesWhere({ amount: 11 }, { field: "amount", op: "<=", value: 10 })).toBe(false);
+  });
+
+  it("evaluates numeric comparisons as false when the actual value isn't a number", () => {
+    expect(matchesWhere({ amount: "not-a-number" }, { field: "amount", op: ">", value: 10 })).toBe(
+      false
+    );
+    expect(matchesWhere({ amount: "not-a-number" }, { field: "amount", op: ">=", value: 10 })).toBe(
+      false
+    );
+    expect(matchesWhere({ amount: "not-a-number" }, { field: "amount", op: "<", value: 10 })).toBe(
+      false
+    );
+    expect(matchesWhere({ amount: "not-a-number" }, { field: "amount", op: "<=", value: 10 })).toBe(
+      false
+    );
+  });
+
   it("evaluates isNull/isNotNull", () => {
     expect(matchesWhere({ categoryId: null }, { field: "categoryId", op: "isNull" })).toBe(true);
     expect(matchesWhere({ categoryId: "food" }, { field: "categoryId", op: "isNotNull" })).toBe(true);
@@ -381,7 +507,19 @@ describe("matchesWhere", () => {
       true
     );
     expect(
+      matchesWhere({ status: "settled" }, { field: "status", op: "in", value: ["pending"] })
+    ).toBe(false);
+    expect(
       matchesWhere({ status: "settled" }, { field: "status", op: "notIn", value: ["pending"] })
+    ).toBe(true);
+    expect(
+      matchesWhere({ status: "pending" }, { field: "status", op: "notIn", value: ["pending"] })
+    ).toBe(false);
+  });
+
+  it("treats an unrecognized operator as always matching", () => {
+    expect(
+      matchesWhere({ status: "pending" }, { field: "status", op: "unknownOp", value: "x" })
     ).toBe(true);
   });
 
@@ -447,6 +585,30 @@ describe("conditionValueText", () => {
       )
     ).toBe("is any of Pending, Settled");
   });
+
+  it("falls back to the raw value when it matches no option (scalar and array)", () => {
+    expect(
+      conditionValueText(
+        enumFieldWithOptions,
+        conditionNode({ fieldName: "status", operator: "=", value: "archived" })
+      )
+    ).toBe("is archived");
+    expect(
+      conditionValueText(
+        enumFieldWithOptions,
+        conditionNode({ fieldName: "status", operator: "in", value: ["archived"] })
+      )
+    ).toBe("is any of archived");
+  });
+
+  it("falls back to the raw operator string for an operator with no label", () => {
+    expect(
+      conditionValueText(
+        numberField,
+        conditionNode({ fieldName: "amount", operator: "unknownOp" as never, value: "10" })
+      )
+    ).toBe("unknownOp 10");
+  });
 });
 
 describe("domainToSummaryText", () => {
@@ -487,5 +649,18 @@ describe("domainToSummaryText", () => {
 
   it("returns an empty string for an empty group", () => {
     expect(domainToSummaryText(createEmptyGroup(), fields)).toBe("");
+  });
+
+  it("joins an 'or' group's children with OR", () => {
+    const group: DomainGroupNode = {
+      type: "group",
+      id: "g1",
+      connector: "or",
+      children: [
+        conditionNode({ id: "a", fieldName: "name", operator: "=", value: "groceries" }),
+        conditionNode({ id: "b", fieldName: "amount", operator: ">", value: "10" })
+      ]
+    };
+    expect(domainToSummaryText(group, fields)).toBe("(Name is groceries) OR (Amount greater than 10)");
   });
 });
