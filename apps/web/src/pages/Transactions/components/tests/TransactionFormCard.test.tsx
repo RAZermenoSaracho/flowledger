@@ -217,6 +217,21 @@ describe("TransactionFormCard", () => {
     expect(screen.getByLabelText("Share")).toHaveValue(50);
   });
 
+  it("recalculates the equal group split when the amount changes afterward", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    const props = baseProps();
+    renderWithProviders(<TransactionFormCard {...props} />, { withAuth: true });
+
+    await user.type(screen.getByLabelText("Amount"), "100");
+    await user.selectOptions(screen.getByLabelText("Group"), "group-1");
+    await waitFor(() => expect(screen.getByLabelText("Share")).toHaveValue(50));
+
+    await user.type(screen.getByLabelText("Amount"), "0");
+
+    await waitFor(() => expect(screen.getByLabelText("Share")).toHaveValue(500));
+  });
+
   it("clears participant drafts when isShared is unchecked", async () => {
     mockCurrencies();
     const user = userEvent.setup();
@@ -241,6 +256,24 @@ describe("TransactionFormCard", () => {
     await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
 
     expect(screen.getByRole("button", { name: "Save transaction" })).toBeDisabled();
+  });
+
+  it("disables submit when a manually-entered participant share exceeds the transaction amount", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    const props = baseProps();
+    renderWithProviders(<TransactionFormCard {...props} />, { withAuth: true });
+
+    await user.type(screen.getByLabelText("Amount"), "100");
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.type(screen.getByLabelText("Manual participant"), "Sam");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Share"), "150");
+
+    expect(screen.getByRole("button", { name: "Save transaction" })).toBeDisabled();
+    expect(
+      screen.getByText(/Over by \$50\.00 — participant shares cannot exceed the transaction amount\./)
+    ).toBeInTheDocument();
   });
 
   it("submits with a sharedExpense payload once participants are assigned", async () => {
