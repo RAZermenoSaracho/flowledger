@@ -176,6 +176,47 @@ describe("TransactionEditPage", () => {
     );
   });
 
+  it("only shows categories matching the selected transaction type", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/categories`, () =>
+        HttpResponse.json({
+          categories: [
+            { id: "cat-1", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+            { id: "cat-2", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+          ]
+        })
+      )
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+
+    expect(screen.getByRole("option", { name: "Groceries" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Salary" })).not.toBeInTheDocument();
+  });
+
+  it("switching type clears a categoryId that no longer matches the new type", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/categories`, () =>
+        HttpResponse.json({
+          categories: [
+            { id: "cat-1", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+            { id: "cat-2", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+          ]
+        })
+      )
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+    await user.selectOptions(screen.getByLabelText("Type"), "income");
+
+    expect(screen.getByLabelText("Category")).toHaveValue("");
+  });
+
   it("selecting a group clears the category selection", async () => {
     mockBaseline();
     server.use(
