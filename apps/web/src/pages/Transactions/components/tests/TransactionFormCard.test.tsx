@@ -119,6 +119,48 @@ describe("TransactionFormCard", () => {
     expect(props.onClose).toHaveBeenCalledOnce();
   });
 
+  it("places Cancel next to Save transaction at the end of the form, not in the header", () => {
+    mockCurrencies();
+    renderWithProviders(<TransactionFormCard {...baseProps()} />, { withAuth: true });
+
+    const saveButton = screen.getByRole("button", { name: "Save transaction" });
+    const cancelButton = screen.getByRole("button", { name: "Cancel" });
+    expect(saveButton.compareDocumentPosition(cancelButton)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(cancelButton.closest("form")).not.toBeNull();
+  });
+
+  it("defaults the date field to today's local date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    mockCurrencies();
+    renderWithProviders(<TransactionFormCard {...baseProps()} />, { withAuth: true });
+
+    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
+    vi.useRealTimers();
+  });
+
+  it("resets the date field to today after Cancel, even if it was changed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2024, 2, 5));
+    mockCurrencies();
+    const user = userEvent.setup({ delay: null });
+    // onClose is a no-op spy — isOpen never flips, so the component stays
+    // mounted and closeForm()'s setForm(emptyForm(...)) reset is observable
+    // directly, the same way it would be if the parent re-opened the form.
+    renderWithProviders(<TransactionFormCard {...baseProps()} />, { withAuth: true });
+
+    await user.clear(screen.getByLabelText("Date"));
+    await user.type(screen.getByLabelText("Date"), "2024-01-15");
+    expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
+    vi.useRealTimers();
+  });
+
   it("submits the form and calls onCreated/onClose on success", async () => {
     mockCurrencies();
     let postedBody: unknown;
