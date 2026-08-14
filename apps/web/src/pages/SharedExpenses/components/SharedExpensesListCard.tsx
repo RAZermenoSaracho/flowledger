@@ -89,6 +89,7 @@ export function SharedExpensesListCard({
                     highlightedSharedExpenseId === sharedExpense.id
                   }
                   highlightedParticipantId={highlightedParticipantId}
+                  currentUserId={currentUserId}
                   canEdit={sharedExpense.ownerUserId === currentUserId}
                   onEdit={() => onEdit(sharedExpense)}
                 />
