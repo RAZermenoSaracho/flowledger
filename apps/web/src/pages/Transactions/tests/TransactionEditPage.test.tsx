@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../../../tests/mocks/server";
 import type { Transaction } from "../../../types/transactions.types";
 import { TransactionEditPage } from "../TransactionEditPage";
@@ -87,6 +87,20 @@ describe("TransactionEditPage", () => {
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Groceries"));
     expect(screen.getByLabelText("Amount")).toHaveValue(42.5);
     expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15");
+  });
+
+  it("Reset to today sets the date field to today's local date", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    mockBaseline();
+    const user = userEvent.setup({ delay: null });
+    renderPage();
+
+    await waitFor(() => expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15"));
+    await user.click(screen.getByRole("button", { name: "Reset to today" }));
+
+    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
+    vi.useRealTimers();
   });
 
   it("submits the updated form and navigates back to the transactions list", async () => {
