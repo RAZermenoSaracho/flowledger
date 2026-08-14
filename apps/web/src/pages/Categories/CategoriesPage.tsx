@@ -10,6 +10,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { RecordCard, type RecordCardAction } from "../../components/RecordCard";
 import { groupByFields } from "../../components/SearchComponent";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
+import { formatEnumLabel } from "../../utils/enumLabels";
 import {
   createConditionWithValue,
   createEmptyGroup
@@ -222,7 +223,7 @@ export function CategoriesPage() {
               >
                 {CATEGORY_TYPES.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {formatEnumLabel(item)}
                   </option>
                 ))}
               </SelectField>
@@ -293,7 +294,7 @@ export function CategoriesPage() {
                           >
                             {CATEGORY_TYPES.map((item) => (
                               <option key={item} value={item}>
-                                {item}
+                                {formatEnumLabel(item)}
                               </option>
                             ))}
                           </SelectField>
@@ -346,7 +347,7 @@ export function CategoriesPage() {
                       }
                       subtitle={
                         <p className="text-slate-500 dark:text-slate-400">
-                          {category.type}
+                          {formatEnumLabel(category.type)}
                         </p>
                       }
                       actions={
