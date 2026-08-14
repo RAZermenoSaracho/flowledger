@@ -182,6 +182,22 @@ describe("TransactionCoreFields", () => {
     expect(props.onGroupSelected).toHaveBeenCalledWith(group);
   });
 
+  it("Reset to today sets the date field to today's local date regardless of its current value", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    mockCurrencies();
+    const user = userEvent.setup({ delay: null });
+    const props = baseProps({ form: makeForm({ date: "2024-01-15" }) });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Reset to today" }));
+
+    expect(props.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2024-03-05" })
+    );
+    vi.useRealTimers();
+  });
+
   it("shows the transfer-specific notes helper text only for transfer type", () => {
     mockCurrencies();
     renderWithProviders(
