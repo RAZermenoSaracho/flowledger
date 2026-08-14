@@ -24,6 +24,17 @@ function mockBaseline() {
   );
 }
 
+function mockBaselineWithAmount(amount = 100) {
+  server.use(
+    http.get(`${API_URL}/transactions`, () =>
+      HttpResponse.json({
+        data: [{ id: "tx-1", name: "Dinner", amount, executionCurrency: "USD" }],
+        meta: {}
+      })
+    )
+  );
+}
+
 const sharedExpense: SharedExpense = {
   id: "se-1",
   transactionId: "tx-1",
@@ -163,6 +174,28 @@ describe("useSharedExpenseForm", () => {
     expect(result.current.editingId).toBeNull();
     expect(result.current.participants).toEqual([]);
     expect(result.current.isFormOpen).toBe(false);
+  });
+
+  it("computes remainingAmount and sharesExceedTransactionAmount once a transaction with participants is selected", async () => {
+    mockBaselineWithAmount(100);
+    const { result } = renderHook(() => useSharedExpenseForm(), { wrapper });
+
+    act(() => result.current.setTransactionId("tx-1"));
+    await waitFor(() => expect(result.current.selectedTransaction).toBeDefined());
+
+    act(() => result.current.setParticipantName("Roommate"));
+    act(() => result.current.addManualParticipant());
+    const draftId = result.current.participants[0]!.draftId;
+    act(() => result.current.updateParticipant(draftId, "shareAmount", "60"));
+
+    expect(result.current.participantShareTotal).toBe(60);
+    expect(result.current.remainingAmount).toBe(40);
+    expect(result.current.sharesExceedTransactionAmount).toBe(false);
+
+    act(() => result.current.updateParticipant(draftId, "shareAmount", "150"));
+
+    expect(result.current.remainingAmount).toBe(-50);
+    expect(result.current.sharesExceedTransactionAmount).toBe(true);
   });
 
   it("submit creates a new shared expense with computed participant statuses when there is no editingId", async () => {
