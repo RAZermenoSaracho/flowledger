@@ -1,4 +1,5 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type {
   GroupableField,
   SearchFieldConfig,
@@ -13,7 +14,7 @@ export function buildCategorySearchFields(): SearchFieldConfig[] {
       name: "type",
       label: "Type",
       type: "enum",
-      options: CATEGORY_TYPES.map((type) => ({ label: type, value: type }))
+      options: CATEGORY_TYPES.map((type) => ({ label: formatEnumLabel(type), value: type }))
     },
     { name: "createdAt", label: "Created at", type: "date" },
     { name: "updatedAt", label: "Updated at", type: "date" },
