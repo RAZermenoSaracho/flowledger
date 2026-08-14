@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
+import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -36,6 +37,19 @@ export default tseslint.config(
           varsIgnorePattern: "^_"
         }
       ]
+    }
+  },
+  {
+    // Scoped to the two classic hook-correctness rules only — the plugin's
+    // "recommended" preset bundles newer React-Compiler-era rules (e.g.
+    // set-state-in-effect) that don't apply to this React 18 codebase.
+    files: ["apps/web/**/*.{ts,tsx}"],
+    plugins: {
+      "react-hooks": reactHooks
+    },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn"
     }
   },
   prettier
