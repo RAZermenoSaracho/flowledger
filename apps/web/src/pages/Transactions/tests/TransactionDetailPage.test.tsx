@@ -78,6 +78,7 @@ describe("TransactionDetailPage", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Groceries" })).toBeInTheDocument());
     expect(screen.getByText("$42.50")).toBeInTheDocument();
     expect(screen.getByText("Checking")).toBeInTheDocument();
+    expect(screen.getByText("Expense")).toBeInTheDocument();
   });
 
   it("shows a pending-classification message when account/category is missing", async () => {
