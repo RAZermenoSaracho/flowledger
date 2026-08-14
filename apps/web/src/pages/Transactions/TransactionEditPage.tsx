@@ -15,6 +15,7 @@ import {
 } from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
 import type { TransactionEditForm } from "./types/transactions.types";
+import { todayDateString } from "./utils/transactions";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
@@ -143,7 +144,7 @@ export function TransactionEditPage() {
         </div>
 
         <form
-          className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
           onSubmit={submit}
         >
           <TextInput
@@ -229,13 +230,28 @@ export function TransactionEditPage() {
               </option>
             ))}
           </SelectField>
-          <TextInput
-            label="Date"
-            type="date"
-            value={form.date}
-            onChange={(event) => setForm({ ...form, date: event.target.value })}
-            required
-          />
+          <div className="relative">
+            <TextInput
+              label="Date"
+              type="date"
+              value={form.date}
+              onChange={(event) =>
+                setForm({ ...form, date: event.target.value })
+              }
+              required
+              className="box-border max-w-full appearance-none"
+            />
+            {/* The native date picker's own reset control is browser-rendered
+                and unreliable on some mobile browsers — this bypasses it
+                entirely by writing today's date straight to form state. */}
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, date: todayDateString() })}
+              className="absolute right-0 top-0 text-xs font-semibold text-pine hover:underline dark:text-emerald-300"
+            >
+              Reset to today
+            </button>
+          </div>
           {form.type === "transfer" ? (
             <div className="grid gap-1">
               <SelectField
