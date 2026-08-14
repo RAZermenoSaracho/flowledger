@@ -10,6 +10,7 @@ import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { TransactionFormState } from "../types/transactions.types";
 import { todayDateString } from "../utils/transactions";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
@@ -110,12 +111,19 @@ export function TransactionCoreFields({
         value={form.type}
         onChange={(event) => {
           const type = event.target.value as typeof form.type;
+          const categoryMatchesNewType = categoryOptions.some(
+            (category) =>
+              category.id === form.categoryId && category.type === type
+          );
           onFormChange({
             ...form,
             type,
+            categoryId:
+              type !== "transfer" && categoryMatchesNewType
+                ? form.categoryId
+                : "",
             ...(type === "transfer"
               ? {
-                  categoryId: "",
                   groupId: "",
                   isShared: false,
                   sharedTitle: "",
@@ -133,7 +141,7 @@ export function TransactionCoreFields({
       >
         {TRANSACTION_TYPES.map((item) => (
           <option key={item} value={item}>
-            {item}
+            {formatEnumLabel(item)}
           </option>
         ))}
       </SelectField>
@@ -200,11 +208,13 @@ export function TransactionCoreFields({
             }
           >
             <option value="">None</option>
-            {categoryOptions.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
+            {categoryOptions
+              .filter((category) => category.type === form.type)
+              .map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
           </SelectField>
           <SelectField
             label="Group"
