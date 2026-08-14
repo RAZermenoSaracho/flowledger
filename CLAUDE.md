@@ -31,6 +31,8 @@ flowledger/
 
 ## How to run
 
+Node `>=24` required (see `.nvmrc` / `engines` in root `package.json`).
+
 ```bash
 cp .env.example .env          # fill in secrets before running
 npm run dev                   # builds shared, then runs API + web in parallel
@@ -92,6 +94,8 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 ## Testing
 
 Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with an identical config shape. Tests live in a `tests/` folder next to the code they cover — one test file per source file, same base name (`services/create.service.ts` → `services/tests/create.service.test.ts`). Module-level and cross-module tests have their own placement rules. Coverage thresholds are highest on `utils/` (pure business logic), moderate on `services/`/`hooks/`, and unenforced on thin wiring (`controllers/`, routes files). Full architecture, stack, and how-to-write-a-test examples: **`docs/TESTING.md`** — read it before adding or modifying any test.
+
+**Known gap:** there is no CI workflow that runs lint/typecheck/test on pull requests — `.github/workflows/deploy-prod.yml` only deploys on push to `main`. Don't assume a PR has been machine-checked; run `npm run typecheck`, `npm run lint`, and `npm run test` yourself before considering a change done.
 
 ---
 
