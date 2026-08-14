@@ -6,6 +6,7 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { CurrencySelect } from "../../components/CurrencySelect";
 import { SelectField, TextArea, TextInput } from "../../components/FormField";
+import { formatEnumLabel } from "../../utils/enumLabels";
 import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
 import { listGroups } from "../../services/groups.client";
@@ -208,12 +209,19 @@ export function TransactionEditPage() {
             value={form.type}
             onChange={(event) => {
               const type = event.target.value as TransactionEditForm["type"];
+              const categoryMatchesNewType = categoryOptions.some(
+                (category) =>
+                  category.id === form.categoryId && category.type === type
+              );
               setForm({
                 ...form,
                 type,
+                categoryId:
+                  type !== "transfer" && categoryMatchesNewType
+                    ? form.categoryId
+                    : "",
                 ...(type === "transfer"
                   ? {
-                      categoryId: "",
                       groupId: "",
                       transferToAccountId:
                         form.accountId === form.transferToAccountId
@@ -226,7 +234,7 @@ export function TransactionEditPage() {
           >
             {TRANSACTION_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {formatEnumLabel(item)}
               </option>
             ))}
           </SelectField>
@@ -294,11 +302,13 @@ export function TransactionEditPage() {
                 }
               >
                 <option value="">None</option>
-                {categoryOptions.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
+                {categoryOptions
+                  .filter((category) => category.type === form.type)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
               </SelectField>
               <SelectField
                 label="Group"
