@@ -1,4 +1,5 @@
 import { TRANSACTION_TYPES } from "@flowledger/shared";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type {
   GroupableField,
   SearchFieldConfig,
@@ -49,7 +50,7 @@ export function buildTransactionSearchFields(options: {
       name: "type",
       label: "Type",
       type: "enum",
-      options: TRANSACTION_TYPES.map((type) => ({ label: type, value: type }))
+      options: TRANSACTION_TYPES.map((type) => ({ label: formatEnumLabel(type), value: type }))
     },
     { name: "date", label: "Date", type: "date" },
     { name: "createdAt", label: "Created at", type: "date" },
