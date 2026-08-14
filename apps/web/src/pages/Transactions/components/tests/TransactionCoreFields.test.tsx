@@ -49,6 +49,7 @@ function baseProps(overrides: Partial<Parameters<typeof TransactionCoreFields>[0
     form: makeForm(),
     onFormChange: vi.fn(),
     onSwitchedToTransfer: vi.fn(),
+    onAmountChanged: vi.fn(),
     onGroupSelected: vi.fn(),
     accounts: [makeAccount(), makeAccount({ id: "acc-2", name: "Savings" })],
     groups: [] as Group[],
