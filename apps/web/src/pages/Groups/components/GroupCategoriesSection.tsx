@@ -4,6 +4,7 @@ import { Button } from "../../../components/Button";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { groupByFields } from "../../../components/SearchComponent";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import {
   createConditionWithValue,
   createEmptyGroup
@@ -155,7 +156,7 @@ export function GroupCategoriesSection({
           >
             {CATEGORY_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {formatEnumLabel(item)}
               </option>
             ))}
           </SelectField>
