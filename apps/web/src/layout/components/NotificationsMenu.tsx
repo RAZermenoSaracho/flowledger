@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { routes } from "../../constants/routes";
 import {
@@ -17,6 +17,7 @@ export function NotificationsMenu() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const unreadCountQuery = useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: async () => (await getUnreadCount()).count,
@@ -63,9 +64,21 @@ export function NotificationsMenu() {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsOpen(false);
     };
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
 
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+    };
   }, [isOpen]);
 
   async function openNotification(notification: Notification) {
@@ -93,7 +106,7 @@ export function NotificationsMenu() {
           {pendingImportedCount} imported pending
         </button>
       ) : null}
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           type="button"
           className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:ring-offset-slate-950"
