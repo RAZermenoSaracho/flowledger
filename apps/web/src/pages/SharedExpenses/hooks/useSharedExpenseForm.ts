@@ -42,6 +42,16 @@ export function useSharedExpenseForm() {
   const selectedTransaction = (transactionsQuery.data ?? []).find(
     (transaction) => transaction.id === transactionId
   );
+  const participantShareTotal = participants.reduce(
+    (sum, participant) => sum + Number(participant.shareAmount || 0),
+    0
+  );
+  const remainingAmount = selectedTransaction
+    ? selectedTransaction.amount - participantShareTotal
+    : 0;
+  const sharesExceedTransactionAmount = Boolean(
+    selectedTransaction && remainingAmount < 0
+  );
 
   async function refreshAfterSave() {
     closeForm();
@@ -211,6 +221,9 @@ export function useSharedExpenseForm() {
     transactionsQuery,
     userSearchQuery,
     selectedTransaction,
+    participantShareTotal,
+    remainingAmount,
+    sharesExceedTransactionAmount,
     createSharedExpense,
     updateSharedExpense,
     submit,
