@@ -2,13 +2,28 @@ import { RecordCard, type RecordCardAction } from "../../../components/RecordCar
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { formatMoney } from "../../../utils/currency";
 
-/** "You owe participants" / "Participants owe you" label based on the underlying transaction's type. */
-export function splitDirectionLabel(sharedExpense: SharedExpense) {
-  if (sharedExpense.transaction?.type === "income")
-    return "You owe participants";
-  if (sharedExpense.transaction?.type === "expense")
-    return "Participants owe you";
-  return "No debt direction";
+/**
+ * Debt-direction label from `currentUserId`'s perspective. The owner sees the
+ * aggregate view across every participant ("Participants owe you"); a
+ * participant sees their own relationship to the owner specifically ("You
+ * owe {owner}") — the same debtor/creditor pairing the backend derives in
+ * `getDebtDirection` (an expense transaction's owner is the creditor and
+ * each participant the debtor; an income transaction's owner is the debtor).
+ */
+export function splitDirectionLabel(
+  sharedExpense: SharedExpense,
+  currentUserId: string | undefined
+) {
+  const type = sharedExpense.transaction?.type;
+  if (type !== "income" && type !== "expense") return "No debt direction";
+
+  const isOwner = currentUserId === sharedExpense.ownerUserId;
+  if (isOwner) {
+    return type === "expense" ? "Participants owe you" : "You owe participants";
+  }
+
+  const ownerName = sharedExpense.owner?.name ?? "the owner";
+  return type === "expense" ? `You owe ${ownerName}` : `${ownerName} owes you`;
 }
 
 /** One row in the shared expenses list, showing split direction and participant status. */
@@ -16,12 +31,14 @@ export function SharedExpenseListItem({
   sharedExpense,
   isHighlighted,
   highlightedParticipantId,
+  currentUserId,
   canEdit,
   onEdit
 }: {
   sharedExpense: SharedExpense;
   isHighlighted: boolean;
   highlightedParticipantId: string | null;
+  currentUserId: string | undefined;
   canEdit: boolean;
   onEdit: () => void;
 }) {
@@ -40,7 +57,8 @@ export function SharedExpenseListItem({
       title={<p className="truncate font-semibold">{sharedExpense.title}</p>}
       subtitle={
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {sharedExpense.status} · {splitDirectionLabel(sharedExpense)} ·{" "}
+          {sharedExpense.status} ·{" "}
+          {splitDirectionLabel(sharedExpense, currentUserId)} ·{" "}
           <span className="font-semibold text-ink dark:text-slate-100">
             {formatMoney(
               sharedExpense.totalAmount,
