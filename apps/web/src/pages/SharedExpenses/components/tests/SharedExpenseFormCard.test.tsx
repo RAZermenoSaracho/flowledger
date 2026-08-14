@@ -57,7 +57,9 @@ describe("SharedExpenseFormCard", () => {
 
     expect(screen.getByText("New shared expense")).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("option", { name: /Dinner/ })).toBeInTheDocument()
+      expect(
+        screen.getByRole("option", { name: "Dinner · Expense · $100.00" })
+      ).toBeInTheDocument()
     );
   });
 
