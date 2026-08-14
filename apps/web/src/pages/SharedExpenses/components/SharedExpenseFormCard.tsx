@@ -4,6 +4,7 @@ import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { useSharedExpenseForm } from "../hooks/useSharedExpenseForm";
 
 /** Create/edit form card for a shared expense, including participant split management. */
@@ -42,7 +43,7 @@ export function SharedExpenseFormCard({
           <option value="">Select transaction</option>
           {(form.transactionsQuery.data ?? []).map((transaction) => (
             <option key={transaction.id} value={transaction.id}>
-              {transaction.name} · {transaction.type} ·{" "}
+              {transaction.name} · {formatEnumLabel(transaction.type)} ·{" "}
               {formatMoney(transaction.amount, transaction.executionCurrency)}
             </option>
           ))}
