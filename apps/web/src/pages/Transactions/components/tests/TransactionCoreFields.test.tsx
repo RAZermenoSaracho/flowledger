@@ -155,6 +155,40 @@ describe("TransactionCoreFields", () => {
     );
   });
 
+  it("only shows categories matching the selected transaction type", () => {
+    mockCurrencies();
+    const props = baseProps({
+      form: makeForm({ type: "expense" }),
+      categoryOptions: [
+        { id: "cat-expense", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+        { id: "cat-income", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+      ]
+    });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    expect(screen.getByRole("option", { name: "Groceries" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Salary" })).not.toBeInTheDocument();
+  });
+
+  it("switching type clears a categoryId that no longer matches the new type", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    const props = baseProps({
+      form: makeForm({ type: "expense", categoryId: "cat-expense" }),
+      categoryOptions: [
+        { id: "cat-expense", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+        { id: "cat-income", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+      ]
+    });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    await user.selectOptions(screen.getByLabelText("Type"), "income");
+
+    expect(props.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "income", categoryId: "" })
+    );
+  });
+
   it("selecting a group clears categoryId, marks isShared, and calls onGroupSelected", async () => {
     mockCurrencies();
     const user = userEvent.setup();
