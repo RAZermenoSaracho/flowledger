@@ -249,6 +249,11 @@ export function TransactionFormCard({
               form={form}
               onFormChange={setForm}
               onSwitchedToTransfer={clearSharedTransactionDrafts}
+              onAmountChanged={(amountValue) => {
+                if (canShareTransaction && selectedGroup && participants.length > 0) {
+                  suggestEqualGroupSplit(selectedGroup, amountValue);
+                }
+              }}
               onGroupSelected={(group) => {
                 if (canShareTransaction) suggestEqualGroupSplit(group);
               }}
