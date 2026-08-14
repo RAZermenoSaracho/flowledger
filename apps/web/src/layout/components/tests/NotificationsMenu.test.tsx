@@ -24,6 +24,7 @@ function renderMenu() {
       <MemoryRouter initialEntries={["/"]}>
         <NotificationsMenu />
         <LocationProbe />
+        <button type="button">Elsewhere on the page</button>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -226,6 +227,47 @@ describe("NotificationsMenu", () => {
     expect(screen.getByRole("button", { name: "Notifications" })).toHaveAttribute(
       "aria-expanded",
       "false"
+    );
+  });
+
+  it("closes the dropdown when clicking outside it", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderMenu();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    expect(screen.getByText("Notifications")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Elsewhere on the page" }));
+
+    expect(screen.getByRole("button", { name: "Notifications" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
+
+  it("stays open when clicking inside the dropdown itself", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderMenu();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument()
+    );
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+    await waitFor(() => expect(screen.getByText("No notifications yet.")).toBeInTheDocument());
+
+    // The dropdown's own heading — inside the click-outside boundary but
+    // with no click handler of its own, so this isolates the outside-click
+    // listener's behavior from any notification-row navigation logic.
+    await user.click(screen.getByRole("heading", { name: "Notifications" }));
+
+    expect(screen.getByRole("button", { name: "Notifications" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
     );
   });
 });
