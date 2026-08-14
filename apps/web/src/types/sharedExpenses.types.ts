@@ -21,6 +21,7 @@ export type SharedExpense = {
   totalAmount: number;
   status: SharedExpenseStatus;
   transaction?: Transaction;
+  owner?: { id: string; name: string };
   participants: SharedExpenseParticipant[];
   createdAt: string;
   updatedAt: string;
