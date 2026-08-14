@@ -20,6 +20,7 @@ export function TransactionCoreFields({
   form,
   onFormChange,
   onSwitchedToTransfer,
+  onAmountChanged,
   onGroupSelected,
   accounts,
   groups,
@@ -28,6 +29,8 @@ export function TransactionCoreFields({
   form: TransactionFormState;
   onFormChange: (form: TransactionFormState) => void;
   onSwitchedToTransfer: () => void;
+  /** Called after the Amount field changes, with the new raw value — lets the caller re-derive anything computed from the transaction amount (e.g. an equal group split). */
+  onAmountChanged: (amount: string) => void;
   onGroupSelected: (group: Group) => void;
   accounts: Account[];
   groups: Group[];
@@ -62,9 +65,10 @@ export function TransactionCoreFields({
         type="number"
         step="0.01"
         value={form.amount}
-        onChange={(event) =>
-          onFormChange({ ...form, amount: event.target.value })
-        }
+        onChange={(event) => {
+          onFormChange({ ...form, amount: event.target.value });
+          onAmountChanged(event.target.value);
+        }}
         required
       />
       <SelectField
