@@ -189,6 +189,7 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
 | `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements |
 | `docs/TESTING.md` | Test architecture, stack, coverage thresholds, how to write and run tests |
+| `docs/KNOWN_ISSUES.md` | Backlog of deferred/out-of-scope issues surfaced during work — check before re-flagging something already logged |
 | `apps/api/CLAUDE.md` | Backend module system, request lifecycle, provider pattern |
 | `apps/web/CLAUDE.md` | Frontend routing, page-module structure, shared components |
 | `database/CLAUDE.md` | Schema conventions, migration workflow |
