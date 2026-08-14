@@ -138,7 +138,11 @@ export async function listSharedExpenses(
   const result = await sharedExpensesSieve.query<SharedExpenseListRecord>({
     where,
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
-    include: { transaction: true, participants: true }
+    include: {
+      transaction: true,
+      participants: true,
+      owner: { select: { id: true, name: true } }
+    }
   });
   return result.data;
 }
@@ -153,7 +157,11 @@ export async function getSharedExpenseById(userId: string, sharedExpenseId: stri
         { participants: { some: { userId } } }
       ]
     },
-    include: { transaction: true, participants: true }
+    include: {
+      transaction: true,
+      participants: true,
+      owner: { select: { id: true, name: true } }
+    }
   });
   if (!sharedExpense) throw notFound("Shared expense");
 
