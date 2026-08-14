@@ -12,6 +12,7 @@ import type {
   ParticipantDraft,
   TransactionFormState
 } from "../types/transactions.types";
+import { todayDateString } from "../utils/transactions";
 import { SharedParticipantsFields } from "./SharedParticipantsFields";
 import { TransactionCoreFields } from "./TransactionCoreFields";
 
@@ -21,7 +22,7 @@ function emptyForm(defaultCurrency: string): TransactionFormState {
     amount: "",
     executionCurrency: defaultCurrency,
     type: "expense",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayDateString(),
     accountId: "",
     transferToAccountId: "",
     categoryId: "",
@@ -239,19 +240,9 @@ export function TransactionFormCard({
   return (
     <Card>
       <>
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <h2 className="text-lg font-semibold">New transaction</h2>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={closeForm}
-            >
-              Cancel
-            </Button>
-          </div>
+          <h2 className="text-lg font-semibold">New transaction</h2>
           <form
-            className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+            className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
             onSubmit={submit}
           >
             <TransactionCoreFields
@@ -298,9 +289,10 @@ export function TransactionFormCard({
                 executionCurrency={form.executionCurrency}
               />
             ) : null}
-            <div className="md:col-span-2 xl:col-span-3">
+            <div className="flex gap-3 md:col-span-2 xl:col-span-3">
               <Button
                 type="submit"
+                className="flex-1"
                 disabled={
                   saveTransaction.isPending ||
                   transferAccountsInvalid ||
@@ -309,6 +301,14 @@ export function TransactionFormCard({
                 }
               >
                 Save transaction
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={closeForm}
+              >
+                Cancel
               </Button>
             </div>
           </form>
