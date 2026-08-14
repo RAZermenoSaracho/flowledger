@@ -199,12 +199,42 @@ export function SharedExpenseFormCard({
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Add an app user or a manual participant to save the split.
             </p>
+          ) : form.selectedTransaction ? (
+            <div className="text-sm">
+              <p className="text-slate-500 dark:text-slate-400">
+                Assigned{" "}
+                {formatMoney(
+                  form.participantShareTotal,
+                  form.selectedTransaction.executionCurrency
+                )}{" "}
+                of{" "}
+                {formatMoney(
+                  form.selectedTransaction.amount,
+                  form.selectedTransaction.executionCurrency
+                )}
+                .
+              </p>
+              {form.sharesExceedTransactionAmount ? (
+                <p className="text-coral dark:text-orange-300">
+                  Over by{" "}
+                  {formatMoney(
+                    Math.abs(form.remainingAmount),
+                    form.selectedTransaction.executionCurrency
+                  )}{" "}
+                  — participant shares cannot exceed the transaction amount.
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div className="md:col-span-2 xl:col-span-3">
           <Button
             type="submit"
-            disabled={form.isSaving || form.participants.length === 0}
+            disabled={
+              form.isSaving ||
+              form.participants.length === 0 ||
+              form.sharesExceedTransactionAmount
+            }
           >
             Save split
           </Button>
