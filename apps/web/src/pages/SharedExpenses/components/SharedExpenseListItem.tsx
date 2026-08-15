@@ -9,6 +9,10 @@ import { formatMoney } from "../../../utils/currency";
  * owe {owner}") — the same debtor/creditor pairing the backend derives in
  * `getDebtDirection` (an expense transaction's owner is the creditor and
  * each participant the debtor; an income transaction's owner is the debtor).
+ *
+ * Once `sharedExpense.status` is `"settled"`, the debt no longer exists —
+ * the label switches to past tense ("owed") so it doesn't read as an
+ * outstanding balance.
  */
 export function splitDirectionLabel(
   sharedExpense: SharedExpense,
@@ -17,13 +21,20 @@ export function splitDirectionLabel(
   const type = sharedExpense.transaction?.type;
   if (type !== "income" && type !== "expense") return "No debt direction";
 
+  const isSettled = sharedExpense.status === "settled";
   const isOwner = currentUserId === sharedExpense.ownerUserId;
   if (isOwner) {
-    return type === "expense" ? "Participants owe you" : "You owe participants";
+    if (type === "expense") {
+      return isSettled ? "Participants owed you" : "Participants owe you";
+    }
+    return isSettled ? "You owed participants" : "You owe participants";
   }
 
   const ownerName = sharedExpense.owner?.name ?? "the owner";
-  return type === "expense" ? `You owe ${ownerName}` : `${ownerName} owes you`;
+  if (type === "expense") {
+    return isSettled ? `You owed ${ownerName}` : `You owe ${ownerName}`;
+  }
+  return isSettled ? `${ownerName} owed you` : `${ownerName} owes you`;
 }
 
 /** One row in the shared expenses list, showing split direction and participant status. */
