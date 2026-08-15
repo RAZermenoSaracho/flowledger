@@ -87,6 +87,54 @@ describe("splitDirectionLabel", () => {
       splitDirectionLabel(makeSharedExpense({ transaction: undefined }), "user-1")
     ).toBe("No debt direction");
   });
+
+  it("switches to past tense for a settled expense, owner perspective", () => {
+    expect(
+      splitDirectionLabel(
+        makeSharedExpense({
+          status: "settled",
+          transaction: { type: "expense" } as never
+        }),
+        "user-1"
+      )
+    ).toBe("Participants owed you");
+  });
+
+  it("switches to past tense for a settled income split, owner perspective", () => {
+    expect(
+      splitDirectionLabel(
+        makeSharedExpense({
+          status: "settled",
+          transaction: { type: "income" } as never
+        }),
+        "user-1"
+      )
+    ).toBe("You owed participants");
+  });
+
+  it("switches to past tense for a settled expense, participant perspective", () => {
+    expect(
+      splitDirectionLabel(
+        makeSharedExpense({
+          status: "settled",
+          transaction: { type: "expense" } as never
+        }),
+        "user-2"
+      )
+    ).toBe("You owed Jane");
+  });
+
+  it("switches to past tense for a settled income split, participant perspective", () => {
+    expect(
+      splitDirectionLabel(
+        makeSharedExpense({
+          status: "settled",
+          transaction: { type: "income" } as never
+        }),
+        "user-2"
+      )
+    ).toBe("Jane owed you");
+  });
 });
 
 describe("SharedExpenseListItem", () => {
@@ -120,6 +168,21 @@ describe("SharedExpenseListItem", () => {
     );
 
     expect(screen.getByText(/open · You owe Jane/)).toBeInTheDocument();
+  });
+
+  it("shows past-tense direction text once the shared expense is settled", () => {
+    renderWithProviders(
+      <SharedExpenseListItem
+        sharedExpense={makeSharedExpense({ status: "settled" })}
+        isHighlighted={false}
+        highlightedParticipantId={null}
+        currentUserId="user-1"
+        canEdit={false}
+        onEdit={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/settled · Participants owed you/)).toBeInTheDocument();
   });
 
   it("renders each participant's settled/share amounts and app-vs-manual label", () => {
