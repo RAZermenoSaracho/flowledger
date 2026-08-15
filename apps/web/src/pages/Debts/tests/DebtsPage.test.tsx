@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
@@ -183,17 +184,22 @@ describe("DebtsPage", () => {
     );
   });
 
-  it("auto-selects the Balances tab and the debt's counterparty when ?debtId= matches an open debt", async () => {
+  it("redirects to the counterparty's detail page when ?debtId= matches an open debt", async () => {
     mockBaseline();
-    renderWithProviders(<DebtsPage />, { withAuth: true, route: "/debts?debtId=debt-1" });
+    renderWithProviders(
+      <Routes>
+        <Route path="/debts" element={<DebtsPage />} />
+        <Route
+          path="/debts/balances/:personKey"
+          element={<p>Redirected to person detail</p>}
+        />
+      </Routes>,
+      { withAuth: true, route: "/debts?debtId=debt-1" }
+    );
 
     await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "Outstanding Balances" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      )
+      expect(screen.getByText("Redirected to person detail")).toBeInTheDocument()
     );
-    await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
   });
 
   it("auto-selects the Settled tab when ?debtId= matches a settled debt", async () => {
