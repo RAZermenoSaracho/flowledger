@@ -49,12 +49,29 @@ export function apiUrl(path: string) {
 }
 
 let refreshPromise: Promise<boolean> | null = null;
+let sessionExpiredHandler: (() => void) | null = null;
+
+/**
+ * Registers the callback invoked when a mid-session silent token refresh
+ * fails (i.e. `refreshAccessToken()` resolves `false`) — as opposed to the
+ * boot-time restore-from-cookie attempt, which goes through `apiRequest`
+ * directly and never calls this function. `AuthProvider` uses this to clear
+ * its user state so route guards redirect to login instead of leaving a
+ * stale-but-truthy session in place.
+ */
+export function registerSessionExpiredHandler(handler: () => void) {
+  sessionExpiredHandler = handler;
+}
 
 /**
  * Attempts to obtain a fresh access token from the httpOnly refresh cookie
  * via `POST /auth/refresh`, storing it in `tokenStore` on success. Uses a
  * raw `fetch` (not `apiRequest`) so it can never recurse into itself, and
- * de-dupes concurrent callers onto a single in-flight request.
+ * de-dupes concurrent callers onto a single in-flight request. On failure,
+ * clears the now-unusable access token and notifies `sessionExpiredHandler`
+ * — this function is only ever reached from `apiRequest`'s own 401 retry, so
+ * a failure here always means a previously-active session just ended, never
+ * "not signed in yet".
  */
 export function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
@@ -63,12 +80,20 @@ export function refreshAccessToken(): Promise<boolean> {
       credentials: "include"
     })
       .then(async (response) => {
-        if (!response.ok) return false;
+        if (!response.ok) {
+          tokenStore.clear();
+          sessionExpiredHandler?.();
+          return false;
+        }
         const data = (await response.json()) as { token: string };
         tokenStore.set(data.token);
         return true;
       })
-      .catch(() => false)
+      .catch(() => {
+        tokenStore.clear();
+        sessionExpiredHandler?.();
+        return false;
+      })
       .finally(() => {
         refreshPromise = null;
       });
