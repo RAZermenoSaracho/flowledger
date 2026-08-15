@@ -71,3 +71,15 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Suggested fix:** TBD — needs a call on whether `RecordCard` should be generalized to also serve as a generic "title + actions" block (not just list-rows), or whether this should get its own, simpler width-based collapse rather than reusing `RecordCard`. Not migrated in Task 8 since it isn't a clean fit for the current list-row-shaped component.
 
 ---
+
+## [OPEN] #006 — `apiRequest`'s `/auth/*` retry-exclusion is broader than necessary
+
+**Found in:** Task 10 (auth token expiry investigation and fix).
+
+**Scope:** `apps/web/src/services/api.client.ts`'s `apiRequest`, the `!path.startsWith("/auth/")` condition gating the 401 silent-refresh-and-retry logic.
+
+**Description:** This exclusion exists to stop `/auth/login`, `/auth/register`, and `/auth/refresh` 401s from triggering a retry-refresh loop (login/register 401s are user-input errors, not session expiry; retry-refreshing on `/auth/refresh`'s own failure would be nonsensical). But the blanket `/auth/` prefix also excludes `/auth/me` and `/auth/logout` from the retry-refresh path, neither of which needs excluding — `/auth/me` genuinely requires a valid access token like any other authenticated endpoint. Currently harmless: `/auth/me` is only ever called immediately after a successful refresh/OAuth callback, when the token is guaranteed fresh. But if a future caller invoked it with a stale token, it would 401 without attempting a silent refresh first, unlike every other authenticated endpoint.
+
+**Suggested fix:** Narrow the exclusion to the exact three paths that need it (`/auth/login`, `/auth/register`, `/auth/refresh`) instead of the whole `/auth/` prefix. Low priority — no observed bug, purely a latent inconsistency.
+
+---
