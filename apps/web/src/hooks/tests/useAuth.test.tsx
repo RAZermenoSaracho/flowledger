@@ -1,7 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
+import { refreshAccessToken } from "../../services/api.client";
+import { getToken } from "../../services/auth.client";
 import { renderWithProviders } from "../../tests/utils/renderWithProviders";
 import { server } from "../../tests/mocks/server";
 import type { User } from "../../types/users.types";
@@ -127,6 +130,100 @@ describe("useAuth", () => {
 
     await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
   });
+
+  it("clears the query cache on login, so a prior session's data can't linger", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
+      http.post(`${API_URL}/auth/login`, () =>
+        HttpResponse.json({ token: "login-token", user: testUser })
+      )
+    );
+    const user = userEvent.setup();
+
+    const { queryClient } = renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("initializing")).toHaveTextContent("false")
+    );
+    queryClient.setQueryData(["prior-session-data"], "sensitive");
+
+    await user.click(screen.getByRole("button", { name: "Login" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    expect(queryClient.getQueryData(["prior-session-data"])).toBeUndefined();
+  });
+
+  it("clears the query cache on register", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
+      http.post(`${API_URL}/auth/register`, () =>
+        HttpResponse.json({ token: "register-token", user: testUser })
+      )
+    );
+    const user = userEvent.setup();
+
+    const { queryClient } = renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("initializing")).toHaveTextContent("false")
+    );
+    queryClient.setQueryData(["prior-session-data"], "sensitive");
+
+    await user.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    expect(queryClient.getQueryData(["prior-session-data"])).toBeUndefined();
+  });
+
+  it("clears the query cache on logout, so the next login on this tab can't see it", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "refreshed-token", user: testUser })
+      ),
+      http.post(`${API_URL}/auth/logout`, () => new HttpResponse(null, { status: 204 }))
+    );
+    const user = userEvent.setup();
+
+    const { queryClient } = renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    queryClient.setQueryData(["current-session-data"], "sensitive");
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
+    expect(queryClient.getQueryData(["current-session-data"])).toBeUndefined();
+  });
+
+  it("signs the user out and clears the query cache when a mid-session refresh is exhausted", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "refreshed-token", user: testUser })
+      )
+    );
+
+    const { queryClient } = renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    queryClient.setQueryData(["current-session-data"], "sensitive");
+
+    // Simulate the refresh cookie becoming invalid mid-session (naturally
+    // expired, or rotated away by a login/logout elsewhere) — this is the
+    // same `refreshAccessToken()` that `apiRequest`'s own 401 retry calls,
+    // exercised directly here since that retry orchestration is unchanged.
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 }))
+    );
+    await refreshAccessToken();
+
+    await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
+    expect(queryClient.getQueryData(["current-session-data"])).toBeUndefined();
+    expect(getToken()).toBeNull();
+  });
 });
 
 describe("AuthProvider export", () => {
@@ -135,10 +232,15 @@ describe("AuthProvider export", () => {
       http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 }))
     );
 
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    });
     render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      </QueryClientProvider>
     );
 
     await waitFor(() =>
