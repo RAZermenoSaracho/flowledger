@@ -47,3 +47,27 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Suggested fix:** TBD — needs a product/design call on what all three states should actually read as in this specific UI slot (e.g. should all three be capitalized short labels instead of lowercase phrases? Should the two hand-written phrases stay as-is and only the fallback get a proper label?) before touching the code.
 
 ---
+
+## [OPEN] #004 — `ImportedTransactionCard` has a multi-button action cluster that doesn't use `RecordCard`
+
+**Found in:** Task 8 (RecordCard responsive collapse investigation), while auditing every card/list-row in the app for actions containers not going through the shared `RecordCard` component.
+
+**Scope:** `apps/web/src/pages/Transactions/components/ImportedTransactionCard.tsx` (pending-status branch, ~line 149-167: Import/Ignore buttons).
+
+**Description:** This card has a genuine 2-button, plain-`onClick` action cluster (Import/Ignore) — architecturally the right shape for `RecordCard`'s `actions` prop — but the card itself uses a hand-rolled 3-column grid (`md:grid-cols-[auto_minmax(0,1fr)_auto]`: checkbox | description+metadata | amount+category-select+buttons), not `RecordCard`'s single-row leading/title/subtitle/trailing/actions layout. The buttons currently always render full-width/stacked (`grid gap-2 sm:grid-cols-2`) with no collapse behavior at any width. Migrating this to `RecordCard` isn't a simple prop swap: the right-hand column stacks a `SelectField` (category picker) *above* the buttons, and `RecordCard`'s `actions` are button-only — the select would need to move into `children`, which renders *below* the entire row, not inline in a right-hand column above the actions. That's a real layout redesign, not a prop-mapping migration.
+
+**Suggested fix:** TBD — needs a decision on whether to (a) redesign this card's layout to fit `RecordCard`'s row+children shape (changing its current three-zone visual structure), or (b) leave it as its own pattern since it's a denser, form-embedded card unlike a typical list-row. Not attempted in Task 8 to avoid an unrequested visual redesign of an actively-used review queue.
+
+---
+
+## [OPEN] #005 — `GroupHeader`'s action buttons are structurally RecordCard-shaped but not a list-row
+
+**Found in:** Task 8, same audit pass as #004.
+
+**Scope:** `apps/web/src/pages/Groups/components/GroupHeader.tsx` (~line 68-105: Edit / Archive-or-Restore / Delete buttons).
+
+**Description:** Three plain `onClick` buttons, no attached form — the closest structural match to `RecordCard`'s action shape found anywhere in the audit besides the four already-migrated call sites. It currently wraps via a manual `flex-col sm:flex-row` breakpoint (no measured collapse, no three-dot fallback), so a long group name plus three buttons can wrap awkwardly on a narrow screen. However, it's the header for whichever single group is currently selected (never one row among many), which doesn't match `RecordCard`'s "list-row" purpose/shape (title truncation, leading icon slot, etc. designed around compact repeated rows).
+
+**Suggested fix:** TBD — needs a call on whether `RecordCard` should be generalized to also serve as a generic "title + actions" block (not just list-rows), or whether this should get its own, simpler width-based collapse rather than reusing `RecordCard`. Not migrated in Task 8 since it isn't a clean fit for the current list-row-shaped component.
+
+---
