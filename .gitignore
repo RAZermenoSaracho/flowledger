@@ -79,7 +79,8 @@ temp/
 *.backup
 
 # AI and local tooling artifacts
-.claude/
+CLAUDE.local.md
+.claude/settings.local.json
 .cursor/
 .continue/
 .aider*

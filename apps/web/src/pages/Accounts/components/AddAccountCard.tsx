@@ -6,6 +6,7 @@ import { Card } from "../../../components/Card";
 import { CurrencySelect } from "../../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { useAccountProviderSync } from "../hooks/useAccountProviderSync";
 
 /** Form card for creating a new manual account. */
@@ -83,7 +84,7 @@ export function AddAccountCard({
           >
             {ACCOUNT_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item.replace("_", " ")}
+                {formatEnumLabel(item)}
               </option>
             ))}
           </SelectField>

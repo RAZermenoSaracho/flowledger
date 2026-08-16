@@ -1,4 +1,4 @@
-import { apiRequest, apiUrl, tokenStore } from "./api.client";
+import { apiRequest, apiUrl, registerSessionExpiredHandler, tokenStore } from "./api.client";
 import type { User } from "../types/users.types";
 
 /** Authenticates via email/password. */
@@ -61,4 +61,9 @@ export function setToken(token: string) {
 /** Clears the stored auth token. */
 export function clearToken() {
   tokenStore.clear();
+}
+
+/** Registers a callback invoked when a mid-session silent token refresh fails — see `registerSessionExpiredHandler` in `api.client.ts` for exactly when this fires. */
+export function onSessionExpired(handler: () => void) {
+  registerSessionExpiredHandler(handler);
 }

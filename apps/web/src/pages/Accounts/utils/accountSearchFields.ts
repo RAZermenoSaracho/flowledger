@@ -1,4 +1,5 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type {
   GroupableField,
   SearchFieldConfig,
@@ -22,7 +23,7 @@ export function buildAccountSearchFields(): SearchFieldConfig[] {
       label: "Type",
       type: "enum",
       options: ACCOUNT_TYPES.map((type) => ({
-        label: type.replace("_", " "),
+        label: formatEnumLabel(type),
         value: type
       }))
     },

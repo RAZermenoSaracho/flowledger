@@ -79,6 +79,31 @@ describe("ProfilePage", () => {
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
+  it("replaces the read-only preview with the edit form instead of showing both", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderProfile();
+
+    await waitFor(() => expect(screen.getAllByText("Jane Doe").length).toBeGreaterThan(0));
+    expect(screen.getByRole("heading", { name: "Profile and account" })).toBeInTheDocument();
+    expect(screen.getByText("Free")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Edit Profile" }));
+
+    expect(
+      screen.queryByRole("heading", { name: "Profile and account" })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Free")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Profile details" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("heading", { name: "Profile and account" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Profile details" })
+    ).not.toBeInTheDocument();
+  });
+
   it("saves profile changes and shows a success message", async () => {
     mockBaseline();
     let updatedBody: unknown;

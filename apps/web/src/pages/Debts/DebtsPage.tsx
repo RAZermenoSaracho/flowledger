@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchBarQuery } from "../../components/SearchBar";
+import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
@@ -14,7 +15,7 @@ import { PendingRequestsTab } from "./components/PendingRequestsTab";
 import { SettledDebtsTab } from "./components/SettledDebtsTab";
 import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
 import type { DebtsTab } from "./types/debts.types";
-import { availableSettlementAmount, otherParty } from "./utils/debtDisplay";
+import { otherParty } from "./utils/debtDisplay";
 import {
   toBalanceSearchRow,
   toSettledDebtSearchRow,
@@ -40,6 +41,7 @@ function isDebtsTab(value: string | null): value is DebtsTab {
 /** Debts page: outstanding balances, pending settlement requests, and settled-history tabs. */
 export function DebtsPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
   const summaryCurrency = auth.user?.preferredCurrency || "USD";
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightedDebtId = searchParams.get("debtId");
@@ -68,9 +70,6 @@ export function DebtsPage() {
     {}
   );
   const [settledQuery, setSettledQuery] = useState<SearchBarQuery>({});
-  const [selectedPersonKey, setSelectedPersonKey] = useState<string | null>(
-    null
-  );
 
   const debtsQuery = useQuery({
     queryKey: ["debts"],
@@ -115,21 +114,9 @@ export function DebtsPage() {
     privateIncomeCategories,
     accounts: accountsQuery.data ?? []
   });
-  const {
-    selectedDebtIds,
-    setSelectedDebtIds,
-    selectedApprovalIds,
-    setSelectedApprovalIds
-  } = workflow;
+  const { selectedApprovalIds, setSelectedApprovalIds } = workflow;
 
   const balances = debts?.balances ?? [];
-  const balanceByKey = useMemo(
-    () => new Map(balances.map((balance) => [balance.key, balance])),
-    [balances]
-  );
-  const selectedBalance = selectedPersonKey
-    ? balanceByKey.get(selectedPersonKey)
-    : null;
   const visibleBalances = useMemo(
     () =>
       balances.filter((balance) =>
@@ -181,14 +168,6 @@ export function DebtsPage() {
       ),
     [auth.user?.id, debts?.settledDebts, settledQuery.where]
   );
-  const selectedIOweThem = useMemo(
-    () =>
-      (selectedBalance?.iOweThem ?? []).filter(
-        (debt) =>
-          selectedDebtIds.has(debt.id) && availableSettlementAmount(debt) > 0
-      ),
-    [selectedBalance?.iOweThem, selectedDebtIds]
-  );
 
   useEffect(() => {
     // An explicit, valid `tab` param always wins — this effect only
@@ -205,9 +184,11 @@ export function DebtsPage() {
       (debt) => debt.id === highlightedDebtId
     );
     if (highlightedDebt) {
-      setActiveTab("balances");
-      setSelectedPersonKey(otherParty(highlightedDebt, auth.user?.id).key);
-      setSelectedDebtIds(new Set([highlightedDebt.id]));
+      const key = otherParty(highlightedDebt, auth.user?.id).key;
+      navigate(
+        `${routes.debts}/balances/${encodeURIComponent(key)}?debtId=${encodeURIComponent(highlightedDebtId)}`,
+        { replace: true }
+      );
     } else if (
       debts.settledDebts.some((debt) => debt.id === highlightedDebtId)
     ) {
@@ -215,13 +196,6 @@ export function DebtsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.user?.id, debts, highlightedDebtId, highlightedSettlementId, requestedTab]);
-
-  useEffect(() => {
-    if (selectedPersonKey && !balanceByKey.has(selectedPersonKey)) {
-      setSelectedPersonKey(null);
-      setSelectedDebtIds(new Set());
-    }
-  }, [balanceByKey, selectedPersonKey]);
 
   useEffect(() => {
     const targetId = highlightedSettlementId
@@ -236,17 +210,11 @@ export function DebtsPage() {
         .getElementById(targetId)
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
-  }, [
-    activeTab,
-    debtsQuery.isLoading,
-    highlightedDebtId,
-    highlightedSettlementId,
-    selectedPersonKey
-  ]);
+  }, [activeTab, debtsQuery.isLoading, highlightedDebtId, highlightedSettlementId]);
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-4">
+      <div className="grid min-w-0 gap-4">
         <div
           className="hidden gap-2 lg:grid lg:grid-cols-2 xl:grid-cols-4"
           role="tablist"
@@ -273,34 +241,13 @@ export function DebtsPage() {
           })}
         </div>
 
-        <div role="tabpanel">
+        <div role="tabpanel" className="min-w-0">
           {activeTab === "balances" ? (
             <BalancesTab
               balances={balances}
               visibleBalances={visibleBalances}
               onBalanceQueryChange={setBalanceQuery}
-              selectedBalance={selectedBalance}
-              onSelectPerson={(key) => {
-                setSelectedPersonKey(key);
-                setSelectedDebtIds(new Set());
-              }}
               summaryCurrency={summaryCurrency}
-              viewerUserId={auth.user?.id}
-              selectedDebtIds={selectedDebtIds}
-              selectedIOweThem={selectedIOweThem}
-              accounts={accountsQuery.data ?? []}
-              isActing={workflow.isActing}
-              highlightedDebtId={highlightedDebtId}
-              draftFor={workflow.draftFor}
-              isSettlementDraftComplete={workflow.isSettlementDraftComplete}
-              updateDraft={workflow.updateDraft}
-              categoryOptionsFor={workflow.categoryOptionsFor}
-              onToggleDebt={workflow.toggleDebtSelection}
-              onSelectDebts={workflow.setDetailSelection}
-              onSubmitSettlement={workflow.submitSettlement}
-              onSubmitBatchSettlement={(event) =>
-                workflow.submitBatchSettlement(event, selectedIOweThem)
-              }
             />
           ) : null}
           {activeTab === "pending" ? (

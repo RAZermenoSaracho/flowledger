@@ -49,6 +49,7 @@ function baseProps(overrides: Partial<Parameters<typeof TransactionCoreFields>[0
     form: makeForm(),
     onFormChange: vi.fn(),
     onSwitchedToTransfer: vi.fn(),
+    onAmountChanged: vi.fn(),
     onGroupSelected: vi.fn(),
     accounts: [makeAccount(), makeAccount({ id: "acc-2", name: "Savings" })],
     groups: [] as Group[],
@@ -155,6 +156,40 @@ describe("TransactionCoreFields", () => {
     );
   });
 
+  it("only shows categories matching the selected transaction type", () => {
+    mockCurrencies();
+    const props = baseProps({
+      form: makeForm({ type: "expense" }),
+      categoryOptions: [
+        { id: "cat-expense", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+        { id: "cat-income", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+      ]
+    });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    expect(screen.getByRole("option", { name: "Groceries" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Salary" })).not.toBeInTheDocument();
+  });
+
+  it("switching type clears a categoryId that no longer matches the new type", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    const props = baseProps({
+      form: makeForm({ type: "expense", categoryId: "cat-expense" }),
+      categoryOptions: [
+        { id: "cat-expense", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
+        { id: "cat-income", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+      ]
+    });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    await user.selectOptions(screen.getByLabelText("Type"), "income");
+
+    expect(props.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "income", categoryId: "" })
+    );
+  });
+
   it("selecting a group clears categoryId, marks isShared, and calls onGroupSelected", async () => {
     mockCurrencies();
     const user = userEvent.setup();
@@ -180,6 +215,22 @@ describe("TransactionCoreFields", () => {
       expect.objectContaining({ groupId: "group-1", categoryId: "", isShared: true })
     );
     expect(props.onGroupSelected).toHaveBeenCalledWith(group);
+  });
+
+  it("Reset to today sets the date field to today's local date regardless of its current value", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    mockCurrencies();
+    const user = userEvent.setup({ delay: null });
+    const props = baseProps({ form: makeForm({ date: "2024-01-15" }) });
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Reset to today" }));
+
+    expect(props.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2024-03-05" })
+    );
+    vi.useRealTimers();
   });
 
   it("shows the transfer-specific notes helper text only for transfer type", () => {

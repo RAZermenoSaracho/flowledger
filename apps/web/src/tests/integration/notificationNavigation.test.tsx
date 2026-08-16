@@ -11,6 +11,7 @@ import { AppLayout } from "../../layout/AppLayout";
 import { ProtectedRoute } from "../../layout/ProtectedRoute";
 import { DashboardPage } from "../../pages/Dashboard/DashboardPage";
 import { DebtsPage } from "../../pages/Debts/DebtsPage";
+import { PersonDebtDetailPage } from "../../pages/Debts/PersonDebtDetailPage";
 import { LoginPage } from "../../pages/Login/LoginPage";
 import type { Debt, DebtsResponse } from "../../types/debts.types";
 import type { Notification } from "../../types/notifications.types";
@@ -120,6 +121,10 @@ function App() {
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="/debts" element={<DebtsPage />} />
+                <Route
+                  path="/debts/balances/:personKey"
+                  element={<PersonDebtDetailPage />}
+                />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -179,7 +184,7 @@ function mockBaseline({
 }
 
 describe("notification bell -> cross-page navigation (integration)", () => {
-  it("opening a debt-owed notification navigates to the Debts page with the right debt highlighted and marks it read", async () => {
+  it("opening a debt-owed notification navigates to the counterparty's detail page with the debt highlighted and marks it read", async () => {
     mockBaseline();
     const user = userEvent.setup();
     render(<App />);
@@ -192,14 +197,9 @@ describe("notification bell -> cross-page navigation (integration)", () => {
     const notificationRow = await screen.findByText("Sam owes you money");
     await user.click(notificationRow);
 
-    // notificationTarget() resolves debt_owed_money to /debts?debtId=<id>&tab=owedToMe,
-    // which DebtsPage reads to select the Balances tab and highlight the debt.
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "Outstanding Balances" })).toHaveAttribute(
-        "aria-selected",
-        "true"
-      )
-    );
+    // notificationTarget() resolves debt_owed_money to /debts?debtId=<id>,
+    // which DebtsPage reads and redirects to /debts/balances/:personKey,
+    // carrying the debtId along so the detail page can highlight the debt.
     await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
   });
 });

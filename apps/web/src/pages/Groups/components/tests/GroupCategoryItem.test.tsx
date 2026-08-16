@@ -57,7 +57,7 @@ describe("GroupCategoryItem", () => {
   it("renders the category name and type", () => {
     renderItem(makeCategory());
     expect(screen.getByText("Groceries")).toBeInTheDocument();
-    expect(screen.getByText("expense")).toBeInTheDocument();
+    expect(screen.getByText("Expense")).toBeInTheDocument();
   });
 
   it("omits the actions menu when canManage is false", () => {

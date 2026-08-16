@@ -6,6 +6,7 @@ import { CurrencySelect } from "../../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../../components/FormField";
 import type { Account } from "../../../types/accounts.types";
 import { formatMoney } from "../../../utils/currency";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { useAccountEditForm } from "../hooks/useAccountEditForm";
 import { AccountSyncPanel } from "./AccountSyncPanel";
 
@@ -53,7 +54,7 @@ export function AccountListItem({
             >
               {ACCOUNT_TYPES.map((item) => (
                 <option key={item} value={item}>
-                  {item.replace("_", " ")}
+                  {formatEnumLabel(item)}
                 </option>
               ))}
             </SelectField>

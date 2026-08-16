@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useContext,
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    // Fires when a mid-session silent refresh is exhausted (not the
+    // boot-time attempt above) — clear the cache and sign the user out so
+    // `ProtectedRoute` redirects to login instead of leaving a stale-but-
+    // truthy session on screen with no data behind it.
+    authClient.onSessionExpired(() => {
+      queryClient.clear();
+      setUser(null);
+    });
+  }, [queryClient]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -57,19 +70,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (email, password) => {
         const response = await authClient.login(email, password);
         authClient.setToken(response.token);
+        queryClient.clear();
         setUser(response.user);
       },
       register: async (name, email, password) => {
         const response = await authClient.register(name, email, password);
         authClient.setToken(response.token);
+        queryClient.clear();
         setUser(response.user);
       },
       logout: async () => {
         await authClient.logout();
+        queryClient.clear();
         setUser(null);
       }
     }),
-    [user, isInitializing]
+    [user, isInitializing, queryClient]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

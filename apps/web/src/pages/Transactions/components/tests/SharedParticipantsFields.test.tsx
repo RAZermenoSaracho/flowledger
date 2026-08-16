@@ -218,6 +218,39 @@ describe("SharedParticipantsFields", () => {
     expect(screen.getByText("App user · jane@example.com")).toBeInTheDocument();
   });
 
+  it("shows an over-by warning when participant shares exceed the transaction amount", () => {
+    const participant: ParticipantDraft = {
+      draftId: "d1",
+      participantName: "Sam",
+      source: "manual",
+      shareAmount: "150"
+    };
+    const props = baseProps({
+      participants: [participant],
+      participantShareTotal: 150,
+      transactionAmount: 100,
+      remainingSharedAmount: -50
+    });
+    renderWithProviders(<SharedParticipantsFields {...props} />);
+
+    expect(
+      screen.getByText(/Over by \$50\.00 — participant shares cannot exceed the transaction amount\./)
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the over-by warning when shares are within the amount", () => {
+    const participant: ParticipantDraft = {
+      draftId: "d1",
+      participantName: "Sam",
+      source: "manual",
+      shareAmount: "50"
+    };
+    const props = baseProps({ participants: [participant], participantShareTotal: 50 });
+    renderWithProviders(<SharedParticipantsFields {...props} />);
+
+    expect(screen.queryByText(/Over by/)).not.toBeInTheDocument();
+  });
+
   it("shows the add-a-participant prompt when there are none", () => {
     renderWithProviders(<SharedParticipantsFields {...baseProps()} />);
     expect(

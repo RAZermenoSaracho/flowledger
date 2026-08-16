@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -46,16 +47,21 @@ function renderCallback(hash: string) {
  * exchange's `navigate()` call resolves to visible page content. */
 function renderCallbackWithRoutes(hash: string) {
   window.location.hash = hash;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+  });
   return render(
-    <MemoryRouter initialEntries={["/auth/oauth/callback"]}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/auth/oauth/callback" element={<OAuthCallbackPage />} />
-          <Route path="/" element={<div>Dashboard page</div>} />
-          <Route path="/transactions" element={<div>Transactions page</div>} />
-        </Routes>
-      </AuthProvider>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/auth/oauth/callback"]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/auth/oauth/callback" element={<OAuthCallbackPage />} />
+            <Route path="/" element={<div>Dashboard page</div>} />
+            <Route path="/transactions" element={<div>Transactions page</div>} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

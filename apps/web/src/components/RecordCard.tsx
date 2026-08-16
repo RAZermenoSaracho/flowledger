@@ -11,17 +11,20 @@ export type RecordCardAction = {
   disabled?: boolean;
 };
 
+/** Actions render inline only while their natural width is strictly less than this fraction of the card's own width — reaching exactly this ratio counts as "too wide to stay inline". */
+const INLINE_ACTIONS_MAX_WIDTH_RATIO = 0.4;
+
 /**
  * Generic list-row card: leading content, title/subtitle, optional trailing content, and an
  * optional actions list. Model-agnostic — callers supply everything record-specific via props;
  * this component only knows how to lay the pieces out and how to present `actions` (inline, or
  * behind a three-dot menu anchored to the card's top-right corner).
  *
- * The inline-vs-menu choice is a measured width comparison, not a viewport breakpoint: actions
- * render inline only while their natural (unwrapped) width is at most half the card's own
- * rendered width, re-measured via `ResizeObserver` whenever either changes. A card with few/short
- * actions can stay inline at any screen size; a card with many/long actions collapses to the
- * three-dot menu even on a wide screen if inline buttons would dominate the row.
+ * The inline-vs-menu choice is a measured width comparison, not a viewport breakpoint — see
+ * `INLINE_ACTIONS_MAX_WIDTH_RATIO`, re-measured via `ResizeObserver` whenever either the card or
+ * the actions' natural width changes. A card with few/short actions can stay inline at any screen
+ * size; a card with many/long actions collapses to the three-dot menu even on a wide screen if
+ * inline buttons would dominate the row.
  */
 export function RecordCard({
   id,
@@ -60,7 +63,12 @@ export function RecordCard({
     function recompute() {
       const cardWidth = card!.getBoundingClientRect().width;
       const actionsWidth = probe!.scrollWidth;
-      setShowInlineActions(cardWidth > 0 && actionsWidth <= cardWidth * 0.5);
+      // Collapse into the menu once actions reach (not just exceed) the
+      // threshold ratio of the card's width, so exactly that ratio counts as
+      // "too wide to stay inline".
+      setShowInlineActions(
+        cardWidth > 0 && actionsWidth < cardWidth * INLINE_ACTIONS_MAX_WIDTH_RATIO
+      );
     }
 
     recompute();

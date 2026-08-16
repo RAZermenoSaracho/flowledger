@@ -113,6 +113,23 @@ describe("listSharedExpenses", () => {
       listSharedExpenses("user-1", "not json")
     ).rejects.toThrow("Invalid shared-expenses query: not valid JSON");
   });
+
+  it("includes the owner's id/name alongside the transaction and participants", async () => {
+    prismaMock.sharedExpense.findMany.mockResolvedValue([{ id: "se-1" }] as never);
+    prismaMock.sharedExpense.count.mockResolvedValue(1);
+
+    await listSharedExpenses("user-1", undefined);
+
+    expect(prismaMock.sharedExpense.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          transaction: true,
+          participants: true,
+          owner: { select: { id: true, name: true } }
+        }
+      })
+    );
+  });
 });
 
 describe("getSharedExpenseById", () => {
@@ -130,5 +147,21 @@ describe("getSharedExpenseById", () => {
     expect(await getSharedExpenseById("user-1", "se-1")).toMatchObject({
       id: "se-1"
     });
+  });
+
+  it("includes the owner's id/name alongside the transaction and participants", async () => {
+    prismaMock.sharedExpense.findFirst.mockResolvedValue({ id: "se-1" } as never);
+
+    await getSharedExpenseById("user-1", "se-1");
+
+    expect(prismaMock.sharedExpense.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          transaction: true,
+          participants: true,
+          owner: { select: { id: true, name: true } }
+        }
+      })
+    );
   });
 });

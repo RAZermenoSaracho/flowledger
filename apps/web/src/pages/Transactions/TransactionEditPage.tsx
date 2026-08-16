@@ -6,6 +6,7 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { CurrencySelect } from "../../components/CurrencySelect";
 import { SelectField, TextArea, TextInput } from "../../components/FormField";
+import { formatEnumLabel } from "../../utils/enumLabels";
 import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
 import { listGroups } from "../../services/groups.client";
@@ -15,6 +16,7 @@ import {
 } from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
 import type { TransactionEditForm } from "./types/transactions.types";
+import { todayDateString } from "./utils/transactions";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
@@ -143,7 +145,7 @@ export function TransactionEditPage() {
         </div>
 
         <form
-          className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+          className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
           onSubmit={submit}
         >
           <TextInput
@@ -207,12 +209,19 @@ export function TransactionEditPage() {
             value={form.type}
             onChange={(event) => {
               const type = event.target.value as TransactionEditForm["type"];
+              const categoryMatchesNewType = categoryOptions.some(
+                (category) =>
+                  category.id === form.categoryId && category.type === type
+              );
               setForm({
                 ...form,
                 type,
+                categoryId:
+                  type !== "transfer" && categoryMatchesNewType
+                    ? form.categoryId
+                    : "",
                 ...(type === "transfer"
                   ? {
-                      categoryId: "",
                       groupId: "",
                       transferToAccountId:
                         form.accountId === form.transferToAccountId
@@ -225,17 +234,32 @@ export function TransactionEditPage() {
           >
             {TRANSACTION_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {formatEnumLabel(item)}
               </option>
             ))}
           </SelectField>
-          <TextInput
-            label="Date"
-            type="date"
-            value={form.date}
-            onChange={(event) => setForm({ ...form, date: event.target.value })}
-            required
-          />
+          <div className="relative">
+            <TextInput
+              label="Date"
+              type="date"
+              value={form.date}
+              onChange={(event) =>
+                setForm({ ...form, date: event.target.value })
+              }
+              required
+              className="box-border max-w-full appearance-none"
+            />
+            {/* The native date picker's own reset control is browser-rendered
+                and unreliable on some mobile browsers — this bypasses it
+                entirely by writing today's date straight to form state. */}
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, date: todayDateString() })}
+              className="absolute right-0 top-0 text-xs font-semibold text-pine hover:underline dark:text-emerald-300"
+            >
+              Reset to today
+            </button>
+          </div>
           {form.type === "transfer" ? (
             <div className="grid gap-1">
               <SelectField
@@ -278,11 +302,13 @@ export function TransactionEditPage() {
                 }
               >
                 <option value="">None</option>
-                {categoryOptions.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
+                {categoryOptions
+                  .filter((category) => category.type === form.type)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
               </SelectField>
               <SelectField
                 label="Group"

@@ -8,6 +8,7 @@ import {
   getTransaction
 } from "../../services/transactions.client";
 import { formatMoney } from "../../utils/currency";
+import { formatEnumLabel } from "../../utils/enumLabels";
 import type { Transaction } from "../../types/transactions.types";
 
 function splitDirectionLabel(type: Transaction["type"]) {
@@ -128,7 +129,7 @@ export function TransactionDetailPage() {
               )}
             />
           ) : null}
-          <Detail label="Type" value={transaction.type} />
+          <Detail label="Type" value={formatEnumLabel(transaction.type)} />
           <Detail
             label="Date"
             value={new Date(transaction.date).toLocaleDateString()}

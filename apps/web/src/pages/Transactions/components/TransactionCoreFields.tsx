@@ -9,6 +9,8 @@ import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { TransactionFormState } from "../types/transactions.types";
+import { todayDateString } from "../utils/transactions";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
@@ -18,6 +20,7 @@ export function TransactionCoreFields({
   form,
   onFormChange,
   onSwitchedToTransfer,
+  onAmountChanged,
   onGroupSelected,
   accounts,
   groups,
@@ -26,6 +29,8 @@ export function TransactionCoreFields({
   form: TransactionFormState;
   onFormChange: (form: TransactionFormState) => void;
   onSwitchedToTransfer: () => void;
+  /** Called after the Amount field changes, with the new raw value — lets the caller re-derive anything computed from the transaction amount (e.g. an equal group split). */
+  onAmountChanged: (amount: string) => void;
   onGroupSelected: (group: Group) => void;
   accounts: Account[];
   groups: Group[];
@@ -60,9 +65,10 @@ export function TransactionCoreFields({
         type="number"
         step="0.01"
         value={form.amount}
-        onChange={(event) =>
-          onFormChange({ ...form, amount: event.target.value })
-        }
+        onChange={(event) => {
+          onFormChange({ ...form, amount: event.target.value });
+          onAmountChanged(event.target.value);
+        }}
         required
       />
       <SelectField
@@ -109,12 +115,19 @@ export function TransactionCoreFields({
         value={form.type}
         onChange={(event) => {
           const type = event.target.value as typeof form.type;
+          const categoryMatchesNewType = categoryOptions.some(
+            (category) =>
+              category.id === form.categoryId && category.type === type
+          );
           onFormChange({
             ...form,
             type,
+            categoryId:
+              type !== "transfer" && categoryMatchesNewType
+                ? form.categoryId
+                : "",
             ...(type === "transfer"
               ? {
-                  categoryId: "",
                   groupId: "",
                   isShared: false,
                   sharedTitle: "",
@@ -132,19 +145,32 @@ export function TransactionCoreFields({
       >
         {TRANSACTION_TYPES.map((item) => (
           <option key={item} value={item}>
-            {item}
+            {formatEnumLabel(item)}
           </option>
         ))}
       </SelectField>
-      <TextInput
-        label="Date"
-        type="date"
-        value={form.date}
-        onChange={(event) =>
-          onFormChange({ ...form, date: event.target.value })
-        }
-        required
-      />
+      <div className="relative">
+        <TextInput
+          label="Date"
+          type="date"
+          value={form.date}
+          onChange={(event) =>
+            onFormChange({ ...form, date: event.target.value })
+          }
+          required
+          className="box-border max-w-full appearance-none"
+        />
+        {/* The native date picker's own reset control is browser-rendered
+            and unreliable on some mobile browsers — this bypasses it
+            entirely by writing today's date straight to form state. */}
+        <button
+          type="button"
+          onClick={() => onFormChange({ ...form, date: todayDateString() })}
+          className="absolute right-0 top-0 text-xs font-semibold text-pine hover:underline dark:text-emerald-300"
+        >
+          Reset to today
+        </button>
+      </div>
       {form.type === "transfer" ? (
         <div className="grid gap-1">
           <SelectField
@@ -186,11 +212,13 @@ export function TransactionCoreFields({
             }
           >
             <option value="">None</option>
-            {categoryOptions.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
+            {categoryOptions
+              .filter((category) => category.type === form.type)
+              .map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
           </SelectField>
           <SelectField
             label="Group"

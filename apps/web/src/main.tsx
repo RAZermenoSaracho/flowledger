@@ -13,6 +13,7 @@ import { AccountsPage } from "./pages/Accounts/AccountsPage";
 import { CategoriesPage } from "./pages/Categories/CategoriesPage";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { DebtsPage } from "./pages/Debts/DebtsPage";
+import { PersonDebtDetailPage } from "./pages/Debts/PersonDebtDetailPage";
 import { LoginPage } from "./pages/Login/LoginPage";
 import { GroupsPage } from "./pages/Groups/GroupsPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallback/OAuthCallbackPage";
@@ -61,6 +62,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   element={<Navigate to="/debts?tab=sharedExpenses" replace />}
                 />
                 <Route path="/debts" element={<DebtsPage />} />
+                <Route
+                  path="/debts/balances/:personKey"
+                  element={<PersonDebtDetailPage />}
+                />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route
                   path="/profile/edit"

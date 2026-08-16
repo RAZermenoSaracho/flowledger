@@ -3,6 +3,7 @@ import type { CategoryType } from "@flowledger/shared";
 import { Button } from "../../../components/Button";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { RecordCard, type RecordCardAction } from "../../../components/RecordCard";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { Group } from "../../../types/groups.types";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
 
@@ -43,7 +44,7 @@ export function GroupCategoryItem({
             >
               {CATEGORY_TYPES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatEnumLabel(item)}
                 </option>
               ))}
             </SelectField>
@@ -127,7 +128,9 @@ export function GroupCategoryItem({
         </div>
       }
       subtitle={
-        <p className="text-slate-500 dark:text-slate-400">{category.type}</p>
+        <p className="text-slate-500 dark:text-slate-400">
+          {formatEnumLabel(category.type)}
+        </p>
       }
       actions={actions}
       actionsLabel={`Actions for ${category.name}`}

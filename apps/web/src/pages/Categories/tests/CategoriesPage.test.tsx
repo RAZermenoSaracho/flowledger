@@ -36,7 +36,7 @@ describe("CategoriesPage", () => {
     renderWithProviders(<CategoriesPage />);
 
     await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    expect(screen.getByText("expense")).toBeInTheDocument();
+    expect(screen.getByText("Expense")).toBeInTheDocument();
   });
 
   it("shows 'No categories found.' when the list is empty", async () => {

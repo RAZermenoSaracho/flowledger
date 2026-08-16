@@ -227,29 +227,29 @@ export function ProfilePage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
       <section className="grid gap-6">
-        <Card>
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              {profileAvatarUrl ? (
-                <img
-                  src={profileAvatarUrl}
-                  alt=""
-                  className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
-                />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-mint text-lg font-bold text-pine dark:bg-emerald-950 dark:text-emerald-200">
-                  {initials}
+        {!isEditingProfile ? (
+          <Card>
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                {profileAvatarUrl ? (
+                  <img
+                    src={profileAvatarUrl}
+                    alt=""
+                    className="h-16 w-16 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-mint text-lg font-bold text-pine dark:bg-emerald-950 dark:text-emerald-200">
+                    {initials}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-xl font-semibold">Profile and account</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Manage your FlowLedger identity, sign-in details, and MVP
+                    plan.
+                  </p>
                 </div>
-              )}
-              <div>
-                <h2 className="text-xl font-semibold">Profile and account</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Manage your FlowLedger identity, sign-in details, and MVP
-                  plan.
-                </p>
               </div>
-            </div>
-            {!isEditingProfile ? (
               <Button
                 type="button"
                 className="w-full sm:w-auto"
@@ -258,32 +258,32 @@ export function ProfilePage() {
               >
                 Edit Profile
               </Button>
+            </div>
+
+            {profileQuery.isError ? (
+              <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+                {profileQuery.error instanceof Error
+                  ? profileQuery.error.message
+                  : "Profile could not be loaded"}
+              </p>
             ) : null}
-          </div>
 
-          {profileQuery.isError ? (
-            <p className="mt-4 text-sm text-red-600 dark:text-red-400">
-              {profileQuery.error instanceof Error
-                ? profileQuery.error.message
-                : "Profile could not be loaded"}
-            </p>
-          ) : null}
-
-          <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
-            <Detail label="Name" value={user?.name ?? "Loading..."} />
-            <Detail label="Email" value={user?.email ?? "Loading..."} />
-            <Detail label="Plan" value={planLabels[currentPlan]} />
-            <Detail label="Currency" value={currencyDetail} />
-            <Detail
-              label="Member since"
-              value={
-                user
-                  ? new Date(user.createdAt).toLocaleDateString()
-                  : "Loading..."
-              }
-            />
-          </dl>
-        </Card>
+            <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
+              <Detail label="Name" value={user?.name ?? "Loading..."} />
+              <Detail label="Email" value={user?.email ?? "Loading..."} />
+              <Detail label="Plan" value={planLabels[currentPlan]} />
+              <Detail label="Currency" value={currencyDetail} />
+              <Detail
+                label="Member since"
+                value={
+                  user
+                    ? new Date(user.createdAt).toLocaleDateString()
+                    : "Loading..."
+                }
+              />
+            </dl>
+          </Card>
+        ) : null}
 
         {isEditingProfile ? (
           <Card>

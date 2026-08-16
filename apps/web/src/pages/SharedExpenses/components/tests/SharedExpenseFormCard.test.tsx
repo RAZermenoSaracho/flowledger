@@ -57,7 +57,9 @@ describe("SharedExpenseFormCard", () => {
 
     expect(screen.getByText("New shared expense")).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("option", { name: /Dinner/ })).toBeInTheDocument()
+      expect(
+        screen.getByRole("option", { name: "Dinner · Expense · $100.00" })
+      ).toBeInTheDocument()
     );
   });
 
@@ -87,6 +89,25 @@ describe("SharedExpenseFormCard", () => {
     expect(screen.getByText("Roommate")).toBeInTheDocument();
     expect(screen.getAllByText("Manual participant").length).toBeGreaterThan(1);
     expect(screen.getByRole("button", { name: "Save split" })).not.toBeDisabled();
+  });
+
+  it("disables submit and warns when a participant share exceeds the transaction amount", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+    await waitFor(() => expect(screen.getByRole("option", { name: /Dinner/ })).toBeInTheDocument());
+    await user.selectOptions(screen.getByLabelText("Transaction"), "tx-1");
+    await user.type(screen.getByLabelText("Manual participant"), "Roommate");
+    await user.click(screen.getByRole("button", { name: "Add manual participant" }));
+
+    await user.type(screen.getByLabelText("Share amount"), "150");
+
+    expect(screen.getByRole("button", { name: "Save split" })).toBeDisabled();
+    expect(
+      screen.getByText(/Over by \$50\.00 — participant shares cannot exceed the transaction amount\./)
+    ).toBeInTheDocument();
   });
 
   it("removes a participant", async () => {

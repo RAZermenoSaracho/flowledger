@@ -227,19 +227,31 @@ export function SharedParticipantsFields({
               </div>
             ))}
             {participants.length > 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Assigned {formatMoney(participantShareTotal, executionCurrency)}{" "}
-                of{" "}
-                {Number.isFinite(transactionAmount)
-                  ? formatMoney(transactionAmount, executionCurrency)
-                  : formatMoney(0, executionCurrency)}
-                . Remaining owner share:{" "}
-                {formatMoney(
-                  Math.max(0, remainingSharedAmount),
-                  executionCurrency
-                )}
-                .
-              </p>
+              <div className="text-sm">
+                <p className="text-slate-500 dark:text-slate-400">
+                  Assigned {formatMoney(participantShareTotal, executionCurrency)}{" "}
+                  of{" "}
+                  {Number.isFinite(transactionAmount)
+                    ? formatMoney(transactionAmount, executionCurrency)
+                    : formatMoney(0, executionCurrency)}
+                  . Remaining owner share:{" "}
+                  {formatMoney(
+                    Math.max(0, remainingSharedAmount),
+                    executionCurrency
+                  )}
+                  .
+                </p>
+                {remainingSharedAmount < 0 ? (
+                  <p className="text-coral dark:text-orange-300">
+                    Over by{" "}
+                    {formatMoney(
+                      Math.abs(remainingSharedAmount),
+                      executionCurrency
+                    )}{" "}
+                    — participant shares cannot exceed the transaction amount.
+                  </p>
+                ) : null}
+              </div>
             ) : (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Add an app user or manual participant to create a shared
