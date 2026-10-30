@@ -1,14 +1,17 @@
 import { useRef } from "react";
 import { Button } from "../../../components/Button";
-import { CurrencySelect } from "../../../components/CurrencySelect";
 import { TextInput } from "../../../components/FormField";
 import { planLabels } from "../constants";
-import { useProfileDetails } from "../hooks/useProfileDetails";
 import { ProfileInlineField } from "./ProfileInlineField";
+import type { useProfileDetails } from "../hooks/useProfileDetails";
 
-/** Identity header of the profile form view: inline-editable avatar, name, email and currency, with a Save/Cancel bar while dirty. */
-export function ProfileHeader() {
-  const p = useProfileDetails();
+/** Identity header of the profile form view: inline-editable avatar, name, and email, with a Save/Cancel bar while dirty. */
+export function ProfileHeader({
+  profile
+}: {
+  profile: ReturnType<typeof useProfileDetails>;
+}) {
+  const p = profile;
   const fileRef = useRef<HTMLInputElement>(null);
   const busy = p.isLoading || p.isSaving;
   const avatarClass = "h-20 w-20 shrink-0 rounded-full";
@@ -39,7 +42,7 @@ export function ProfileHeader() {
           ) : null}
         </div>
       ) : null}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
         <button
           type="button"
           aria-label="Change profile picture"
@@ -70,13 +73,14 @@ export function ProfileHeader() {
           accept="image/png,image/jpeg,image/webp,image/gif"
           onChange={(event) => p.setAvatarFile(event.target.files?.[0] ?? null)}
         />
-        <div className="min-w-0 text-sm">
+        <div className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">
           <h1
             aria-label={p.values.name || undefined}
             className="text-base font-semibold"
           >
             <ProfileInlineField
               label="Name"
+              hideLabel
               display={p.values.name || "Loading..."}
               error={p.fieldErrors.name}
               disabled={busy}
@@ -92,7 +96,7 @@ export function ProfileHeader() {
               />
             </ProfileInlineField>
           </h1>
-          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+          <div className="mt-2 min-w-0">
             <ProfileInlineField
               label="Email"
               display={p.values.email || "Loading..."}
@@ -110,29 +114,7 @@ export function ProfileHeader() {
                 onChange={(e) => p.setField("email", e.target.value)}
               />
             </ProfileInlineField>
-            <ProfileInlineField
-              label="Currency"
-              display={
-                p.isDirty && p.values.preferredCurrency
-                  ? p.values.preferredCurrency
-                  : p.currencyLabel
-              }
-              disabled={busy}
-              onRevert={() => p.revertField("preferredCurrency")}
-            >
-              <CurrencySelect
-                label="Preferred currency"
-                value={p.values.preferredCurrency}
-                onChange={(v) => p.setField("preferredCurrency", v)}
-                disabled={busy}
-                allowNoPreference
-              />
-            </ProfileInlineField>
           </div>
-          <dl className="mt-2">
-            <dt className="text-slate-500 dark:text-slate-400">Member since</dt>
-            <dd>{p.memberSince ?? "Loading..."}</dd>
-          </dl>
           {p.user ? (
             <p className="mt-2 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {planLabels[p.user.planType]}

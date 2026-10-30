@@ -16,7 +16,8 @@ import {
   type SearchFieldConfig
 } from "../utils/searchDomain";
 import { Button } from "./Button";
-import { SelectField, TextInput } from "./FormField";
+import { SelectField, selectTriggerClassName, TextInput } from "./FormField";
+import { ChevronDown } from "lucide-react";
 
 /**
  * Odoo-style domain builder popup: an unbounded AND/OR condition tree
@@ -101,7 +102,11 @@ export function FilterBuilder({
           >
             Clear conditions
           </Button>
-          <Button type="button" variant="primary" onClick={() => onApply(draftDomain)}>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => onApply(draftDomain)}
+          >
             Done
           </Button>
         </div>
@@ -134,21 +139,28 @@ function DomainGroupEditor({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <span>Match</span>
-          <select
-            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-            value={node.connector}
-            onChange={(event) =>
-              onRootChange(
-                updateNode(root, node.id, (current) => ({
-                  ...(current as DomainGroupNode),
-                  connector: event.target.value as "and" | "or"
-                }))
-              )
-            }
-          >
-            <option value="and">all (AND)</option>
-            <option value="or">any (OR)</option>
-          </select>
+          <span className="relative block">
+            <select
+              aria-label="Match condition"
+              className={`${selectTriggerClassName} min-h-8 w-auto px-2 py-1 pr-8`}
+              value={node.connector}
+              onChange={(event) =>
+                onRootChange(
+                  updateNode(root, node.id, (current) => ({
+                    ...(current as DomainGroupNode),
+                    connector: event.target.value as "and" | "or"
+                  }))
+                )
+              }
+            >
+              <option value="and">all (AND)</option>
+              <option value="or">any (OR)</option>
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+          </span>
           <span>of:</span>
         </div>
         {!isRoot ? (
@@ -164,7 +176,9 @@ function DomainGroupEditor({
       </div>
 
       {node.children.length === 0 ? (
-        <p className="text-sm text-slate-400 dark:text-slate-500">No conditions yet.</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">
+          No conditions yet.
+        </p>
       ) : null}
 
       <div className="grid gap-2 pl-2">
@@ -195,7 +209,8 @@ function DomainGroupEditor({
           variant="secondary"
           disabled={fields.length === 0}
           onClick={() =>
-            fields[0] && onRootChange(addChild(root, node.id, createCondition(fields[0])))
+            fields[0] &&
+            onRootChange(addChild(root, node.id, createCondition(fields[0])))
           }
         >
           + Condition
@@ -203,7 +218,9 @@ function DomainGroupEditor({
         <Button
           type="button"
           variant="secondary"
-          onClick={() => onRootChange(addChild(root, node.id, createEmptyGroup("and")))}
+          onClick={() =>
+            onRootChange(addChild(root, node.id, createEmptyGroup("and")))
+          }
         >
           + Group
         </Button>
@@ -223,7 +240,8 @@ function ConditionEditor({
   fields: SearchFieldConfig[];
   onRootChange: (root: DomainGroupNode) => void;
 }) {
-  const field = fields.find((entry) => entry.name === condition.fieldName) ?? fields[0];
+  const field =
+    fields.find((entry) => entry.name === condition.fieldName) ?? fields[0];
 
   function patchCondition(patch: Partial<DomainConditionNode>) {
     onRootChange(
@@ -345,11 +363,18 @@ function FieldValueInput({
     return <MultiValueInput value={selected} onChange={onChange} />;
   }
 
-  const inputType = field.type === "date" ? "date" : field.type === "number" ? "number" : "text";
+  const inputType =
+    field.type === "date"
+      ? "date"
+      : field.type === "number"
+        ? "number"
+        : "text";
 
   if (operator === "between") {
     const [from, to]: [string, string] =
-      Array.isArray(value) && value.length === 2 ? (value as [string, string]) : ["", ""];
+      Array.isArray(value) && value.length === 2
+        ? (value as [string, string])
+        : ["", ""];
     return (
       <div className="grid grid-cols-2 gap-2">
         <TextInput

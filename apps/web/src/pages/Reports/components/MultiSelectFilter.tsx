@@ -1,5 +1,7 @@
 import { ChevronDown, Search } from "lucide-react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { DropdownMenu } from "../../../components/DropdownMenu";
 
 /** Multi-select dropdown filter with search and an implicit "all" state when nothing is selected. */
 export function MultiSelectFilter({
@@ -21,7 +23,17 @@ export function MultiSelectFilter({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const optionIds = useMemo(() => options.map((option) => option.id), [options]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listboxId = `${fieldId}-options`;
+  const optionDomId = (id: string) =>
+    `${fieldId}-option-${encodeURIComponent(id)}`;
+  const optionIds = useMemo(
+    () => options.map((option) => option.id),
+    [options]
+  );
   const filteredOptions = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return options;
@@ -45,17 +57,22 @@ export function MultiSelectFilter({
   useEffect(() => {
     if (!isOpen) return;
 
+    searchRef.current?.focus();
+
     const handlePointerDown = (event: PointerEvent) => {
       if (
         containerRef.current &&
         !containerRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        setSearch("");
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+        setSearch("");
+        triggerRef.current?.focus();
       }
     };
 
@@ -67,12 +84,45 @@ export function MultiSelectFilter({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    setActiveIndex((current) =>
+      Math.min(current, Math.max(filteredOptions.length - 1, 0))
+    );
+  }, [filteredOptions.length]);
+
   const toggleOption = (id: string) => {
     onChange(
       selectedIds.includes(id)
         ? selectedIds.filter((selectedId) => selectedId !== id)
         : [...selectedIds, id]
     );
+  };
+
+  const moveActiveOption = (index: number) => {
+    if (!filteredOptions.length) return;
+    const nextIndex = Math.max(0, Math.min(index, filteredOptions.length - 1));
+    setActiveIndex(nextIndex);
+    optionRefs.current[nextIndex]?.focus();
+  };
+
+  const handleOptionKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveActiveOption(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (index === 0) searchRef.current?.focus();
+      else moveActiveOption(index - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      moveActiveOption(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      moveActiveOption(filteredOptions.length - 1);
+    }
   };
 
   return (
@@ -84,9 +134,10 @@ export function MultiSelectFilter({
         {label}
       </span>
       <button
+        ref={triggerRef}
         type="button"
         className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm text-ink outline-none transition hover:bg-slate-50 focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus:ring-emerald-900"
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-labelledby={`${fieldId}-label ${fieldId}-value`}
         disabled={!options.length}
@@ -108,15 +159,36 @@ export function MultiSelectFilter({
       </button>
 
       {isOpen ? (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 min-w-64 rounded-md border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <DropdownMenu
+          className="p-3"
+          role="dialog"
+          aria-labelledby={`${fieldId}-label`}
+          onBlurCapture={(event) => {
+            if (
+              containerRef.current?.contains(event.relatedTarget as Node | null)
+            )
+              return;
+            setIsOpen(false);
+            setSearch("");
+          }}
+        >
           <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-500 focus-within:border-pine focus-within:ring-2 focus-within:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:focus-within:ring-emerald-900">
             <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
             <input
+              ref={searchRef}
               className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400 dark:text-slate-100"
               type="search"
+              aria-label={`Search ${label.toLowerCase()}`}
+              aria-controls={listboxId}
               placeholder={`Search ${label.toLowerCase()}`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  moveActiveOption(0);
+                }
+              }}
             />
           </div>
 
@@ -145,6 +217,7 @@ export function MultiSelectFilter({
           </div>
 
           <div
+            id={listboxId}
             className="mt-3 max-h-56 min-w-0 overflow-y-auto pr-1"
             role="listbox"
             aria-multiselectable="true"
@@ -152,30 +225,45 @@ export function MultiSelectFilter({
           >
             {filteredOptions.length ? (
               <div className="grid min-w-0 gap-1">
-                {filteredOptions.map((option) => (
-                  <label
+                {filteredOptions.map((option, index) => (
+                  <button
                     key={option.id}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                    ref={(element) => {
+                      optionRefs.current[index] = element;
+                    }}
+                    id={optionDomId(option.id)}
+                    type="button"
+                    role="option"
+                    aria-selected={selectedIds.includes(option.id)}
+                    tabIndex={index === activeIndex ? 0 : -1}
+                    className="flex min-h-10 w-full min-w-0 cursor-pointer items-center gap-2 rounded px-2 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-mint dark:text-slate-200 dark:hover:bg-slate-800 dark:focus:bg-slate-800 dark:focus:ring-emerald-900"
+                    onFocus={() => setActiveIndex(index)}
+                    onKeyDown={(event) => handleOptionKeyDown(event, index)}
+                    onClick={() => toggleOption(option.id)}
                   >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 shrink-0 rounded border-slate-300 text-pine focus:ring-pine dark:border-slate-600 dark:bg-slate-950"
-                      checked={selectedIds.includes(option.id)}
-                      onChange={() => toggleOption(option.id)}
-                    />
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${selectedIds.includes(option.id) ? "border-pine bg-pine text-white dark:border-emerald-400 dark:bg-emerald-400 dark:text-slate-950" : "border-slate-300 dark:border-slate-600"}`}
+                    >
+                      {selectedIds.includes(option.id) ? "✓" : null}
+                    </span>
                     <span className="min-w-0 truncate" title={option.label}>
                       {option.label}
                     </span>
-                  </label>
+                  </button>
                 ))}
               </div>
             ) : (
-              <p className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">
+              <p
+                role="status"
+                aria-live="polite"
+                className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400"
+              >
                 {options.length ? "No matches found." : emptyText}
               </p>
             )}
           </div>
-        </div>
+        </DropdownMenu>
       ) : null}
     </div>
   );

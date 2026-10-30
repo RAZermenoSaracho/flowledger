@@ -1,13 +1,19 @@
 import { Link } from "react-router-dom";
 import { planLabels } from "../constants";
-import { useProfileUser } from "../hooks/useProfileUser";
+import type { useProfileDetails } from "../hooks/useProfileDetails";
+import { CurrencySelect } from "../../../components/CurrencySelect";
+import { ProfileInlineField } from "./ProfileInlineField";
 
-/** Read-only account summary not shown in the header: current plan (links to the Subscription tab). */
-export function GeneralTab() {
-  const { user } = useProfileUser();
+/** Account summary with editable currency and a link to manage the current plan. */
+export function GeneralTab({
+  profile
+}: {
+  profile: ReturnType<typeof useProfileDetails>;
+}) {
+  const { user } = profile;
 
   return (
-    <dl className="grid gap-4 text-sm sm:grid-cols-2">
+    <dl className="grid min-w-0 gap-4 text-sm sm:grid-cols-2">
       <div>
         <dt className="font-medium text-slate-500 dark:text-slate-400">Plan</dt>
         <dd className="mt-1 text-ink dark:text-slate-100">
@@ -19,6 +25,43 @@ export function GeneralTab() {
           >
             Manage plan
           </Link>
+        </dd>
+      </div>
+      <div className="min-w-0 [overflow-wrap:anywhere]">
+        <dt className="font-medium text-slate-500 dark:text-slate-400">
+          Preferred currency
+        </dt>
+        <dd className="mt-1 text-ink dark:text-slate-100">
+          <ProfileInlineField
+            label="Currency"
+            hideLabel
+            display={
+              profile.isLoading
+                ? "Loading..."
+                : profile.values.preferredCurrency !==
+                    (profile.user?.preferredCurrency ?? "")
+                  ? profile.values.preferredCurrency || "Not set"
+                  : profile.currencyLabel
+            }
+            disabled={profile.isLoading || profile.isSaving}
+            onRevert={() => profile.revertField("preferredCurrency")}
+          >
+            <CurrencySelect
+              label="Preferred currency"
+              value={profile.values.preferredCurrency}
+              onChange={(value) => profile.setField("preferredCurrency", value)}
+              disabled={profile.isLoading || profile.isSaving}
+              allowNoPreference
+            />
+          </ProfileInlineField>
+        </dd>
+      </div>
+      <div>
+        <dt className="font-medium text-slate-500 dark:text-slate-400">
+          Member since
+        </dt>
+        <dd className="mt-1 text-ink dark:text-slate-100">
+          {profile.memberSince ?? "Loading..."}
         </dd>
       </div>
     </dl>
