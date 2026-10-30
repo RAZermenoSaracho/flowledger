@@ -15,6 +15,7 @@ import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { DebtsPage } from "./pages/Debts/DebtsPage";
 import { PersonDebtDetailPage } from "./pages/Debts/PersonDebtDetailPage";
 import { LoginPage } from "./pages/Login/LoginPage";
+import { DeveloperPage } from "./pages/Developer/DeveloperPage";
 import { GroupsPage } from "./pages/Groups/GroupsPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallback/OAuthCallbackPage";
 import { ProfilePage } from "./pages/Profile/ProfilePage";
@@ -67,6 +68,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   element={<PersonDebtDetailPage />}
                 />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path={routes.developer} element={<DeveloperPage />} />
                 <Route
                   path="/profile/edit"
                   element={<Navigate to="/profile" replace />}

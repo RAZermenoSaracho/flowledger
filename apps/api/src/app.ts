@@ -12,6 +12,7 @@ import {
   providerWebhooksRouter,
   providersRouter
 } from "./modules/accounts/accounts.routes.js";
+import { apiKeysRouter } from "./modules/apiKeys/apiKeys.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { categoriesRouter } from "./modules/categories/categories.routes.js";
 import {
@@ -37,6 +38,8 @@ const uploadDir = path.resolve(moduleDir, "../uploads");
  */
 export const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(
@@ -56,6 +59,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/currencies", currenciesRouter);
 app.use("/auth", authRouter);
+app.use("/users/me/api-keys", requireAuth, apiKeysRouter);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);

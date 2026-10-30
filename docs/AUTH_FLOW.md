@@ -190,6 +190,16 @@ Requires auth (access token). Fetches the current user from the database and ret
 
 ---
 
+## Personal API keys
+
+Keys have the form `fl_` + 32 random bytes encoded as base64url. Only a SHA-256 hash is stored; the plaintext is returned once by `POST /users/me/api-keys`. `GET /users/me/api-keys` lists keys, and `DELETE /users/me/api-keys/:id` revokes one idempotently. These management routes use `requireAuth` and accept web JWTs only; an `fl_` key receives 401.
+
+`apps/api/src/middleware/credential.ts` exports `verifyCredential` (the `fl_` branch rejects unknown, revoked, or expired keys and JWTs), `requireCredential`, and `requireScope('read' | 'write')`. Write scope implies read; insufficient scope returns 403. `lastUsedAt` updates at most once every five minutes without blocking the request. Credential middleware is not yet mounted on any public route.
+
+`PUBLIC_API_URL` defaults to `http://localhost:${API_PORT}`. The app sets `trust proxy` to `1`; `apps/api/src/utils/rateLimit.ts` provides `createRateLimiter`, and `apps/api/src/utils/auditLog.ts` provides audit logging helpers.
+
+---
+
 ## OAuth providers implemented
 
 | Provider | Status |

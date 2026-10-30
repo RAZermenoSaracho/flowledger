@@ -89,6 +89,7 @@ model User {
   ownedGroups                  Group[]                       @relation("OwnedGroups")
   notifications                Notification[]
   refreshTokens                RefreshToken[]
+  apiKeys                      ApiKey[]
 }
 
 model RefreshToken {
@@ -99,6 +100,22 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  hint       String
+  secretHash String    @unique
+  scopes     String[]
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

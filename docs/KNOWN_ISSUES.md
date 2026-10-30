@@ -83,3 +83,37 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Suggested fix:** Narrow the exclusion to the exact three paths that need it (`/auth/login`, `/auth/register`, `/auth/refresh`) instead of the whole `/auth/` prefix. Low priority — no observed bug, purely a latent inconsistency.
 
 ---
+
+## [OPEN] #007 — Web login lacks rate limiting and refresh tokens lack reuse detection
+
+**Found in:** Personal API key auth documentation pass.
+
+**Scope:** `POST /auth/login` and refresh token rotation in `POST /auth/refresh`.
+
+**Description:** Web login has no rate limiting. Refresh tokens are rotated, but there is no token family tracking or reuse detection to revoke a session after a previously used token is replayed.
+
+**Suggested fix:** Rate-limit login attempts and add refresh token family tracking with reuse detection and family revocation.
+
+---
+
+## [OPEN] #008 — Repo-wide `npm run lint` fails on pre-existing errors
+
+**Found in:** Verification pass for the personal API keys change.
+
+**Scope:** Whole monorepo `npm run lint` (81 errors, 11 warnings at the time of logging). Examples: unused `waitFor` imports in web tests, `any` in accounts/transactions services, an unused `Prisma` import in `reports.types.ts`, and CommonJS globals in `.agents/skills/*.cjs`.
+
+**Description:** None of the errors are in files touched by the API keys change; files added or changed by that change lint clean. Because the root command fails, it cannot be used as a pass/fail gate until these are cleaned up.
+
+**Suggested fix:** Fix or explicitly ignore the listed files (e.g. exclude `.agents/` from the ESLint config) in a dedicated cleanup change.
+
+---
+
+## [OPEN] #009 — Full parallel `npm run test` can time out a web test worker
+
+**Found in:** Verification pass for the personal API keys change.
+
+**Scope:** `apps/web/src/pages/Debts/hooks/tests/useDebtSettlementWorkflow.test.tsx` when the root `npm run test` runs all workspaces, including the Docker-backed API suites, at once.
+
+**Description:** In one full run every test passed, but Vitest reported "Worker exited unexpectedly" / "Timeout terminating forks worker" for this file, so the command exited non-zero. Running `npm run test -w apps/web` on its own passed (112 files, 858 tests). This looks resource-related rather than a code defect.
+
+**Suggested fix:** Investigate the worker timeout (pool size or teardown in that test), or run the workspace suites sequentially in the root script.

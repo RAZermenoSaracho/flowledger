@@ -37,7 +37,7 @@ Core user record. All user-owned data cascades on delete.
 | `mobileSidebarSide` | String | Default `"left"`; which side the mobile nav sidebar opens from |
 | `createdAt` / `updatedAt` | DateTime | Auto-managed |
 
-Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`
+Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`, `apiKeys`
 
 ---
 
@@ -52,6 +52,27 @@ An opaque, rotating refresh token backing a user's session (see `docs/AUTH_FLOW.
 | `tokenHash` | String (unique) | SHA-256 hash of the opaque token value; the plaintext is never stored |
 | `expiresAt` | DateTime | |
 | `revokedAt` | DateTime? | Set on rotation (single-use) or logout |
+
+---
+
+### ApiKey
+
+A personal API key owned by a user. The plaintext key is never stored.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `userId` | String | FK → User; cascades on user delete |
+| `name` | String | User-provided label |
+| `hint` | String | First 8 characters of the key |
+| `secretHash` | String (unique) | SHA-256 hex digest of the key |
+| `scopes` | String[] | `['read']` or `['read', 'write']` |
+| `expiresAt` | DateTime? | Optional expiry |
+| `revokedAt` | DateTime? | Set when revoked |
+| `lastUsedAt` | DateTime? | Most recent recorded use |
+| `createdAt` | DateTime | Defaults to creation time |
+
+Index: `userId`
 
 ---
 

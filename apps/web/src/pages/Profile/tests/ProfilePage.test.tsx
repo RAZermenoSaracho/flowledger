@@ -256,4 +256,14 @@ describe("ProfilePage", () => {
 
     await waitFor(() => expect(screen.getByText("JD")).toBeInTheDocument());
   });
+
+  it("links to the Developer page", async () => {
+    mockBaseline();
+    renderProfile();
+
+    expect(screen.getByRole("link", { name: "Manage API keys" })).toHaveAttribute(
+      "href",
+      "/profile/developer"
+    );
+  });
 });

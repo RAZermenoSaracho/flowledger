@@ -10,5 +10,6 @@ export const routes = {
   groups: "/groups",
   reports: "/reports",
   debts: "/debts",
-  profile: "/profile"
+  profile: "/profile",
+  developer: "/profile/developer"
 } as const;

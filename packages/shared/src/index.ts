@@ -1,5 +1,6 @@
 export * from "./constants/index.js";
 export * from "./schemas/accounts.js";
+export * from "./schemas/apiKeys.js";
 export * from "./schemas/auth.js";
 export * from "./schemas/categories.js";
 export * from "./schemas/common.js";

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { FormEvent, useEffect, useState } from "react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -8,6 +9,7 @@ import {
 } from "../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../components/FormField";
 import type { MobileSidebarSide } from "@flowledger/shared";
+import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import type { ThemePreference } from "../../hooks/useTheme";
@@ -488,6 +490,19 @@ export function ProfilePage() {
                 <span>Right</span>
               </span>
             </label>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold">Developer</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Create personal API keys to connect AI clients and scripts.
+            </p>
+            <Link
+              to={routes.developer}
+              className="mt-4 inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-pine ring-1 ring-slate-200 hover:bg-slate-50 dark:text-emerald-300 dark:ring-slate-700 dark:hover:bg-slate-800"
+            >
+              Manage API keys
+            </Link>
           </section>
 
           <section>
