@@ -83,3 +83,205 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Suggested fix:** Narrow the exclusion to the exact three paths that need it (`/auth/login`, `/auth/register`, `/auth/refresh`) instead of the whole `/auth/` prefix. Low priority — no observed bug, purely a latent inconsistency.
 
 ---
+
+## [OPEN] #007 — Web login lacks rate limiting and refresh tokens lack reuse detection
+
+**Found in:** Personal API key auth documentation pass.
+
+**Scope:** `POST /auth/login` and refresh token rotation in `POST /auth/refresh`.
+
+**Description:** Web login has no rate limiting. Refresh tokens are rotated, but there is no token family tracking or reuse detection to revoke a session after a previously used token is replayed.
+
+**Suggested fix:** Rate-limit login attempts and add refresh token family tracking with reuse detection and family revocation.
+
+---
+
+## [RESOLVED] #008 — Repo-wide `npm run lint` fails on pre-existing errors
+
+**Found in:** Verification pass for the personal API keys change.
+
+**Scope:** Whole monorepo `npm run lint` (81 errors, 11 warnings at the time of logging). Examples: unused `waitFor` imports in web tests, `any` in accounts/transactions services, an unused `Prisma` import in `reports.types.ts`, and CommonJS globals in `.agents/skills/*.cjs`.
+
+**Description:** None of the errors are in files touched by the API keys change; files added or changed by that change lint clean. Because the root command fails, it cannot be used as a pass/fail gate until these are cleaned up.
+
+**Resolution:** `fix-repository-lint-errors`: ESLint ignores local worktrees and vendored skill tooling, `npm run lint` runs with `--max-warnings 0`, and the remaining source errors and warnings were fixed.
+
+---
+
+## [OPEN] #009 — Full parallel `npm run test` can time out a web test worker
+
+**Found in:** Verification pass for the personal API keys change.
+
+**Scope:** `apps/web/src/pages/Debts/hooks/tests/useDebtSettlementWorkflow.test.tsx` when the root `npm run test` runs all workspaces, including the Docker-backed API suites, at once.
+
+**Description:** In one full run every test passed, but Vitest reported "Worker exited unexpectedly" / "Timeout terminating forks worker" for this file, so the command exited non-zero. Running `npm run test -w apps/web` on its own passed (112 files, 858 tests). This looks resource-related rather than a code defect.
+
+**Suggested fix:** Investigate the worker timeout (pool size or teardown in that test), or run the workspace suites sequentially in the root script.
+
+---
+
+## [OPEN] #010 — No dynamic client registration and no `iss` on SDK-generated OAuth error redirects
+
+**Found in:** MCP OAuth server change.
+
+**Scope:** `apps/api/src/modules/oauth/`.
+
+**Description:** Clients are identified only by Client ID Metadata Documents; clients that need RFC 7591 registration cannot connect. Errors the MCP SDK redirects itself (for example `invalid_request`, `invalid_target`) do not carry the RFC 9207 `iss` parameter; only approve and deny redirects built by FlowLedger do. Unfinished grants (code never exchanged) are never cleaned up.
+
+**Suggested fix:** Add DCR only if a required client needs it; wrap the SDK authorize handler to append `iss`; add a periodic `deleteMany` of expired unfinished grants.
+
+---
+
+## [OPEN] #011 — Hard delete of accounts and categories orphans transactions
+
+**Found in:** `expand-personal-api-crud` design review.
+
+**Scope:** `deleteAccount` and `deleteCategory` services (internal `DELETE /accounts/:id`, `/categories/:id`). Also exposed through `DELETE /v1/accounts/:id`, `DELETE /v1/categories/:id` and the MCP tools `delete_account`, `delete_category` with exactly the same semantics as the web UI (operator decision: API/MCP clients may do what the web UI can).
+
+**Description:** The foreign keys use `SetNull`, so transactions of a deleted account or category are silently orphaned and a transfer loses a leg.
+
+**Suggested fix:** Block the delete when transactions exist, or require archiving first.
+
+---
+
+## [OPEN] #012 — Create endpoints and tools have no idempotency key
+
+**Found in:** `expand-personal-api-crud` design review.
+
+**Scope:** `POST /v1/accounts`, `/v1/categories`, `/v1/transactions` and the matching `create_*` MCP tools.
+
+**Description:** A retried create after a timeout can duplicate the record. Tool descriptions and docs say so.
+
+**Suggested fix:** Accept an optional idempotency key and keep a short-lived store of results.
+
+---
+
+## [OPEN] #013 — Account currency can be changed on an account that has transactions
+
+**Found in:** `expand-personal-api-crud` design review.
+
+**Scope:** `updateAccount`, reachable from the web app, `PUT /v1/accounts/:id` and `update_account`.
+
+**Description:** Changing `currency` does not re-evaluate existing transactions or balances.
+
+**Suggested fix:** Reject currency changes once the account has transactions.
+
+---
+
+## [OPEN] #014 — Shared-expense update replaces all participants
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `updateSharedExpense` (`shared-expenses/services/update.service.ts:60-66`); web `PUT /shared-expenses/:id`. Not exposed through `/v1` or MCP.
+
+**Description:** Replacing participants deletes and recreates them, losing `paidAmount` and cascading away their settlement requests.
+
+**Suggested fix:** Diff participants and update in place, rejecting changes that would drop paid or requested shares.
+
+---
+
+## [OPEN] #015 — Last admin can be removed or can leave a group
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `removeGroupMember` (`groups/services/delete.service.ts`); web `DELETE /groups/:id/members/:userId`, `DELETE /v1/groups/:id/members/:userId`, `remove_group_member`.
+
+**Description:** There is no last-admin guard, so a group can end up with no admin and become unmanageable.
+
+**Suggested fix:** Refuse removal of the only admin, or promote another member first.
+
+---
+
+## [OPEN] #016 — `deleteSharedExpense` leaves its notifications
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `deleteSharedExpense` (web only).
+
+**Description:** Notifications created for participants remain after the shared expense is deleted.
+
+**Suggested fix:** Delete related notifications in the same database transaction, as `deleteTransaction` does.
+
+---
+
+## [OPEN] #017 — Changing a transaction amount does not rescale participant shares
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `updateTransaction` on a transaction with a shared expense (web, `PUT /v1/transactions/:id`, `update_transaction`).
+
+**Description:** Share amounts keep their old values, so shares can exceed the new amount.
+
+**Suggested fix:** Reject amount changes that would make shares exceed the amount, or rescale proportionally.
+
+---
+
+## [OPEN] #018 — Group hard delete orphans transaction group ids
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `deleteGroup` (web `DELETE /groups/:id`); not exposed through `/v1` or MCP.
+
+**Description:** Deleting a group cascades its categories and leaves `Transaction.groupId` pointing at nothing.
+
+**Suggested fix:** Block deletion while transactions reference the group, or archive instead.
+
+---
+
+## [OPEN] #019 — Shared expenses on non-group transactions accept any user id as participant
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `createSharedExpense` via the web `POST /shared-expenses`; `normalizeSharedExpenseParticipants` only checks membership when the transaction has a group.
+
+**Description:** Any existing user id can be made a participant and is notified. `/v1` and MCP refuse non-group transactions (400); the web path is unchanged.
+
+**Suggested fix:** Require a shared relationship (group, contact) in the service so the web path is covered too.
+
+---
+
+## [OPEN] #020 — Shared-expense shares may be below the transaction amount, and `getGroupById` answers non-members with 400
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `validateSharedExpenseParticipants` only rejects shares above the amount (the owner keeps the remainder); `getGroupMembership` returns 400 for non-members. `/v1/groups/:id` and `list_groups` map non-members to 404 through `getMemberGroup`.
+
+**Description:** Behaviour differs from the original change text (shares equal the amount; 404 everywhere).
+
+**Suggested fix:** Decide whether partial shares are intended and align `getGroupMembership` with the 404 convention.
+
+---
+
+## [OPEN] #021 — Imported-transaction batch import is not atomic and batch calls skip unknown ids silently
+
+**Found in:** `expand-personal-api-crud`.
+
+**Scope:** `batchImportProviderImportedTransactions`, `batchIgnoreImportedTransactions`, `batchUnignoreImportedTransactions` (web `POST /transactions/imported/batch-*`, `/v1/imported-transactions/batch-*`, MCP `*_imported_transactions`).
+
+**Description:** Every row is validated up front and any failure aborts with per-row errors before anything changes. After validation, batch import creates the transactions one at a time (each in its own database transaction), so a crash or database error midway leaves a partial import; re-running is safe because processed rows are rejected. Ids that do not exist or belong to another user are dropped by `resolveImportedTransactionSelectionIds`, so the call succeeds with a smaller count instead of answering `404`.
+
+**Suggested fix:** Run the creation loop in one `$transaction` and report requested vs. resolved id counts.
+
+---
+
+## [OPEN] #022 — Web user search is looser than the API-credential search
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** web user search vs. `GET /v1/users/search` and MCP `search_users`.
+
+**Description:** The web search accepts a 1-character query and returns up to 25 rows; API credentials get a 3-character minimum and at most 10 rows.
+
+**Suggested fix:** Apply the same minimum and cap on the web path if enumeration is a concern.
+
+---
+
+## [OPEN] #023 — Shared-expense update (#014) and group delete (#018) are intentionally not exposed over `/v1` and MCP
+
+**Found in:** `expand-group-api-crud`.
+
+**Scope:** `/v1`, MCP.
+
+**Description:** Both are withheld pending an operator decision because of the issues logged in #014 and #018.
+
+**Suggested fix:** Expose them once #014 and #018 are resolved.

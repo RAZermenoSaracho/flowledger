@@ -37,7 +37,7 @@ Core user record. All user-owned data cascades on delete.
 | `mobileSidebarSide` | String | Default `"left"`; which side the mobile nav sidebar opens from |
 | `createdAt` / `updatedAt` | DateTime | Auto-managed |
 
-Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`
+Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`, `apiKeys`
 
 ---
 
@@ -52,6 +52,50 @@ An opaque, rotating refresh token backing a user's session (see `docs/AUTH_FLOW.
 | `tokenHash` | String (unique) | SHA-256 hash of the opaque token value; the plaintext is never stored |
 | `expiresAt` | DateTime | |
 | `revokedAt` | DateTime? | Set on rotation (single-use) or logout |
+
+---
+
+### ApiKey
+
+A personal API key owned by a user. The plaintext key is never stored.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `userId` | String | FK → User; cascades on user delete |
+| `name` | String | User-provided label |
+| `hint` | String | First 8 characters of the key |
+| `secretHash` | String (unique) | SHA-256 hex digest of the key |
+| `scopes` | String[] | `['read']` or `['read', 'write']` |
+| `expiresAt` | DateTime? | Optional expiry |
+| `revokedAt` | DateTime? | Set when revoked |
+| `lastUsedAt` | DateTime? | Most recent recorded use |
+| `createdAt` | DateTime | Defaults to creation time |
+
+Index: `userId`
+
+---
+
+### OAuthGrant
+
+One row per approved MCP OAuth connection: the client, scopes, lifetime, the single-use authorization code and the current token pair. Only SHA-256 hashes of codes and tokens are stored. Rows are kept after revocation (`revokedAt`) so replays stay detectable. A row whose code was never exchanged (`codeUsedAt` null) is an unfinished grant and is not listed to the user.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK; also the credential id of its tokens |
+| `userId` | String | FK → User; cascades on user delete |
+| `clientId` / `clientName` | String | CIMD URL and the name snapshotted at consent |
+| `redirectUri` | String | The exact URI the code was delivered to |
+| `scopes` | String[] | `['read']` or `['read', 'write']` |
+| `codeChallenge` | String | PKCE S256 challenge |
+| `codeHash` / `codeExpiresAt` / `codeUsedAt` | String (unique) / DateTime / DateTime? | 60 s single-use code |
+| `accessTokenHash` / `accessExpiresAt` | String? (unique) / DateTime? | `flo_` token, at most 1 h and never past `expiresAt` |
+| `refreshTokenHash` | String? (unique) | Current `flr_` token |
+| `prevRefreshTokenHash` / `rotatedAt` | String? / DateTime? | Previous refresh token and when it rotated (30 s retry grace) |
+| `expiresAt` | DateTime? | Grant expiry chosen at consent; `null` = Never; never extended |
+| `revokedAt` / `lastUsedAt` / `createdAt` | DateTime? / DateTime? / DateTime | |
+
+Indexes: `userId`, `prevRefreshTokenHash`
 
 ---
 

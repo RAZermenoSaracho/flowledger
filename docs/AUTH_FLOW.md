@@ -190,6 +190,30 @@ Requires auth (access token). Fetches the current user from the database and ret
 
 ---
 
+## Personal API keys
+
+Keys have the form `fl_` + 32 random bytes encoded as base64url. Only a SHA-256 hash is stored; the plaintext is returned once by `POST /users/me/api-keys`. `GET /users/me/api-keys` lists keys, and `DELETE /users/me/api-keys/:id` revokes one idempotently. These management routes use `requireAuth` and accept web JWTs only; an `fl_` key receives 401.
+
+`apps/api/src/middleware/credential.ts` exports `verifyCredential` (the `fl_` branch rejects unknown, revoked, or expired keys and JWTs), `requireCredential`, and `requireScope('read' | 'write')`. Write scope implies read; insufficient scope returns 403. `lastUsedAt` updates at most once every five minutes without blocking the request. Credential middleware is not yet mounted on any public route.
+
+`PUBLIC_API_URL` defaults to `http://localhost:${API_PORT}`. The app sets `trust proxy` to `1`; `apps/api/src/utils/rateLimit.ts` provides `createRateLimiter`, and `apps/api/src/utils/auditLog.ts` provides audit logging helpers.
+
+---
+
+## MCP OAuth server
+
+FlowLedger is an OAuth 2.1 authorization server for `/mcp` (module `apps/api/src/modules/oauth/`), so ChatGPT and Claude Code can connect without a pasted key.
+
+- **Discovery** (API host): `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource` and `.../mcp`; a `/mcp` 401 carries `WWW-Authenticate: Bearer resource_metadata=...`. Endpoints are the SDK's root `/authorize`, `/token`, `/revoke`. No `/register`.
+- **Clients** are Client ID Metadata Documents only (`oauth/providers/cimd/`): the `client_id` is an https URL fetched with an SSRF-safe, DNS-pinned request (5 s, 64 KB, no redirects, every resolved address must be public; results cached 5 min). A document declaring `private_key_jwt` is accepted when it also lists `none`, and is treated as a public client.
+- **Flow**: `/authorize` (PKCE S256, `resource` must equal `${PUBLIC_API_URL}/mcp`, exact redirect or loopback with any port) redirects to `${WEB_APP_URL}/oauth/authorize?req=<10-minute signed JWT>`. The SPA calls `GET /oauth/authorize/context` and `POST /oauth/authorize/decision` (web JWT only); the decision binds the grant to the signed-in user and returns `redirect_uri?code&state&iss`. Read is always granted; write only if requested and ticked. Lifetime: 1d, 1m, 1y or never.
+- **Tokens**: 60 s single-use code (replay revokes the grant); `flo_` access token (1 h, never past the grant) and rotating `flr_` refresh token. Re-presenting the previous refresh token within 30 s of its rotation issues a fresh pair; later it revokes the grant. Refreshing never extends the grant.
+- **Verification**: `verifyCredential` checks the `flo_` token against the database on every request, so revocation is immediate. `/v1` passes `kinds: ["apiKey"]` and rejects OAuth tokens.
+- **Management**: `GET /users/me/oauth-grants` and `DELETE /users/me/oauth-grants/:id` (web JWT), or the client's `/revoke`.
+- Google login accepts a same-origin relative `redirect` up to 2048 characters (the consent URL), so a logged-out user returns to the consent page.
+
+---
+
 ## OAuth providers implemented
 
 | Provider | Status |

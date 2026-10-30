@@ -12,6 +12,7 @@ import {
   providerWebhooksRouter,
   providersRouter
 } from "./modules/accounts/accounts.routes.js";
+import { apiKeysRouter } from "./modules/apiKeys/apiKeys.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { categoriesRouter } from "./modules/categories/categories.routes.js";
 import {
@@ -19,10 +20,17 @@ import {
   settlementsRouter
 } from "./modules/debts/debts.routes.js";
 import { groupsRouter } from "./modules/groups/groups.routes.js";
+import { mcpRouter } from "./modules/mcp/mcp.routes.js";
+import {
+  createOAuthServerRouter,
+  oauthConsentRouter,
+  oauthGrantsRouter
+} from "./modules/oauth/oauth.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
+import { v1Router } from "./modules/v1/v1.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { currenciesRouter } from "./modules/currencies/currencies.routes.js";
 import syncfyRoutes from "./modules/accounts/providers/syncfy/syncfy.routes.js";
@@ -37,7 +45,12 @@ const uploadDir = path.resolve(moduleDir, "../uploads");
  */
 export const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+// Mounted before the app-wide CORS: the SDK handlers set their own open CORS for browser-based MCP clients,
+// which the credentialed WEB_APP_URL policy below would otherwise overwrite.
+app.use(createOAuthServerRouter());
 app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(
   express.json({
@@ -56,6 +69,10 @@ app.get("/health", (_req, res) => {
 
 app.use("/currencies", currenciesRouter);
 app.use("/auth", authRouter);
+app.use("/users/me/api-keys", requireAuth, apiKeysRouter);
+app.use("/users/me/oauth-grants", requireAuth, oauthGrantsRouter);
+app.use("/oauth/authorize", requireAuth, oauthConsentRouter);
+app.use("/v1", v1Router);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);
@@ -69,4 +86,5 @@ app.use("/transactions", requireAuth, transactionsRouter);
 app.use("/shared-expenses", requireAuth, sharedExpensesRouter);
 app.use("/reports", requireAuth, reportsRouter);
 app.use("/syncfy", syncfyRoutes);
+app.use("/mcp", mcpRouter);
 app.use(errorHandler);

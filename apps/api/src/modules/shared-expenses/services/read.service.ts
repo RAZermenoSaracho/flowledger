@@ -24,6 +24,20 @@ export async function getOwnedTransaction(userId: string, transactionId?: string
   return transaction;
 }
 
+/**
+ * Precondition for creating a shared expense through the external surfaces (`/v1`, MCP): the transaction must be
+ * owned by `userId` (404 otherwise, hiding foreign ids) and belong to a group (400 otherwise), so the service's
+ * group-membership participant check always applies and arbitrary user ids can never be made participants.
+ */
+export async function assertOwnedGroupTransaction(userId: string, transactionId: string) {
+  const transaction = await prisma.transaction.findFirst({
+    where: { id: transactionId, userId },
+    select: { groupId: true }
+  });
+  if (!transaction) throw notFound("Transaction");
+  if (!transaction.groupId) throw badRequest("Shared expenses can only be created for group transactions");
+}
+
 /** Validates participant input (no owner, group-split participants must be app users and group members) and fills in each registered participant's current display name. */
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,

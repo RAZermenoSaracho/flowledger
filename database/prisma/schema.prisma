@@ -89,6 +89,8 @@ model User {
   ownedGroups                  Group[]                       @relation("OwnedGroups")
   notifications                Notification[]
   refreshTokens                RefreshToken[]
+  apiKeys                      ApiKey[]
+  oauthGrants                  OAuthGrant[]
 }
 
 model RefreshToken {
@@ -101,6 +103,48 @@ model RefreshToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  hint       String
+  secretHash String    @unique
+  scopes     String[]
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OAuthGrant {
+  id                   String    @id @default(cuid())
+  userId               String
+  clientId             String
+  clientName           String
+  redirectUri          String
+  scopes               String[]
+  codeChallenge        String
+  codeHash             String    @unique
+  codeExpiresAt        DateTime
+  codeUsedAt           DateTime?
+  accessTokenHash      String?   @unique
+  accessExpiresAt      DateTime?
+  refreshTokenHash     String?   @unique
+  prevRefreshTokenHash String?
+  rotatedAt            DateTime?
+  expiresAt            DateTime?
+  revokedAt            DateTime?
+  lastUsedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([prevRefreshTokenHash])
 }
 
 model UserAuthAccount {

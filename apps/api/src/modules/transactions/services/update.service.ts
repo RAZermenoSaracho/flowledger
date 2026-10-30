@@ -1,3 +1,4 @@
+import type { UpdateTransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { roundMoney } from "../../currencies/utils/roundMoney.js";
@@ -22,7 +23,7 @@ import {
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
 /** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and syncing any linked shared expense. */
-export async function updateTransaction(userId: string, id: string, body: any) {
+export async function updateTransaction(userId: string, id: string, body: UpdateTransactionInput) {
   const existing = await prisma.transaction.findFirst({
     where: { id, userId },
     include: {

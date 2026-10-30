@@ -16,8 +16,11 @@ export const googleOAuthStartQuerySchema = z.object({
   redirect: z
     .string()
     .trim()
-    .max(120)
-    .refine((value) => value.startsWith("/") && !value.startsWith("//"), "Redirect must be an app path")
+    .max(2048)
+    .refine(
+      (value) => value.startsWith("/") && !value.startsWith("//") && !value.includes("\\"),
+      "Redirect must be an app path"
+    )
     .default("/")
 });
 
@@ -38,6 +41,16 @@ export const updateUserProfileSchema = z.object({
   email: z.string().trim().email().max(255),
   preferredCurrency: z.string().min(1).max(10).nullable().optional()
 });
+
+/** Body of `PATCH /v1/me` and the MCP `update_preferences` tool: only name and default currency (never email, password or plan); at least one field is required. */
+export const updateUserPreferencesSchema = z
+  .object({
+    name: updateUserProfileSchema.shape.name.optional(),
+    preferredCurrency: updateUserProfileSchema.shape.preferredCurrency
+  })
+  .refine((input) => input.name !== undefined || input.preferredCurrency !== undefined, {
+    message: "Provide name or preferredCurrency"
+  });
 
 export const updateUserPasswordSchema = z
   .object({
@@ -68,6 +81,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type GoogleOAuthStartQuery = z.infer<typeof googleOAuthStartQuerySchema>;
 export type GoogleOAuthCallbackQuery = z.infer<typeof googleOAuthCallbackQuerySchema>;
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+export type UpdateUserPreferencesInput = z.infer<typeof updateUserPreferencesSchema>;
 export type UpdateUserPasswordInput = z.infer<typeof updateUserPasswordSchema>;
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;
 export type UpdateUserSidebarSideInput = z.infer<

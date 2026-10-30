@@ -6,6 +6,7 @@ import {
   registerSchema,
   updateUserPasswordSchema,
   updateUserPlanSchema,
+  updateUserPreferencesSchema,
   updateUserProfileSchema,
   updateUserSidebarSideSchema,
   userSearchQuerySchema
@@ -54,6 +55,16 @@ describe("googleOAuthStartQuerySchema", () => {
     expect(
       googleOAuthStartQuerySchema.safeParse({ redirect: "/dashboard" }).success
     ).toBe(true);
+  });
+
+  it("accepts a long same-origin path with a query string (OAuth consent URL)", () => {
+    const redirect = `/oauth/authorize?req=${"a".repeat(1800)}`;
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect }).success).toBe(true);
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect: `${redirect}${"a".repeat(300)}` }).success).toBe(false);
+  });
+
+  it("rejects a backslash redirect", () => {
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect: "/\\evil.example.com" }).success).toBe(false);
   });
 
   it("rejects a protocol-relative redirect (open redirect risk)", () => {
@@ -194,5 +205,18 @@ describe("userSearchQuerySchema", () => {
     expect(
       userSearchQuerySchema.safeParse({ q: "ada", limit: "26" }).success
     ).toBe(false);
+  });
+});
+
+describe("updateUserPreferencesSchema", () => {
+  it("accepts name, currency (including null) or both", () => {
+    expect(updateUserPreferencesSchema.safeParse({ name: "Ada" }).success).toBe(true);
+    expect(updateUserPreferencesSchema.safeParse({ preferredCurrency: null }).success).toBe(true);
+    expect(updateUserPreferencesSchema.safeParse({ name: "Ada", preferredCurrency: "MXN" }).success).toBe(true);
+  });
+
+  it("requires at least one field and drops email, password and plan", () => {
+    expect(updateUserPreferencesSchema.safeParse({}).success).toBe(false);
+    expect(updateUserPreferencesSchema.parse({ name: "Ada", email: "x@y.z", planType: "pro" })).toEqual({ name: "Ada" });
   });
 });

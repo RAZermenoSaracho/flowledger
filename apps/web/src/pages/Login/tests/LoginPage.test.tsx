@@ -76,6 +76,39 @@ describe("LoginPage", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
   });
 
+  it.each([
+    ["/oauth/authorize?req=abc", "/oauth/authorize"],
+    ["https://evil.example", "/"],
+    ["//evil.example", "/"]
+  ])("after login honours redirect=%s only if same-origin (lands on %s)", async (redirect, expected) => {
+    mockRefresh401();
+    server.use(
+      http.post(`${API_URL}/auth/login`, () =>
+        HttpResponse.json({
+          token: "tok",
+          user: {
+            id: "user-1", name: "Jane", email: "jane@example.com", planType: "free",
+            mobileSidebarSide: "left", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z"
+          }
+        })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(
+      <>
+        <LoginPage />
+        <LocationProbe />
+      </>,
+      { withAuth: true, route: `/login?redirect=${encodeURIComponent(redirect)}` }
+    );
+
+    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(screen.getByLabelText("Password"), "password123");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(new RegExp(`^${expected}$`)));
+  });
+
   it("shows an error message when login fails", async () => {
     mockRefresh401();
     server.use(

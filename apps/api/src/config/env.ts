@@ -53,6 +53,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.string().url(),
   WEB_APP_URL: z.string().url(),
+  PUBLIC_API_URL: z.string().url().optional(),
   SYNCFY_API_KEY: z.string().min(1).optional(),
   SYNCFY_WEBHOOK_SIGNATURE_KEY: z.string().min(1).optional(),
   SYNCFY_API_BASE_URL: z.string().url().default("https://api.syncfy.com"),
@@ -83,4 +84,10 @@ const envSchema = z.object({
 });
 
 /** Validated process environment; throws at startup if required vars are missing or malformed. */
-export const env = envSchema.parse(process.env);
+export const env = (() => {
+  const parsed = envSchema.parse(process.env);
+  return {
+    ...parsed,
+    PUBLIC_API_URL: parsed.PUBLIC_API_URL ?? `http://localhost:${parsed.API_PORT}`
+  };
+})();

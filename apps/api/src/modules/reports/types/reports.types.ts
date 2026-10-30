@@ -1,5 +1,3 @@
-import type { Prisma } from "@prisma/client";
-
 /** Per-category totals for one report period, in the report's target currency. */
 export type CategoryReportRow = {
   categoryId: string | null;

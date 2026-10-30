@@ -72,8 +72,8 @@ export function GroupCategoriesSection({
       ).categories
   });
 
-  const visibleGroupCategories = groupCategoriesQuery.data ?? [];
-  const activeGroupBys = categoryQuery.groupBy ?? [];
+  const visibleGroupCategories = useMemo(() => groupCategoriesQuery.data ?? [], [groupCategoriesQuery.data]);
+  const activeGroupBys = useMemo(() => categoryQuery.groupBy ?? [], [categoryQuery.groupBy]);
   const groupedGroupCategories = useMemo(
     () =>
       groupByFields(

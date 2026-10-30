@@ -11,7 +11,7 @@ export const transactionSharedExpenseSchema = z.object({
   participants: z.array(sharedExpenseParticipantSchema).min(1)
 });
 
-const baseTransactionSchema = z.object({
+export const baseTransactionSchema =z.object({
   name: z.string().trim().min(1).max(160),
   amount: moneySchema,
   executionCurrency: currencyCodeSchema.optional(),

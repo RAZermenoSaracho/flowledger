@@ -4,11 +4,13 @@ export const routes = {
   login: "/login",
   register: "/register",
   oauthCallback: "/auth/oauth/callback",
+  oauthAuthorize: "/oauth/authorize",
   transactions: "/transactions",
   accounts: "/accounts",
   categories: "/categories",
   groups: "/groups",
   reports: "/reports",
   debts: "/debts",
-  profile: "/profile"
+  profile: "/profile",
+  developer: "/profile/developer"
 } as const;

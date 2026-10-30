@@ -114,6 +114,13 @@ export async function listGroups(userId: string, rawQuery: string | undefined) {
   return result.data;
 }
 
+/** Like `getGroupById` but answers a non-member (or missing group) with 404, for external surfaces that must not reveal group existence. */
+export async function getMemberGroup(userId: string, groupId: string) {
+  const member = await prisma.groupMember.findFirst({ where: { groupId, userId }, select: { id: true } });
+  if (!member) throw notFound("Group");
+  return getGroupById(userId, groupId);
+}
+
 /** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
 export async function getGroupById(userId: string, groupId: string) {
   await getGroupMembership(userId, groupId);

@@ -43,8 +43,8 @@ export function SharedExpensesPage() {
       ).sharedExpenses
   });
 
-  const visibleSharedExpenses = sharedExpensesQuery.data ?? [];
-  const activeGroupBys = sharedExpenseQuery.groupBy ?? [];
+  const visibleSharedExpenses = useMemo(() => sharedExpensesQuery.data ?? [], [sharedExpensesQuery.data]);
+  const activeGroupBys = useMemo(() => sharedExpenseQuery.groupBy ?? [], [sharedExpenseQuery.groupBy]);
   const groupedSharedExpenses = useMemo(
     () =>
       groupByFields(

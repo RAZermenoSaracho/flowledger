@@ -90,8 +90,8 @@ export function AccountsPage() {
   });
   const editForm = useAccountEditForm();
 
-  const visibleAccounts = accountsQuery.data ?? [];
-  const activeGroupBys = accountQuery.groupBy ?? [];
+  const visibleAccounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const activeGroupBys = useMemo(() => accountQuery.groupBy ?? [], [accountQuery.groupBy]);
   const groupedAccounts = useMemo(
     () =>
       groupByFields(

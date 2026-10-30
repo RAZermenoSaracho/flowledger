@@ -78,6 +78,8 @@ src/modules/
   shared-expenses/   sharedExpenses.routes.ts, services/, controllers/, utils/, types/
   transactions/      transactions.routes.ts, services/, controllers/, utils/, types/
   users/             users.routes.ts, services/, controllers/, utils/
+  v1/                v1.routes.ts, utils/ — API-key-only public allowlist reusing other modules'
+                       controllers (no services of its own); see docs/PUBLIC_API.md
 ```
 
 To add a module, create the `<domain>/` directory with whichever layers it needs, add `<domain>.routes.ts`, export a `Router`, then mount it in `server.ts`.

@@ -5,6 +5,7 @@ import {
   getGroupAdmin,
   getGroupById,
   getGroupMembership,
+  getMemberGroup,
   listGroups
 } from "../read.service.js";
 
@@ -151,5 +152,14 @@ describe("getGroupById", () => {
       totalExpenses: 400,
       balance: 600
     });
+  });
+});
+
+describe("getMemberGroup", () => {
+  it("404s for a non-member without loading the group", async () => {
+    prismaMock.groupMember.findFirst.mockResolvedValue(null);
+
+    await expect(getMemberGroup("user-1", "g1")).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.group.findUnique).not.toHaveBeenCalled();
   });
 });
