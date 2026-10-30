@@ -7,6 +7,7 @@ export * from "./schemas/common.js";
 export * from "./schemas/currencies.js";
 export * from "./schemas/debts.js";
 export * from "./schemas/groups.js";
+export * from "./schemas/mcp.js";
 export * from "./schemas/notifications.js";
 export * from "./schemas/providers.js";
 export * from "./schemas/reports.js";

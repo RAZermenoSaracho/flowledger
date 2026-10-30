@@ -20,6 +20,7 @@ import {
   settlementsRouter
 } from "./modules/debts/debts.routes.js";
 import { groupsRouter } from "./modules/groups/groups.routes.js";
+import { mcpRouter } from "./modules/mcp/mcp.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
@@ -73,4 +74,5 @@ app.use("/transactions", requireAuth, transactionsRouter);
 app.use("/shared-expenses", requireAuth, sharedExpensesRouter);
 app.use("/reports", requireAuth, reportsRouter);
 app.use("/syncfy", syncfyRoutes);
+app.use("/mcp", mcpRouter);
 app.use(errorHandler);
