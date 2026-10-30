@@ -5,7 +5,7 @@ import { RecordCard } from "../../../components/RecordCard";
 import * as oauthClient from "../../../services/oauth.client";
 import type { OAuthGrant } from "../../../types/oauth.types";
 import { formatExpiry, formatLastUsed } from "../utils/apiKeyDisplay";
-import { RevokeOAuthGrantDialog } from "./RevokeOAuthGrantDialog";
+import { ConfirmRevokeDialog } from "./ConfirmRevokeDialog";
 
 /** Lists AI clients connected through OAuth and lets the user disconnect (revoke) them. */
 export function ConnectedAppsSection() {
@@ -61,8 +61,10 @@ export function ConnectedAppsSection() {
         {notice}
       </p>
       {revoking ? (
-        <RevokeOAuthGrantDialog
-          grant={revoking}
+        <ConfirmRevokeDialog
+          title={`Disconnect "${revoking.clientName}"?`}
+          body="This app will lose access to your account immediately."
+          confirmLabel="Disconnect"
           pending={revoke.isPending}
           onConfirm={() => revoke.mutate(revoking.id)}
           onCancel={() => setRevoking(null)}

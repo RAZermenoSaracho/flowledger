@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "../../../components/Button";
+import { ModalDialog } from "./ModalDialog";
 
 /**
  * Modal that shows a newly created API key exactly once. Escape and backdrop
@@ -13,13 +14,7 @@ export function ApiKeyRevealDialog({
   secret: string;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [copyMessage, setCopyMessage] = useState("");
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
 
   async function copy() {
     try {
@@ -31,15 +26,7 @@ export function ApiKeyRevealDialog({
   }
 
   return (
-    <dialog
-      ref={ref}
-      aria-labelledby="reveal-title"
-      onCancel={(event) => event.preventDefault()}
-      className="w-[min(32rem,calc(100vw-2rem))] rounded-lg bg-white p-6 text-ink backdrop:bg-black/50 dark:bg-slate-900 dark:text-slate-100"
-    >
-      <h3 id="reveal-title" className="text-lg font-semibold">
-        Your new API key
-      </h3>
+    <ModalDialog titleId="reveal-title" title="Your new API key" widthClass="w-[min(32rem,calc(100vw-2rem))]">
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Copy it now. You will not be able to see it again.
       </p>
@@ -57,6 +44,6 @@ export function ApiKeyRevealDialog({
           I've saved it
         </Button>
       </div>
-    </dialog>
+    </ModalDialog>
   );
 }

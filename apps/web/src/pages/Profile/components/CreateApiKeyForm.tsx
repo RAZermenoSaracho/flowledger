@@ -15,13 +15,15 @@ const radioLabel = "flex min-h-11 items-center gap-2 text-sm";
 /**
  * Form for creating a personal API key (name, Read / Read+Write, lifetime).
  * Defaults to read-only with a 1 month lifetime; `onSubmit` may reject, in which
- * case the message is shown inline.
+ * case the message is shown inline. When `onCancel` is given a Cancel button is shown.
  */
 export function CreateApiKeyForm({
   onSubmit,
+  onCancel,
   disabled
 }: {
   onSubmit: (input: CreateApiKeyInput) => Promise<void>;
+  onCancel?: () => void;
   disabled?: boolean;
 }) {
   const [name, setName] = useState("");
@@ -49,6 +51,7 @@ export function CreateApiKeyForm({
         value={name}
         onChange={(event) => setName(event.target.value)}
         required
+        autoFocus
         maxLength={60}
       />
       <fieldset>
@@ -96,9 +99,16 @@ export function CreateApiKeyForm({
         ) : null}
       </fieldset>
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
-      <Button type="submit" className="min-h-11 sm:w-fit" disabled={disabled}>
-        Create API key
-      </Button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button type="submit" className="min-h-11" disabled={disabled}>
+          Create key
+        </Button>
+        {onCancel ? (
+          <Button type="button" variant="secondary" className="min-h-11" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
+      </div>
     </form>
   );
 }

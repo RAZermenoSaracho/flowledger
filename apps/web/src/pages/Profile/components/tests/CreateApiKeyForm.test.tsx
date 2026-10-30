@@ -12,7 +12,7 @@ describe("CreateApiKeyForm", () => {
     expect(screen.getByLabelText("Read")).toBeChecked();
     expect(screen.getByLabelText("1 month")).toBeChecked();
     await user.type(screen.getByLabelText("Name"), "CLI");
-    await user.click(screen.getByRole("button", { name: "Create API key" }));
+    await user.click(screen.getByRole("button", { name: "Create key" }));
 
     expect(onSubmit).toHaveBeenCalledWith({ name: "CLI", allowWrite: false, lifetime: "1m" });
   });
@@ -30,7 +30,7 @@ describe("CreateApiKeyForm", () => {
     const user = userEvent.setup();
     render(<CreateApiKeyForm onSubmit={vi.fn().mockRejectedValue(new Error("Nope"))} />);
     await user.type(screen.getByLabelText("Name"), "CLI");
-    await user.click(screen.getByRole("button", { name: "Create API key" }));
+    await user.click(screen.getByRole("button", { name: "Create key" }));
     await waitFor(() => expect(screen.getByText("Nope")).toBeInTheDocument());
   });
 });
