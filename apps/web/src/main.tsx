@@ -17,6 +17,7 @@ import { PersonDebtDetailPage } from "./pages/Debts/PersonDebtDetailPage";
 import { LoginPage } from "./pages/Login/LoginPage";
 import { DeveloperPage } from "./pages/Developer/DeveloperPage";
 import { GroupsPage } from "./pages/Groups/GroupsPage";
+import { OAuthAuthorizePage } from "./pages/OAuthAuthorize/OAuthAuthorizePage";
 import { OAuthCallbackPage } from "./pages/OAuthCallback/OAuthCallbackPage";
 import { ProfilePage } from "./pages/Profile/ProfilePage";
 import { RegisterPage } from "./pages/Register/RegisterPage";
@@ -37,6 +38,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path={routes.login} element={<LoginPage />} />
               <Route path={routes.register} element={<RegisterPage />} />
               <Route path={routes.oauthCallback} element={<OAuthCallbackPage />} />
+              <Route
+                path={routes.oauthAuthorize}
+                element={
+                  <ProtectedRoute>
+                    <OAuthAuthorizePage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 element={
                   <ProtectedRoute>

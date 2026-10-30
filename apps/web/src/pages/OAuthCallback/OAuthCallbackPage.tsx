@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
+import { safeRedirect } from "../../utils/safeRedirect";
 import { clearToken, getMe, setToken } from "../../services/auth.client";
 
 /** Completes the Google OAuth redirect by exchanging the callback state for a session and logging the user in. */
@@ -26,9 +27,7 @@ export function OAuthCallbackPage() {
         setToken(token);
         const response = await getMe();
         auth.setUser(response.user);
-        navigate(redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : routes.dashboard, {
-          replace: true
-        });
+        navigate(safeRedirect(redirect, routes.dashboard), { replace: true });
       } catch (caught) {
         clearToken();
         setError(caught instanceof Error ? caught.message : "Google authentication failed");

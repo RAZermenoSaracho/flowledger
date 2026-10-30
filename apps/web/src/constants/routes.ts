@@ -4,6 +4,7 @@ export const routes = {
   login: "/login",
   register: "/register",
   oauthCallback: "/auth/oauth/callback",
+  oauthAuthorize: "/oauth/authorize",
   transactions: "/transactions",
   accounts: "/accounts",
   categories: "/categories",
