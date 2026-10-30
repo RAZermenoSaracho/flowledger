@@ -15,7 +15,7 @@
     "dev:api": "npm run dev -w @flowledger/api",
     "dev:web": "npm run dev -w @flowledger/web",
     "build": "npm run build -w @flowledger/shared && npm run build -w @flowledger/api && npm run build -w @flowledger/web",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "test": "npm run test -w @flowledger/shared && npm run test -w @flowledger/api && npm run test -w @flowledger/web",
     "test:coverage": "npm run test:coverage -w @flowledger/shared && npm run test:coverage -w @flowledger/api && npm run test:coverage -w @flowledger/web",
     "format": "prettier --write .",

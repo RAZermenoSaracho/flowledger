@@ -19,5 +19,6 @@
 
 ## 4. Docs
 
-- [ ] 4.1 Write `docs/PUBLIC_API.md` (about one page): base URL, `Authorization: Bearer fl_...`, scopes, endpoint table, `query` JSON format with a pagination example, error shape, rate limits, explicit "no DELETE" (verify: every curl example runs against a local API with a test key).
+- [x] 4.1 Write `docs/PUBLIC_API.md` (about one page): base URL, `Authorization: Bearer fl_...`, scopes, endpoint table, `query` JSON format with a pagination example, error shape, rate limits, explicit "no DELETE" (verify: every curl example runs against a local API with a test key).
+  - Evidence: ran all doc examples on staging (throwaway user, read+write keys): 7 routes 200/201, read key on write 403, DELETE /transactions/:id, /reports, POST /accounts 404, pageSize 500 capped to 100, pageSize 0 and malformed JSON 400, web JWT 401; no doc changes needed.
 - [x] 4.2 Reference `docs/PUBLIC_API.md` from `apps/api/CLAUDE.md` module list and log any discovered out-of-scope issue in `docs/KNOWN_ISSUES.md` (verify: links resolve).

@@ -9,7 +9,10 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/coverage/**",
-      "database/prisma/migrations/**"
+      "database/prisma/migrations/**",
+      ".claude/worktrees/**",
+      ".agents/skills/**",
+      ".claude/skills/**"
     ]
   },
   {

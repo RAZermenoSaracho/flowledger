@@ -1,3 +1,4 @@
+import type { TransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createSharedExpenseForTransaction } from "../../shared-expenses/services/create.service.js";
@@ -21,7 +22,7 @@ import {
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
 /** Validates relations (account/category/group/transfer/expense-offset) and creates a transaction, optionally with an attached shared expense. */
-export async function createTransaction(userId: string, body: any) {
+export async function createTransaction(userId: string, body: TransactionInput) {
   assertExpenseOffsetAllowed(body);
   assertTransferAllowed(body);
   await assertOwnedRelations(userId, body);

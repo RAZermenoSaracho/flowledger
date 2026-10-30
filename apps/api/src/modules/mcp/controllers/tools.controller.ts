@@ -7,8 +7,6 @@ import {
   updateTransactionToolSchema
 } from "@flowledger/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { ZodError } from "zod";
 import { listAccounts } from "../../accounts/services/read.service.js";
 import { listCategories } from "../../categories/services/read.service.js";
 import { createTransaction } from "../../transactions/services/create.service.js";
@@ -17,64 +15,19 @@ import {
   listTransactions
 } from "../../transactions/services/read.service.js";
 import { updateTransaction } from "../../transactions/services/update.service.js";
-import { auditLog } from "../../../utils/auditLog.js";
-import { HttpError } from "../../../utils/httpError.js";
 import type { McpAuth } from "../types/mcp.types.js";
-import { fail, ok } from "../utils/toolResult.js";
+import { runRead, runWrite } from "../utils/runTool.js";
 import { buildTransactionsQuery } from "../utils/transactionsQuery.js";
+import { registerGroupReadTools, registerGroupWriteTools } from "./tools.groups.controller.js";
+import { registerImportedWriteTools } from "./tools.imports.controller.js";
+import { registerPersonalReadTools } from "./tools.reads.controller.js";
+import { registerUserWriteTools } from "./tools.user.controller.js";
+import { registerPersonalWriteTools } from "./tools.writes.controller.js";
 
 const READ_ONLY = { readOnlyHint: true } as const;
 
-function statusOf(error: unknown) {
-  if (error instanceof HttpError) return error.statusCode;
-  return error instanceof ZodError ? 400 : 500;
-}
-
-async function runRead(action: () => Promise<Record<string, unknown>>): Promise<CallToolResult> {
-  try {
-    return ok(await action());
-  } catch (error) {
-    return fail(error);
-  }
-}
-
 /**
- * Runs a write tool: enforces the `write` scope, emits exactly one audit line for the call
- * (success or failure; never the token or body) and maps errors to `isError` results.
- */
-async function runWrite(
-  auth: McpAuth,
-  op: string,
-  knownResourceId: string | null,
-  action: () => Promise<{ data: Record<string, unknown>; resourceId: string; status: number }>
-): Promise<CallToolResult> {
-  const audit = (resourceId: string | null, status: number) =>
-    auditLog({
-      userId: auth.extra.userId,
-      credentialKind: auth.extra.kind,
-      credentialId: auth.clientId,
-      op,
-      resourceId,
-      status
-    });
-
-  if (!auth.scopes.includes("write")) {
-    audit(knownResourceId, 403);
-    return fail(new HttpError(403, "Missing required scope: write"));
-  }
-
-  try {
-    const { data, resourceId, status } = await action();
-    audit(resourceId, status);
-    return ok(data);
-  } catch (error) {
-    audit(knownResourceId, statusOf(error));
-    return fail(error);
-  }
-}
-
-/**
- * Registers the FlowLedger tools on `server`: four read tools always, and the two write tools only when
+ * Registers the FlowLedger tools on `server`: eleven read tools always, and the fifteen write tools only when
  * `auth` holds the `write` scope (each write handler re-checks it). The acting user comes solely from `auth`.
  */
 export function registerTools(server: McpServer, auth: McpAuth) {
@@ -117,6 +70,9 @@ export function registerTools(server: McpServer, auth: McpAuth) {
     (args) => runRead(() => getTransactionsSummary(userId, buildTransactionsQuery(args)))
   );
 
+  registerPersonalReadTools(server, auth);
+  registerGroupReadTools(server, auth);
+
   if (!auth.scopes.includes("write")) return;
 
   server.registerTool(
@@ -147,4 +103,9 @@ export function registerTools(server: McpServer, auth: McpAuth) {
         return { data: { transaction }, resourceId: id, status: 200 };
       })
   );
+
+  registerPersonalWriteTools(server, auth);
+  registerImportedWriteTools(server, auth);
+  registerUserWriteTools(server, auth);
+  registerGroupWriteTools(server, auth);
 }

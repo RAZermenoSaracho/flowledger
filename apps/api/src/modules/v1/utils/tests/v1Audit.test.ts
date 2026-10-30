@@ -36,6 +36,13 @@ describe("auditV1Write", () => {
     });
   });
 
+  it.each(["account", "category", "group", "sharedExpense", "settlementRequest"])("captures the created %s id from the response body", (key) => {
+    const { res } = setup({ credential, params: {} } as never);
+    res.json({ [key]: { id: "x1" } });
+    res.emit("finish");
+    expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ resourceId: "x1" }));
+  });
+
   it("prefers the id from params", () => {
     const { res } = setup({ credential, params: { id: "t1" } } as never);
     res.statusCode = 404;

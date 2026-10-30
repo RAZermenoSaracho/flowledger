@@ -6,10 +6,10 @@ describe("createAccount", () => {
   it("creates the account scoped to the owning user", async () => {
     prismaMock.account.create.mockResolvedValue({ id: "acc-1" } as never);
 
-    await createAccount("user-1", { name: "Checking", type: "checking" });
+    await createAccount("user-1", { name: "Checking", type: "checking", currency: "USD", initialBalance: 0 });
 
     expect(prismaMock.account.create).toHaveBeenCalledWith({
-      data: { name: "Checking", type: "checking", userId: "user-1" }
+      data: { name: "Checking", type: "checking", currency: "USD", initialBalance: 0, userId: "user-1" }
     });
   });
 });

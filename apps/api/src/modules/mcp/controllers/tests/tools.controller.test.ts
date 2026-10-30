@@ -37,23 +37,79 @@ function register(scopes: string[]) {
   return tools;
 }
 
+const READ_TOOLS = [
+  "get_exchange_rate",
+  "get_profile",
+  "get_report",
+  "get_transaction",
+  "get_transaction_summary",
+  "list_accounts",
+  "list_categories",
+  "list_currencies",
+  "list_debts",
+  "list_groups",
+  "list_imported_transactions",
+  "list_notifications",
+  "list_shared_expenses",
+  "search_transactions",
+  "search_users"
+];
+
+const WRITE_TOOLS = [
+  "add_group_member",
+  "create_account",
+  "create_category",
+  "create_group",
+  "create_group_category",
+  "create_shared_expense",
+  "create_transaction",
+  "delete_account",
+  "delete_category",
+  "delete_transaction",
+  "get_exchange_rate",
+  "get_profile",
+  "get_report",
+  "get_transaction",
+  "get_transaction_summary",
+  "ignore_imported_transactions",
+  "import_imported_transactions",
+  "list_accounts",
+  "list_categories",
+  "list_currencies",
+  "list_debts",
+  "list_groups",
+  "list_imported_transactions",
+  "list_notifications",
+  "list_shared_expenses",
+  "mark_notifications_read",
+  "remove_group_member",
+  "request_settlement",
+  "search_transactions",
+  "search_users",
+  "set_account_archived",
+  "set_category_archived",
+  "set_group_archived",
+  "unignore_imported_transactions",
+  "update_account",
+  "update_category",
+  "update_group",
+  "update_imported_transaction",
+  "update_preferences",
+  "update_transaction"
+];
+
 const validBody = { name: "Coffee", amount: 3, type: "expense", date: "2024-01-01" };
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerTools", () => {
-  it("registers four read tools for a read credential", () => {
-    expect([...register(["read"]).keys()]).toEqual([
-      "list_accounts",
-      "list_categories",
-      "search_transactions",
-      "get_transaction_summary"
-    ]);
+  it("registers exactly the fifteen read tools for a read credential", () => {
+    expect([...register(["read"]).keys()].sort()).toEqual(READ_TOOLS);
   });
 
-  it("registers six tools for a write credential, with the annotations from the spec", () => {
+  it("registers exactly the forty tools for a write credential, with the annotations from the spec", () => {
     const tools = register(["read", "write"]);
-    expect(tools.size).toBe(6);
+    expect([...tools.keys()].sort()).toEqual(WRITE_TOOLS);
     expect(tools.get("list_accounts")!.config.annotations).toEqual({ readOnlyHint: true });
     expect(tools.get("update_transaction")!.config.annotations).toEqual({ idempotentHint: true });
   });

@@ -116,7 +116,7 @@ export function DebtsPage() {
   });
   const { selectedApprovalIds, setSelectedApprovalIds } = workflow;
 
-  const balances = debts?.balances ?? [];
+  const balances = useMemo(() => debts?.balances ?? [], [debts?.balances]);
   const visibleBalances = useMemo(
     () =>
       balances.filter((balance) =>

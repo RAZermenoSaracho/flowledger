@@ -122,7 +122,7 @@ export function TransactionsPage() {
       })
   });
 
-  const visibleTransactions = transactionsQuery.data?.data ?? [];
+  const visibleTransactions = useMemo(() => transactionsQuery.data?.data ?? [], [transactionsQuery.data?.data]);
   // Sourced from the full currency list (independent of the current
   // transaction filter/results), not from `visibleTransactions` — every
   // condition's value picker must offer every possible value for a
@@ -162,7 +162,7 @@ export function TransactionsPage() {
     return { key: "", label: "" };
   }
 
-  const activeTransactionGroupBys = transactionQuery.groupBy ?? [];
+  const activeTransactionGroupBys = useMemo(() => transactionQuery.groupBy ?? [], [transactionQuery.groupBy]);
   const groupedTransactions = useMemo(
     () =>
       groupByFields(

@@ -152,7 +152,6 @@ describe("SearchComponent", () => {
   });
 
   it("shows matching facet-option suggestions while typing, capped and only when onFacetValuesChange is set", async () => {
-    const user = userEvent.setup();
     const onFacetValuesChange = vi.fn();
     renderWithProviders(
       <SearchComponent

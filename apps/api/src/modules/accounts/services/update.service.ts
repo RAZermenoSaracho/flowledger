@@ -1,8 +1,9 @@
+import type { UpdateAccountInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
 
 /** Updates an account's editable fields, throwing a 404 if it isn't owned by `userId`. */
-export async function updateAccount(userId: string, id: string, body: any) {
+export async function updateAccount(userId: string, id: string, body: UpdateAccountInput) {
   const existing = await prisma.account.findFirst({
     where: { id, userId }
   });

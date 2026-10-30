@@ -1,7 +1,8 @@
+import type { AccountInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 
 /** Creates an account row owned by `userId`. */
-export async function createAccount(userId: string, body: any) {
+export async function createAccount(userId: string, body: AccountInput) {
   return prisma.account.create({
     data: { ...body, userId }
   });

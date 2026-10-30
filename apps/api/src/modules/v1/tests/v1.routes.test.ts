@@ -102,12 +102,12 @@ describe("/v1 routes", () => {
   });
 
   describe("allowlist", () => {
-    it("returns a JSON 404 for unlisted routes and DELETE, leaving data intact", async () => {
+    it("returns a JSON 404 for unlisted routes, leaving data intact", async () => {
       for (const [method, path] of [
         ["get", "/v1/reports"],
-        ["get", "/v1/groups"],
-        ["post", "/v1/accounts"],
-        ["delete", `/v1/transactions/${a.transactionId}`]
+        ["delete", "/v1/groups/x"],
+        ["post", "/v1/imported-transactions/x/merge"],
+        ["delete", "/v1/imported-transactions/x"]
       ] as const) {
         const res = await request(app)[method](path).set(bearer(a.writeKey)).send({});
         expect(res.status).toBe(404);

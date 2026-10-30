@@ -51,6 +51,67 @@ function rawPost(headers: Record<string, string>) {
 
 const txBody = { name: "Coffee", amount: 4.5, type: "expense", date: "2024-03-10" };
 
+const READ_TOOLS = [
+  "get_exchange_rate",
+  "get_profile",
+  "get_report",
+  "get_transaction",
+  "get_transaction_summary",
+  "list_accounts",
+  "list_categories",
+  "list_currencies",
+  "list_debts",
+  "list_groups",
+  "list_imported_transactions",
+  "list_notifications",
+  "list_shared_expenses",
+  "search_transactions",
+  "search_users"
+];
+
+const WRITE_TOOLS = [
+  "add_group_member",
+  "create_account",
+  "create_category",
+  "create_group",
+  "create_group_category",
+  "create_shared_expense",
+  "create_transaction",
+  "delete_account",
+  "delete_category",
+  "delete_transaction",
+  "get_exchange_rate",
+  "get_profile",
+  "get_report",
+  "get_transaction",
+  "get_transaction_summary",
+  "ignore_imported_transactions",
+  "import_imported_transactions",
+  "list_accounts",
+  "list_categories",
+  "list_currencies",
+  "list_debts",
+  "list_groups",
+  "list_imported_transactions",
+  "list_notifications",
+  "list_shared_expenses",
+  "mark_notifications_read",
+  "remove_group_member",
+  "request_settlement",
+  "search_transactions",
+  "search_users",
+  "set_account_archived",
+  "set_category_archived",
+  "set_group_archived",
+  "unignore_imported_transactions",
+  "update_account",
+  "update_category",
+  "update_group",
+  "update_imported_transaction",
+  "update_preferences",
+  "update_transaction"
+];
+
 describe("MCP server", () => {
   beforeAll(async () => {
     await startTestDatabase();
@@ -65,18 +126,13 @@ describe("MCP server", () => {
     await stopTestDatabase();
   });
 
-  it("lists 4 tools for a read key and 6 for a write key", async () => {
+  it("lists the read tools for a read key and all tools for a write key", async () => {
     const user = await createAuthedUser(app);
     const read = await connect((await mintKey(user, false)).key);
     const write = await connect((await mintKey(user, true)).key);
 
-    expect((await read.listTools()).tools.map((t) => t.name).sort()).toEqual([
-      "get_transaction_summary",
-      "list_accounts",
-      "list_categories",
-      "search_transactions"
-    ]);
-    expect((await write.listTools()).tools).toHaveLength(6);
+    expect((await read.listTools()).tools.map((t) => t.name).sort()).toEqual(READ_TOOLS);
+    expect((await write.listTools()).tools.map((t) => t.name).sort()).toEqual(WRITE_TOOLS);
   });
 
   it("refuses a write tool for a read key and creates nothing", async () => {

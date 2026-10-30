@@ -33,5 +33,6 @@
 ## 6. Docs and verification
 
 - [x] 6.1 Update `docs/DATA_MODEL.md` and `docs/AUTH_FLOW.md` (API key credential, `PUBLIC_API_URL`) and log the web login-rate-limit gap in `docs/KNOWN_ISSUES.md` if not present
-- [ ] 6.2 Run `npm run typecheck`, `npm run lint`, `npm run test` (and the Docker integration suite) and verify all pass; manually confirm the plaintext key never appears in server logs
+- [x] 6.2 Run `npm run typecheck`, `npm run lint`, `npm run test` (and the Docker integration suite) and verify all pass; manually confirm the plaintext key never appears in server logs
+  - Closed 2026-10-30 after `fix-repository-lint-errors`: repo-wide `npm run lint` exits 0 (0 errors, 0 warnings), typecheck passes, tests pass (shared 192, web 918, api 1348 incl. Docker integration).
   - Note (2026-10-30): typecheck pass; changed-file lint clean; tests pass (shared 162 / api 1007 incl. Docker / web 858); live log check on throwaway API (port 4099): plaintext key and secret part absent from server log (0 matches). Left unchecked: repo-wide lint has 81 pre-existing errors (docs/KNOWN_ISSUES.md #008).

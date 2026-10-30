@@ -15,9 +15,7 @@ vi.mock("../../utils/institutionCatalog.js", () => ({
 const { getProvider } = await import("../../utils/providerRegistry.js");
 const {
   findSelectedConnector,
-  findSelectedInstitution,
-  listAvailableConnectors,
-  listAvailableInstitutions
+  findSelectedInstitution
 } = await import("../../utils/institutionCatalog.js");
 
 const getProviderMock = vi.mocked(getProvider);

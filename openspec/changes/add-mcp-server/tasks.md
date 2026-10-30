@@ -35,6 +35,8 @@ Prerequisite: `add-personal-api-keys` is implemented (provides `verifyCredential
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; integration suite passes with Docker
-- [ ] 5.2 Manual: MCP Inspector against local `http://localhost:4000/mcp` with a read key then a write key (tool lists, calls, error cases) (manual, left for staging)
+- [x] 5.2 Manual: MCP Inspector against local `http://localhost:4000/mcp` with a read key then a write key (tool lists, calls, error cases) (manual, left for staging)
+  - Evidence: MCP Inspector CLI vs api-flowledger-dev /mcp: read key lists 4 tools, list_accounts returns data; write key lists 6; create_transaction with read key refused (tool_not_found).
 - [ ] 5.3 Manual on `api-flowledger-dev.razs.dev`: `claude mcp add --transport http flowledger https://api-flowledger-dev.razs.dev/mcp --header "Authorization: Bearer fl_..."`; list accounts, search transactions, confirm a read key hides write tools; then revoke the key and confirm the next call fails (manual, left for staging)
+  - Note: operator reported Claude and ChatGPT connected via MCP OAuth; the --header path and revoke were not reported (left open).
 - [x] 5.4 Log any deferred findings in `docs/KNOWN_ISSUES.md`

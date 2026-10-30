@@ -70,7 +70,6 @@ describe("FilterBuilder", () => {
     const user = userEvent.setup();
     const { onClose, onApply } = renderBuilder();
 
-    // eslint-disable-next-line testing-library/no-node-access
     await user.click(screen.getByRole("dialog").parentElement as HTMLElement);
 
     expect(onClose).toHaveBeenCalledOnce();

@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// env.ts loads the workspace .env on import; a developer's real .env must not leak into these cases.
+vi.mock("dotenv", () => ({ default: { config: vi.fn() } }));
+
 const base = {
   DATABASE_URL: "postgresql://x",
   JWT_SECRET: "a".repeat(16),
