@@ -6,8 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import { API_URL, baseUser, mockBaseline } from "../../tests/profileFixtures";
 import { ProfileHeader } from "../ProfileHeader";
+import { useProfileDetails } from "../../hooks/useProfileDetails";
 
-const render = () => renderWithProviders(<ProfileHeader />, { withAuth: true });
+function HeaderHarness() {
+  return <ProfileHeader profile={useProfileDetails()} />;
+}
+
+const render = () => renderWithProviders(<HeaderHarness />, { withAuth: true });
 
 describe("ProfileHeader", () => {
   it("shows 'Loading...' before the profile resolves", () => {
@@ -16,26 +21,19 @@ describe("ProfileHeader", () => {
     expect(screen.getAllByText("Loading...").length).toBeGreaterThan(0);
   });
 
-  it("renders identity details with initials and 'Not set' currency, without an Edit button", async () => {
+  it("renders identity details with initials and without account summary fields", async () => {
     mockBaseline();
     render();
     expect(
       await screen.findByRole("button", { name: /Edit Name: Jane Doe/ })
     ).toBeInTheDocument();
     expect(screen.getByText("jane@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Not set")).toBeInTheDocument();
+    expect(screen.queryByText("Not set")).not.toBeInTheDocument();
+    expect(screen.queryByText("Member since")).not.toBeInTheDocument();
     expect(screen.getByText("JD")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Edit Profile" })
     ).not.toBeInTheDocument();
-  });
-
-  it("shows the resolved currency name for a fiat preferredCurrency", async () => {
-    mockBaseline({ ...baseUser, preferredCurrency: "USD" });
-    render();
-    await waitFor(() =>
-      expect(screen.getByText("USD — US Dollar")).toBeInTheDocument()
-    );
   });
 
   it("enters edit mode on click, shows Save/Cancel only when dirty, and Cancel restores", async () => {

@@ -7,6 +7,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
  */
 export function ProfileInlineField({
   label,
+  hideLabel = false,
   display,
   error,
   disabled,
@@ -14,6 +15,7 @@ export function ProfileInlineField({
   children
 }: {
   label: string;
+  hideLabel?: boolean;
   display: string;
   error?: string;
   disabled?: boolean;
@@ -49,7 +51,9 @@ export function ProfileInlineField({
         <div aria-describedby={error ? errorId : undefined}>{children}</div>
       ) : (
         <>
-          <span className="text-slate-500 dark:text-slate-400">{label}</span>
+          {!hideLabel ? (
+            <span className="text-slate-500 dark:text-slate-400">{label}</span>
+          ) : null}
           <button
             type="button"
             disabled={disabled}

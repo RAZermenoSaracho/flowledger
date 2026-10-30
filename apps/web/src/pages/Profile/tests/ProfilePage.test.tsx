@@ -8,33 +8,70 @@ import { ProfilePage } from "../ProfilePage";
 import { API_URL, mockBaseline } from "./profileFixtures";
 
 function renderProfile(route = "/profile") {
-  return renderWithProviders(<ProfilePage />, { withAuth: true, withTheme: true, route });
+  return renderWithProviders(<ProfilePage />, {
+    withAuth: true,
+    withTheme: true,
+    route
+  });
 }
 
 describe("ProfilePage", () => {
   it("renders the header and the General tab by default", async () => {
     mockBaseline();
     renderProfile();
-    expect(await screen.findByRole("heading", { name: "Jane Doe" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "profile-panel-general");
+    expect(
+      await screen.findByRole("heading", { name: "Jane Doe" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByRole("tabpanel")).toHaveAttribute(
+      "id",
+      "profile-panel-general"
+    );
   });
 
   it("falls back to General for an unknown ?tab= value", () => {
     mockBaseline();
     renderProfile("/profile?tab=bogus");
-    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("opens the tab named in the URL and switches tabs on click, mounting only the active panel", async () => {
     mockBaseline();
     renderProfile("/profile?tab=preferences");
     expect(screen.getByLabelText("Theme")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Upgrade" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Upgrade" })
+    ).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "Subscription" }));
-    expect(await screen.findByRole("button", { name: "Upgrade" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Upgrade" })
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Theme")).not.toBeInTheDocument();
+  });
+
+  it("keeps a currency draft when switching away from General", async () => {
+    mockBaseline();
+    renderProfile();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Edit Currency/ })
+    );
+    await userEvent.click(
+      await screen.findByRole("combobox", { name: "Preferred currency" })
+    );
+    await userEvent.click(await screen.findByRole("option", { name: /USD/ }));
+    await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
+    await userEvent.click(screen.getByRole("tab", { name: "General" }));
+    expect(
+      await screen.findByRole("button", { name: "Edit Currency: USD" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("does not request API keys until the Security & API tab is opened", async () => {
@@ -45,7 +82,9 @@ describe("ProfilePage", () => {
         requested += 1;
         return HttpResponse.json({ apiKeys: [] });
       }),
-      http.get(`${API_URL}/users/me/oauth-grants`, () => HttpResponse.json({ grants: [] }))
+      http.get(`${API_URL}/users/me/oauth-grants`, () =>
+        HttpResponse.json({ grants: [] })
+      )
     );
     renderProfile();
     await screen.findByRole("heading", { name: "Jane Doe" });
