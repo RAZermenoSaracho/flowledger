@@ -24,6 +24,7 @@ import { notificationsRouter } from "./modules/notifications/notifications.route
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
 import { transactionsRouter } from "./modules/transactions/transactions.routes.js";
+import { v1Router } from "./modules/v1/v1.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { currenciesRouter } from "./modules/currencies/currencies.routes.js";
 import syncfyRoutes from "./modules/accounts/providers/syncfy/syncfy.routes.js";
@@ -60,6 +61,7 @@ app.get("/health", (_req, res) => {
 app.use("/currencies", currenciesRouter);
 app.use("/auth", authRouter);
 app.use("/users/me/api-keys", requireAuth, apiKeysRouter);
+app.use("/v1", v1Router);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);
