@@ -76,6 +76,29 @@ Index: `userId`
 
 ---
 
+### OAuthGrant
+
+One row per approved MCP OAuth connection: the client, scopes, lifetime, the single-use authorization code and the current token pair. Only SHA-256 hashes of codes and tokens are stored. Rows are kept after revocation (`revokedAt`) so replays stay detectable. A row whose code was never exchanged (`codeUsedAt` null) is an unfinished grant and is not listed to the user.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK; also the credential id of its tokens |
+| `userId` | String | FK → User; cascades on user delete |
+| `clientId` / `clientName` | String | CIMD URL and the name snapshotted at consent |
+| `redirectUri` | String | The exact URI the code was delivered to |
+| `scopes` | String[] | `['read']` or `['read', 'write']` |
+| `codeChallenge` | String | PKCE S256 challenge |
+| `codeHash` / `codeExpiresAt` / `codeUsedAt` | String (unique) / DateTime / DateTime? | 60 s single-use code |
+| `accessTokenHash` / `accessExpiresAt` | String? (unique) / DateTime? | `flo_` token, at most 1 h and never past `expiresAt` |
+| `refreshTokenHash` | String? (unique) | Current `flr_` token |
+| `prevRefreshTokenHash` / `rotatedAt` | String? / DateTime? | Previous refresh token and when it rotated (30 s retry grace) |
+| `expiresAt` | DateTime? | Grant expiry chosen at consent; `null` = Never; never extended |
+| `revokedAt` / `lastUsedAt` / `createdAt` | DateTime? / DateTime? / DateTime | |
+
+Indexes: `userId`, `prevRefreshTokenHash`
+
+---
+
 ### UserAuthAccount
 
 OAuth and provider user mappings. Also used to store the Syncfy `idUser → FlowLedger user` mapping.

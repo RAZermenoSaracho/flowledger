@@ -137,3 +137,68 @@ describe("requireScope", () => {
     expect(next.mock.calls[0]![0]).toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("verifyCredential (OAuth access tokens)", () => {
+  const TOKEN = "flo_testtoken";
+  const grant = (overrides: Record<string, unknown> = {}) =>
+    ({
+      id: "g1",
+      scopes: ["read", "write"],
+      lastUsedAt: null,
+      user: { id: "user-1", email: "u@example.com" },
+      ...overrides
+    }) as never;
+
+  it("resolves a live grant by access-token hash, re-checking revocation and expiry in the query", async () => {
+    prismaMock.oAuthGrant.findFirst.mockResolvedValue(grant());
+    prismaMock.oAuthGrant.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(verifyCredential(TOKEN)).resolves.toEqual({
+      userId: "user-1",
+      email: "u@example.com",
+      scopes: ["read", "write"],
+      kind: "oauth",
+      credentialId: "g1"
+    });
+
+    const where = prismaMock.oAuthGrant.findFirst.mock.calls[0]![0]!.where!;
+    expect(where).toMatchObject({ accessTokenHash: hashApiKey(TOKEN), revokedAt: null });
+    expect(JSON.stringify(where)).toContain("accessExpiresAt");
+    expect(JSON.stringify(where)).toContain("expiresAt");
+  });
+
+  it("rejects an unknown, revoked or expired token (no row) and a grant whose user is gone", async () => {
+    prismaMock.oAuthGrant.findFirst.mockResolvedValue(null);
+    await expect(verifyCredential(TOKEN)).rejects.toMatchObject({ statusCode: 401 });
+    prismaMock.oAuthGrant.findFirst.mockResolvedValue(grant({ user: null }));
+    await expect(verifyCredential(TOKEN)).rejects.toMatchObject({ statusCode: 401 });
+  });
+
+  it("rejects refresh tokens and honours the kinds option in both directions", async () => {
+    await expect(verifyCredential("flr_refresh")).rejects.toMatchObject({ statusCode: 401 });
+    await expect(verifyCredential(TOKEN, ["apiKey"])).rejects.toMatchObject({ statusCode: 401 });
+    await expect(verifyCredential(KEY, ["oauth"])).rejects.toMatchObject({ statusCode: 401 });
+    expect(prismaMock.oAuthGrant.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.apiKey.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("throttles lastUsedAt without awaiting it", async () => {
+    prismaMock.oAuthGrant.findFirst.mockResolvedValue(grant());
+    prismaMock.oAuthGrant.updateMany.mockReturnValue(new Promise(() => {}) as never);
+
+    await verifyCredential(TOKEN);
+
+    expect(JSON.stringify(prismaMock.oAuthGrant.updateMany.mock.calls[0]![0].where)).toContain(
+      "lastUsedAt"
+    );
+  });
+});
+
+describe("requireCredential (API-key-only routes)", () => {
+  it("rejects an OAuth access token", async () => {
+    const next = vi.fn();
+    await requireCredential({ header: () => "Bearer flo_x" } as unknown as Request, {} as never, next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401 }));
+    expect(prismaMock.oAuthGrant.findFirst).not.toHaveBeenCalled();
+  });
+});

@@ -56,6 +56,16 @@ describe("googleOAuthStartQuerySchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a long same-origin path with a query string (OAuth consent URL)", () => {
+    const redirect = `/oauth/authorize?req=${"a".repeat(1800)}`;
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect }).success).toBe(true);
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect: `${redirect}${"a".repeat(300)}` }).success).toBe(false);
+  });
+
+  it("rejects a backslash redirect", () => {
+    expect(googleOAuthStartQuerySchema.safeParse({ redirect: "/\\evil.example.com" }).success).toBe(false);
+  });
+
   it("rejects a protocol-relative redirect (open redirect risk)", () => {
     expect(
       googleOAuthStartQuerySchema.safeParse({ redirect: "//evil.example.com" })

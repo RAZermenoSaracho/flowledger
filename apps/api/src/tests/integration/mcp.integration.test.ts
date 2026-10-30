@@ -163,7 +163,7 @@ describe("MCP server", () => {
     expect(result instanceof Error || (result as McpResult).isError === true).toBe(true);
   });
 
-  it("returns 401 for missing header, web JWT, revoked and expired keys, without resource_metadata", async () => {
+  it("returns 401 for missing header, web JWT, revoked and expired keys, with a resource_metadata challenge", async () => {
     const user = await createAuthedUser(app);
     const revoked = await mintKey(user, false);
     const expired = await mintKey(user, false);
@@ -173,7 +173,7 @@ describe("MCP server", () => {
     const none = await rawPost({});
     expect(none.status).toBe(401);
     expect(none.headers.get("www-authenticate")).toContain('error="invalid_token"');
-    expect(none.headers.get("www-authenticate")).not.toContain("resource_metadata");
+    expect(none.headers.get("www-authenticate")).toContain("resource_metadata=");
 
     for (const token of [user.token, revoked.key, expired.key]) {
       expect((await rawPost({ Authorization: `Bearer ${token}` })).status).toBe(401);

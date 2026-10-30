@@ -117,3 +117,15 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** In one full run every test passed, but Vitest reported "Worker exited unexpectedly" / "Timeout terminating forks worker" for this file, so the command exited non-zero. Running `npm run test -w apps/web` on its own passed (112 files, 858 tests). This looks resource-related rather than a code defect.
 
 **Suggested fix:** Investigate the worker timeout (pool size or teardown in that test), or run the workspace suites sequentially in the root script.
+
+---
+
+## [OPEN] #010 — No dynamic client registration and no `iss` on SDK-generated OAuth error redirects
+
+**Found in:** MCP OAuth server change.
+
+**Scope:** `apps/api/src/modules/oauth/`.
+
+**Description:** Clients are identified only by Client ID Metadata Documents; clients that need RFC 7591 registration cannot connect. Errors the MCP SDK redirects itself (for example `invalid_request`, `invalid_target`) do not carry the RFC 9207 `iss` parameter; only approve and deny redirects built by FlowLedger do. Unfinished grants (code never exchanged) are never cleaned up.
+
+**Suggested fix:** Add DCR only if a required client needs it; wrap the SDK authorize handler to append `iss`; add a periodic `deleteMany` of expired unfinished grants.

@@ -21,6 +21,11 @@ import {
 } from "./modules/debts/debts.routes.js";
 import { groupsRouter } from "./modules/groups/groups.routes.js";
 import { mcpRouter } from "./modules/mcp/mcp.routes.js";
+import {
+  createOAuthServerRouter,
+  oauthConsentRouter,
+  oauthGrantsRouter
+} from "./modules/oauth/oauth.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { sharedExpensesRouter } from "./modules/shared-expenses/sharedExpenses.routes.js";
@@ -43,6 +48,9 @@ export const app = express();
 app.set("trust proxy", 1);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+// Mounted before the app-wide CORS: the SDK handlers set their own open CORS for browser-based MCP clients,
+// which the credentialed WEB_APP_URL policy below would otherwise overwrite.
+app.use(createOAuthServerRouter());
 app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(
   express.json({
@@ -62,6 +70,8 @@ app.get("/health", (_req, res) => {
 app.use("/currencies", currenciesRouter);
 app.use("/auth", authRouter);
 app.use("/users/me/api-keys", requireAuth, apiKeysRouter);
+app.use("/users/me/oauth-grants", requireAuth, oauthGrantsRouter);
+app.use("/oauth/authorize", requireAuth, oauthConsentRouter);
 app.use("/v1", v1Router);
 app.use("/users", requireAuth, usersRouter);
 app.use("/accounts", requireAuth, accountsRouter);

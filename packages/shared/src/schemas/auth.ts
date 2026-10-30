@@ -16,8 +16,11 @@ export const googleOAuthStartQuerySchema = z.object({
   redirect: z
     .string()
     .trim()
-    .max(120)
-    .refine((value) => value.startsWith("/") && !value.startsWith("//"), "Redirect must be an app path")
+    .max(2048)
+    .refine(
+      (value) => value.startsWith("/") && !value.startsWith("//") && !value.includes("\\"),
+      "Redirect must be an app path"
+    )
     .default("/")
 });
 
