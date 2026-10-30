@@ -10,7 +10,7 @@
 - [x] 2.1 Add `OAuthGrant` (+ `rotatedAt DateTime?`, `User.oauthGrants` back-relation, `@@index([userId])`) to `database/prisma/schema.prisma`; update `docs/DATA_MODEL.md`
 - [x] 2.2 Create the Prisma migration (`prisma migrate dev`, no raw SQL) and run `prisma:generate`
 - [x] 2.3 Add shared Zod schemas in `packages/shared/src/schemas/` (`oauthConsentRequest` payload, `oauthContextQuery`, `oauthDecision` using `credentialLifetimeSchema`, `oauthGrantSummary`, CIMD document schema) with tests in `schemas/tests/`
-- [ ] 2.4 Add `safeRedirect()` helper (web utils) with table tests including `//x`, `https://x`, `/\x`, encoded variants
+- [x] 2.4 Add `safeRedirect()` helper (web utils) with table tests including `//x`, `https://x`, `/\x`, encoded variants
 
 ## 3. CIMD client store
 
@@ -40,7 +40,8 @@
 
 ## 6. Docs and verification
 
-- [ ] 6.1 (API docs + KNOWN_ISSUES done; Developer page text is web) Document the OAuth flow in `docs/AUTH_FLOW.md` and the Developer page "Connect an AI client" text (ChatGPT connector steps); log deferred items (DCR, `iss` on SDK error redirects) in `docs/KNOWN_ISSUES.md`
+- [x] 6.1 Document the OAuth flow in `docs/AUTH_FLOW.md` and the Developer page "Connect an AI client" text (ChatGPT connector steps); log deferred items (DCR, `iss` on SDK error redirects) in `docs/KNOWN_ISSUES.md`
 - [ ] 6.2 `npm run typecheck`, `npm run lint`, `npm run test`; integration suite with the Docker VM
+  - Note (2026-10-30): typecheck pass; tests pass (shared 182 / api 1195 incl. Docker / web 894). Left unchecked: repo-wide lint has 81 pre-existing errors (docs/KNOWN_ISSUES.md #008).
 - [ ] 6.3 After deploy to dev: `curl -I` frame headers on `flowledger-dev.razs.dev` and `/oauth/authorize`; metadata reachable on `api-flowledger-dev.razs.dev`
 - [ ] 6.4 Manual acceptance (dev web host :5174 running): Claude Code `/mcp` login -> tool call; ChatGPT connector -> tool call; revoke in Connected apps -> next call 401; deny -> `access_denied` with `iss`

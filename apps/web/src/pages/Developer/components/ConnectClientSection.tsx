@@ -10,15 +10,27 @@ export function ConnectClientSection() {
   return (
     <Card>
       <h3 className="text-lg font-semibold">Connect an AI client</h3>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        The MCP endpoint becomes available when the MCP server ships; these
-        commands will work then.
-      </p>
+      <h4 className="mt-3 font-medium">ChatGPT</h4>
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-slate-500 dark:text-slate-400">
+        <li>In ChatGPT, enable Developer mode (Settings → Apps → Advanced settings).</li>
+        <li>
+          Create an app/connector with the MCP server URL <code>{mcpUrl}</code> and authentication set
+          to OAuth.
+        </li>
+        <li>
+          Sign in and approve on the FlowLedger consent page: pick the permissions and the
+          lifetime.
+        </li>
+      </ol>
+      <h4 className="mt-4 font-medium">Claude Code</h4>
       <code className={codeClass}>
         {`claude mcp add --transport http flowledger ${mcpUrl}`}
       </code>
+      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        Then run <code>/mcp</code> in Claude Code to sign in via OAuth.
+      </p>
       <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-        Or authenticate with an API key:
+        Alternatively, authenticate with an API key:
       </p>
       <code className={codeClass}>
         {`claude mcp add --transport http flowledger ${mcpUrl} --header "Authorization: Bearer fl_..."`}

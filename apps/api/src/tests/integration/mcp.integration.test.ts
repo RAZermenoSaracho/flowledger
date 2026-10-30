@@ -156,6 +156,57 @@ describe("MCP server", () => {
     });
   });
 
+  it("matches /v1 with an API key for reads and refuses a read key's write the same way", async () => {
+    const user = await createAuthedUser(app);
+    const { key: readKey } = await mintKey(user, false);
+    const client = await connect(readKey);
+    const v1 = (path: string, query: Record<string, string> = {}, auth = readKey) =>
+      request(app).get(`/v1${path}`).query(query).set("Authorization", `Bearer ${auth}`);
+
+    const writeKey = (await mintKey(user, true)).key;
+    await request(app)
+      .post("/v1/transactions")
+      .set("Authorization", `Bearer ${writeKey}`)
+      .send(txBody)
+      .expect(201);
+
+    const accounts = await v1("/accounts");
+    expect((await call(client, "list_accounts")).structuredContent).toEqual({
+      accounts: accounts.body.accounts ?? accounts.body
+    });
+    const categories = await v1("/categories");
+    expect((await call(client, "list_categories")).structuredContent).toEqual({
+      categories: categories.body.categories ?? categories.body
+    });
+
+    const filter = { type: "expense", dateFrom: "2024-03-01", dateTo: "2024-03-10" };
+    const query = JSON.stringify({
+      where: {
+        and: [
+          { field: "date", op: ">=", value: "2024-03-01T00:00:00.000Z" },
+          { field: "date", op: "<=", value: "2024-03-10T23:59:59.999Z" },
+          { field: "type", op: "=", value: "expense" }
+        ]
+      },
+      sort: [{ field: "date", direction: "desc" }],
+      pagination: { kind: "offset", page: 1, pageSize: 50 }
+    });
+    const search = await v1("/transactions", { query });
+    const mcp = await call(client, "search_transactions", filter);
+    const withoutTiming = ({ meta, ...r }: Json) => ({ ...r, meta: { ...meta, executionTime: 0 } });
+    expect(withoutTiming(mcp.structuredContent!)).toEqual(withoutTiming(search.body));
+    expect(mcp.structuredContent!.data).toHaveLength(1);
+
+    const refused = await request(app)
+      .post("/v1/transactions")
+      .set("Authorization", `Bearer ${readKey}`)
+      .send(txBody);
+    const viaMcp = await client.callTool({ name: "create_transaction", arguments: txBody }).catch((e) => e);
+    expect(refused.status).toBe(403);
+    expect(viaMcp instanceof Error || (viaMcp as McpResult).isError === true).toBe(true);
+    expect(await prisma.transaction.count({ where: { userId: user.user.id } })).toBe(1);
+  });
+
   it("rejects pageSize 101", async () => {
     const user = await createAuthedUser(app);
     const client = await connect((await mintKey(user, false)).key);

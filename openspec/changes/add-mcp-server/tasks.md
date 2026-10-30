@@ -30,7 +30,7 @@ Prerequisite: `add-personal-api-keys` is implemented (provides `verifyCredential
 - [x] 4.2 Cases: read key lists 4 tools; write key lists 6; read key calling `create_transaction` fails and creates nothing; write key creates and updates; cross-user isolation (A cannot read or update B's data, update of B's id is "Transaction not found"); web JWT 401; no header 401 with `WWW-Authenticate` lacking `resource_metadata`; revoked and expired keys 401; "never" key works; GET/DELETE 405; `Origin` header 403; no `Mcp-Session-Id`; `pageSize` 101 rejected
 - [x] 4.3 Parity: for one seeded user, MCP `search_transactions`, `get_transaction_summary`, `list_accounts`, `list_categories` equal the internal REST responses (web JWT) after `serialize`; a refused case (foreign id) refused on both
 - [x] 4.4 Audit: capture stdout; one audit line per write, no token and no amount in it
-- [ ] 4.5 After `add-public-rest-api-v1` is merged: add the same parity cases against `/v1` with an API key (skip until then) (left open: add-public-rest-api-v1 not merged here)
+- [x] 4.5 After `add-public-rest-api-v1` is merged: add the same parity cases against `/v1` with an API key (skip until then)
 
 ## 5. Verification
 
