@@ -38,30 +38,52 @@ describe("CurrencySelect", () => {
       })
     );
 
-    renderWithProviders(<CurrencySelect label="Currency" value="" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="" onChange={vi.fn()} />
+    );
 
-    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue("Loading currencies...");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue(
+      "Loading currencies..."
+    );
     expect(screen.getByRole("combobox", { name: "Currency" })).toBeDisabled();
   });
 
   it("shows the selected currency's formatted label when closed", async () => {
     mockCurrencies();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
-    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue("USD — US Dollar");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue(
+      "USD — US Dollar"
+    );
   });
 
   it("opens the listbox with fiat and crypto grouped, on focus", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
 
-    expect(screen.getByRole("option", { name: "USD — US Dollar" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "EUR — Euro" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "USD — US Dollar" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "EUR — Euro" })
+    ).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "BTC" })).toBeInTheDocument();
     expect(screen.getByText("Fiat currencies")).toBeInTheDocument();
     expect(screen.getByText("Crypto assets")).toBeInTheDocument();
@@ -70,35 +92,59 @@ describe("CurrencySelect", () => {
   it("filters options by typing a currency code", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.type(screen.getByRole("combobox", { name: "Currency" }), "btc");
 
     expect(screen.getByRole("option", { name: "BTC" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "USD — US Dollar" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "USD — US Dollar" })
+    ).not.toBeInTheDocument();
   });
 
   it("filters fiat options by typing part of the currency name", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.type(screen.getByRole("combobox", { name: "Currency" }), "euro");
 
-    expect(screen.getByRole("option", { name: "EUR — Euro" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "USD — US Dollar" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "EUR — Euro" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "USD — US Dollar" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows 'No matching currencies' when the search has no results", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.type(screen.getByRole("combobox", { name: "Currency" }), "zzz");
 
@@ -109,24 +155,42 @@ describe("CurrencySelect", () => {
     mockCurrencies();
     const user = userEvent.setup();
     renderWithProviders(
-      <CurrencySelect label="Currency" value="" onChange={vi.fn()} allowNoPreference />
+      <CurrencySelect
+        label="Currency"
+        value=""
+        onChange={vi.fn()}
+        allowNoPreference
+      />
     );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
 
-    expect(screen.getByRole("option", { name: "No preference" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "No preference" })
+    ).toBeInTheDocument();
   });
 
   it("shows an error placeholder and disables the input when the fetch fails", async () => {
     server.use(
-      http.get(`${API_URL}/currencies`, () => new HttpResponse(null, { status: 500 }))
+      http.get(
+        `${API_URL}/currencies`,
+        () => new HttpResponse(null, { status: 500 })
+      )
     );
 
-    renderWithProviders(<CurrencySelect label="Currency" value="" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="" onChange={vi.fn()} />
+    );
 
     await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue("Could not load currencies")
+      expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue(
+        "Could not load currencies"
+      )
     );
     expect(screen.getByRole("combobox", { name: "Currency" })).toBeDisabled();
   });
@@ -135,9 +199,15 @@ describe("CurrencySelect", () => {
     mockCurrencies();
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={onChange} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={onChange} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.click(screen.getByRole("option", { name: "EUR — Euro" }));
 
@@ -149,9 +219,15 @@ describe("CurrencySelect", () => {
     mockCurrencies();
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={onChange} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={onChange} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.keyboard("{ArrowDown}{Enter}");
 
@@ -162,16 +238,25 @@ describe("CurrencySelect", () => {
     mockCurrencies();
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={onChange} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={onChange} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.type(screen.getByRole("combobox", { name: "Currency" }), "eur");
     await user.keyboard("{Escape}");
 
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue("USD — US Dollar");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue(
+      "USD — US Dollar"
+    );
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveFocus();
   });
 
   it("closes on an outside click without calling onChange", async () => {
@@ -185,13 +270,58 @@ describe("CurrencySelect", () => {
       </>
     );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
     await user.click(screen.getByRole("button", { name: "Elsewhere" }));
 
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue("USD — US Dollar");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveValue(
+      "USD — US Dollar"
+    );
+  });
+
+  it("exposes the highlighted option through combobox semantics and closes on Tab", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
+    const input = screen.getByRole("combobox", { name: "Currency" });
+
+    await waitFor(() => expect(input).not.toBeDisabled());
+    await user.click(input);
+    await user.keyboard("{ArrowDown}");
+
+    expect(input).toHaveAttribute("aria-activedescendant");
+    expect(
+      document.getElementById(input.getAttribute("aria-activedescendant")!)
+    ).toHaveAttribute("role", "option");
+
+    await user.keyboard("{Tab}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("reopens on click after Escape while keeping combobox focus", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
+    const input = screen.getByRole("combobox", { name: "Currency" });
+    await waitFor(() => expect(input).not.toBeDisabled());
+
+    await user.click(input);
+    await user.keyboard("{Escape}");
+    expect(input).toHaveFocus();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    await user.click(input);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 
   it("stays disabled when the disabled prop is set even after loading", async () => {
@@ -200,7 +330,9 @@ describe("CurrencySelect", () => {
       <CurrencySelect label="Currency" value="" onChange={vi.fn()} disabled />
     );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).toBeDisabled());
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Currency" })).toBeDisabled()
+    );
   });
 
   it("caps the rendered option list and shows how many more matches exist", async () => {
@@ -215,13 +347,21 @@ describe("CurrencySelect", () => {
       )
     );
     const user = userEvent.setup();
-    renderWithProviders(<CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />);
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
 
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Currency" })).not.toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
     await user.click(screen.getByRole("combobox", { name: "Currency" }));
 
     // 2 fiat + 80 crypto = 82 total matches, capped at 50 rendered.
     expect(screen.getAllByRole("option")).toHaveLength(50);
-    expect(screen.getByText("32 more matches — keep typing to narrow it down")).toBeInTheDocument();
+    expect(
+      screen.getByText("32 more matches — keep typing to narrow it down")
+    ).toBeInTheDocument();
   });
 });

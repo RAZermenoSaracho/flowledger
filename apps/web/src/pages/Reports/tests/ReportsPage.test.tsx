@@ -10,8 +10,13 @@ const API_URL = "http://localhost:4000";
 
 function mockBaseline() {
   server.use(
-    http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
-    http.get(`${API_URL}/categories`, () => HttpResponse.json({ categories: [] })),
+    http.post(
+      `${API_URL}/auth/refresh`,
+      () => new HttpResponse(null, { status: 401 })
+    ),
+    http.get(`${API_URL}/categories`, () =>
+      HttpResponse.json({ categories: [] })
+    ),
     http.get(`${API_URL}/groups`, () =>
       HttpResponse.json({
         groups: [
@@ -47,7 +52,11 @@ function mockBaseline() {
       })
     ),
     http.get(`${API_URL}/reports/by-category`, () =>
-      HttpResponse.json({ expenseCategories: [], incomeCategories: [], currency: "USD" })
+      HttpResponse.json({
+        expenseCategories: [],
+        incomeCategories: [],
+        currency: "USD"
+      })
     ),
     http.get(`${API_URL}/reports/monthly-cashflow`, () =>
       HttpResponse.json({ cashflow: [], currency: "USD" })
@@ -67,7 +76,9 @@ describe("ReportsPage", () => {
     mockBaseline();
     renderWithProviders(<ReportsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("$1,000.00")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("$1,000.00")).toBeInTheDocument()
+    );
     expect(screen.getByText("Expenses by category")).toBeInTheDocument();
     expect(screen.getByText("Income by category")).toBeInTheDocument();
     expect(screen.getByText("Monthly cashflow")).toBeInTheDocument();
@@ -79,13 +90,19 @@ describe("ReportsPage", () => {
     renderWithProviders(<ReportsPage />, { withAuth: true });
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Groups All groups" })).toBeInTheDocument()
+      expect(
+        screen.getByRole("button", { name: "Groups All groups" })
+      ).toBeInTheDocument()
     );
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
+    await user.click(screen.getByRole("option", { name: "Roommates" }));
 
-    await user.click(screen.getByRole("button", { name: "Categories All categories" }));
-    expect(screen.getByRole("checkbox", { name: "Groceries" })).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Categories All categories" })
+    );
+    expect(
+      screen.getByRole("option", { name: "Groceries" })
+    ).toBeInTheDocument();
   });
 
   it("shows 'Reset filters' once a filter is active", async () => {
@@ -93,11 +110,17 @@ describe("ReportsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByLabelText("From")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Reset filters" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("From")).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByRole("button", { name: "Reset filters" })
+    ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("From"), "2024-01-01");
 
-    expect(screen.getByRole("button", { name: "Reset filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reset filters" })
+    ).toBeInTheDocument();
   });
 });

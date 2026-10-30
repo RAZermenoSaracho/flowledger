@@ -3,10 +3,15 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes
 } from "react";
+import { ChevronDown } from "lucide-react";
 
 type BaseProps = {
   label: string;
 };
+
+/** Shared closed-trigger styles for native single-select controls. */
+export const selectTriggerClassName =
+  "min-h-10 w-full min-w-0 appearance-none rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-ink outline-none transition hover:bg-slate-50 focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus:ring-emerald-900";
 
 /** Labeled text input field. */
 export function TextInput({
@@ -34,10 +39,16 @@ export function SelectField({
   return (
     <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
       <span>{label}</span>
-      <select
-        className={`min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900 ${className}`}
-        {...props}
-      />
+      <span className="relative block min-w-0">
+        <select
+          className={`${selectTriggerClassName} ${className}`}
+          {...props}
+        />
+        <ChevronDown
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+          aria-hidden="true"
+        />
+      </span>
     </label>
   );
 }

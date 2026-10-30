@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  FocusEvent as ReactFocusEvent,
   KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useId,
@@ -7,7 +8,9 @@ import {
   useRef,
   useState
 } from "react";
+import { ChevronDown } from "lucide-react";
 import { listCurrencies } from "../services/currencies.client";
+import { DropdownMenu } from "./DropdownMenu";
 
 /** React Query hook fetching the supported fiat/crypto currency list. */
 export function useCurrenciesQuery() {
@@ -53,6 +56,7 @@ export function CurrencySelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
+  const labelId = `${listboxId}-label`;
 
   function labelForCode(code: string) {
     if (!code) return "";
@@ -89,14 +93,21 @@ export function CurrencySelect({
     }
     for (const currency of currencyData?.crypto ?? []) {
       if (!trimmedQuery || currency.code.toLowerCase().includes(trimmedQuery)) {
-        matches.push({ code: currency.code, label: currency.code, group: "crypto" });
+        matches.push({
+          code: currency.code,
+          label: currency.code,
+          group: "crypto"
+        });
       }
     }
     // Rendering every match (800+ crypto assets when the search is empty or
     // short) re-mounts hundreds of DOM nodes on every keystroke, which is
     // both sluggish and, in practice, never useful to scroll through — cap
     // what's rendered and prompt for a narrower search instead.
-    return { options: matches.slice(0, MAX_VISIBLE_OPTIONS), totalMatchCount: matches.length };
+    return {
+      options: matches.slice(0, MAX_VISIBLE_OPTIONS),
+      totalMatchCount: matches.length
+    };
   }, [allowNoPreference, currencyData, trimmedQuery]);
 
   useEffect(() => {
@@ -119,7 +130,6 @@ export function CurrencySelect({
       if (event.key === "Escape") {
         setIsOpen(false);
         setQuery("");
-        inputRef.current?.blur();
       }
     };
 
@@ -148,7 +158,9 @@ export function CurrencySelect({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setHighlightedIndex((current) => Math.min(current + 1, options.length - 1));
+      setHighlightedIndex((current) =>
+        Math.min(current + 1, options.length - 1)
+      );
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setHighlightedIndex((current) => Math.max(current - 1, 0));
@@ -157,6 +169,13 @@ export function CurrencySelect({
       const option = options[highlightedIndex];
       if (option) selectOption(option.code);
     }
+  }
+
+  function handleInputBlur(event: ReactFocusEvent<HTMLInputElement>) {
+    if (containerRef.current?.contains(event.relatedTarget as Node | null))
+      return;
+    setIsOpen(false);
+    setQuery("");
   }
 
   const inputValue = isLoading
@@ -170,84 +189,102 @@ export function CurrencySelect({
   return (
     <div className="relative" ref={containerRef}>
       <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-        <span>{label}</span>
-        <input
-          ref={inputRef}
-          type="text"
-          role="combobox"
-          aria-expanded={isOpen}
-          aria-controls={listboxId}
-          aria-autocomplete="list"
-          autoComplete="off"
-          className="min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
-          value={inputValue}
-          disabled={isDisabled}
-          placeholder="Search currency..."
-          onFocus={() => {
-            setIsOpen(true);
-            setQuery("");
-          }}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setIsOpen(true);
-          }}
-          onKeyDown={handleKeyDown}
-        />
+        <span id={labelId}>{label}</span>
+        <span className="relative block min-w-0">
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded={isOpen}
+            aria-controls={listboxId}
+            aria-labelledby={labelId}
+            aria-activedescendant={
+              isOpen && options[highlightedIndex]
+                ? `${listboxId}-option-${highlightedIndex}`
+                : undefined
+            }
+            aria-autocomplete="list"
+            autoComplete="off"
+            className="min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
+            value={inputValue}
+            disabled={isDisabled}
+            placeholder="Search currency..."
+            onFocus={() => {
+              setIsOpen(true);
+              setQuery("");
+            }}
+            onClick={() => setIsOpen(true)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setIsOpen(true);
+            }}
+            onKeyDown={handleKeyDown}
+            onBlur={handleInputBlur}
+          />
+          <ChevronDown
+            className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 ${isOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </span>
       </label>
       {isOpen && !isDisabled ? (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-800 dark:bg-slate-900"
-        >
-          {options.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-              No matching currencies
-            </li>
-          ) : (
-            options.map((option, index) => (
-              <li key={option.code || "__no_preference__"}>
-                {index === 0 || options[index - 1]!.group !== option.group ? (
-                  <p
-                    aria-hidden="true"
-                    className="px-3 py-1 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500"
-                  >
-                    {option.group === "fiat"
-                      ? "Fiat currencies"
-                      : option.group === "crypto"
-                        ? "Crypto assets"
-                        : ""}
-                  </p>
-                ) : null}
-                <div
-                  role="option"
-                  aria-selected={option.code === value}
-                  className={`cursor-pointer px-3 py-2 text-sm ${
-                    index === highlightedIndex
-                      ? "bg-mint dark:bg-emerald-950"
-                      : ""
-                  }`}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    selectOption(option.code);
-                  }}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                >
-                  {option.label}
-                </div>
+        <DropdownMenu className="max-h-64 w-full overflow-y-auto py-1">
+          <ul id={listboxId} role="listbox" aria-labelledby={labelId}>
+            {options.length === 0 ? (
+              <li
+                role="status"
+                aria-live="polite"
+                className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400"
+              >
+                No matching currencies
               </li>
-            ))
-          )}
-          {totalMatchCount > options.length ? (
-            <li
-              aria-hidden="true"
-              className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500"
-            >
-              {totalMatchCount - options.length} more match
-              {totalMatchCount - options.length === 1 ? "" : "es"} — keep typing to narrow it down
-            </li>
-          ) : null}
-        </ul>
+            ) : (
+              options.map((option, index) => (
+                <li key={option.code || "__no_preference__"}>
+                  {index === 0 || options[index - 1]!.group !== option.group ? (
+                    <p
+                      aria-hidden="true"
+                      className="px-3 py-1 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500"
+                    >
+                      {option.group === "fiat"
+                        ? "Fiat currencies"
+                        : option.group === "crypto"
+                          ? "Crypto assets"
+                          : ""}
+                    </p>
+                  ) : null}
+                  <div
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={option.code === value}
+                    className={`cursor-pointer px-3 py-2 text-sm ${option.code === value ? "font-semibold text-pine dark:text-emerald-300" : "text-ink dark:text-slate-100"} ${
+                      index === highlightedIndex
+                        ? "bg-mint dark:bg-emerald-950"
+                        : ""
+                    }`}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectOption(option.code);
+                    }}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                  >
+                    {option.label}
+                  </div>
+                </li>
+              ))
+            )}
+            {totalMatchCount > options.length ? (
+              <li
+                aria-hidden="true"
+                className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500"
+              >
+                {totalMatchCount - options.length} more match
+                {totalMatchCount - options.length === 1 ? "" : "es"} — keep
+                typing to narrow it down
+              </li>
+            ) : null}
+          </ul>
+        </DropdownMenu>
       ) : null}
     </div>
   );
