@@ -33,10 +33,10 @@
 
 ## 5. Web
 
-- [ ] 5.1 `ProtectedRoute` and `LoginPage` `?redirect=` preservation via `safeRedirect()`; pass through `GoogleOAuthButton`; reuse in `OAuthCallbackPage`; RTL tests including open-redirect inputs
-- [ ] 5.2 `oauthAuthorize.client.ts`, hooks, and `OAuthAuthorizePage` per spec (outside `AppLayout`, framed fallback, Not you?, lifetime radios, unticked write checkbox, Never warning, a11y per UI/UX rules); route in `main.tsx` + `routes.ts`; RTL + msw tests
-- [ ] 5.3 Frame headers in `apps/web/vite.config.ts` (`preview.headers`, `server.headers`)
-- [ ] 5.4 Connected apps section on the Developer page (`oauthGrants.client.ts`, hooks, list, empty state, revoke dialog naming the app, aria-live result); RTL + msw tests
+- [x] 5.1 `ProtectedRoute` and `LoginPage` `?redirect=` preservation via `safeRedirect()`; pass through `GoogleOAuthButton`; reuse in `OAuthCallbackPage`; RTL tests including open-redirect inputs
+- [x] 5.2 `oauthAuthorize.client.ts`, hooks, and `OAuthAuthorizePage` per spec (outside `AppLayout`, framed fallback, Not you?, lifetime radios, unticked write checkbox, Never warning, a11y per UI/UX rules); route in `main.tsx` + `routes.ts`; RTL + msw tests
+- [x] 5.3 Frame headers in `apps/web/vite.config.ts` (`preview.headers`, `server.headers`)
+- [x] 5.4 Connected apps section on the Developer page (`oauthGrants.client.ts`, hooks, list, empty state, revoke dialog naming the app, aria-live result); RTL + msw tests
 
 ## 6. Docs and verification
 

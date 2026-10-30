@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -7,11 +7,14 @@ import { TextInput } from "../../components/FormField";
 import { GoogleOAuthButton } from "../../components/GoogleOAuthButton";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
+import { safeRedirect } from "../../utils/safeRedirect";
 
-/** Email/password and Google OAuth login form. */
+/** Email/password and Google OAuth login form; after login returns to the same-origin `?redirect=` path, else the dashboard. */
 export function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirect = safeRedirect(searchParams.get("redirect"), routes.dashboard);
   const oauthError = new URLSearchParams(window.location.search).get("oauthError");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +25,7 @@ export function LoginPage() {
     setError(null);
     try {
       await auth.login(email, password);
-      navigate(routes.dashboard);
+      navigate(redirect);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed");
     }
@@ -50,7 +53,7 @@ export function LoginPage() {
           or
           <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
         </div>
-        <GoogleOAuthButton />
+        <GoogleOAuthButton redirect={redirect} />
         <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
           New to FlowLedger?{" "}
           <Link className="font-semibold text-pine dark:text-emerald-300" to={routes.register}>
