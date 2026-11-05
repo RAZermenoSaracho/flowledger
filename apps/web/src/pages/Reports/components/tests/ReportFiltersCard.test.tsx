@@ -49,7 +49,9 @@ function mockCurrencies() {
   );
 }
 
-function baseProps(overrides: Partial<Parameters<typeof ReportFiltersCard>[0]> = {}) {
+function baseProps(
+  overrides: Partial<Parameters<typeof ReportFiltersCard>[0]> = {}
+) {
   return {
     filters: emptyReportFilters,
     onFiltersChange: vi.fn(),
@@ -71,7 +73,20 @@ describe("ReportFiltersCard", () => {
 
     expect(screen.getByLabelText("From")).toBeInTheDocument();
     expect(screen.getByLabelText("To")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Report amount basis" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Report amount basis" })
+    ).toBeInTheDocument();
+  });
+
+  it("renders From/To as date inputs inside a single-column-on-mobile grid", () => {
+    renderWithProviders(<ReportFiltersCard {...baseProps()} />);
+    const from = screen.getByLabelText("From");
+    expect(from).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
+    expect(from.closest(".grid.grid-cols-1")).toHaveClass(
+      "md:grid-cols-2",
+      "xl:grid-cols-4"
+    );
   });
 
   it("calls onFiltersChange when the date fields change", async () => {
@@ -112,7 +127,10 @@ describe("ReportFiltersCard", () => {
     mockCurrencies();
     const user = userEvent.setup();
     const props = baseProps({
-      filters: { ...emptyReportFilters, categoryIds: ["cat-1", "cat-outside-group"] } as ReportFilters
+      filters: {
+        ...emptyReportFilters,
+        categoryIds: ["cat-1", "cat-outside-group"]
+      } as ReportFilters
     });
     renderWithProviders(<ReportFiltersCard {...props} />);
 
@@ -132,7 +150,9 @@ describe("ReportFiltersCard", () => {
     const props = baseProps();
     renderWithProviders(<ReportFiltersCard {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Categories All categories" }));
+    await user.click(
+      screen.getByRole("button", { name: "Categories All categories" })
+    );
     await user.click(screen.getByRole("checkbox", { name: "Groceries" }));
 
     expect(props.onFiltersChange).toHaveBeenCalledWith({
@@ -156,7 +176,11 @@ describe("ReportFiltersCard", () => {
 
   it("shows '(active)' in the mobile toggle label when hasActiveFilters is true", async () => {
     mockCurrencies();
-    renderWithProviders(<ReportFiltersCard {...baseProps({ hasActiveFilters: true })} />);
-    expect(screen.getByRole("button", { name: "Filters (active)" })).toBeInTheDocument();
+    renderWithProviders(
+      <ReportFiltersCard {...baseProps({ hasActiveFilters: true })} />
+    );
+    expect(
+      screen.getByRole("button", { name: "Filters (active)" })
+    ).toBeInTheDocument();
   });
 });

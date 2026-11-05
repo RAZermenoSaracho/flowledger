@@ -6,8 +6,8 @@ import type { ProfileDraft, ProfileDraftField } from "../types/profile.types";
 import { useProfileUser } from "./useProfileUser";
 
 /**
- * Read model for the profile header: the user plus derived display values (avatar URL, initials,
- * currency label, member-since date) plus the inline-edit draft. Owned by `ProfileHeader`, which stays
+ * Read model for the Profile page: the user plus derived display values (avatar URL, initials,
+ * currency label, member-since date) plus the inline-edit draft. Owned by `ProfilePage`, which stays
  * mounted across tab switches so drafts survive them. Nothing persists until `save()`; while dirty a
  * `beforeunload` guard is registered. `save()` is a no-op when `fieldErrors` is non-empty.
  */

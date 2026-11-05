@@ -97,8 +97,8 @@ export function ReportFiltersCard({
         id="report-filters-content"
         className={`${isOpenOnMobile ? "mt-4 block" : "hidden"} lg:mt-0 lg:block`}
       >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <TextInput
             label="From"
             type="date"

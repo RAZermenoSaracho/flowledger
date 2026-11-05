@@ -1,5 +1,6 @@
 import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { DropdownMenu } from "../../../components/DropdownMenu";
 
 /** Multi-select dropdown filter with search and an implicit "all" state when nothing is selected. */
 export function MultiSelectFilter({
@@ -21,7 +22,12 @@ export function MultiSelectFilter({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const optionIds = useMemo(() => options.map((option) => option.id), [options]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = `${fieldId}-panel`;
+  const optionIds = useMemo(
+    () => options.map((option) => option.id),
+    [options]
+  );
   const filteredOptions = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return options;
@@ -51,11 +57,14 @@ export function MultiSelectFilter({
         !containerRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        setSearch("");
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+        setSearch("");
+        triggerRef.current?.focus();
       }
     };
 
@@ -84,9 +93,11 @@ export function MultiSelectFilter({
         {label}
       </span>
       <button
+        ref={triggerRef}
         type="button"
         className="flex min-h-10 w-full min-w-0 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm text-ink outline-none transition hover:bg-slate-50 focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:focus:ring-emerald-900"
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
+        aria-controls={isOpen ? panelId : undefined}
         aria-expanded={isOpen}
         aria-labelledby={`${fieldId}-label ${fieldId}-value`}
         disabled={!options.length}
@@ -108,12 +119,18 @@ export function MultiSelectFilter({
       </button>
 
       {isOpen ? (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 min-w-64 rounded-md border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+        <DropdownMenu
+          id={panelId}
+          className="min-w-64 p-3"
+          role="dialog"
+          aria-labelledby={`${fieldId}-label`}
+        >
           <div className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-500 focus-within:border-pine focus-within:ring-2 focus-within:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:focus-within:ring-emerald-900">
             <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
             <input
               className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400 dark:text-slate-100"
               type="search"
+              aria-label={`Search ${label.toLowerCase()}`}
               placeholder={`Search ${label.toLowerCase()}`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -146,8 +163,7 @@ export function MultiSelectFilter({
 
           <div
             className="mt-3 max-h-56 min-w-0 overflow-y-auto pr-1"
-            role="listbox"
-            aria-multiselectable="true"
+            role="group"
             aria-labelledby={`${fieldId}-label`}
           >
             {filteredOptions.length ? (
@@ -170,12 +186,16 @@ export function MultiSelectFilter({
                 ))}
               </div>
             ) : (
-              <p className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400">
+              <p
+                role="status"
+                aria-live="polite"
+                className="px-2 py-2 text-sm text-slate-500 dark:text-slate-400"
+              >
                 {options.length ? "No matches found." : emptyText}
               </p>
             )}
           </div>
-        </div>
+        </DropdownMenu>
       ) : null}
     </div>
   );

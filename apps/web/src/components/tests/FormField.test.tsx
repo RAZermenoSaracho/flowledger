@@ -13,7 +13,9 @@ describe("TextInput", () => {
   it("forwards input props and calls onChange when typed into", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<TextInput label="Name" value="" onChange={onChange} />);
+    renderWithProviders(
+      <TextInput label="Name" value="" onChange={onChange} />
+    );
 
     await user.type(screen.getByLabelText("Name"), "a");
 
@@ -22,9 +24,17 @@ describe("TextInput", () => {
 
   it("merges a custom className with the base styles", () => {
     renderWithProviders(
-      <TextInput label="Name" value="" onChange={vi.fn()} className="extra-class" />
+      <TextInput
+        label="Name"
+        value=""
+        onChange={vi.fn()}
+        className="extra-class"
+      />
     );
-    expect(screen.getByLabelText("Name")).toHaveClass("extra-class", "rounded-md");
+    expect(screen.getByLabelText("Name")).toHaveClass(
+      "extra-class",
+      "rounded-md"
+    );
   });
 });
 
@@ -56,6 +66,23 @@ describe("SelectField", () => {
 
     expect(onChange).toHaveBeenCalled();
   });
+
+  it("keeps the select native and exposes its disabled and focus styles", () => {
+    renderWithProviders(
+      <SelectField label="Type" value="expense" onChange={vi.fn()} disabled>
+        <option value="expense">Expense</option>
+      </SelectField>
+    );
+
+    const select = screen.getByLabelText("Type");
+    expect(select.tagName).toBe("SELECT");
+    expect(select).toBeDisabled();
+    expect(select).toHaveClass(
+      "appearance-none",
+      "focus:ring-mint",
+      "disabled:opacity-60"
+    );
+  });
 });
 
 describe("TextArea", () => {
@@ -67,7 +94,9 @@ describe("TextArea", () => {
   it("forwards textarea props and calls onChange when typed into", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderWithProviders(<TextArea label="Notes" value="" onChange={onChange} />);
+    renderWithProviders(
+      <TextArea label="Notes" value="" onChange={onChange} />
+    );
 
     await user.type(screen.getByLabelText("Notes"), "a");
 
