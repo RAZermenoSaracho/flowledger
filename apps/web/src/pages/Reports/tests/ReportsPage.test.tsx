@@ -95,13 +95,13 @@ describe("ReportsPage", () => {
       ).toBeInTheDocument()
     );
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    await user.click(screen.getByRole("option", { name: "Roommates" }));
+    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
     await user.click(
       screen.getByRole("button", { name: "Categories All categories" })
     );
     expect(
-      screen.getByRole("option", { name: "Groceries" })
+      screen.getByRole("checkbox", { name: "Groceries" })
     ).toBeInTheDocument();
   });
 

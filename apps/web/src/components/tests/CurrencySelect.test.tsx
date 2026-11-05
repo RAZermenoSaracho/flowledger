@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -257,6 +257,29 @@ describe("CurrencySelect", () => {
       "USD — US Dollar"
     );
     expect(screen.getByRole("combobox", { name: "Currency" })).toHaveFocus();
+  });
+
+  it("cancels the default mousedown on the list surface so the input keeps focus", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
+    const input = screen.getByRole("combobox", { name: "Currency" });
+    await user.click(input);
+    const listbox = screen.getByRole("listbox");
+
+    const notCancelled = fireEvent.mouseDown(listbox.parentElement!);
+
+    expect(notCancelled).toBe(false);
+    expect(input).toHaveFocus();
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 
   it("closes on an outside click without calling onChange", async () => {

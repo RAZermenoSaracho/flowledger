@@ -78,6 +78,17 @@ describe("ReportFiltersCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders From/To as date inputs inside a single-column-on-mobile grid", () => {
+    renderWithProviders(<ReportFiltersCard {...baseProps()} />);
+    const from = screen.getByLabelText("From");
+    expect(from).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
+    expect(from.closest(".grid.grid-cols-1")).toHaveClass(
+      "md:grid-cols-2",
+      "xl:grid-cols-4"
+    );
+  });
+
   it("calls onFiltersChange when the date fields change", async () => {
     mockCurrencies();
     const user = userEvent.setup();
@@ -124,7 +135,7 @@ describe("ReportFiltersCard", () => {
     renderWithProviders(<ReportFiltersCard {...props} />);
 
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    await user.click(screen.getByRole("option", { name: "Roommates" }));
+    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
     expect(props.onFiltersChange).toHaveBeenCalledWith({
       ...props.filters,
@@ -142,7 +153,7 @@ describe("ReportFiltersCard", () => {
     await user.click(
       screen.getByRole("button", { name: "Categories All categories" })
     );
-    await user.click(screen.getByRole("option", { name: "Groceries" }));
+    await user.click(screen.getByRole("checkbox", { name: "Groceries" }));
 
     expect(props.onFiltersChange).toHaveBeenCalledWith({
       ...props.filters,

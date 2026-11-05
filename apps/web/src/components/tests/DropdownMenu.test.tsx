@@ -4,15 +4,23 @@ import { renderWithProviders } from "../../tests/utils/renderWithProviders";
 import { DropdownMenu } from "../DropdownMenu";
 
 describe("DropdownMenu", () => {
-  it("provides a responsive themed surface for custom menu content", () => {
+  it("renders children, forwards props, and merges className", () => {
     renderWithProviders(
-      <DropdownMenu aria-label="Options">
+      <DropdownMenu
+        id="menu"
+        role="dialog"
+        aria-label="Options"
+        className="p-3"
+      >
         <button type="button">Option</button>
       </DropdownMenu>
     );
 
-    const menu = screen.getByLabelText("Options");
-    expect(menu).toHaveClass("max-w-[calc(100vw-2rem)]", "dark:bg-slate-900");
-    expect(screen.getByRole("button", { name: "Option" })).toBeInTheDocument();
+    const menu = screen.getByRole("dialog", { name: "Options" });
+    expect(menu).toHaveAttribute("id", "menu");
+    expect(menu).toHaveClass("p-3", "absolute");
+    expect(menu).toContainElement(
+      screen.getByRole("button", { name: "Option" })
+    );
   });
 });

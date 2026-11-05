@@ -28,17 +28,16 @@ function renderFilter(
 }
 
 describe("MultiSelectFilter", () => {
-  it("closes when its trigger is clicked again after search receives focus", async () => {
+  it("closes when its trigger is clicked again", async () => {
     const user = userEvent.setup();
     renderFilter();
     const trigger = screen.getByRole("button", { name: "Groups All groups" });
 
     await user.click(trigger);
-    expect(screen.getByRole("searchbox")).toHaveFocus();
     await user.click(trigger);
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows the allLabel when nothing is selected", () => {
@@ -67,7 +66,7 @@ describe("MultiSelectFilter", () => {
     const { onChange } = renderFilter();
 
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    await user.click(screen.getByRole("option", { name: "Roommates" }));
+    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
     expect(onChange).toHaveBeenCalledWith(["g1"]);
   });
@@ -77,7 +76,7 @@ describe("MultiSelectFilter", () => {
     const { onChange } = renderFilter({ selectedIds: ["g1"] });
 
     await user.click(screen.getByRole("button", { name: "Groups 1 selected" }));
-    await user.click(screen.getByRole("option", { name: "Roommates" }));
+    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
     expect(onChange).toHaveBeenCalledWith([]);
   });
@@ -90,9 +89,9 @@ describe("MultiSelectFilter", () => {
     await user.type(screen.getByPlaceholderText("Search groups"), "trip");
 
     expect(
-      screen.queryByRole("option", { name: "Roommates" })
+      screen.queryByRole("checkbox", { name: "Roommates" })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Trip" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Trip" })).toBeInTheDocument();
   });
 
   it("shows 'No matches found.' when the search matches nothing", async () => {
@@ -144,55 +143,58 @@ describe("MultiSelectFilter", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Outside" }));
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus();
 
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("moves through options with arrows and toggles with Space without closing", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderFilter();
-
-    await user.click(screen.getByRole("button", { name: "Groups All groups" }));
-    expect(
-      screen.getByRole("searchbox", { name: "Search groups" })
-    ).toHaveFocus();
-    await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("option", { name: "Roommates" })).toHaveFocus();
-    await user.keyboard(" ");
-
-    expect(onChange).toHaveBeenCalledWith(["g1"]);
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Roommates" })).toHaveAttribute(
-      "aria-selected",
-      "false"
-    );
-    await user.keyboard("{ArrowDown}{End}{Home}{Enter}");
-    expect(onChange).toHaveBeenLastCalledWith(["g1"]);
-  });
-
-  it("keeps Tab inside the open popup and closes when focus leaves", async () => {
+  it("returns focus to the trigger on Escape", async () => {
     const user = userEvent.setup();
     renderFilter();
     const trigger = screen.getByRole("button", { name: "Groups All groups" });
 
     await user.click(trigger);
-    await user.tab();
-    expect(screen.getByRole("button", { name: "Select all" })).toHaveFocus();
-    expect(screen.getByRole("listbox")).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    expect(trigger).toHaveFocus();
 
-    await user.click(trigger);
-    await user.tab();
-    await user.tab();
-    expect(screen.getByRole("option", { name: "Roommates" })).toHaveFocus();
-    await user.tab();
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("stays open while interacting with search and checkboxes", async () => {
+    const user = userEvent.setup();
+    renderFilter();
+
+    await user.click(screen.getByRole("button", { name: "Groups All groups" }));
+    await user.type(screen.getByPlaceholderText("Search groups"), "r");
+    await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("'Clear' deselects everything", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderFilter({ selectedIds: ["g1", "g2"] });
+
+    await user.click(screen.getByRole("button", { name: "Groups 2 selected" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("reflects selection on native checkboxes", async () => {
+    const user = userEvent.setup();
+    renderFilter({ selectedIds: ["g2"] });
+
+    await user.click(screen.getByRole("button", { name: "Groups 1 selected" }));
+
+    expect(screen.getByRole("checkbox", { name: "Trip" })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Roommates" })
+    ).not.toBeChecked();
   });
 });

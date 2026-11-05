@@ -20,7 +20,7 @@ export function TextInput({
   ...props
 }: BaseProps & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+    <label className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
       <span>{label}</span>
       <input
         className={`min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900 ${className}`}

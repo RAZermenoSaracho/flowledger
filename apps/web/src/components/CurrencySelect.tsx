@@ -228,7 +228,10 @@ export function CurrencySelect({
         </span>
       </label>
       {isOpen && !isDisabled ? (
-        <DropdownMenu className="max-h-64 w-full overflow-y-auto py-1">
+        <DropdownMenu
+          className="max-h-64 w-full overflow-y-auto py-1"
+          onMouseDown={(event) => event.preventDefault()}
+        >
           <ul id={listboxId} role="listbox" aria-labelledby={labelId}>
             {options.length === 0 ? (
               <li
