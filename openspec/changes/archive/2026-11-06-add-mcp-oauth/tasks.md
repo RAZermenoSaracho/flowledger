@@ -46,5 +46,5 @@
   - Note (2026-10-30): typecheck pass; tests pass (shared 182 / api 1195 incl. Docker / web 894). Left unchecked: repo-wide lint has 81 pre-existing errors (docs/KNOWN_ISSUES.md #008).
 - [x] 6.3 After deploy to dev: `curl -I` frame headers on `flowledger-dev.razs.dev` and `/oauth/authorize`; metadata reachable on `api-flowledger-dev.razs.dev`
   - Evidence: dev web / and /oauth/authorize send content-security-policy: frame-ancestors 'none' and x-frame-options: DENY; both well-known docs on api-flowledger-dev return public URLs.
-- [ ] 6.4 Manual acceptance (dev web host :5174 running): Claude Code `/mcp` login -> tool call; ChatGPT connector -> tool call; revoke in Connected apps -> next call 401; deny -> `access_denied` with `iss`
+- [x] 6.4 Manual acceptance (dev web host :5174 running): Claude Code `/mcp` login -> tool call; ChatGPT connector -> tool call; revoke in Connected apps -> next call 401; deny -> `access_denied` with `iss`
   - Note: operator reported ChatGPT and Claude both connected through MCP OAuth; revoke -> 401 and deny -> access_denied not reported (left open).
