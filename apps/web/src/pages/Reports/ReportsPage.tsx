@@ -12,6 +12,7 @@ import {
 } from "./components/ReportFiltersCard";
 import { ReportSummaryCards } from "./components/ReportSummaryCards";
 import type { ReportAmountMode, ReportFilters } from "./types/reports.types";
+import { localDayStartInstant } from "../../utils/dateTime";
 
 /** Reports page: date/group/category filters, summary cards, and cashflow/category charts. */
 export function ReportsPage() {
@@ -22,7 +23,13 @@ export function ReportsPage() {
   const [currency, setCurrency] = useState(
     auth.user?.preferredCurrency || "USD"
   );
-  const reportQuery = { ...filters, currency, amountMode: reportAmountMode };
+  const reportQuery = {
+    ...filters,
+    dateFrom: filters.dateFrom && localDayStartInstant(filters.dateFrom),
+    dateTo: filters.dateTo && localDayStartInstant(filters.dateTo, 1),
+    currency,
+    amountMode: reportAmountMode
+  };
   const allCategoriesQuery = useQuery({
     queryKey: ["categories", "all"],
     queryFn: async () => (await listCategories({ scope: "all" })).categories

@@ -9,7 +9,7 @@ import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { TransactionFormState } from "../types/transactions.types";
-import { todayDateString } from "../utils/transactions";
+import { transactionDateNowInputValue } from "../../../utils/dateTime";
 import { formatEnumLabel } from "../../../utils/enumLabels";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
@@ -151,8 +151,8 @@ export function TransactionCoreFields({
       </SelectField>
       <div className="relative">
         <TextInput
-          label="Date"
-          type="date"
+          label="Date and time"
+          type="datetime-local"
           value={form.date}
           onChange={(event) =>
             onFormChange({ ...form, date: event.target.value })
@@ -162,13 +162,13 @@ export function TransactionCoreFields({
         />
         {/* The native date picker's own reset control is browser-rendered
             and unreliable on some mobile browsers — this bypasses it
-            entirely by writing today's date straight to form state. */}
+            entirely by writing the current time straight to form state. */}
         <button
           type="button"
-          onClick={() => onFormChange({ ...form, date: todayDateString() })}
+          onClick={() => onFormChange({ ...form, date: transactionDateNowInputValue() })}
           className="absolute right-0 top-0 text-xs font-semibold text-pine hover:underline dark:text-emerald-300"
         >
-          Reset to today
+          Reset to now
         </button>
       </div>
       {form.type === "transfer" ? (

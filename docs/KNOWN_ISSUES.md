@@ -285,3 +285,56 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Both are withheld pending an operator decision because of the issues logged in #014 and #018.
 
 **Suggested fix:** Expose them once #014 and #018 are resolved.
+
+---
+
+## [OPEN] #024 — Legacy and date-only transactions display, filter, and bucket as UTC instants
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** `Transaction.date` records stored at UTC midnight; API `/v1` and MCP date-only writes; web display, filters, and monthly cashflow.
+
+**Description:** Existing UTC-midnight records and bare-date API/MCP writes are read as the instants they hold, so in negative UTC offsets they can show the previous local day, and those on the first of a month can count in the previous month.
+
+**Suggested fix:** No cleanup is planned. Rewriting or reinterpreting existing data needs separate approval.
+
+
+---
+
+## [OPEN] #025 — Syncfy dates arrive at exactly UTC noon with no execution time
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** Syncfy-imported transactions (`ProviderImportedTransaction.transactionDate` and linked `Transaction.date`).
+
+**Description:** All staging imported rows have `dt_transaction` at exactly UTC noon (confirmed only in local staging; production was not inspected). They display without a time while unedited, but the edit picker still shows a local time such as 6:00 AM. Filters and reports treat them as instants, and viewers at UTC+12 or beyond see the next calendar day.
+
+**Suggested fix:** Confirm the provider behavior in production, then decide whether provider dates need a date-only representation.
+
+
+---
+
+## [OPEN] #026 — `search_transactions`, `get_transaction_summary`, and report range filters have no timezone parameter
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** MCP `search_transactions` and `get_transaction_summary`; report range filters on REST and `/v1`.
+
+**Description:** Only monthly cashflow accepts `timeZone`. For other range filters, API clients must send datetimes to select a local day; bare dates mean whole UTC days.
+
+**Suggested fix:** Add an optional `timeZone` to these filters if API clients need local-day ranges without computing instants.
+
+
+---
+
+## [OPEN] #027 — `SYNCFY_AUTO_SYNC_ENABLED=false` enables the auto-sync scheduler
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** `apps/api/src/config/env.ts` (line 70) and the Syncfy auto-sync scheduler.
+
+**Description:** `SYNCFY_AUTO_SYNC_ENABLED` is parsed with `z.coerce.boolean()`, so the string `"false"` becomes `true` and the scheduler runs whenever the variable is set to any non-empty value, including `false`. During QA, a throwaway instance started with `false` ran one scheduler job that made one outbound Syncfy `GET /v1/accounts` call, which returned 402, and wrote no data.
+
+**Workaround:** Leave the variable empty or unset.
+
+**Suggested fix:** Parse the string explicitly (for example `z.enum(["true", "false"]).transform((v) => v === "true")`).

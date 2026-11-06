@@ -102,4 +102,24 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(screen.getByText("Recent activity")).toBeInTheDocument());
     expect(screen.queryByText("Paycheck")).not.toBeInTheDocument();
   });
+
+  it("requests monthly cashflow bucketed by the device timeZone", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "Pacific/Kiritimati";
+    try {
+      mockBaseline();
+      let timeZone: string | null = null;
+      server.use(
+        http.get(`${API_URL}/reports/monthly-cashflow`, ({ request }) => {
+          timeZone = new URL(request.url).searchParams.get("timeZone");
+          return HttpResponse.json({ cashflow: [], currency: "USD" });
+        })
+      );
+      renderWithProviders(<DashboardPage />);
+
+      await waitFor(() => expect(timeZone).toBe("Pacific/Kiritimati"));
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
 });

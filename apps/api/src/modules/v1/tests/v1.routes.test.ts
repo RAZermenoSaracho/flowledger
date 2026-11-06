@@ -149,6 +149,37 @@ describe("/v1 routes", () => {
       expect(cross.status).toBe(404);
     });
 
+    it("buckets /v1/reports/monthly-cashflow by timeZone and rejects an invalid one", async () => {
+      const created = await request(app)
+        .post("/v1/transactions")
+        .set(bearer(b.writeKey))
+        .send({ ...txBody(b, "Boundary"), type: "income", date: "2026-06-01T03:00:00.000Z" });
+      expect(created.status).toBe(201);
+      const months = (res: request.Response) =>
+        res.body.cashflow
+          .map((row: { month: string }) => row.month)
+          .filter((month: string) => month >= "2026-05");
+
+      const local = await request(app)
+        .get("/v1/reports/monthly-cashflow")
+        .query({ currency: "USD", timeZone: "America/Mexico_City" })
+        .set(bearer(b.readKey));
+      expect(local.status).toBe(200);
+      expect(months(local)).toEqual(["2026-05"]);
+
+      const utc = await request(app)
+        .get("/v1/reports/monthly-cashflow")
+        .query({ currency: "USD" })
+        .set(bearer(b.readKey));
+      expect(months(utc)).toEqual(["2026-06"]);
+
+      const invalid = await request(app)
+        .get("/v1/reports/monthly-cashflow")
+        .query({ timeZone: "Not/AZone" })
+        .set(bearer(b.readKey));
+      expect(invalid.status).toBe(400);
+    });
+
     it("returns 400 for a malformed query", async () => {
       const res = await request(app).get("/v1/transactions").query({ query: "{nope" }).set(bearer(a.readKey));
       expect(res.status).toBe(400);

@@ -1,3 +1,5 @@
+import { localDayStartInstant } from "./dateTime";
+
 // Generic, model-agnostic query domain for <SearchBar>/<FilterBuilder>
 // (src/components/). Nothing in this file knows about any specific
 // module's fields — every module passes its own SearchFieldConfig[]
@@ -259,12 +261,31 @@ function conditionToWhere(
   const targetFields = field?.expandsToFields ?? [node.fieldName];
   const isNumber = field?.type === "number";
   const isBoolean = field?.type === "boolean";
+  const isDate = field?.type === "date";
 
   function leafFor(targetField: string): WhereNode {
     // isNull/isNotNull are DSQL's NoValueOperator — the condition shape
     // never includes a `value` key at all, not even an empty one.
     if (node.operator === "isNull" || node.operator === "isNotNull") {
       return { field: targetField, op: node.operator };
+    }
+
+    if (isDate && node.operator === "between") {
+      const [from, to] = node.value as [string, string];
+      return {
+        and: [
+          { field: targetField, op: ">=", value: localDayStartInstant(from) },
+          { field: targetField, op: "<", value: localDayStartInstant(to, 1) }
+        ]
+      };
+    }
+    if (isDate && (node.operator === ">=" || node.operator === "<=")) {
+      const upper = node.operator === "<=";
+      return {
+        field: targetField,
+        op: upper ? "<" : ">=",
+        value: localDayStartInstant(node.value as string, upper ? 1 : undefined)
+      };
     }
 
     if (node.operator === "between") {

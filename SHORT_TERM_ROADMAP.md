@@ -34,7 +34,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 
 | ID | Intent | Priority | Dependencies | Status | Odoo Reference |
 |---|---|---|---|---|---|
-| ST-001 | Fix date-only transaction display | High | None | Planned | Task #129 |
+| ST-001 | Correct transaction execution date and time | High | None | Planned | Task #129 |
 | ST-002 | "Keep me logged in on this device" | High | None | Planned | Task #128 |
 | ST-003 | Convert an existing transaction to shared | High | None | Planned | Task #127 |
 | ST-004 | Neutral charcoal dark theme | Medium | None | Planned | None |
@@ -61,26 +61,23 @@ ST-012 (debit support) is retired and has no active row; see its note under the 
 
 ## Intent details
 
-### ST-001: Fix date-only transaction display
+### ST-001: Correct transaction execution date and time
 
-**Objective:** A transaction shows the same calendar date everywhere, whatever the device's timezone.
+**Objective:** `Transaction.date` is a UTC execution instant everywhere. Users enter, see, filter, group, and report on it in their client's timezone, with DST handled correctly.
 
-**Scope:** Add one transaction-date formatter and use it wherever `transaction.date` is rendered. Real timestamps (`createdAt`, key expiry, notifications) keep local-time display. This fixes display only: `Transaction.date` keeps its timestamp column, and ST-023 adds execution times by changing this one formatter.
+**Scope:** Replace the date-only create and edit fields with one native date-and-time field. Convert calendar filters to UTC instants at local-day boundaries, using half-open intervals, and bucket monthly reports and grouping by client timezone. There is no schema change and no compatibility layer for older test records, and no data is changed. Timestamps that aren't transaction dates keep their existing display.
 
 **Acceptance criteria:**
-- A transaction entered as 2026-11-05 shows as 11/5/2026 in the list, detail, and edit views on a device in any timezone.
-- Group transaction lists show the same date.
-- `Transaction.date` values that already carry a time, such as settlements, aren't forced to UTC and keep their local calendar date until ST-023 defines their stored form.
-- No change truncates `Transaction.date` or assumes every value is midnight.
-- Timestamps that are not transaction dates still display in local time.
+- Users can change the date, the time, or both in one field. Changing one keeps the other, and editing unrelated fields leaves the stored timestamp unchanged.
+- List, detail, edit, and group views show date and time in the client's timezone.
+- Calendar filters, month grouping, and monthly reports place a transaction on its client-local day and month, in positive and negative offsets and across DST changes.
+- API and MCP date-only requests stay valid and mean `00:00:00 UTC`, and offset datetimes normalize to UTC.
+- A provider date with no known time shows no invented time, and the limitation is documented.
+- Older records stay unchanged and are read as the UTC instants they hold.
 
-**Dependencies:** None. ST-023 builds on the formatter.
+**Dependencies:** None. ST-023 builds on the UTC execution instant.
 
-**Relevant existing architecture:** The API stores date-only input as UTC midnight in a `TIMESTAMP(3)` column. The column also holds real times from other write paths, such as settlement approval: 28 of 44 local staging transactions have a non-midnight time. Until ST-023, the formatter can treat exactly UTC midnight as date-only, because the web forms send only dates today. Confirmed local-time call sites are `TransactionList.tsx:86`, `TransactionDetailPage.tsx:135`, and `GroupTransactionsSection.tsx:29`. The edit form looks correct because it slices the ISO string. No shared date formatter exists. API range filters already use UTC days.
-
-**Open questions:**
-- `ImportedTransactionCard.tsx:110` also formats in local time. Are provider `transactionDate` values date-only?
-- Does monthly cashflow bucketing shift dates the same way? This was not verified.
+**Relevant existing architecture:** `Transaction.date` is a `TIMESTAMP(3)` column. Form input has been stored at UTC midnight, while settlement approval stores real times. All 156 local imported rows carry Syncfy dates at exactly UTC noon, with no execution time in any other provider field. Filters and report month buckets currently use UTC days. See the OpenSpec change `fix-transaction-date-display` for the full design.
 
 **Odoo reference:** Task #129.
 
@@ -225,7 +222,7 @@ Direct editing does not mean persisting each field on change: edits accumulate i
 - Fields can be edited directly from the transaction view without entering a separate edit mode.
 - All current validation and business rules still hold, including the field couplings below and the ST-003 sharing flow if delivered.
 - A transaction cannot be saved in an invalid in-between state, such as a transfer without a destination.
-- Saving other fields doesn't overwrite a stored execution time. Today's edit form slices `date` to a calendar date and always sends it.
+- Saving other fields doesn't overwrite a stored execution time.
 - Existing `/transactions/:id/edit` links keep working.
 - A new transaction draft with prefilled values opens at its own URL and creates nothing until the user saves.
 - The view works at mobile width.
@@ -296,7 +293,7 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 
 **Dependencies:** None. It is sequenced after ST-005 so the General tab changes once.
 
-**Relevant existing architecture:** Net worth is not computed anywhere, and the dashboard's "Current balance" is income minus expenses, not a sum of accounts. Balances are signed (`initialBalance + income - expense - transfers out + transfers in`), so card debt is already negative and no asset/liability classification is needed. A new `GET /reports/financial-overview`, in the read-only `reports` module, can reuse `withAccountBalances`, `getExchangeRate`, `listDebts`, and `calculateMonthlyCashflow`. `listAccounts`, `listDebts`, and the cashflow report each convert under one `Promise.all`, so one failed rate fails the whole call; the metrics need per-item handling without changing those endpoints. `listAccounts` doesn't exclude archived accounts by default. Rates are live with no stored history, and reports already convert past months at today's rate (`docs/DOMAIN_LOGIC.md`). Reports ignore the `exchangeRate` and `amountInPreferredCurrency` snapshots on `Transaction`, which aren't recomputed when the preferred currency changes. Date-only transactions are stored at UTC midnight, so month bucketing matches the date the user entered. ST-023 keeps this true for timed transactions. On the web, `GeneralTab.tsx` is a small definition list, `Card` is reusable, and `DashboardPage.tsx` has a private `Metric` component that could be lifted out. A self-contained component with its own query stays independent of `useProfileDetails`, so a metrics error can't affect editing.
+**Relevant existing architecture:** Net worth is not computed anywhere, and the dashboard's "Current balance" is income minus expenses, not a sum of accounts. Balances are signed (`initialBalance + income - expense - transfers out + transfers in`), so card debt is already negative and no asset/liability classification is needed. A new `GET /reports/financial-overview`, in the read-only `reports` module, can reuse `withAccountBalances`, `getExchangeRate`, `listDebts`, and `calculateMonthlyCashflow`. `listAccounts`, `listDebts`, and the cashflow report each convert under one `Promise.all`, so one failed rate fails the whole call; the metrics need per-item handling without changing those endpoints. `listAccounts` doesn't exclude archived accounts by default. Rates are live with no stored history, and reports already convert past months at today's rate (`docs/DOMAIN_LOGIC.md`). Reports ignore the `exchangeRate` and `amountInPreferredCurrency` snapshots on `Transaction`, which aren't recomputed when the preferred currency changes. ST-001 makes report months follow the client's timezone. On the web, `GeneralTab.tsx` is a small definition list, `Card` is reusable, and `DashboardPage.tsx` has a private `Metric` component that could be lifted out. A self-contained component with its own query stays independent of `useProfileDetails`, so a metrics error can't affect editing.
 
 **Progressive enhancement:**
 - ST-023 corrects cross-currency balances and removes the related disclosure once affected test data follows the pre-production data policy. Exchange-rate movement can still change net worth, because it is a current valuation, but never an account's native balance.
@@ -651,15 +648,11 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Objective:** Each account's balance is correct in its own currency, and cross-currency movements keep an auditable record of what actually happened, so every figure built on those balances can be trusted.
 
-**Scope:** Persist the amount actually applied to each account, along with the execution details of cross-currency transactions and transfers. Suggest rates and received amounts, and let the user correct them. Add execution times, exact crypto precision, and a correction history. This stays inside the existing `Transaction` model and balance calculation, with no separate balance system, accounting engine, or duplicate transaction logic.
+**Scope:** Persist the amount actually applied to each account, along with the execution details of cross-currency transactions and transfers. Suggest rates and received amounts, and let the user correct them. Add exact crypto precision and a correction history. This stays inside the existing `Transaction` model and balance calculation, with no separate balance system, accounting engine, or duplicate transaction logic.
 
 **Decisions:**
 
-- **Execution timestamp:** `Transaction.date` becomes the authoritative execution timestamp, with no second timestamp column.
-  - It stores the local date and time the user saw, and one new nullable `dateUtcOffsetMinutes` column gives the exact instant (`date` minus the offset).
-  - A null offset means only the date is known, stored at 00:00.
-  - `date` alone can't do this. A timestamp can't show whether a time is known, since 18:00 at UTC-6 is exactly UTC midnight, and no user timezone is stored.
-  - Keeping local time in `date` leaves calendar-day filters, month bucketing, and ordering correct without per-viewer logic. API consumers must treat it as local time plus offset, not as a UTC instant.
+- **Execution timestamp:** ST-023 uses ST-001's `Transaction.date` UTC execution instant, with no second timestamp column and no offset column.
 - **Crypto precision:** Native amounts use `Decimal(30,18)` and exact decimal arithmetic.
   - **Columns:** `Account.initialBalance`, `Transaction.amount`, and the new applied, destination, fee, and applied-rate columns.
   - **Unchanged:** `amountInPreferredCurrency`, `exchangeRate`, and `ProviderImportedTransaction.amount`. Shared-expense and settlement columns also stay as they are, so crypto-denominated sharing and settlement are rejected for now.
@@ -689,8 +682,6 @@ The modal offers clear partial and full options, an amount input when appropriat
 - Without an explicit fee, the record shows no fee and an effective rate.
 - A correction keeps the persisted amounts, details, and resulting balances consistent, and adds a `TransactionCorrection` row with the previous and corrected values, who changed them, and when. Rows are never updated.
 - Create, edit, settlement approval, and import paths all persist the applied amounts and the correct execution date form.
-- A user can enter a date alone or a date and time. A date-only transaction shows no invented time and keeps the same calendar date on every device.
-- A timed transaction shows its execution date and time, with the same calendar date on every device, and appears in that date's filters and month.
 - 1.234567890123456789 BTC can be entered, stored, summed into a balance, returned, and displayed without changing a digit. An amount with more than 18 decimals is rejected, not rounded.
 - Fiat amounts, displays, and rounding behave as before.
 - Sharing or settling a crypto-denominated transaction is rejected with a clear message.
@@ -699,7 +690,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 - Affected test records follow the pre-production data policy, and no amount is guessed silently.
 - The temporary ST-008 cross-currency disclosure is removed.
 
-**Dependencies:** ST-001's formatter (B-001), and ST-007's first batch (B-009), so transaction form changes happen in one place. ST-014 and ST-015 depend on this intent.
+**Dependencies:** ST-001's UTC execution instant (B-001), and ST-007's first batch (B-009), so transaction form changes happen in one place. ST-014 and ST-015 depend on this intent.
 
 **Relevant existing architecture:**
 
@@ -708,13 +699,12 @@ The modal offers clear partial and full options, an amount input when appropriat
 | `amount` + `executionCurrency` | What was executed; usable as source amount and currency | Keep |
 | `exchangeRate` | Execution currency to the *preferred* currency, captured when the record is written | Not the applied rate; don't reuse it for this |
 | `amountInPreferredCurrency` | Display snapshot, shown on the detail page and not recomputed when the preferred currency changes | Not a balance or audit value |
-| `date` | `TIMESTAMP(3)` holding UTC midnight for form input and real instants from other paths | Authoritative execution timestamp, per the decision above |
+| `date` | `TIMESTAMP(3)` holding the UTC execution instant, per ST-001 | Authoritative execution timestamp |
 
 So the missing data is the applied account amount when currencies differ, the destination amount, the applied rate, and a known fee with its currency. Discovery tests whether fewer fields can cover them. `serialize` converts every `Decimal` to a JavaScript number, and `moneySchema`, `amountToNumber`, and `roundMoney` also use numbers, none of which can hold 18 decimals exactly. About 31 web references across 17 files and 25 API call sites need review. Prisma's `Decimal` is already available in the API, and the web app has no decimal library and should only format these strings. Crypto can already be selected as an account currency. `calculateAccountBalance` is the one balance calculation, reached only through `listAccounts`; it applies the raw `amount` to both sides of a transfer and ignores `executionCurrency`. The transaction form lets a user pick a currency other than the account's, so the gap is reachable today. Settlement approval already writes each side in its account's currency, but it keeps no applied rate. Rates are live with no history, so a past-dated record can only get a suggestion at today's rate. `Transaction` has only `updatedAt` for change tracking, and no audit table exists. Local staging has 13 transactions in a currency other than their account's, 0 cross-currency transfers, and no crypto accounts; production wasn't inspected.
 
 **Open questions:**
 - How should an explicit fee affect reports? Reports exclude transfers today, so a transfer fee recorded only as a detail wouldn't appear as an expense.
-- Are provider timestamps real execution times? If a provider gives only a date or an unreliable time, those imports stay date-only.
 - What is the smallest coherent reset under the pre-production data policy? Transactions connect to shared expenses, settlements, relations, and imported-transaction links, so the proposal must map those dependencies and the records actually affected, including existing timed rows that lack an offset. Any destructive operation needs explicit approval of the exact operation.
 
 ## Implementation Batches / PR Execution Plan
@@ -723,7 +713,7 @@ This plan is the authoritative execution order. Each batch is one focused pull r
 
 | Batch | Intent(s) | Objective | Dependencies | Estimated Size | Status |
 |---|---|---|---|---|---|
-| B-001 | ST-001 | Show the correct transaction date in every timezone | None | XS | Planned |
+| B-001 | ST-001 | Enter, show, filter, group, and report transaction date and time in the client's timezone | None | L | Planned |
 | B-002 | ST-003 | Convert an existing transaction to shared | None | S | Planned |
 | B-003 | ST-002 | Keep users logged in on trusted devices | None | M | Planned |
 | B-004 | ST-004 | Neutral charcoal dark theme | None | S | Planned |
@@ -732,7 +722,7 @@ This plan is the authoritative execution order. Each batch is one focused pull r
 | B-007 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |
 | B-008 | ST-006 | Account Form View | B-006 | M | Planned |
 | B-009 | ST-007 part 1 | Directly editable existing transactions | B-002, B-006 | M | Planned |
-| B-010 | ST-023 | Correct native balances with auditable FX history, execution times, and crypto precision | B-001, B-009 | L | Planned |
+| B-010 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-009 | L | Planned |
 | B-011 | ST-013 | Credit limit and available credit | B-008 | S | Planned |
 | B-012 | ST-014 part 1 | Statements, dates, and unpaid status | B-011 | M | Planned |
 | B-013 | ST-007 part 2 | Prefilled new transaction drafts | B-009 | S | Planned |
@@ -753,7 +743,7 @@ This plan is the authoritative execution order. Each batch is one focused pull r
 
 Sizes are relative engineering estimates, not time commitments. Dependencies list only real technical prerequisites; the order above still applies to every batch.
 
-**Where to start:** B-001 comes first. Its cause is confirmed, it is the smallest batch, it affects every user in a negative UTC offset, and it tests this one-PR workflow at low risk. Merging it unlocks B-002.
+**Where to start:** B-001 comes first. It fixes a confirmed problem that affects every user away from UTC, and merging it unlocks B-002.
 
 **Split intents:** An intent that spans batches is complete only when its last batch merges.
 
@@ -765,7 +755,7 @@ Sizes are relative engineering estimates, not time commitments. Dependencies lis
 | ST-018 | B-024, B-025 | Secret storage needs its own security review, and ST-020 reuses it |
 
 **L batches kept whole:**
-- **B-010:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest batch and sits at the top of the L range:** it combines FX persistence, execution times, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
+- **B-010:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
 - **B-014:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant.
 - **B-027:** It may be dropped at its go/no-go check. If it goes ahead, discovery should re-evaluate splitting it.
 
@@ -785,10 +775,10 @@ Sizes are relative engineering estimates, not time commitments. Dependencies lis
 Unless noted, a batch meets its intent's full acceptance criteria. The completion rules below apply to all of them.
 
 **B-001: ST-001 (Odoo task #129).**
-- **Deliverable:** One transaction-date formatter, used wherever `transaction.date` is rendered, with no change to stored values.
+- **Deliverable:** One date-and-time field on the create and edit forms, local display, timestamp-preserving edits, half-open API date ranges, a report `timeZone`, client-local filters, grouping, and cashflow buckets, MCP datetime filters, and provider-date display.
 - **Prerequisites:** None.
-- **Testing:** Formatter and call sites in a negative UTC offset, midnight and non-midnight stored values, and real timestamps remaining local.
-- **Done when:** The same date shows in list, detail, edit, and group views, and B-010 can add times by changing this formatter.
+- **Testing:** Independent date and time edits, positive and negative offsets, both DST days, month boundaries, invalid timezones, unchanged timestamps, provider dates, and date-only requests.
+- **Done when:** All ST-001 acceptance criteria are met.
 
 **B-002: ST-003 (Odoo task #127).**
 - **Deliverable:** Sharing controls in the transaction edit view, using the existing backend path.
@@ -839,9 +829,9 @@ Unless noted, a batch meets its intent's full acceptance criteria. The completio
 - **Done when:** All ST-007 criteria except new drafts are met.
 
 **B-010: ST-023.**
-- **Deliverable:** Persisted applied amounts and execution details for cross-currency records, correct native balances, suggested and correctable rates and received amounts, optional execution times, `Decimal(30,18)` native crypto amounts with exact arithmetic, the `TransactionCorrection` history, and the form changes they need.
+- **Deliverable:** Persisted applied amounts and execution details for cross-currency records, correct native balances, suggested and correctable rates and received amounts, `Decimal(30,18)` native crypto amounts with exact arithmetic, the `TransactionCorrection` history, and the form changes they need.
 - **Prerequisites:** B-001 and B-009. The proposal documents any reset, and the exact operation is separately approved before execution.
-- **Testing:** Balance calculation across currency combinations, rate changes leaving balances and history untouched, net-only versus explicit-fee records, date-only and timed records across timezones, an 18-decimal round trip, fiat behaving as before, correction rows, every write path, and no change for same-currency records.
+- **Testing:** Balance calculation across currency combinations, rate changes leaving balances and history untouched, net-only versus explicit-fee records, an 18-decimal round trip, fiat behaving as before, correction rows, every write path, and no change for same-currency records.
 - **Done when:** Native balances are exact and correct, each cross-currency record has an auditable history, and every financial correction records who changed what and when.
 
 **B-011: ST-013.**
@@ -989,7 +979,7 @@ ST-005 --+--> ST-007 --+--> ST-023 ---------+
          |                           +--> ST-022
          +--> ST-010 --> ST-011
 
-ST-001 --> ST-023 (shared date formatter)
+ST-001 --> ST-023 (execution instant and shared date helper)
 ST-023 --> ST-015 (exact crypto quantities)
 ST-008 --> ST-015 (net-worth integration only)
 ST-003 --> ST-007 (sequence only, so ST-007 preserves sharing)

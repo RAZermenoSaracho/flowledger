@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   addChild,
   conditionValueText,
@@ -315,16 +315,72 @@ describe("domainToWhere", () => {
     });
   });
 
-  it("leaves both bounds as strings for a between on a non-number field", () => {
+  it("leaves both bounds as strings for a between on a non-number, non-date field", () => {
     const node = conditionNode({
-      fieldName: "date",
+      fieldName: "name",
       operator: "between",
-      value: ["2024-01-01", "2024-01-31"]
+      value: ["a", "m"]
     });
-    expect(domainToWhere(node, [...fields, dateField])).toEqual({
-      field: "date",
+    expect(domainToWhere(node, fields)).toEqual({
+      field: "name",
       op: "between",
-      value: ["2024-01-01", "2024-01-31"]
+      value: ["a", "m"]
+    });
+  });
+
+  describe("date fields compile to local-day UTC boundaries", () => {
+    const dateFields = [...fields, dateField];
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it("compiles >= to the start of the local day", () => {
+      process.env.TZ = "Pacific/Kiritimati";
+      const node = conditionNode({ fieldName: "date", operator: ">=", value: "2026-11-05" });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        field: "date",
+        op: ">=",
+        value: "2026-11-04T10:00:00.000Z"
+      });
+    });
+
+    it("compiles <= to an exclusive bound at the start of the next local day", () => {
+      process.env.TZ = "Pacific/Kiritimati";
+      const node = conditionNode({ fieldName: "date", operator: "<=", value: "2026-11-05" });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        field: "date",
+        op: "<",
+        value: "2026-11-05T10:00:00.000Z"
+      });
+    });
+
+    it("compiles between to a half-open range covering both local days", () => {
+      process.env.TZ = "America/Los_Angeles";
+      const node = conditionNode({
+        fieldName: "date",
+        operator: "between",
+        value: ["2026-03-08", "2026-03-08"]
+      });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        and: [
+          { field: "date", op: ">=", value: "2026-03-08T08:00:00.000Z" },
+          { field: "date", op: "<", value: "2026-03-09T07:00:00.000Z" }
+        ]
+      });
+    });
+
+    it("leaves isNull untouched", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({ fieldName: "date", operator: "isNull", value: "" });
+      expect(domainToWhere(node, dateFields)).toEqual({ field: "date", op: "isNull" });
+    });
+
+    it("leaves a number field's between as numeric bounds", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({ fieldName: "amount", operator: "between", value: ["10", "20"] });
+      expect(domainToWhere(node, dateFields)).toEqual({ field: "amount", op: "between", value: [10, 20] });
     });
   });
 

@@ -41,6 +41,19 @@ describe("getTransactionById", () => {
     );
   });
 
+  it("includes only the provider transactionDate of the linked import", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "txn-1" } as never);
+
+    await getTransactionById("user-1", "txn-1");
+
+    const call = prismaMock.transaction.findFirst.mock.calls[0]?.[0] as {
+      include: Record<string, unknown>;
+    };
+    expect(call.include.providerImportedTransaction).toEqual({
+      select: { transactionDate: true }
+    });
+  });
+
   it("returns the transaction with its relations", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ id: "txn-1" } as never);
 
@@ -113,6 +126,20 @@ describe("listTransactions — query param handling", () => {
       where: unknown;
     };
     expect(JSON.stringify(call.where)).toContain("user-1");
+  });
+
+  it("includes only the provider transactionDate of each linked import", async () => {
+    prismaMock.transaction.findMany.mockResolvedValue([]);
+    prismaMock.transaction.count.mockResolvedValue(0);
+
+    await listTransactions("user-1", undefined);
+
+    const call = prismaMock.transaction.findMany.mock.calls[0]?.[0] as {
+      include: Record<string, unknown>;
+    };
+    expect(call.include.providerImportedTransaction).toEqual({
+      select: { transactionDate: true }
+    });
   });
 
   it("rejects invalid JSON", async () => {

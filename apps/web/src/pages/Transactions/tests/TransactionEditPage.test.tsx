@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../../tests/mocks/server";
 import type { Transaction } from "../../../types/transactions.types";
 import { TransactionEditPage } from "../TransactionEditPage";
@@ -19,7 +19,7 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
     exchangeRate: 1,
     amountInPreferredCurrency: 42.5,
     type: "expense",
-    date: "2024-01-15T00:00:00.000Z",
+    date: "2026-05-31T21:33:15.979Z",
     accountId: "acc-1",
     categoryId: "cat-1",
     createdAt: "",
@@ -74,6 +74,17 @@ function renderPage() {
 }
 
 describe("TransactionEditPage", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "America/Mexico_City";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+  });
+
   it("shows a loading message before the transaction loads", () => {
     mockBaseline();
     renderPage();
@@ -86,21 +97,82 @@ describe("TransactionEditPage", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Groceries"));
     expect(screen.getByLabelText("Amount")).toHaveValue(42.5);
-    expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15");
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-05-31T15:33");
   });
 
-  it("Reset to today sets the date field to today's local date", async () => {
+  it("Reset to now sets the field to the current local date and time", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    vi.setSystemTime(new Date("2026-11-06T03:07:00.000Z"));
     mockBaseline();
     const user = userEvent.setup({ delay: null });
     renderPage();
 
-    await waitFor(() => expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15"));
-    await user.click(screen.getByRole("button", { name: "Reset to today" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Date and time")).toHaveValue("2026-05-31T15:33")
+    );
+    await user.click(screen.getByRole("button", { name: "Reset to now" }));
 
-    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
-    vi.useRealTimers();
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-11-05T21:07");
+  });
+
+  describe("date in the update request", () => {
+    async function saveWithDateInput(
+      change: ((dateInput: HTMLElement) => void) | null,
+      transaction: Transaction = makeTransaction()
+    ) {
+      mockBaseline(transaction);
+      let body: Record<string, unknown> = {};
+      server.use(
+        http.put(`${API_URL}/transactions/tx-1`, async ({ request }) => {
+          body = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ transaction });
+        })
+      );
+      const user = userEvent.setup();
+      renderPage();
+      const dateInput = await screen.findByLabelText("Date and time");
+      await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Groceries"));
+      change?.(dateInput);
+      await user.type(screen.getByLabelText("Notes"), "n");
+      await user.click(screen.getByRole("button", { name: "Save transaction" }));
+      await waitFor(() => expect(screen.getByText("Transactions list")).toBeInTheDocument());
+      return body;
+    }
+
+    const setDate = (value: string) => (input: HTMLElement) =>
+      fireEvent.change(input, { target: { value } });
+
+    it("omits date when the field is unchanged", async () => {
+      const body = await saveWithDateInput(null);
+      expect(body).not.toHaveProperty("date");
+    });
+
+    it("omits date when the field is changed and restored", async () => {
+      const body = await saveWithDateInput((input) => {
+        fireEvent.change(input, { target: { value: "2026-06-02T15:33" } });
+        fireEvent.change(input, { target: { value: "2026-05-31T15:33" } });
+      });
+      expect(body).not.toHaveProperty("date");
+    });
+
+    it("keeps the local time and sub-minute precision when only the date changes", async () => {
+      const body = await saveWithDateInput(setDate("2026-06-02T15:33"));
+      expect(body.date).toBe("2026-06-02T21:33:15.979Z");
+    });
+
+    it("keeps the local date and sub-minute precision when only the time changes", async () => {
+      const body = await saveWithDateInput(setDate("2026-05-31T16:45"));
+      expect(body.date).toBe("2026-05-31T22:45:15.979Z");
+    });
+
+    it("keeps the local time of day across a DST change", async () => {
+      process.env.TZ = "America/Los_Angeles";
+      const body = await saveWithDateInput(
+        setDate("2026-03-09T09:00"),
+        makeTransaction({ date: "2026-03-07T17:00:00.000Z" })
+      );
+      expect(body.date).toBe("2026-03-09T16:00:00.000Z");
+    });
   });
 
   it("submits the updated form and navigates back to the transactions list", async () => {

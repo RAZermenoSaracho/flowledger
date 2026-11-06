@@ -178,7 +178,7 @@ describe("MCP server", () => {
       where: {
         and: [
           { field: "date", op: ">=", value: "2024-03-01T00:00:00.000Z" },
-          { field: "date", op: "<=", value: "2024-03-10T23:59:59.999Z" },
+          { field: "date", op: "<", value: "2024-03-11T00:00:00.000Z" },
           { field: "type", op: "=", value: "expense" }
         ]
       },
@@ -212,6 +212,30 @@ describe("MCP server", () => {
     });
   });
 
+  it("searches a local day with a half-open datetime range", async () => {
+    const user = await createAuthedUser(app);
+    const client = await connect((await mintKey(user, true)).key);
+    for (const [name, date] of [
+      ["Before", "2026-11-05T05:59:59.999Z"],
+      ["Start", "2026-11-05T06:00:00.000Z"],
+      ["Evening", "2026-11-06T05:59:59.999Z"],
+      ["End", "2026-11-06T06:00:00.000Z"]
+    ] as const) {
+      const created = await call(client, "create_transaction", { ...txBody, name, date });
+      expect(created.isError).toBeUndefined();
+    }
+
+    const result = await call(client, "search_transactions", {
+      dateFrom: "2026-11-05T06:00:00.000Z",
+      dateTo: "2026-11-06T06:00:00.000Z"
+    });
+
+    expect((result.structuredContent!.data as { name: string }[]).map((t) => t.name)).toEqual([
+      "Evening",
+      "Start"
+    ]);
+  });
+
   it("matches /v1 with an API key for reads and refuses a read key's write the same way", async () => {
     const user = await createAuthedUser(app);
     const { key: readKey } = await mintKey(user, false);
@@ -240,7 +264,7 @@ describe("MCP server", () => {
       where: {
         and: [
           { field: "date", op: ">=", value: "2024-03-01T00:00:00.000Z" },
-          { field: "date", op: "<=", value: "2024-03-10T23:59:59.999Z" },
+          { field: "date", op: "<", value: "2024-03-11T00:00:00.000Z" },
           { field: "type", op: "=", value: "expense" }
         ]
       },

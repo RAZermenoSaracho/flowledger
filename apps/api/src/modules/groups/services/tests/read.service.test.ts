@@ -137,6 +137,21 @@ describe("getGroupById", () => {
     );
   });
 
+  it("includes only the provider transactionDate of each recent transaction's linked import", async () => {
+    prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
+    prismaMock.group.findUnique.mockResolvedValue({ id: "group-1" } as never);
+    groupByMock.mockResolvedValue([] as never);
+
+    await getGroupById("user-1", "group-1");
+
+    const call = prismaMock.group.findUnique.mock.calls[0]?.[0] as {
+      include: { transactions: { include: Record<string, unknown> } };
+    };
+    expect(call.include.transactions.include.providerImportedTransaction).toEqual({
+      select: { transactionDate: true }
+    });
+  });
+
   it("computes income/expense/balance summary from grouped transaction totals", async () => {
     prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
     prismaMock.group.findUnique.mockResolvedValue({ id: "group-1" } as never);

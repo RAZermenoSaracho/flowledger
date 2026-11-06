@@ -1,26 +1,17 @@
 import type { ReportFilters } from "@flowledger/shared";
 import type { Prisma } from "@prisma/client";
+import { exclusiveDateRangeEnd } from "../../../utils/dateRange.js";
 import { REPORT_TRANSACTION_TYPES } from "../../transactions/utils/transactionCalculations.js";
 
-/** Builds a Prisma date-range filter from `dateFrom`/`dateTo`; a bare `YYYY-MM-DD` `dateTo` is treated as exclusive of the next day rather than a literal midnight timestamp. Returns `null` when neither bound is set. */
+/** Builds a half-open Prisma date-range filter from `dateFrom`/`dateTo` (see {@link exclusiveDateRangeEnd}). Returns `null` when neither bound is set. */
 export function dateRangeWhere(
   filters: ReportFilters
 ): Prisma.DateTimeFilter | null {
   if (!filters.dateFrom && !filters.dateTo) return null;
-  const dateTo =
-    filters.dateTo && /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo)
-      ? new Date(new Date(filters.dateTo).getTime() + 24 * 60 * 60 * 1000)
-      : filters.dateTo
-        ? new Date(filters.dateTo)
-        : null;
 
   return {
     ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
-    ...(dateTo
-      ? /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo ?? "")
-        ? { lt: dateTo }
-        : { lte: dateTo }
-      : {})
+    ...(filters.dateTo ? { lt: exclusiveDateRangeEnd(filters.dateTo) } : {})
   };
 }
 

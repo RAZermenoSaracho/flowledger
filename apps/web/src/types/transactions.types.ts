@@ -28,6 +28,8 @@ export type Transaction = {
   expenseOffsetCategory?: Category | null;
   group?: Group | null;
   sharedExpense?: SharedExpense | null;
+  /** Set when imported from a provider; `transactionDate` is the provider's original value. */
+  providerImportedTransaction?: { transactionDate: string } | null;
 };
 
 /** Review status of a provider-imported transaction. */

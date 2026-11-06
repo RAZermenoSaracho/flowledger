@@ -44,6 +44,18 @@ describe("transactionSchema — income/expense", () => {
     ).toBe(true);
   });
 
+  it("accepts a date with a UTC offset", () => {
+    expect(
+      transactionSchema.safeParse({ ...baseIncome, date: "2026-11-05T14:30:00-06:00" }).success
+    ).toBe(true);
+  });
+
+  it("rejects a datetime without a zone", () => {
+    expect(
+      transactionSchema.safeParse({ ...baseIncome, date: "2026-11-05T14:30:00" }).success
+    ).toBe(false);
+  });
+
   it("rejects an empty name", () => {
     expect(
       transactionSchema.safeParse({ ...baseIncome, name: "" }).success
@@ -138,6 +150,12 @@ describe("updateTransactionSchema", () => {
     expect(updateTransactionSchema.safeParse({ name: "Renamed" }).success).toBe(
       true
     );
+  });
+
+  it("accepts an offset date and a bare date, and allows omitting date", () => {
+    expect(updateTransactionSchema.safeParse({ date: "2026-11-05T14:30:00-06:00" }).success).toBe(true);
+    expect(updateTransactionSchema.safeParse({ date: "2026-11-05" }).success).toBe(true);
+    expect(updateTransactionSchema.parse({ name: "x" })).not.toHaveProperty("date");
   });
 
   it("accepts an empty object", () => {

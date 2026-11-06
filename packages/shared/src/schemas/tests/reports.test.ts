@@ -6,6 +6,25 @@ describe("reportFiltersSchema", () => {
     expect(reportFiltersSchema.safeParse({}).success).toBe(true);
   });
 
+  it("accepts an IANA timeZone", () => {
+    expect(
+      reportFiltersSchema.parse({ timeZone: "America/Mexico_City" })
+    ).toMatchObject({ timeZone: "America/Mexico_City" });
+  });
+
+  it("rejects an invalid timeZone", () => {
+    expect(reportFiltersSchema.safeParse({ timeZone: "Not/AZone" }).success).toBe(false);
+  });
+
+  it("accepts datetimes with an offset as date bounds", () => {
+    expect(
+      reportFiltersSchema.safeParse({
+        dateFrom: "2026-11-05T00:00:00-06:00",
+        dateTo: "2026-11-06T06:00:00.000Z"
+      }).success
+    ).toBe(true);
+  });
+
   it("normalizes a single groupId into groupIds array", () => {
     expect(reportFiltersSchema.parse({ groupIds: "group-1" })).toMatchObject({
       groupIds: ["group-1"]

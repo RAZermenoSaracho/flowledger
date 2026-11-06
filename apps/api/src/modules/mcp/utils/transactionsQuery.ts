@@ -2,20 +2,23 @@ import type {
   TransactionSearchFilter,
   TransactionSummaryFilter
 } from "@flowledger/shared";
+import { exclusiveDateRangeEnd } from "../../../utils/dateRange.js";
 
 /**
  * Compiles a structured MCP filter into the DSQL JSON string the transactions read service accepts.
  * Sorting (newest first) and paging are included only when the filter carries `pageSize` (search, not summary).
- * `dateTo` is made inclusive of the whole day; `text` matches the name case-insensitively.
+ * Dates compile to a half-open UTC range (see {@link exclusiveDateRangeEnd}); `text` matches the name case-insensitively.
  */
 export function buildTransactionsQuery(
   filter: TransactionSearchFilter | TransactionSummaryFilter
 ): string {
   const conditions: unknown[] = [];
 
-  if (filter.dateFrom) conditions.push({ field: "date", op: ">=", value: `${filter.dateFrom}T00:00:00.000Z` });
+  if (filter.dateFrom) {
+    conditions.push({ field: "date", op: ">=", value: new Date(filter.dateFrom).toISOString() });
+  }
   if (filter.dateTo) {
-    conditions.push({ field: "date", op: "<=", value: `${filter.dateTo}T23:59:59.999Z` });
+    conditions.push({ field: "date", op: "<", value: exclusiveDateRangeEnd(filter.dateTo).toISOString() });
   }
   if (filter.accountId) conditions.push({ field: "accountId", op: "=", value: filter.accountId });
   if (filter.categoryId) conditions.push({ field: "categoryId", op: "=", value: filter.categoryId });

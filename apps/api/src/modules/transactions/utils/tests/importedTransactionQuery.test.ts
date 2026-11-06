@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import {
   importedTransactionSearchWhere,
@@ -45,6 +45,36 @@ describe("importedTransactionSearchWhere", () => {
     expect(dateClause?.transactionDate.lt.toISOString().slice(0, 10)).toBe(
       "2024-03-16"
     );
+  });
+
+  describe("under a non-UTC process timezone", () => {
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it.each(["America/Los_Angeles", "Pacific/Kiritimati"])(
+      "spans exactly one UTC day in %s",
+      (tz) => {
+        process.env.TZ = tz;
+        const where = importedTransactionSearchWhere("2026-03-08");
+        const clause = where.OR?.find((c) => "transactionDate" in c) as {
+          transactionDate: { gte: Date; lt: Date };
+        };
+        expect(clause.transactionDate.gte.toISOString()).toBe("2026-03-08T00:00:00.000Z");
+        expect(clause.transactionDate.lt.toISOString()).toBe("2026-03-09T00:00:00.000Z");
+      }
+    );
+
+    it("rolls over a month boundary in UTC", () => {
+      process.env.TZ = "America/Los_Angeles";
+      const where = importedTransactionSearchWhere("2026-10-31");
+      const clause = where.OR?.find((c) => "transactionDate" in c) as {
+        transactionDate: { gte: Date; lt: Date };
+      };
+      expect(clause.transactionDate.lt.toISOString()).toBe("2026-11-01T00:00:00.000Z");
+    });
   });
 
   it("does not add a date filter for a term that doesn't look like a date", () => {

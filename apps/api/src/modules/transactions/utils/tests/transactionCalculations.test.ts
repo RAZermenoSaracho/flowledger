@@ -241,3 +241,29 @@ describe("calculateMonthlyCashflow", () => {
     ).toEqual([]);
   });
 });
+
+describe("calculateMonthlyCashflow month bucketing by timeZone", () => {
+  const monthsFor = (iso: string, timeZone?: string) =>
+    calculateMonthlyCashflow(
+      [{ date: new Date(iso), type: "income", amount: amount(10), categoryId: null }],
+      {},
+      timeZone
+    ).map((row) => row.month);
+
+  it("buckets a negative-offset local month before the UTC month", () => {
+    expect(monthsFor("2026-06-01T03:00:00.000Z", "America/Mexico_City")).toEqual(["2026-05"]);
+  });
+
+  it("buckets a positive-offset local month after the UTC month", () => {
+    expect(monthsFor("2026-05-31T15:00:00.000Z", "Australia/Sydney")).toEqual(["2026-06"]);
+  });
+
+  it("defaults to UTC when no timeZone is given", () => {
+    expect(monthsFor("2026-06-01T03:00:00.000Z")).toEqual(["2026-06"]);
+  });
+
+  it("splits at the exact instant of a month start across a DST change", () => {
+    expect(monthsFor("2026-04-01T06:59:59.999Z", "America/Los_Angeles")).toEqual(["2026-03"]);
+    expect(monthsFor("2026-04-01T07:00:00.000Z", "America/Los_Angeles")).toEqual(["2026-04"]);
+  });
+});

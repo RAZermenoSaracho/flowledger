@@ -117,6 +117,35 @@ describe("updateTransaction", () => {
     );
   });
 
+  it.each([
+    ["2026-11-05", "2026-11-05T00:00:00.000Z"],
+    ["2026-11-05T14:30:00-06:00", "2026-11-05T20:30:00.000Z"]
+  ])("stores date %s as the UTC instant %s", async (input, expected) => {
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    const tx = mockTx();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    await updateTransaction("user-1", "txn-1", { date: input });
+
+    const data = tx.transaction.update.mock.calls[0]?.[0].data as { date: Date };
+    expect(data.date.toISOString()).toBe(expected);
+  });
+
+  it("does not pass date to prisma when the update omits it", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    const tx = mockTx();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    await updateTransaction("user-1", "txn-1", { name: "Renamed" });
+
+    const data = tx.transaction.update.mock.calls[0]?.[0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("date");
+  });
+
   it("recomputes full currency fields via the live rate when executionCurrency changes", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue(
       existingTransaction() as never

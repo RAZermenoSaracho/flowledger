@@ -12,7 +12,7 @@ import type {
   ParticipantDraft,
   TransactionFormState
 } from "../types/transactions.types";
-import { todayDateString } from "../utils/transactions";
+import { transactionDateNowInputValue, transactionDateRequestValue } from "../../../utils/dateTime";
 import { SharedParticipantsFields } from "./SharedParticipantsFields";
 import { TransactionCoreFields } from "./TransactionCoreFields";
 
@@ -22,7 +22,7 @@ function emptyForm(defaultCurrency: string): TransactionFormState {
     amount: "",
     executionCurrency: defaultCurrency,
     type: "expense",
-    date: todayDateString(),
+    date: transactionDateNowInputValue(),
     accountId: "",
     transferToAccountId: "",
     categoryId: "",
@@ -90,7 +90,7 @@ export function TransactionFormCard({
         amount: Number(form.amount),
         executionCurrency: form.executionCurrency,
         type: form.type,
-        date: form.date,
+        date: transactionDateRequestValue(form.date),
         accountId: form.accountId || null,
         transferToAccountId:
           form.type === "transfer" ? form.transferToAccountId || null : null,
