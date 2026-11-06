@@ -65,7 +65,7 @@ ST-012 (debit support) is retired and has no active row; see its note under the 
 
 **Objective:** `Transaction.date` is a UTC execution instant everywhere. Users enter, see, filter, group, and report on it in their client's timezone, with DST handled correctly.
 
-**Scope:** Replace the date-only create and edit fields with one native date-and-time field. Convert calendar filters to UTC instants at local-day boundaries, using half-open intervals, and bucket monthly reports and grouping by client timezone. There is no schema change and no compatibility layer for older test records, and no data is changed. Timestamps that aren't transaction dates keep their existing display.
+**Scope:** Replace the date-only create and edit fields with one native date-and-time field. Convert calendar filters to UTC instants at local-day boundaries, with optional time-of-day selection on date filters, using half-open intervals, and bucket monthly reports and grouping by client timezone. There is no schema change and no compatibility layer for older test records, and no data is changed. Timestamps that aren't transaction dates keep their existing display.
 
 **Acceptance criteria:**
 - Users can change the date, the time, or both in one field. Changing one keeps the other, and editing unrelated fields leaves the stored timestamp unchanged.
@@ -775,7 +775,7 @@ Sizes are relative engineering estimates, not time commitments. Dependencies lis
 Unless noted, a batch meets its intent's full acceptance criteria. The completion rules below apply to all of them.
 
 **B-001: ST-001 (Odoo task #129).**
-- **Deliverable:** One date-and-time field on the create and edit forms, local display, timestamp-preserving edits, half-open API date ranges, a report `timeZone`, client-local filters, grouping, and cashflow buckets, MCP datetime filters, and provider-date display.
+- **Deliverable:** One date-and-time field on the create and edit forms, local display, timestamp-preserving edits, half-open API date ranges, a report `timeZone`, client-local filters with time-of-day selection, grouping, and cashflow buckets, MCP datetime filters, and provider-date display.
 - **Prerequisites:** None.
 - **Testing:** Independent date and time edits, positive and negative offsets, both DST days, month boundaries, invalid timezones, unchanged timestamps, provider dates, and date-only requests.
 - **Done when:** All ST-001 acceptance criteria are met.

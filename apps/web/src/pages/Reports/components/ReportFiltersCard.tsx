@@ -2,8 +2,8 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
+import { DateTimeFilterInput } from "../../../components/DateTimeFilterInput";
 import { CurrencySelect } from "../../../components/CurrencySelect";
-import { TextInput } from "../../../components/FormField";
 import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { ReportAmountMode, ReportFilters } from "../types/reports.types";
@@ -98,22 +98,16 @@ export function ReportFiltersCard({
         className={`${isOpenOnMobile ? "mt-4 block" : "hidden"} lg:mt-0 lg:block`}
       >
         <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <TextInput
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+          <DateTimeFilterInput
             label="From"
-            type="date"
             value={filters.dateFrom}
-            onChange={(event) =>
-              onFiltersChange({ ...filters, dateFrom: event.target.value })
-            }
+            onChange={(next) => onFiltersChange({ ...filters, dateFrom: next })}
           />
-          <TextInput
+          <DateTimeFilterInput
             label="To"
-            type="date"
             value={filters.dateTo}
-            onChange={(event) =>
-              onFiltersChange({ ...filters, dateTo: event.target.value })
-            }
+            onChange={(next) => onFiltersChange({ ...filters, dateTo: next })}
           />
           <MultiSelectFilter
             label="Groups"

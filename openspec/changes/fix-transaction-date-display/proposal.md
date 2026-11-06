@@ -9,7 +9,7 @@
 - **Contract:** `Transaction.date` is a UTC instant everywhere. The web app converts to and from the device's timezone, using native timezone-aware APIs.
 - **Picker:** Create and edit forms use one native date-and-time field. Changing the date keeps the time, changing the time keeps the date, and unrelated edits leave the timestamp untouched.
 - **Display:** The list, detail, and group views show local date and time.
-- **Filters:** Web calendar filters on reports and transaction searches send UTC instants for local-day boundaries, using half-open `[start, end)` intervals.
+- **Filters:** Web date filters on reports and every list search accept a local day with an optional time to the minute (native date field plus optional time field) and send UTC instants as half-open `[start, end)` intervals. A day-only value keeps whole-day semantics, and an upper bound with a time is inclusive of its displayed minute. Filter chips show the local date and time.
 - **Reports and grouping:** Monthly cashflow and transaction-page month grouping use the client's IANA timezone. Report APIs accept an optional `timeZone`, defaulting to UTC.
 - **API writes:** A bare `YYYY-MM-DD` date stays valid and means `00:00:00 UTC` on that date. A datetime with an offset is accepted and normalized to UTC. An update that omits `date` keeps the stored value.
 - **API ranges:** A datetime `dateTo` becomes exclusive on reports and MCP search, and MCP date filters also accept datetimes. A bare date still means a whole UTC day.
@@ -28,7 +28,7 @@
 
 ## Impact
 
-- **Web:** Transaction forms and views, `searchDomain`, Reports, and a new `utils/dateTime.ts`. `todayDateString` is removed.
+- **Web:** Transaction forms and views, `searchDomain`, `FilterBuilder`, a new date-and-time filter input, Reports, and a new `utils/dateTime.ts`. `todayDateString` is removed.
 - **API:** `reportFilters`, `transactionCalculations`, reports read service, MCP query and tool descriptions, imported date search, transaction and group read includes.
 - **Shared schemas:** `common.ts`, `transactions.ts`, `reports.ts`, and `mcp.ts`.
 - **API consumers:** Previously valid write requests stay valid. Responses gain an additive `providerImportedTransaction.transactionDate` field, and a datetime `dateTo` no longer includes that exact instant.

@@ -327,7 +327,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #027 — `SYNCFY_AUTO_SYNC_ENABLED=false` enables the auto-sync scheduler
+## [RESOLVED] #027 — `SYNCFY_AUTO_SYNC_ENABLED=false` enables the auto-sync scheduler
 
 **Found in:** `fix-transaction-date-display`.
 
@@ -338,3 +338,5 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Workaround:** Leave the variable empty or unset.
 
 **Suggested fix:** Parse the string explicitly (for example `z.enum(["true", "false"]).transform((v) => v === "true")`).
+
+**Resolution:** `fix-filter-usability-and-autosync-flag`: `SYNCFY_AUTO_SYNC_ENABLED` is parsed explicitly; `false` starts no scheduler and makes no Syncfy call, and an invalid value fails startup (verified in QA).

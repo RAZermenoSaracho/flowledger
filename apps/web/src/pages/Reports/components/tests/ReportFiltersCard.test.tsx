@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -83,10 +83,9 @@ describe("ReportFiltersCard", () => {
     const from = screen.getByLabelText("From");
     expect(from).toHaveAttribute("type", "date");
     expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
-    expect(from.closest(".grid.grid-cols-1")).toHaveClass(
-      "md:grid-cols-2",
-      "xl:grid-cols-4"
-    );
+    const grid = from.closest(".grid.grid-cols-1")!;
+    expect(grid).toHaveClass("md:grid-cols-2");
+    expect(grid.className).not.toMatch(/(?:^|\s)(?:xl|2xl):grid-cols-4/);
   });
 
   it("calls onFiltersChange when the date fields change", async () => {
@@ -98,6 +97,18 @@ describe("ReportFiltersCard", () => {
     await user.type(screen.getByLabelText("From"), "2024-01-01");
 
     expect(props.onFiltersChange).toHaveBeenCalled();
+  });
+
+  it("emits a timed value once a time is chosen after a date and disables time without a date", () => {
+    mockCurrencies();
+    const props = baseProps();
+    const { rerender } = renderWithProviders(<ReportFiltersCard {...props} />);
+    expect(screen.getByLabelText("To time")).toBeDisabled();
+
+    rerender(<ReportFiltersCard {...props} filters={{ ...emptyReportFilters, dateTo: "2026-11-05" }} />);
+    fireEvent.change(screen.getByLabelText("To time"), { target: { value: "14:30" } });
+
+    expect(props.onFiltersChange).toHaveBeenLastCalledWith({ ...emptyReportFilters, dateTo: "2026-11-05T14:30" });
   });
 
   it("hides 'Reset filters' when hasActiveFilters is false, shows it and resets when true", async () => {

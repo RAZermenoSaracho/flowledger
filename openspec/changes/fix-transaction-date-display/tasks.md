@@ -38,3 +38,13 @@
 - [x] 6.1 Update `docs/DOMAIN_LOGIC.md` with the UTC instant, filter, and `timeZone` contracts, and log older UTC-midnight records and provider-date limits in `docs/KNOWN_ISSUES.md`. Verify by reviewing the diff.
 - [x] 6.2 Run `npm run typecheck`, `npm run lint`, `npm run test`, `npm run test:coverage -w apps/web`, `npm run build`, and the Docker-backed integration suites, and verify that all pass.
 - [x] 6.3 In the running app with browser timezones emulated at UTC-6, a positive offset, and a DST zone, verify create, display, independent date and time edits, unchanged timestamps, date-only requests, filters, and monthly reports. Remove any test records created, and stop every browser process started for this QA.
+
+## 7. Date and time in filters (follow-up; groups here own only the files named)
+
+- [x] 7.1 Extend `apps/web/src/utils/dateTime.ts` with `filterBoundInstant` and `formatFilterValue`, with cases in `utils/tests/dateTime.test.ts` for day and time values, `America/Mexico_City`, `Pacific/Kiritimati`, both `America/Los_Angeles` DST days, an upper bound crossing a DST gap, and en-US chip text. Verify the scenarios "Inclusive upper minute", "Lower minute", "Range with times", and "Mixed day and time bounds" pass and `utils/` coverage stays at or above 90%.
+- [x] 7.2 In `searchDomain.ts`, compile date conditions with `filterBoundInstant` and format date values in `conditionValueText`; update `utils/tests/searchDomain.test.ts` to verify day-only output is unchanged, time output is as specified, `isNull` and non-date fields are unchanged, and chip text is localized.
+- [x] 7.3 Add `components/DateTimeFilterInput.tsx` with `components/tests/DateTimeFilterInput.test.tsx`. Verify date-only emits a bare date, time is disabled without a date, adding a time emits `YYYY-MM-DDTHH:mm`, and clearing the time returns the bare date.
+- [x] 7.4 Use it in `FilterBuilder.tsx` for date value, From and To, and update `components/tests/FilterBuilder.test.tsx`. Verify applying a day-only and a timed condition yields complete conditions.
+- [x] 7.5 Use it in `ReportFiltersCard.tsx` and compile `dateFrom` and `dateTo` in `ReportsPage.tsx` with `filterBoundInstant`; update both test files. Verify through msw request assertions the "Reports upper bound with time" and "Reports day only" scenarios, and that grouping and totals are unchanged.
+- [x] 7.6 Update `docs/DOMAIN_LOGIC.md` with the filter value forms and inclusive-minute rule. Verify by reviewing the diff.
+- [x] 7.7 After tasks 7.1 to 7.6, in the running app at UTC-6, verify in Chrome that choosing only a date filters the whole day on Transactions and Reports, a time-bounded range is correct, chips read clearly, and the Imported tab works; stop any browser started and remove test records.

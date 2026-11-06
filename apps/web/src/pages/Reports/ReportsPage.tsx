@@ -12,7 +12,7 @@ import {
 } from "./components/ReportFiltersCard";
 import { ReportSummaryCards } from "./components/ReportSummaryCards";
 import type { ReportAmountMode, ReportFilters } from "./types/reports.types";
-import { localDayStartInstant } from "../../utils/dateTime";
+import { filterBoundInstant } from "../../utils/dateTime";
 
 /** Reports page: date/group/category filters, summary cards, and cashflow/category charts. */
 export function ReportsPage() {
@@ -25,8 +25,8 @@ export function ReportsPage() {
   );
   const reportQuery = {
     ...filters,
-    dateFrom: filters.dateFrom && localDayStartInstant(filters.dateFrom),
-    dateTo: filters.dateTo && localDayStartInstant(filters.dateTo, 1),
+    dateFrom: filters.dateFrom && filterBoundInstant(filters.dateFrom, "lower"),
+    dateTo: filters.dateTo && filterBoundInstant(filters.dateTo, "upper"),
     currency,
     amountMode: reportAmountMode
   };

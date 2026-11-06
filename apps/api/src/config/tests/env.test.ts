@@ -16,7 +16,10 @@ const base = {
 async function loadEnv(extra: Record<string, string | undefined>) {
   vi.resetModules();
   Object.assign(process.env, base, extra);
-  if (extra.PUBLIC_API_URL === undefined) delete process.env.PUBLIC_API_URL;
+  for (const [key, value] of Object.entries(extra)) {
+    if (value === undefined) delete process.env[key];
+  }
+  if (!("PUBLIC_API_URL" in extra)) delete process.env.PUBLIC_API_URL;
   return (await import("../env.js")).env;
 }
 
@@ -33,5 +36,25 @@ describe("env PUBLIC_API_URL", () => {
   it("honours a custom URL", async () => {
     const env = await loadEnv({ PUBLIC_API_URL: "https://api.example.com" });
     expect(env.PUBLIC_API_URL).toBe("https://api.example.com");
+  });
+});
+
+describe("env SYNCFY_AUTO_SYNC_ENABLED", () => {
+  it.each([
+    ["true", true],
+    ["TRUE", true],
+    [" 1 ", true],
+    ["false", false],
+    ["False", false],
+    ["0", false],
+    ["", false],
+    [undefined, false]
+  ])("parses %j as %s", async (value, expected) => {
+    const env = await loadEnv({ SYNCFY_AUTO_SYNC_ENABLED: value });
+    expect(env.SYNCFY_AUTO_SYNC_ENABLED).toBe(expected);
+  });
+
+  it("fails startup on an unrecognised value", async () => {
+    await expect(loadEnv({ SYNCFY_AUTO_SYNC_ENABLED: "yes" })).rejects.toThrow(/SYNCFY_AUTO_SYNC_ENABLED/);
   });
 });

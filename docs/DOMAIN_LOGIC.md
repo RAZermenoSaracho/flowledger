@@ -51,6 +51,7 @@ Transfers: cannot have categories, groups, or shared expenses. Source and destin
 
 - **Writes:** a bare `YYYY-MM-DD` means 00:00 UTC; an offset datetime is normalized to its UTC instant. An update that omits `date` preserves the stored value.
 - **Range filters:** `dateFrom` is inclusive. A datetime `dateTo` is exclusive; a bare `dateFrom`/`dateTo` covers whole UTC days. The web app sends instants for local-day boundaries (the start of the local day, and the start of the next local day for an upper bound).
+- **Web date filter values:** a date filter value is `YYYY-MM-DD` (whole local days) or `YYYY-MM-DDTHH:mm` (local time to the minute), entered through a date field plus an optional time field that is disabled until a date is set. `filterBoundInstant` converts it to a UTC instant for a half-open `[start, end)` range: a lower bound starts at its day or minute, and an upper bound is the start of the next day or minute, so an "at most" time is inclusive of its displayed minute (2:30 PM matches stored times through 2:30:59.999 PM). This applies to list searches and to the Reports `dateFrom`/`dateTo`; chips show the value in the device locale.
 - **Monthly cashflow:** buckets months in the optional IANA `timeZone` filter, defaulting to UTC. The web client sends the device timezone; API and MCP callers that omit it get UTC months.
 
 ### Currency

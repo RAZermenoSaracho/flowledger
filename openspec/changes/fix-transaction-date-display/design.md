@@ -47,15 +47,21 @@ All 156 staging imported rows have `dt_transaction` at exactly UTC noon. Their o
 
 **`reports.client.ts` adds the device timezone on cashflow requests.** This covers Reports and Dashboard in one place. Filter conversion happens in `ReportsPage`, because client files only build requests.
 
-**Web filters convert in `searchDomain.leafFor`.** Date fields keep bare values in the UI and compile as follows:
+**Web filters convert in `searchDomain.leafFor`.** Date values are either `YYYY-MM-DD` (whole local day, the only form that existed before) or `YYYY-MM-DDTHH:mm`. One `dateTime.ts` helper, `filterBoundInstant(value, "start" | "end")`, returns the UTC ISO instant: for a day it is `localDayStartInstant(day)` or the next day's start, and for a time it is `new Date(value)` or that plus 60 000 ms. Adding an absolute minute is DST-safe. Seconds are always `:00` because the field has minute precision, so `<= 2:30 PM` compiles to `< 2:31:00.000 PM` and includes a stored `2:30:45`.
 
 | Operator | Compiled condition |
 |---|---|
-| `>=` day | `>= localDayStart(day)` |
-| `<=` day | `< localDayStart(day + 1)` |
-| `between` [a, b] | `and` of `>= localDayStart(a)` and `< localDayStart(b + 1)` |
+| `>=` | `>= filterBoundInstant(v, "start")` |
+| `<=` | `< filterBoundInstant(v, "end")` |
+| `between` [a, b] | `and` of `>=` start of `a` and `<` end of `b` |
 
-This one branch covers `date`, `createdAt`, `updatedAt`, and imported `transactionDate`. The operator list and `FilterBuilder` don't change.
+This one branch covers every `type: "date"` field (`date`, `createdAt`, `updatedAt`, imported `transactionDate`, and the Accounts, Groups, and Shared Expenses timestamps), because they share `FieldType` and `leafFor`. Per-field exceptions would add a flag for no user benefit. No filter state is persisted in URLs or saved queries today, so bare-date compatibility is only the in-memory form, kept by the same branch. `ReportsPage` uses the same helper for `dateFrom` and `dateTo`; the API already treats a datetime `dateTo` as exclusive.
+
+**Date-only intent: native date plus optional native time, not `datetime-local`.** Chrome reports `""` for a `datetime-local` whose segments are only partly filled, so choosing a day alone would leave the filter silently incomplete and `isValueComplete` would drop it. A new `components/DateTimeFilterInput.tsx` renders `<input type="date">` and `<input type="time">`, both controlled by one string value. The time input is disabled until a date exists, so there is no invalid state. A time-only or partial time (`""`) falls back to the bare date. The time input gives the same hour, minute, and AM or PM segments as the form. `FilterBuilder` (value, From, To) and `ReportFiltersCard` (From, To) both use it. React does not rewrite an equal `""` value, so a half-typed time is not reset; browser QA covers this.
+
+*Alternative:* one `datetime-local` plus a "whole day" toggle. Rejected: one more control and state for the common case.
+
+**Chips format local values.** `dateTime.ts` adds `formatFilterValue(value)`: date-only with `toLocaleDateString`, with time via `toLocaleString` hour and minute. `conditionValueText` calls it for date-typed fields so chips and summaries never show raw ISO text.
 
 **One API helper for exclusive upper bounds.** A small helper in `apps/api/src/utils/` returns the next UTC day for a bare `dateTo` and the instant itself for a datetime. `dateRangeWhere` and `transactionsQuery` both use it with `lt` and `<`. The imported free-text date search stays a UTC-day search, with its `setDate` call corrected to `setUTCDate`.
 

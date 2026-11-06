@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
@@ -168,6 +168,27 @@ describe("ReportsPage", () => {
         expect(last?.get("dateFrom")).toBe("2026-11-05T06:00:00.000Z");
         expect(last?.get("dateTo")).toBe("2026-11-06T06:00:00.000Z");
       });
+    });
+
+    it("sends dateTo as the exclusive minute after a timed upper bound", async () => {
+      process.env.TZ = "America/Mexico_City";
+      mockBaseline();
+      const queries: URLSearchParams[] = [];
+      server.use(
+        http.get(`${API_URL}/reports/monthly-cashflow`, ({ request }) => {
+          queries.push(new URL(request.url).searchParams);
+          return HttpResponse.json({ cashflow: [], currency: "USD" });
+        })
+      );
+      renderWithProviders(<ReportsPage />, { withAuth: true });
+
+      await waitFor(() => expect(screen.getByLabelText("To")).toBeInTheDocument());
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
+      fireEvent.change(screen.getByLabelText("To time"), { target: { value: "14:30" } });
+
+      await waitFor(() =>
+        expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-05T20:31:00.000Z")
+      );
     });
 
     it("sends the device timeZone with the monthly cashflow request", async () => {

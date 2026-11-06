@@ -17,8 +17,8 @@ export function formatTransactionDate(
 ): string {
   const date = new Date(transaction.date);
   const providerDateOnly =
-    transaction.providerImportedTransaction?.transactionDate === transaction.date &&
-    date.getTime() % DAY_MS === DAY_MS / 2;
+    transaction.providerImportedTransaction?.transactionDate ===
+      transaction.date && date.getTime() % DAY_MS === DAY_MS / 2;
   if (providerDateOnly) return date.toLocaleDateString();
   return date.toLocaleString(undefined, {
     year: "numeric",
@@ -30,7 +30,9 @@ export function formatTransactionDate(
 }
 
 /** A transaction's execution time in the device's timezone, as a `datetime-local` value (`YYYY-MM-DDTHH:mm`). Its first 7 characters are the displayed month. */
-export function transactionDateInputValue(transaction: Pick<Transaction, "date">): string {
+export function transactionDateInputValue(
+  transaction: Pick<Transaction, "date">
+): string {
   return toInputValue(new Date(transaction.date));
 }
 
@@ -61,4 +63,33 @@ export function transactionDateRequestValue(
 export function localDayStartInstant(day: string, addDays = 0): string {
   const [year, month, date] = day.split("-").map(Number);
   return new Date(year!, month! - 1, date! + addDays).toISOString();
+}
+
+/**
+ * Converts a date filter value in the device's timezone to a UTC instant for a half-open range.
+ * A `lower` bound is the start of its day (`YYYY-MM-DD`) or minute (`YYYY-MM-DDTHH:mm`); an `upper`
+ * bound is the start of the following day or minute, to be used as an exclusive `<`.
+ */
+export function filterBoundInstant(
+  value: string,
+  bound: "lower" | "upper"
+): string {
+  const upper = bound === "upper";
+  if (!value.includes("T")) return localDayStartInstant(value, upper ? 1 : 0);
+  return new Date(
+    new Date(value).getTime() + (upper ? 60_000 : 0)
+  ).toISOString();
+}
+
+/** Formats a date filter value (`YYYY-MM-DD` or `YYYY-MM-DDTHH:mm`) in the device's locale, with the time only when present. */
+export function formatFilterValue(value: string): string {
+  if (!value.includes("T"))
+    return new Date(`${value}T00:00`).toLocaleDateString();
+  return new Date(value).toLocaleString(undefined, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }

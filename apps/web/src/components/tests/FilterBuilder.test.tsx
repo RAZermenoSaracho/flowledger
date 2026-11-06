@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../tests/utils/renderWithProviders";
@@ -241,6 +241,7 @@ describe("FilterBuilder", () => {
     const { onApply } = renderBuilder();
 
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.type(screen.getByLabelText("Value"), "5");
     expect(onApply).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Done" }));
@@ -286,5 +287,67 @@ describe("FilterBuilder", () => {
   it("disables '+ Condition' when there are no fields to condition on", () => {
     renderBuilder({ fields: [] });
     expect(screen.getByRole("button", { name: "+ Condition" })).toBeDisabled();
+  });
+
+  it("applies a day-only and a timed date condition as complete conditions", async () => {
+    const user = userEvent.setup();
+    const { onApply } = renderBuilder();
+
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.selectOptions(screen.getByLabelText("Field"), "date");
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05" } });
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ operator: ">=", value: "2026-11-05" });
+
+    fireEvent.change(screen.getByLabelText("Value time"), { target: { value: "14:30" } });
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ value: "2026-11-05T14:30" });
+  });
+
+  it("disables the time field until a date is set and labels both between bounds", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.selectOptions(screen.getByLabelText("Field"), "date");
+    expect(screen.getByLabelText("Value time")).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText("Operator"), "between");
+    expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("To time")).toBeDisabled();
+  });
+
+  it("drops a date condition whose value was cleared instead of applying an empty condition", async () => {
+    const user = userEvent.setup();
+    const { onApply } = renderBuilder();
+
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.selectOptions(screen.getByLabelText("Field"), "date");
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05" } });
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "" } });
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onApply.mock.calls.at(-1)![0].children).toEqual([]);
+  });
+
+  it("drops a between condition with one bound empty and an untouched text condition", async () => {
+    const user = userEvent.setup();
+    const { onApply } = renderBuilder();
+
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.selectOptions(screen.getByLabelText("Field"), "date");
+    await user.selectOptions(screen.getByLabelText("Operator"), "between");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onApply.mock.calls.at(-1)![0].children).toEqual([]);
+  });
+
+  it("stacks between bounds below sm and lets each date/time pair wrap", async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+    await user.click(screen.getByRole("button", { name: "+ Condition" }));
+    await user.selectOptions(screen.getByLabelText("Field"), "date");
+    await user.selectOptions(screen.getByLabelText("Operator"), "between");
+    const pairs = screen.getByLabelText("From").closest("div.flex-wrap")!.parentElement!;
+    expect(pairs).toHaveClass("grid-cols-1", "sm:grid-cols-2");
   });
 });

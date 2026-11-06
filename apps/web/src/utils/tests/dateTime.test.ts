@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  filterBoundInstant,
+  formatFilterValue,
   formatTransactionDate,
   localDayStartInstant,
   transactionDateInputValue,
@@ -177,5 +179,37 @@ describe("localDayStartInstant", () => {
     useZone("America/Mexico_City");
     expect(localDayStartInstant("2026-01-31", 1)).toBe("2026-02-01T06:00:00.000Z");
     expect(localDayStartInstant("2026-12-31", 1)).toBe("2027-01-01T06:00:00.000Z");
+  });
+});
+
+describe("filterBoundInstant", () => {
+  it.each([
+    ["America/Mexico_City", "2026-11-05", "lower", "2026-11-05T06:00:00.000Z"],
+    ["America/Mexico_City", "2026-11-05", "upper", "2026-11-06T06:00:00.000Z"],
+    ["America/Mexico_City", "2026-11-05T14:30", "lower", "2026-11-05T20:30:00.000Z"],
+    ["America/Mexico_City", "2026-11-05T14:30", "upper", "2026-11-05T20:31:00.000Z"],
+    ["America/Mexico_City", "2026-11-06T08:00", "upper", "2026-11-06T14:01:00.000Z"],
+    ["Pacific/Kiritimati", "2026-11-05", "lower", "2026-11-04T10:00:00.000Z"],
+    ["Pacific/Kiritimati", "2026-11-05", "upper", "2026-11-05T10:00:00.000Z"],
+    ["America/Los_Angeles", "2026-03-08", "lower", "2026-03-08T08:00:00.000Z"],
+    ["America/Los_Angeles", "2026-03-08", "upper", "2026-03-09T07:00:00.000Z"],
+    ["America/Los_Angeles", "2026-11-01", "lower", "2026-11-01T07:00:00.000Z"],
+    ["America/Los_Angeles", "2026-11-01", "upper", "2026-11-02T08:00:00.000Z"],
+    ["America/Los_Angeles", "2026-03-08T01:59", "upper", "2026-03-08T10:00:00.000Z"]
+  ] as const)("%s %s %s -> %s", (zone, value, bound, expected) => {
+    useZone(zone);
+    expect(filterBoundInstant(value, bound)).toBe(expected);
+  });
+});
+
+describe("formatFilterValue", () => {
+  it("shows the date alone for a day value", () => {
+    useZone("America/Mexico_City");
+    expect(formatFilterValue("2026-11-05")).toBe(new Date(2026, 10, 5).toLocaleDateString());
+  });
+
+  it("shows date and time for a time value in en-US", () => {
+    useZone("America/Mexico_City");
+    expect(formatFilterValue("2026-11-05T14:30")).toBe("11/5/2026, 2:30 PM");
   });
 });
