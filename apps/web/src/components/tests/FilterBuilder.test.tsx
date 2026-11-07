@@ -2,13 +2,33 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../tests/utils/renderWithProviders";
-import { createEmptyGroup, type DomainGroupNode, type SearchFieldConfig } from "../../utils/searchDomain";
+import {
+  createEmptyGroup,
+  type DomainGroupNode,
+  type SearchFieldConfig
+} from "../../utils/searchDomain";
 import { FilterBuilder } from "../FilterBuilder";
 
-const stringField: SearchFieldConfig = { name: "name", label: "Name", type: "string" };
-const numberField: SearchFieldConfig = { name: "amount", label: "Amount", type: "number" };
-const dateField: SearchFieldConfig = { name: "date", label: "Date", type: "date" };
-const booleanField: SearchFieldConfig = { name: "isArchived", label: "Archived", type: "boolean" };
+const stringField: SearchFieldConfig = {
+  name: "name",
+  label: "Name",
+  type: "string"
+};
+const numberField: SearchFieldConfig = {
+  name: "amount",
+  label: "Amount",
+  type: "number"
+};
+const dateField: SearchFieldConfig = {
+  name: "date",
+  label: "Date",
+  type: "date"
+};
+const booleanField: SearchFieldConfig = {
+  name: "isArchived",
+  label: "Archived",
+  type: "boolean"
+};
 const enumField: SearchFieldConfig = {
   name: "status",
   label: "Status",
@@ -20,7 +40,9 @@ const enumField: SearchFieldConfig = {
 };
 const fields = [stringField, numberField, dateField, booleanField, enumField];
 
-function renderBuilder(overrides: Partial<Parameters<typeof FilterBuilder>[0]> = {}) {
+function renderBuilder(
+  overrides: Partial<Parameters<typeof FilterBuilder>[0]> = {}
+) {
   const onClose = vi.fn();
   const onApply = vi.fn();
   const result = renderWithProviders(
@@ -104,7 +126,9 @@ describe("FilterBuilder", () => {
 
     await user.click(screen.getByRole("button", { name: "+ Group" }));
 
-    expect(screen.getByRole("button", { name: "Remove group" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove group" })
+    ).toBeInTheDocument();
   });
 
   it("changes the root connector between AND/OR", async () => {
@@ -257,7 +281,13 @@ describe("FilterBuilder", () => {
       id: "root",
       connector: "and",
       children: [
-        { type: "condition", id: "c1", fieldName: "name", operator: "=", value: "groceries" }
+        {
+          type: "condition",
+          id: "c1",
+          fieldName: "name",
+          operator: "=",
+          value: "groceries"
+        }
       ]
     };
 
@@ -289,34 +319,48 @@ describe("FilterBuilder", () => {
     expect(screen.getByRole("button", { name: "+ Condition" })).toBeDisabled();
   });
 
-  it("applies a day-only and a timed date condition as complete conditions", async () => {
+  it("applies a date-time condition as complete conditions", async () => {
     const user = userEvent.setup();
     const { onApply } = renderBuilder();
 
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
-    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05" } });
+    expect(screen.getByLabelText("Value")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(screen.queryByText(/specific time/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Value"), {
+      target: { value: "2026-11-05T14:30" }
+    });
     await user.click(screen.getByRole("button", { name: "Done" }));
-    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ operator: ">=", value: "2026-11-05" });
-
-    await user.click(screen.getByLabelText("Value specific time"));
-    expect(screen.getByLabelText("Value")).toHaveAttribute("type", "datetime-local");
-    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05T14:30" } });
-    await user.click(screen.getByRole("button", { name: "Done" }));
-    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ value: "2026-11-05T14:30" });
+    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({
+      value: "2026-11-05T14:30"
+    });
   });
 
-  it("offers a single date field per between bound, with the time option off by default", async () => {
+  it("offers one datetime-local field per between bound, with no time toggle", async () => {
     const user = userEvent.setup();
     renderBuilder();
 
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
-    expect(screen.getByLabelText("Value")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("Value")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
     await user.selectOptions(screen.getByLabelText("Operator"), "between");
-    expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
-    expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
-    expect(screen.getByLabelText("To specific time")).not.toBeChecked();
+    expect(screen.getByLabelText("From")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(screen.getByLabelText("To")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(
+      screen.queryByRole("checkbox", { name: /specific time/i })
+    ).not.toBeInTheDocument();
   });
 
   it("drops a date condition whose value was cleared instead of applying an empty condition", async () => {
@@ -325,7 +369,9 @@ describe("FilterBuilder", () => {
 
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
-    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05" } });
+    fireEvent.change(screen.getByLabelText("Value"), {
+      target: { value: "2026-11-05" }
+    });
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "" } });
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onApply.mock.calls.at(-1)![0].children).toEqual([]);
@@ -338,24 +384,32 @@ describe("FilterBuilder", () => {
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
     await user.selectOptions(screen.getByLabelText("Operator"), "between");
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-11-05" }
+    });
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onApply.mock.calls.at(-1)![0].children).toEqual([]);
   });
 
-  it("seeds 23:59 on an upper bound and 00:00 on a lower bound when the time option is turned on", async () => {
+  it("shows default times for bare-date between bounds without changing the stored value", async () => {
     const user = userEvent.setup();
-    renderBuilder();
+    const { onApply } = renderBuilder();
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
     await user.selectOptions(screen.getByLabelText("Operator"), "between");
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
-    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
-    await user.click(screen.getByLabelText("From specific time"));
-    await user.click(screen.getByLabelText("To specific time"));
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-11-05T00:00" }
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-11-05T23:59" }
+    });
     expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T00:00");
     expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T23:59");
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({
+      value: ["2026-11-05T00:00", "2026-11-05T23:59"]
+    });
     const grid = screen.getByLabelText("From").closest("div.grid-cols-1")!;
     expect(grid).toHaveClass("sm:grid-cols-2");
   });

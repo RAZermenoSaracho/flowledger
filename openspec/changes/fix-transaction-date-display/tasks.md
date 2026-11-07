@@ -57,3 +57,10 @@
 - [x] 8.4 Update `docs/DOMAIN_LOGIC.md` for the single-field input. Verify by reviewing the diff.
 - [x] 8.5 In Chrome with `America/Mexico_City`, `Pacific/Kiritimati`, and both `America/Los_Angeles` DST days, verify request instants for at least, at most, between, and day-only; verify keyboard entry, a partly filled field, and the Reports layout at 360 to 1920 px in light and dark. Remove QA data and stop browsers.
 
+## 9. Always-visible filters with one datetime field (follow-up)
+
+- [x] 9.1 Rework `components/DateTimeFilterInput.tsx` into one always-on `datetime-local` input with a local focus draft at `defaultTime`, no checkbox, and bare-date display at `defaultTime`. Verify in `tests/DateTimeFilterInput.test.tsx` that no toggle exists, focus then blur emits nothing, a date change after focus emits the date at the lower or upper default time, a user-chosen time is kept, a bare date displays at the default time, and partial entries show the message.
+- [x] 9.2 Update `components/tests/FilterBuilder.test.tsx` and `utils/tests/dateTime.test.ts`. Verify there is no "Specific time" control and a bare day maps to the same instants as `00:00` and `23:59` in `America/Mexico_City`, `Pacific/Kiritimati`, and both `America/Los_Angeles` DST days.
+- [x] 9.3 Restore the original always-visible `ReportFiltersCard.tsx` with `DateTimeFilterInput` and no collapse, and update `ReportFiltersCard.test.tsx` and `ReportsPage.test.tsx`. Verify the controls are always present and the msw request instants are unchanged.
+- [x] 9.4 Update `docs/DOMAIN_LOGIC.md` for the single always-on field. Verify by reviewing the diff.
+- [x] 9.5 In Chrome with the four timezone cases, verify request instants and records just inside and outside bounds on Reports and Transactions, keyboard entry, and the Reports bar at 360 to 1920 px in light and dark. Remove QA data and stop browsers.

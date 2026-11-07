@@ -165,41 +165,46 @@ Date filters in the web transaction search, imported-transaction search, other l
 
 ### Requirement: Date filter input keeps day-only intent
 
-The date filter control SHALL be one native input in the device's locale: a `date` field by default, and a single `datetime-local` field (the same hour, minute, and AM or PM segments as the transaction form, with no separate time input) once the user checks "Specific time". Choosing only a date SHALL be a complete filter that covers the whole day. Checking "Specific time" with a date set SHALL seed that date at `00:00` for a lower bound or `23:59` for an upper bound, which covers the same whole day under the inclusive-minute rule; seeding SHALL happen only on that explicit action, never on focus or tabbing. Unchecking SHALL return the filter to the bare date. A value that already has a time SHALL open in the `datetime-local` field. An incomplete entry (Chrome reports `""` for a partly filled field and fires no event while typing), or a year that is not four digits, SHALL leave the filter unapplied and SHALL show a visible "Incomplete or invalid, not applied" message on change and on blur, and SHALL NOT throw.
+The date filter control SHALL be one always-visible `datetime-local` input in the device's locale (the same date, hour, minute, and AM or PM segments as the transaction form), with no separate time input, no checkbox, and no toggle. While the value is empty and the field has focus, it SHALL show a local draft of today at a default time (`00:00` for a lower bound, `23:59` for an upper bound), and SHALL emit nothing until the user changes it; blurring without a change SHALL clear the draft. A user change SHALL emit the full value, so choosing or typing only a date yields that date at the default time, which covers the whole day under the inclusive-minute rule, and a time the user changes SHALL be kept. A bare `YYYY-MM-DD` value (an older saved filter) SHALL display at the default time and keep its whole-day meaning. An incomplete entry (Chrome reports `""` for a partly filled field and fires no event while typing), or a year that is not four digits, SHALL leave the filter unapplied and SHALL show a visible "Incomplete or invalid, not applied" message on change and on blur, and SHALL NOT throw.
 
-#### Scenario: Date without time
+#### Scenario: Date without changing the time
 
-- **WHEN** a user chooses only November 5, 2026
-- **THEN** the filter is complete and covers that whole local day
+- **WHEN** a user focuses an empty lower bound and chooses only November 5, 2026
+- **THEN** the value is November 5, 2026 at 00:00 and the filter covers that whole local day
 
-#### Scenario: Specific time seeded for an upper bound
+#### Scenario: Upper bound default time
 
-- **WHEN** a user has chosen November 5, 2026 as an upper bound and checks "Specific time"
-- **THEN** the single field shows November 5, 2026 11:59 PM and the filter still covers the whole day
+- **WHEN** a user focuses an empty upper bound and chooses only November 5, 2026
+- **THEN** the field shows 11:59 PM and the filter still covers the whole day
+
+#### Scenario: User-chosen time is kept
+
+- **WHEN** a user then changes the time to 2:30 PM
+- **THEN** the value keeps 2:30 PM and the bound is inclusive of that minute
 
 #### Scenario: Tabbing through
 
 - **WHEN** a user focuses or tabs through an empty filter field
-- **THEN** no filter value is emitted
+- **THEN** no filter value is emitted and the draft disappears on blur
+
+#### Scenario: Saved bare date
+
+- **WHEN** a filter holds the bare date `2026-11-05`
+- **THEN** the field shows it at the default time and the filter sends the same instants as before
 
 #### Scenario: Partly filled field
 
-- **WHEN** a user types a date but leaves the time of a `datetime-local` filter blank, and leaves the field
+- **WHEN** a user types a date but leaves the time of the field blank, and leaves the field
 - **THEN** the filter is not applied and "Incomplete or invalid, not applied" is shown
 
-#### Scenario: Unchecking the time
+### Requirement: Reports filters are an always-visible bar
 
-- **WHEN** a user unchecks "Specific time" after choosing 2:30 PM
-- **THEN** the filter value is the bare date and covers the whole day
+The Reports page SHALL show one always-visible filter bar with From, To, Groups, Categories, Currency, and Net or Gross directly accessible at every width, with no Filters button, popover, or collapse. The controls SHALL stack responsively (one column on phones, two from `md`, a single horizontal row of four from `xl`), the date-time fields SHALL be at least 13.5 rem wide from `xl`, and the page SHALL NOT scroll horizontally from 360 px to 1920 px. The bar SHALL NOT change what the filters send.
 
-### Requirement: Reports filters are a compact popover
+#### Scenario: Controls present on a phone
 
-The Reports page SHALL show one compact toolbar: a Filters button that opens a popover holding From, To, Groups, and Categories, a summary of active filters (localized dates, group and category counts) with "Reset filters", and the Currency and Net or Gross controls. The popover SHALL close on Escape or an outside click, SHALL stay within the viewport from 360 px to 1920 px, and SHALL NOT change what the filters send.
-
-#### Scenario: Active summary
-
-- **WHEN** From is November 5, 2026 and one group is selected and the popover is closed
-- **THEN** the toolbar shows the localized From value and "1 group", and "Reset filters"
+- **WHEN** the Reports page opens at 360 px
+- **THEN** From, To, Groups, Categories, Currency, and Net or Gross are all visible without opening anything
 
 ### Requirement: Date filter chips show local date and time
 

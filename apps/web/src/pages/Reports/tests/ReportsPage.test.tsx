@@ -71,10 +71,6 @@ function mockBaseline() {
   );
 }
 
-async function openFilters(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: /^Filters/ }));
-}
-
 describe("ReportsPage", () => {
   it("renders the filters card, summary cards, category breakdowns, and cashflow chart", async () => {
     mockBaseline();
@@ -92,7 +88,6 @@ describe("ReportsPage", () => {
     mockBaseline();
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
-    await openFilters(user);
 
     await waitFor(() =>
       expect(
@@ -112,9 +107,7 @@ describe("ReportsPage", () => {
 
   it("shows 'Reset filters' once a filter is active", async () => {
     mockBaseline();
-    const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
-    await openFilters(user);
 
     await waitFor(() =>
       expect(screen.getByLabelText("From")).toBeInTheDocument()
@@ -123,12 +116,13 @@ describe("ReportsPage", () => {
       screen.queryByRole("button", { name: "Reset filters" })
     ).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2024-01-01T00:00" }
+    });
 
     expect(
       screen.getByRole("button", { name: "Reset filters" })
     ).toBeInTheDocument();
-    expect(screen.getByText(/^From .*2024/)).toBeInTheDocument();
   });
 
   describe("local-day date filters", () => {
@@ -138,7 +132,7 @@ describe("ReportsPage", () => {
       process.env.TZ = originalTz;
     });
 
-    it("sends the start of the first local day and the start of the day after the last", async () => {
+    it("sends the first local day start and the following day start for default-time bounds ", async () => {
       process.env.TZ = "America/Mexico_City";
       mockBaseline();
       const queries: URLSearchParams[] = [];
@@ -163,12 +157,14 @@ describe("ReportsPage", () => {
           });
         })
       );
-      const user = userEvent.setup();
       renderWithProviders(<ReportsPage />, { withAuth: true });
 
-      await openFilters(user);
-      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
-      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
+      fireEvent.change(screen.getByLabelText("From"), {
+        target: { value: "2026-11-05T00:00" }
+      });
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T23:59" }
+      });
 
       await waitFor(() => {
         const last = queries.at(-1);
@@ -187,17 +183,17 @@ describe("ReportsPage", () => {
           return HttpResponse.json({ cashflow: [], currency: "USD" });
         })
       );
-      const user = userEvent.setup();
       renderWithProviders(<ReportsPage />, { withAuth: true });
 
-      await openFilters(user);
-      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
-      await user.click(screen.getByLabelText("To specific time"));
-      expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T23:59");
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T23:59" }
+      });
       await waitFor(() =>
         expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-06T06:00:00.000Z")
       );
-      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05T14:30" } });
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T14:30" }
+      });
 
       await waitFor(() =>
         expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-05T20:31:00.000Z")
@@ -216,7 +212,9 @@ describe("ReportsPage", () => {
       );
       renderWithProviders(<ReportsPage />, { withAuth: true });
 
-      await waitFor(() => expect(timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone));
+      await waitFor(() =>
+        expect(timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      );
       expect(timeZone).toBe("America/Mexico_City");
     });
   });

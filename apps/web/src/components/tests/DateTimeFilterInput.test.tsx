@@ -17,49 +17,76 @@ function setup(value: string, defaultTime?: "00:00" | "23:59") {
 }
 
 describe("DateTimeFilterInput", () => {
-  it("is a date field with the time option off for an empty or bare-date value", () => {
-    setup("2026-11-05");
-    expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
-    expect(screen.getByLabelText("From specific time")).not.toBeChecked();
+  it("is always one datetime-local field, with no 'Specific time' toggle", () => {
+    setup("");
+    expect(screen.getByLabelText("From")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/specific time/i)).not.toBeInTheDocument();
   });
 
-  it("emits a bare date when only a date is chosen", () => {
-    const onChange = setup("");
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
-    expect(onChange).toHaveBeenLastCalledWith("2026-11-05");
-  });
-
-  it("renders a single datetime-local field for a timed value", () => {
+  it("renders a timed value as is", () => {
     setup("2026-11-05T14:30");
-    const input = screen.getByLabelText("From");
-    expect(input).toHaveAttribute("type", "datetime-local");
-    expect(input).toHaveValue("2026-11-05T14:30");
-    expect(screen.getByLabelText("From specific time")).toBeChecked();
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T14:30");
   });
 
-  it("seeds 00:00 by default and 23:59 for upper bounds only when the time option is turned on", async () => {
+  it("displays a bare date at the default time without emitting", () => {
     const lower = setup("2026-11-05");
-    await userEvent.click(screen.getByLabelText("From specific time"));
-    expect(lower).toHaveBeenLastCalledWith("2026-11-05T00:00");
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T00:00");
+    expect(lower).not.toHaveBeenCalled();
   });
 
-  it("seeds 23:59 for an upper bound", async () => {
-    const upper = setup("2026-11-05", "23:59");
-    await userEvent.click(screen.getByLabelText("From specific time"));
-    expect(upper).toHaveBeenLastCalledWith("2026-11-05T23:59");
+  it("displays a bare date at 23:59 for an upper bound", () => {
+    setup("2026-11-05", "23:59");
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T23:59");
   });
 
-  it("does not emit anything when the time option is turned on with no date", async () => {
-    const onChange = setup("");
-    await userEvent.click(screen.getByLabelText("From specific time"));
-    expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("From")).toHaveAttribute("type", "datetime-local");
+  it("shows a draft of today at the default time on focus, emits nothing, and clears it on blur", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 10, 6, 15, 42) });
+    try {
+      const onChange = setup("", "23:59");
+      const input = screen.getByLabelText("From");
+      expect(input).toHaveValue("");
+      await userEvent.tab();
+      expect(input).toHaveValue("2026-11-06T23:59");
+      await userEvent.tab();
+      expect(input).toHaveValue("");
+      expect(onChange).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("returns to the bare date when the time option is turned off", async () => {
+  it.each([
+    ["lower", undefined, "2026-11-05T00:00"],
+    ["upper", "23:59" as const, "2026-11-05T23:59"]
+  ])(
+    "emits the chosen date plus the default time after focus for a %s bound",
+    async (_name, defaultTime, expected) => {
+      const onChange = setup("", defaultTime);
+      await userEvent.tab();
+      fireEvent.change(screen.getByLabelText("From"), {
+        target: { value: expected }
+      });
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenLastCalledWith(expected);
+    }
+  );
+
+  it("keeps a time the user chose", () => {
+    const onChange = setup("2026-11-05T00:00");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-11-05T14:30" }
+    });
+    expect(onChange).toHaveBeenLastCalledWith("2026-11-05T14:30");
+  });
+
+  it("emits an empty value when the control is cleared", () => {
     const onChange = setup("2026-11-05T14:30");
-    await userEvent.click(screen.getByLabelText("From specific time"));
-    expect(onChange).toHaveBeenLastCalledWith("2026-11-05");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "" } });
+    expect(onChange).toHaveBeenLastCalledWith("");
   });
 
   it("never emits anything on focus or tabbing through", async () => {
@@ -77,7 +104,9 @@ describe("DateTimeFilterInput", () => {
       value: { badInput: true }
     });
     fireEvent.blur(input);
-    expect(screen.getByRole("alert")).toHaveTextContent("Incomplete or invalid, not applied");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Incomplete or invalid, not applied"
+    );
     Object.defineProperty(input, "validity", {
       configurable: true,
       value: { badInput: false }
@@ -100,7 +129,12 @@ describe("DateTimeFilterInput", () => {
 
   it("treats a keystroke-intermediate five-digit year as unusable instead of passing it on", () => {
     const onChange = setup("");
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "20261-05-12" } });
+    const input = screen.getByLabelText("From");
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get: () => "20261-05-12"
+    });
+    fireEvent.input(input);
     expect(onChange).toHaveBeenLastCalledWith("");
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });

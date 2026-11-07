@@ -9,7 +9,11 @@ import {
   transactionDateRequestValue
 } from "../dateTime";
 
-const ZONES = ["America/Mexico_City", "Pacific/Kiritimati", "America/Los_Angeles"] as const;
+const ZONES = [
+  "America/Mexico_City",
+  "Pacific/Kiritimati",
+  "America/Los_Angeles"
+] as const;
 const originalTz = process.env.TZ;
 
 function useZone(zone: string) {
@@ -46,7 +50,10 @@ describe.each(ZONES)("formatTransactionDate in %s", (zone) => {
   it("shows no time when the linked provider date equals date at UTC noon", () => {
     useZone(zone);
     const date = "2026-06-04T12:00:00.000Z";
-    const shown = formatTransactionDate({ date, providerImportedTransaction: { transactionDate: date } });
+    const shown = formatTransactionDate({
+      date,
+      providerImportedTransaction: { transactionDate: date }
+    });
     expect(shown).toBe(dateIn(zone, date));
     expect(shown).not.toBe(dateTimeIn(zone, date));
   });
@@ -54,7 +61,9 @@ describe.each(ZONES)("formatTransactionDate in %s", (zone) => {
   it("shows the time for a manual transaction at UTC noon", () => {
     useZone(zone);
     const date = "2026-06-04T12:00:00.000Z";
-    expect(formatTransactionDate({ date, providerImportedTransaction: null })).toBe(dateTimeIn(zone, date));
+    expect(
+      formatTransactionDate({ date, providerImportedTransaction: null })
+    ).toBe(dateTimeIn(zone, date));
     expect(formatTransactionDate({ date })).toBe(dateTimeIn(zone, date));
   });
 
@@ -64,7 +73,9 @@ describe.each(ZONES)("formatTransactionDate in %s", (zone) => {
     expect(
       formatTransactionDate({
         date,
-        providerImportedTransaction: { transactionDate: "2026-06-04T12:00:00.000Z" }
+        providerImportedTransaction: {
+          transactionDate: "2026-06-04T12:00:00.000Z"
+        }
       })
     ).toBe(dateTimeIn(zone, date));
   });
@@ -72,9 +83,12 @@ describe.each(ZONES)("formatTransactionDate in %s", (zone) => {
   it("shows the time for an imported transaction whose provider value is not UTC noon", () => {
     useZone(zone);
     const date = "2026-06-04T09:30:00.000Z";
-    expect(formatTransactionDate({ date, providerImportedTransaction: { transactionDate: date } })).toBe(
-      dateTimeIn(zone, date)
-    );
+    expect(
+      formatTransactionDate({
+        date,
+        providerImportedTransaction: { transactionDate: date }
+      })
+    ).toBe(dateTimeIn(zone, date));
   });
 });
 
@@ -99,7 +113,9 @@ describe.each(ZONES)("transactionDateInputValue in %s", (zone) => {
       "Pacific/Kiritimati": "2026-06-01T11:33",
       "America/Los_Angeles": "2026-05-31T14:33"
     }[zone];
-    expect(transactionDateInputValue({ date: "2026-05-31T21:33:15.979Z" })).toBe(expected);
+    expect(
+      transactionDateInputValue({ date: "2026-05-31T21:33:15.979Z" })
+    ).toBe(expected);
   });
 });
 
@@ -117,42 +133,58 @@ describe("transactionDateRequestValue with an original", () => {
 
   it("returns undefined when the value matches the prefill", () => {
     useZone("America/Mexico_City");
-    expect(transactionDateRequestValue("2026-05-31T15:33", original)).toBeUndefined();
+    expect(
+      transactionDateRequestValue("2026-05-31T15:33", original)
+    ).toBeUndefined();
   });
 
   it("returns undefined when the value is changed and then restored", () => {
     useZone("America/Mexico_City");
-    expect(transactionDateRequestValue("2026-06-02T15:33", original)).toBeDefined();
-    expect(transactionDateRequestValue(transactionDateInputValue(original), original)).toBeUndefined();
+    expect(
+      transactionDateRequestValue("2026-06-02T15:33", original)
+    ).toBeDefined();
+    expect(
+      transactionDateRequestValue(transactionDateInputValue(original), original)
+    ).toBeUndefined();
   });
 
   it("keeps the local time and sub-minute precision when only the date changes", () => {
     useZone("America/Mexico_City");
-    expect(transactionDateRequestValue("2026-06-02T15:33", original)).toBe("2026-06-02T21:33:15.979Z");
+    expect(transactionDateRequestValue("2026-06-02T15:33", original)).toBe(
+      "2026-06-02T21:33:15.979Z"
+    );
   });
 
   it("keeps the local date and sub-minute precision when only the time changes", () => {
     useZone("America/Mexico_City");
-    expect(transactionDateRequestValue("2026-05-31T16:45", original)).toBe("2026-05-31T22:45:15.979Z");
+    expect(transactionDateRequestValue("2026-05-31T16:45", original)).toBe(
+      "2026-05-31T22:45:15.979Z"
+    );
   });
 
   it("keeps the local time of day when the date moves across a DST change", () => {
     useZone("America/Los_Angeles");
     const stored = { date: "2026-03-07T17:00:00.000Z" };
     expect(transactionDateInputValue(stored)).toBe("2026-03-07T09:00");
-    expect(transactionDateRequestValue("2026-03-09T09:00", stored)).toBe("2026-03-09T16:00:00.000Z");
+    expect(transactionDateRequestValue("2026-03-09T09:00", stored)).toBe(
+      "2026-03-09T16:00:00.000Z"
+    );
   });
 });
 
 describe("transactionDateRequestValue without an original", () => {
   it("converts the local entry to a UTC instant", () => {
     useZone("America/Mexico_City");
-    expect(transactionDateRequestValue("2026-11-05T14:30")).toBe("2026-11-05T20:30:00.000Z");
+    expect(transactionDateRequestValue("2026-11-05T14:30")).toBe(
+      "2026-11-05T20:30:00.000Z"
+    );
   });
 
   it("converts at a positive offset", () => {
     useZone("Pacific/Kiritimati");
-    expect(transactionDateRequestValue("2026-11-05T14:30")).toBe("2026-11-05T00:30:00.000Z");
+    expect(transactionDateRequestValue("2026-11-05T14:30")).toBe(
+      "2026-11-05T00:30:00.000Z"
+    );
   });
 });
 
@@ -160,25 +192,35 @@ describe("localDayStartInstant", () => {
   it("starts a Kiritimati day (UTC+14) on the previous UTC day", () => {
     useZone("Pacific/Kiritimati");
     expect(localDayStartInstant("2026-11-05")).toBe("2026-11-04T10:00:00.000Z");
-    expect(localDayStartInstant("2026-11-05", 1)).toBe("2026-11-05T10:00:00.000Z");
+    expect(localDayStartInstant("2026-11-05", 1)).toBe(
+      "2026-11-05T10:00:00.000Z"
+    );
   });
 
   it("handles the 23-hour spring-forward day in Los Angeles", () => {
     useZone("America/Los_Angeles");
     expect(localDayStartInstant("2026-03-08")).toBe("2026-03-08T08:00:00.000Z");
-    expect(localDayStartInstant("2026-03-08", 1)).toBe("2026-03-09T07:00:00.000Z");
+    expect(localDayStartInstant("2026-03-08", 1)).toBe(
+      "2026-03-09T07:00:00.000Z"
+    );
   });
 
   it("handles the 25-hour fall-back day in Los Angeles", () => {
     useZone("America/Los_Angeles");
     expect(localDayStartInstant("2026-11-01")).toBe("2026-11-01T07:00:00.000Z");
-    expect(localDayStartInstant("2026-11-01", 1)).toBe("2026-11-02T08:00:00.000Z");
+    expect(localDayStartInstant("2026-11-01", 1)).toBe(
+      "2026-11-02T08:00:00.000Z"
+    );
   });
 
   it("rolls over month and year ends", () => {
     useZone("America/Mexico_City");
-    expect(localDayStartInstant("2026-01-31", 1)).toBe("2026-02-01T06:00:00.000Z");
-    expect(localDayStartInstant("2026-12-31", 1)).toBe("2027-01-01T06:00:00.000Z");
+    expect(localDayStartInstant("2026-01-31", 1)).toBe(
+      "2026-02-01T06:00:00.000Z"
+    );
+    expect(localDayStartInstant("2026-12-31", 1)).toBe(
+      "2027-01-01T06:00:00.000Z"
+    );
   });
 });
 
@@ -186,26 +228,65 @@ describe("filterBoundInstant", () => {
   it.each([
     ["America/Mexico_City", "2026-11-05", "lower", "2026-11-05T06:00:00.000Z"],
     ["America/Mexico_City", "2026-11-05", "upper", "2026-11-06T06:00:00.000Z"],
-    ["America/Mexico_City", "2026-11-05T14:30", "lower", "2026-11-05T20:30:00.000Z"],
-    ["America/Mexico_City", "2026-11-05T14:30", "upper", "2026-11-05T20:31:00.000Z"],
-    ["America/Mexico_City", "2026-11-06T08:00", "upper", "2026-11-06T14:01:00.000Z"],
+    [
+      "America/Mexico_City",
+      "2026-11-05T14:30",
+      "lower",
+      "2026-11-05T20:30:00.000Z"
+    ],
+    [
+      "America/Mexico_City",
+      "2026-11-05T14:30",
+      "upper",
+      "2026-11-05T20:31:00.000Z"
+    ],
+    [
+      "America/Mexico_City",
+      "2026-11-06T08:00",
+      "upper",
+      "2026-11-06T14:01:00.000Z"
+    ],
     ["Pacific/Kiritimati", "2026-11-05", "lower", "2026-11-04T10:00:00.000Z"],
     ["Pacific/Kiritimati", "2026-11-05", "upper", "2026-11-05T10:00:00.000Z"],
     ["America/Los_Angeles", "2026-03-08", "lower", "2026-03-08T08:00:00.000Z"],
     ["America/Los_Angeles", "2026-03-08", "upper", "2026-03-09T07:00:00.000Z"],
     ["America/Los_Angeles", "2026-11-01", "lower", "2026-11-01T07:00:00.000Z"],
     ["America/Los_Angeles", "2026-11-01", "upper", "2026-11-02T08:00:00.000Z"],
-    ["America/Los_Angeles", "2026-03-08T01:59", "upper", "2026-03-08T10:00:00.000Z"]
+    [
+      "America/Los_Angeles",
+      "2026-03-08T01:59",
+      "upper",
+      "2026-03-08T10:00:00.000Z"
+    ]
   ] as const)("%s %s %s -> %s", (zone, value, bound, expected) => {
     useZone(zone);
     expect(filterBoundInstant(value, bound)).toBe(expected);
   });
 });
 
+describe("filterBoundInstant for a bare day versus the filter input's default times", () => {
+  it.each([...ZONES, "UTC"])(
+    "%s: a bare day maps to the same instants as 00:00 and 23:59",
+    (zone) => {
+      useZone(zone);
+      for (const day of ["2026-03-08", "2026-11-01", "2026-11-05"]) {
+        expect(filterBoundInstant(day, "lower")).toBe(
+          filterBoundInstant(`${day}T00:00`, "lower")
+        );
+        expect(filterBoundInstant(day, "upper")).toBe(
+          filterBoundInstant(`${day}T23:59`, "upper")
+        );
+      }
+    }
+  );
+});
+
 describe("formatFilterValue", () => {
   it("shows the date alone for a day value", () => {
     useZone("America/Mexico_City");
-    expect(formatFilterValue("2026-11-05")).toBe(new Date(2026, 10, 5).toLocaleDateString());
+    expect(formatFilterValue("2026-11-05")).toBe(
+      new Date(2026, 10, 5).toLocaleDateString()
+    );
   });
 
   it("shows date and time for a time value in en-US", () => {

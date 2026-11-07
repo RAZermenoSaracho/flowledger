@@ -67,52 +67,80 @@ function baseProps(
 }
 
 describe("ReportFiltersCard", () => {
-  it("renders a compact toolbar and keeps the filter controls inside a Filters popover", async () => {
+  it("always shows every control directly, with no Filters button, popover, or collapse toggle", () => {
     mockCurrencies();
-    const user = userEvent.setup();
     renderWithProviders(<ReportFiltersCard {...baseProps()} />);
 
-    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("From")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(screen.getByLabelText("To")).toHaveAttribute(
+      "type",
+      "datetime-local"
+    );
+    expect(
+      screen.queryByRole("checkbox", { name: /specific time/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Groups All groups" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Categories All categories" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Report amount basis" })
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Filters" }));
-
-    expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
-    expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
-    expect(screen.getByRole("button", { name: "Groups All groups" })).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Filters" })).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: /^Filters/ })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("calls onFiltersChange when the date fields change", async () => {
+  it("stacks the controls responsively without hiding any of them", () => {
     mockCurrencies();
-    const user = userEvent.setup();
+    const { container } = renderWithProviders(
+      <ReportFiltersCard {...baseProps()} />
+    );
+
+    expect(container.querySelector(".hidden")).toBeNull();
+    expect(
+      container.querySelector(".grid-cols-1.md\\:grid-cols-2")
+    ).not.toBeNull();
+  });
+
+  it("calls onFiltersChange with a full date-time when the date fields change", () => {
+    mockCurrencies();
     const props = baseProps();
     renderWithProviders(<ReportFiltersCard {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Filters" }));
-    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2024-01-01T00:00" }
+    });
 
-    expect(props.onFiltersChange).toHaveBeenCalledWith({ ...emptyReportFilters, dateFrom: "2024-01-01" });
+    expect(props.onFiltersChange).toHaveBeenCalledWith({
+      ...emptyReportFilters,
+      dateFrom: "2024-01-01T00:00"
+    });
   });
 
-  it("uses one datetime-local field for a timed bound and summarizes active filters", async () => {
+  it("shows a timed bound in one datetime-local field and a bare saved date at its default time", () => {
     mockCurrencies();
-    const user = userEvent.setup();
-    const props = baseProps({
-      hasActiveFilters: true,
-      filters: { ...emptyReportFilters, dateTo: "2026-11-05T14:30", groupIds: ["group-1"] }
-    });
-    renderWithProviders(<ReportFiltersCard {...props} />);
+    renderWithProviders(
+      <ReportFiltersCard
+        {...baseProps({
+          hasActiveFilters: true,
+          filters: {
+            ...emptyReportFilters,
+            dateFrom: "2026-11-05",
+            dateTo: "2026-11-05T14:30"
+          }
+        })}
+      />
+    );
 
-    expect(screen.getByText("1 group")).toBeInTheDocument();
-    expect(screen.getByText(/^To .*2026.*2:30/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Filters (active)" }));
-    expect(screen.getByLabelText("To")).toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T00:00");
     expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T14:30");
   });
 
@@ -150,7 +178,6 @@ describe("ReportFiltersCard", () => {
     });
     renderWithProviders(<ReportFiltersCard {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
     await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
@@ -167,7 +194,6 @@ describe("ReportFiltersCard", () => {
     const props = baseProps();
     renderWithProviders(<ReportFiltersCard {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(
       screen.getByRole("button", { name: "Categories All categories" })
     );
@@ -177,29 +203,5 @@ describe("ReportFiltersCard", () => {
       ...props.filters,
       categoryIds: ["cat-1"]
     });
-  });
-
-  it("toggles the filters popover open/closed", async () => {
-    mockCurrencies();
-    const user = userEvent.setup();
-    renderWithProviders(<ReportFiltersCard {...baseProps()} />);
-
-    const toggle = screen.getByRole("button", { name: "Filters" });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-
-    await user.click(toggle);
-
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("dialog", { name: "Report filters" })).toBeInTheDocument();
-  });
-
-  it("shows '(active)' in the toggle label when hasActiveFilters is true", async () => {
-    mockCurrencies();
-    renderWithProviders(
-      <ReportFiltersCard {...baseProps({ hasActiveFilters: true })} />
-    );
-    expect(
-      screen.getByRole("button", { name: "Filters (active)" })
-    ).toBeInTheDocument();
   });
 });
