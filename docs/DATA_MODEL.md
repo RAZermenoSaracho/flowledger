@@ -51,7 +51,9 @@ An opaque, rotating refresh token backing a user's session (see `docs/AUTH_FLOW.
 | `userId` | String | FK → User |
 | `tokenHash` | String (unique) | SHA-256 hash of the opaque token value; the plaintext is never stored |
 | `expiresAt` | DateTime | |
-| `revokedAt` | DateTime? | Set on rotation (single-use) or logout |
+| `revokedAt` | DateTime? | Set when the successor token is first used, on logout, or on password change |
+| `persistent` | Boolean (default `true`) | `false` for a browser session: no cookie `Max-Age`, 24-hour server lifetime |
+| `previousTokenId` | String? | The token this one replaced at rotation; no foreign key |
 
 ---
 

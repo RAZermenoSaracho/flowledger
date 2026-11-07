@@ -11,7 +11,7 @@ const submitEvent = { preventDefault() {} } as never;
 describe("usePasswordChange", () => {
   it("sets a message and clears the fields on success", async () => {
     server.use(
-      http.patch(`${API_URL}/users/me/password`, () => HttpResponse.json({ user: baseUser }))
+      http.patch(`${API_URL}/auth/password`, () => HttpResponse.json({ user: baseUser }))
     );
     const { result } = renderHook(() => usePasswordChange(), { wrapper: hookWrapper });
     act(() => result.current.setCurrentPassword("old"));
@@ -22,7 +22,7 @@ describe("usePasswordChange", () => {
 
   it("exposes the server error on failure", async () => {
     server.use(
-      http.patch(`${API_URL}/users/me/password`, () =>
+      http.patch(`${API_URL}/auth/password`, () =>
         HttpResponse.json({ message: "Current password is incorrect" }, { status: 401 })
       )
     );

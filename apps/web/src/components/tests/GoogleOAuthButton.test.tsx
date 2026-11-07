@@ -33,7 +33,7 @@ describe("GoogleOAuthButton", () => {
     await user.click(screen.getByRole("button", { name: /continue with google/i }));
 
     expect(window.location.href).toBe(
-      "http://localhost:4000/auth/google?redirect=%2F"
+      "http://localhost:4000/auth/google?redirect=%2F&keepLoggedIn=true"
     );
   });
 
@@ -44,7 +44,18 @@ describe("GoogleOAuthButton", () => {
     await user.click(screen.getByRole("button", { name: /continue with google/i }));
 
     expect(window.location.href).toBe(
-      "http://localhost:4000/auth/google?redirect=%2Ftransactions"
+      "http://localhost:4000/auth/google?redirect=%2Ftransactions&keepLoggedIn=true"
+    );
+  });
+
+  it("sends keepLoggedIn=false when the prop is false", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<GoogleOAuthButton keepLoggedIn={false} />);
+
+    await user.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    expect(window.location.href).toBe(
+      "http://localhost:4000/auth/google?redirect=%2F&keepLoggedIn=false"
     );
   });
 });

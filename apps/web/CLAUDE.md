@@ -54,7 +54,7 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |
 
-`ProtectedRoute` checks `getToken()` (from `services/auth.client.ts`) and redirects to `/login?redirect=<path>` if no token is present.
+`ProtectedRoute` reads `useAuth`: it waits while `isInitializing`, shows a connection message while `isSessionUnavailable` with no user, and otherwise redirects to `/login?redirect=<path>` when there is no user. `LoginPage` sends a signed-in user straight to `redirect`.
 
 ---
 
@@ -265,7 +265,7 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 
 ## Auth context
 
-`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, setUser, logout }`. On login, store the JWT via `auth.client.ts`'s `setToken(token)` and call `setUser(user)`. On logout, `clearToken()` (also from `auth.client.ts`) is handled by `logout()`. `useAuth`'s `login`/`register` delegate to `services/auth.client.ts`.
+`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, isInitializing, isSessionUnavailable, setUser, login, register, logout }`. On login, store the JWT via `auth.client.ts`'s `setToken(token)` and call `setUser(user)`. On logout, `clearToken()` (also from `auth.client.ts`) is handled by `logout()`. `useAuth`'s `login`/`register` delegate to `services/auth.client.ts`.
 
 ---
 

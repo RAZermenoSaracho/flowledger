@@ -11,6 +11,8 @@ vi.mock("bcryptjs", () => ({
 }));
 
 const bcrypt = (await import("bcryptjs")).default;
+const { HttpError } = await import("../../../../utils/httpError.js");
+const { hashRefreshToken } = await import("../../../auth/utils/tokens.js");
 const { mkdir, writeFile } = await import("node:fs/promises");
 
 const {
@@ -120,53 +122,77 @@ describe("uploadAvatar", () => {
 });
 
 describe("updatePassword", () => {
-  it("throws a 401 when the current password is wrong", async () => {
+  const input = {
+    currentPassword: "correct",
+    newPassword: "newpassword",
+    confirmPassword: "newpassword"
+  };
+
+  it("throws a 400 HttpError when the current password is wrong and touches neither password nor tokens", async () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       passwordHash: "hash"
     } as never);
     vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
-    await expect(
-      updatePassword("user-1", {
-        currentPassword: "wrong",
-        newPassword: "newpassword",
-        confirmPassword: "newpassword"
-      })
-    ).rejects.toThrow("Current password is incorrect");
+    const error = await updatePassword("user-1", { ...input, currentPassword: "wrong" }).catch(
+      (caught) => caught
+    );
+
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ statusCode: 400, message: "Current password is incorrect" });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.refreshToken.updateMany).not.toHaveBeenCalled();
   });
 
-  it("throws a 401 for a Google-only account with no password set", async () => {
+  it("throws a 400 for a Google-only account with no password set", async () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       passwordHash: null
     } as never);
 
-    await expect(
-      updatePassword("user-1", {
-        currentPassword: "x",
-        newPassword: "newpassword",
-        confirmPassword: "newpassword"
-      })
-    ).rejects.toThrow("Current password is incorrect");
+    await expect(updatePassword("user-1", input)).rejects.toMatchObject({ statusCode: 400 });
     expect(bcrypt.compare).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it("hashes and stores the new password when the current one is correct", async () => {
+  it("stores the new hash and revokes every other live token in one transaction", async () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       passwordHash: "hash"
     } as never);
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
-    prismaMock.user.update.mockResolvedValue({} as never);
 
-    await updatePassword("user-1", {
-      currentPassword: "correct",
-      newPassword: "newpassword",
-      confirmPassword: "newpassword"
+    await updatePassword("user-1", input, "current-plaintext");
+
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { passwordHash: "new-hash" }
     });
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        revokedAt: null,
+        tokenHash: { not: hashRefreshToken("current-plaintext") }
+      },
+      data: { revokedAt: expect.any(Date) }
+    });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prismaMock.$transaction).mock.calls[0]![0]).toHaveLength(2);
+  });
 
-    expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { passwordHash: "new-hash" } })
-    );
+  it("revokes all of the user's live tokens when there is no current token", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({
+      passwordHash: "hash"
+    } as never);
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    vi.mocked(bcrypt.hash).mockResolvedValue("new-hash" as never);
+
+    await updatePassword("user-1", input);
+
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) }
+    });
   });
 });
 

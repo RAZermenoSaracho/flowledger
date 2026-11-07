@@ -21,6 +21,7 @@ const {
   updateSidebarSide,
   uploadAvatar
 } = await import("../../services/update.service.js");
+const { refreshTokenCookieName } = await import("../../../auth/utils/refreshTokenCookie.js");
 const { readMultipartParts } = await import("../../../../utils/multipart.js");
 const {
   patchMe,
@@ -103,17 +104,36 @@ describe("patchPassword", () => {
 
     await patchPassword(
       mockRequest({
-        body: { currentPassword: "old", newPassword: "newpassword", confirmPassword: "newpassword" }
-      }),
+        body: { currentPassword: "old", newPassword: "newpassword", confirmPassword: "newpassword" },
+        headers: {}
+      } as never),
       res
     );
 
-    expect(updatePassword).toHaveBeenCalledWith("user-1", {
-      currentPassword: "old",
-      newPassword: "newpassword",
-      confirmPassword: "newpassword"
-    });
+    expect(updatePassword).toHaveBeenCalledWith(
+      "user-1",
+      {
+        currentPassword: "old",
+        newPassword: "newpassword",
+        confirmPassword: "newpassword"
+      },
+      undefined
+    );
     expect(res.status).toHaveBeenCalledWith(204);
+  });
+
+  it("forwards the refresh cookie value so the current session is kept", async () => {
+    vi.mocked(updatePassword).mockResolvedValue(undefined);
+
+    await patchPassword(
+      mockRequest({
+        body: { currentPassword: "old", newPassword: "newpassword", confirmPassword: "newpassword" },
+        headers: { cookie: `a=1; ${refreshTokenCookieName}=cookie-token` }
+      } as never),
+      mockResponse()
+    );
+
+    expect(updatePassword).toHaveBeenCalledWith("user-1", expect.anything(), "cookie-token");
   });
 });
 

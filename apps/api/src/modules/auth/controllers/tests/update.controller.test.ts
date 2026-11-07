@@ -6,12 +6,12 @@ vi.mock("../../services/update.service.js", () => ({
 }));
 
 vi.mock("../../utils/refreshTokenCookie.js", () => ({
-  buildRefreshTokenCookie: vi.fn(),
+  buildSessionCookies: vi.fn(),
   readRefreshTokenCookie: vi.fn()
 }));
 
 const { rotateRefreshToken } = await import("../../services/update.service.js");
-const { readRefreshTokenCookie } = await import("../../utils/refreshTokenCookie.js");
+const { buildSessionCookies, readRefreshTokenCookie } = await import("../../utils/refreshTokenCookie.js");
 const { refresh } = await import("../update.controller.js");
 
 describe("refresh", () => {
@@ -28,13 +28,18 @@ describe("refresh", () => {
     vi.mocked(readRefreshTokenCookie).mockReturnValue("old-plaintext");
     vi.mocked(rotateRefreshToken).mockResolvedValue({
       token: "new-access-token",
-      refreshToken: { token: "new-refresh-token", expiresAt: new Date() },
+      refreshToken: { token: "new-refresh-token", expiresAt: new Date(), persistent: false },
       user: { id: "user-1", email: "ada@example.com", passwordHash: "secret" }
     } as never);
+    vi.mocked(buildSessionCookies).mockReturnValue(["refresh=x", "presence=1"]);
     const res = mockResponse();
 
     await refresh(mockRequest({ headers: { cookie: "x=1" } } as never), res);
 
+    expect(buildSessionCookies).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "new-refresh-token", persistent: false })
+    );
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", ["refresh=x", "presence=1"]);
     expect(rotateRefreshToken).toHaveBeenCalledWith("old-plaintext");
     expect(res.json).toHaveBeenCalledWith({
       token: "new-access-token",
