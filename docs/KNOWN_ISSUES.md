@@ -571,3 +571,13 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** The web Transactions page loads its whole result in one request and has no page controls, so a user past 10,000 matching transactions sees only that many. Past 100,000, the cashflow report covers only the oldest rows.
 
 **Suggested fix:** Add page controls to the Transactions page and aggregate the cashflow report in SQL if either limit is approached.
+
+---
+
+## [OPEN] #046 — Security hardening follow-ups left for the owner
+
+**Found in:** Closing the security initiative, 2026-11-07.
+
+**Description:** Archived with these still open: real Google sign-in on desktop, mobile, and an installed Home Screen app; Cloudflare Always Use HTTPS and TLS 1.2; `chmod 600` on production `.env` files and moving the `.env.backup.*` copies; branch protection on `main`; Cloudflare Access on the dev hostnames; `npm ci` in the landing deploy script; the CSP walkthrough, then enforcing it and raising HSTS to a year; and the access-log review for past F-01 and F-34 use, which logs can't fully rule out. Production has one account with both a password and a Google link, which predates the linking fix and may merit a look.
+
+**Suggested fix:** Work through the archived `tasks.md` files in `openspec/changes/archive/`, where each item has its verification step.

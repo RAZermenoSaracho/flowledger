@@ -55,7 +55,7 @@ Only a 401 from the refresh endpoint SHALL end a session on the client. Network 
 
 ### Requirement: Lost refresh responses and concurrent refreshes
 
-A refresh token SHALL stay usable until a token issued from it is used, and SHALL then be rejected.
+A refresh token SHALL stay usable until a token issued from it is used, and SHALL then be rejected. If a rejected token was revoked more than 60 seconds earlier, the server SHALL also revoke every token issued from it, directly or indirectly.
 
 #### Scenario: Response lost
 - **WHEN** the server rotates a token but the client never receives the response, and the client later presents the old token
@@ -68,6 +68,18 @@ A refresh token SHALL stay usable until a token issued from it is used, and SHAL
 #### Scenario: Superseded token
 - **WHEN** a token issued from a previous token has been used, and the previous token is presented again
 - **THEN** the refresh returns 401
+
+#### Scenario: Replay after the grace period
+- **WHEN** a token revoked more than 60 seconds ago is presented again
+- **THEN** the refresh returns 401, and every token descended from it also returns 401 on refresh
+
+#### Scenario: Request racing a rotation
+- **WHEN** a token revoked less than 60 seconds ago is presented, as a request in flight during a rotation can do
+- **THEN** the refresh returns 401, and tokens descended from it remain valid
+
+#### Scenario: Other devices during a replay
+- **WHEN** a replay revokes one session's descendants
+- **THEN** the user's other sessions can still refresh
 
 ### Requirement: Logout ends the session on the device
 
@@ -103,7 +115,7 @@ A successful password change SHALL revoke all of the user's refresh tokens excep
 
 ### Requirement: Signed-in users are not asked to log in
 
-A signed-in user who opens the login page SHALL go to the requested destination without entering credentials. The API SHALL set a non-secret session-presence cookie readable on `/` so the landing gateway can route to the app, and it SHALL have the same lifetime and be cleared with the session cookie.
+A signed-in user who opens the login page SHALL go to the requested destination without entering credentials. The API SHALL set a non-secret session-presence cookie readable on `/` so the landing gateway can route to the app, and it SHALL have the same lifetime and be cleared with the session cookie. A rejected refresh SHALL clear the presence cookie and SHALL NOT clear the refresh cookie, and the next successful refresh SHALL set the presence cookie again.
 
 #### Scenario: Login page with a valid session
 - **WHEN** a user with a valid refresh cookie opens `/login`
@@ -113,6 +125,14 @@ A signed-in user who opens the login page SHALL go to the requested destination 
 - **WHEN** the API issues or rotates a session
 - **THEN** the presence cookie has a fixed non-secret value, `Path=/`, and `SameSite=Lax`, and never contains token data
 
+#### Scenario: Rejected refresh
+- **WHEN** the refresh endpoint returns 401
+- **THEN** the response expires the presence cookie and leaves the refresh cookie unchanged
+
+#### Scenario: Rejected refresh racing a valid rotation
+- **WHEN** a stale tab's refresh is rejected just after another tab rotated successfully
+- **THEN** the valid refresh cookie is untouched, and the presence cookie returns on the next successful refresh
+
 ### Requirement: Environment isolation
 
 Non-production environments SHALL use different session cookie names from production, so that a browser using both keeps each session intact. Production cookie names SHALL NOT change.
@@ -120,3 +140,39 @@ Non-production environments SHALL use different session cookie names from produc
 #### Scenario: Using dev and production in one browser
 - **WHEN** a user signs in or logs out on the dev environment
 - **THEN** the production session cookie is neither overwritten nor cleared
+
+### Requirement: Refresh cookie is limited to the API host
+
+The refresh-token cookie SHALL be host-only on the API host. The presence cookie SHALL keep its configured domain, and SHALL stay free of credentials. Browsers holding the older domain-scoped refresh cookie SHALL have it cleared without being signed out.
+
+#### Scenario: New or rotated session
+- **WHEN** the API sets a refresh cookie
+- **THEN** the cookie has no `Domain` attribute, and it keeps `HttpOnly`, `SameSite=Strict`, `Path=/auth`, and `Secure` in production
+
+#### Scenario: Browser with the older cookie
+- **WHEN** a browser holding the domain-scoped refresh cookie refreshes
+- **THEN** the session continues, the response expires the domain-scoped cookie, and the next refresh presents only the host-only cookie
+
+### Requirement: Failed logout is reported
+
+If the logout request fails, the client SHALL tell the user that sign-out did not complete and SHALL keep them signed in, so they can retry. It SHALL NOT present the session as ended while the server token remains valid.
+
+#### Scenario: Logout during a network failure
+- **WHEN** the logout request fails with a network error or 5xx
+- **THEN** the user sees that sign-out failed, stays in the app, and can try again
+
+#### Scenario: Retry succeeds
+- **WHEN** a later logout request succeeds
+- **THEN** the session is revoked and the cookies are cleared
+
+### Requirement: Expired refresh records are removed
+
+Issuing a refresh token SHALL also delete that user's refresh records whose expiry has passed. A failure to delete SHALL NOT fail sign-in or refresh.
+
+#### Scenario: Expired rows at refresh
+- **WHEN** a user with expired refresh records signs in or refreshes
+- **THEN** those records are gone and unexpired records remain
+
+#### Scenario: Revoked but unexpired rows
+- **WHEN** a revoked record has not expired
+- **THEN** it remains, so a replay can still be recognized

@@ -57,11 +57,11 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-022 | Custom and non-public assets | Medium | ST-015 | Planned | None |
 | ST-023 | Multi-currency balance correctness | High | ST-001, ST-007 | Planned | None |
 | ST-024 | Group overview and Group Form View | Medium | ST-005 | Planned | None |
-| ST-025 | Access-token purpose validation | Critical | None | Planned | None |
-| ST-026 | Account identity and session hardening | High | ST-025 | Planned | None |
-| ST-027 | Financial data isolation | High | ST-025 | Planned | None |
-| ST-028 | Authenticated root routing and tokenless Google callback | Medium | ST-025 | Planned | None |
-| ST-029 | API and deployment hardening | Medium | ST-025 | Planned | None |
+| ST-025 | Access-token purpose validation | Critical | None | Complete | None |
+| ST-026 | Account identity and session hardening | High | ST-025 | Complete | None |
+| ST-027 | Financial data isolation | High | ST-025 | Complete | None |
+| ST-028 | Authenticated root routing and tokenless Google callback | Medium | ST-025 | Complete | None |
+| ST-029 | API and deployment hardening | Medium | ST-025 | Complete; owner settings open (KNOWN_ISSUES #046) | None |
 
 ST-012 (debit support) is retired and has no active row; see its note under the intent details. IDs are stable and are not reused or renumbered, so numeric order is not execution order.
 
@@ -762,7 +762,7 @@ So the missing data is the applied account amount when currencies differ, the de
 
 **Delivery:** Batches S-001 to S-005, each independently deployable. S-001 reaches `main` as soon as it's approved, without waiting for anything else.
 
-**Security disclosure rule:** The repository is public. The security planning commit stays local until the owner confirms ST-025 is live, and then the owner decides whether to publish the rest while lower-severity findings remain open.
+**Status:** Deployed to production on 2026-11-07. Owner follow-ups are in `docs/KNOWN_ISSUES.md` #046.
 
 ## Implementation Batches / PR Execution Plan
 
@@ -772,11 +772,11 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 |---|---|---|---|---|---|
 | B-001 | ST-001 | Enter, show, filter, group, and report transaction date and time in the client's timezone | None | L | Completed |
 | B-002 | ST-004, ST-002 | Neutral charcoal dark theme, and persistent login on trusted devices | None | M | Completed |
-| S-001 | ST-025 | Accept only access-purpose tokens with a real subject on authenticated routes | None | S | Planned |
-| S-002 | ST-026 | Stop linking Google by email, re-authenticate email changes, and add rate limits, replay response, and a host-only refresh cookie | S-001 | L | Planned |
-| S-003 | ST-027 | Narrow participant data, align user search, and add a cross-user isolation test suite | S-001 | M | Planned |
-| S-004 | ST-028 | Show signed-in users their dashboard at `/` and remove the access token from the Google callback | S-001 | S | Planned |
-| S-005 | ST-029 | Edge HTTPS, security headers, loopback binding, fail-closed webhooks, safe logs, and dependency updates | S-001 | M | Planned |
+| S-001 | ST-025 | Accept only access-purpose tokens with a real subject on authenticated routes | None | S | Complete |
+| S-002 | ST-026 | Stop linking Google by email, re-authenticate email changes, and add rate limits, replay response, and a host-only refresh cookie | S-001 | L | Complete |
+| S-003 | ST-027 | Narrow participant data, align user search, and add a cross-user isolation test suite | S-001 | M | Complete |
+| S-004 | ST-028 | Show signed-in users their dashboard at `/` and remove the access token from the Google callback | S-001 | S | Complete |
+| S-005 | ST-029 | Edge HTTPS, security headers, loopback binding, fail-closed webhooks, safe logs, and dependency updates | S-001 | M | Complete |
 | B-003 | ST-003, ST-009 | Convert an existing transaction to shared, and bulk delete with retention for imported transactions | S-001 to S-005 (sequencing only) | M | Planned |
 | B-004 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-003 | XL | Planned |
 | B-005 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |
@@ -792,7 +792,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-008 are the two XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-005 is sequenced after B-004 without a technical dependency, as explained in its details. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** S-001 is next, followed by S-002 to S-005, then B-003. B-001 and B-002 are complete; B-001 unlocks B-006. S-001 is an exception to the sequential rule's pace: it ships to `main` as soon as it's approved rather than waiting on any other batch.
+**Where to start:** B-003 is next. B-001, B-002, and S-001 to S-005 are complete; B-001 unlocks B-006.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
