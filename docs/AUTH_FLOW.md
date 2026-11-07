@@ -187,11 +187,23 @@ Authorization: Bearer <token>
 ```
 
 1. Extract token from `Authorization` header
-2. `jwt.verify(token, JWT_SECRET)` — throws on invalid/expired
-3. Set `req.user = { id: payload.sub, email: payload.email }`
+2. `verifyAccessToken(token)` (`auth/utils/tokens.ts`) — throws unless the signature and expiry are valid, the audience is `flowledger-access`, the algorithm is HS256, `sub` is a non-empty string, and `email` is a string
+3. Set `req.user` to the returned `{ id, email }`
 4. Call `next()`
 
 On failure: passes `HttpError(401)` to error handler.
+
+### Token purposes
+
+All JWTs share `JWT_SECRET`, so every verifier names its audience and algorithm, and each purpose is rejected by the others.
+
+| Purpose | Audience | Signed in | Verified in |
+|---|---|---|---|
+| Access token | `flowledger-access` | `auth/utils/tokens.ts` | `verifyAccessToken` |
+| Google OAuth state | `google-oauth` | `auth/providers/google/utils/googleState.ts` | `verifyGoogleState` |
+| MCP consent request | `oauth-consent` | `oauth/utils/consentRequest.ts` | `verifyConsentRequest` |
+
+The subject check matters because Prisma removes `undefined` from a `where`, so a request with no user id would otherwise lose its owner filter.
 
 The middleware is applied per-router, not globally. The `/providers/webhooks` and `/auth` routes are intentionally unauthenticated — `/auth/refresh` and `/auth/logout` in particular rely on the refresh cookie instead.
 

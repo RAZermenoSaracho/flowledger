@@ -18,6 +18,7 @@ import {
   refreshTokenCookieName,
   sessionPresenceCookieName
 } from "../utils/refreshTokenCookie.js";
+import { signGoogleState } from "../providers/google/utils/googleState.js";
 import { hashRefreshToken } from "../utils/tokens.js";
 
 // NOT run in this sandbox (no Docker) — see docs/TESTING.md.
@@ -296,6 +297,7 @@ describe("/auth routes", () => {
       const a = await registerWithSession(app);
       const expired = jwt.sign({ email: a.email }, env.JWT_SECRET, {
         subject: a.userId,
+        audience: "flowledger-access",
         expiresIn: -60
       });
 
@@ -304,6 +306,35 @@ describe("/auth routes", () => {
         .set("Authorization", `Bearer ${expired}`)
         .set("Cookie", a.cookie)
         .send(body(a.password));
+
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe("tokens issued for other purposes", () => {
+    it.each(["/notifications", "/transactions"])(
+      "returns 401 and no records from GET %s for a Google state token",
+      async (path) => {
+        const stateToken = signGoogleState({ nonce: "n", redirect: "/", keepLoggedIn: true });
+
+        const response = await request(app)
+          .get(path)
+          .set("Authorization", `Bearer ${stateToken}`);
+
+        expect(response.status).toBe(401);
+        expect(response.body).not.toHaveProperty("data");
+      }
+    );
+
+    it("returns 401 from GET /transactions for a consent-audience token", async () => {
+      const consentToken = jwt.sign({ cid: "x" }, env.JWT_SECRET, {
+        audience: "oauth-consent",
+        expiresIn: "10m"
+      });
+
+      const response = await request(app)
+        .get("/transactions")
+        .set("Authorization", `Bearer ${consentToken}`);
 
       expect(response.status).toBe(401);
     });

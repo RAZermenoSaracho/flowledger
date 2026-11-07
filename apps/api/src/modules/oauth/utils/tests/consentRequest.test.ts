@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { describe, expect, it } from "vitest";
 import { env } from "../../../../config/env.js";
+import { signAccessToken } from "../../../auth/utils/tokens.js";
 import { signConsentRequest, verifyConsentRequest } from "../consentRequest.js";
 
 const claims = {
@@ -23,8 +24,22 @@ describe("consent request JWT", () => {
     const wrongKey = jwt.sign(claims, "another-secret-0123456789", { audience: "oauth-consent" });
     const expired = jwt.sign(claims, env.JWT_SECRET, { audience: "oauth-consent", expiresIn: -1 });
     const badShape = jwt.sign({ cid: "x" }, env.JWT_SECRET, { audience: "oauth-consent" });
+    const wrongAlgorithm = jwt.sign(claims, env.JWT_SECRET, {
+      audience: "oauth-consent",
+      algorithm: "HS512"
+    });
+    const accessToken = signAccessToken({ id: "user-1", email: "user1@example.com" });
 
-    for (const token of [`${good}x`, wrongAud, wrongKey, expired, badShape, "garbage"]) {
+    for (const token of [
+      `${good}x`,
+      wrongAud,
+      wrongKey,
+      expired,
+      badShape,
+      wrongAlgorithm,
+      accessToken,
+      "garbage"
+    ]) {
       expect(() => verifyConsentRequest(token)).toThrowError(
         expect.objectContaining({ statusCode: 400 })
       );
