@@ -216,6 +216,29 @@ describe("getMonthlyCashflowReport", () => {
     expect(result.currency).toBe("MXN");
   });
 
+  it("buckets months in the requested timeZone", async () => {
+    prismaMock.transaction.findMany.mockResolvedValue([
+      {
+        date: new Date("2026-06-01T03:00:00.000Z"),
+        type: "income",
+        amount: { toNumber: () => 100 },
+        executionCurrency: "USD",
+        categoryId: "salary",
+        expenseOffsetCategoryId: null
+      }
+    ] as never);
+    convertAmountMock.mockResolvedValue(100);
+
+    const local = await getMonthlyCashflowReport("user-1", {
+      currency: "USD",
+      timeZone: "America/Mexico_City"
+    });
+    const utc = await getMonthlyCashflowReport("user-1", { currency: "USD" });
+
+    expect(local.cashflow.map((row) => row.month)).toEqual(["2026-05"]);
+    expect(utc.cashflow.map((row) => row.month)).toEqual(["2026-06"]);
+  });
+
   it("uses reportIncome/reportExpenses matching the requested amountMode", async () => {
     prismaMock.transaction.findMany.mockResolvedValue([
       {

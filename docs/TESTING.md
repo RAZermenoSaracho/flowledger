@@ -115,6 +115,58 @@ npm run test:coverage -w apps/api   # coverage for one workspace — writes apps
 
 ---
 
+## Running Docker-backed API tests on macOS (Vagrant VM)
+
+The macOS server this repo is developed on cannot run Docker natively, so the Docker-backed `apps/api` suites (module route tests, `src/tests/integration/`, `src/tests/e2e/`) use the existing Linux VM `docker-test-vm` (Vagrant + VirtualBox, host-only IP `192.168.56.20`, 2 vCPU, ~2 GB RAM). Vitest and Node run on macOS as usual; Testcontainers talks to the VM's Docker Engine over TCP and starts Postgres there. The VM has no Node and no copy of the repo, so tests are never run inside it. `~/scripts/docker-test-vm` and the IP are this machine's setup, not a repo convention.
+
+**1. Start and verify the VM**
+
+```bash
+cd ~/scripts/docker-test-vm && vagrant up
+vagrant status                      # expect: default  running (virtualbox)
+```
+
+**2. Verify the Docker Engine is reachable** (no Docker CLI or Docker Desktop needed)
+
+```bash
+curl -s http://192.168.56.20:2375/_ping    # expect: OK
+curl -s http://192.168.56.20:2375/info | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['NCPU'], d['MemTotal'], d['Containers'])"
+```
+
+**3. Run the suite** from the repo root. Both variables must be exported in the same shell that runs the tests; a new terminal tab does not inherit them.
+
+```bash
+export DOCKER_HOST=tcp://192.168.56.20:2375
+export TESTCONTAINERS_HOST_OVERRIDE=192.168.56.20
+npm run build -w packages/shared
+npm run test -w apps/api
+echo $?                             # expect: 0
+```
+
+**What a pass looks like.** The `Test Files` line must show no failed files, and the Docker-backed suites must actually have run. Do not judge by the `Tests` line alone: when a `beforeAll` hook fails, Vitest reports the file as failed but counts its tests as skipped, so `Tests` can show zero failures. A run with hundreds of skipped tests, failed files, or `Could not find a working container runtime strategy` means Docker was not reached; it is not a pass. A handful of intentionally skipped tests is normal. Exact totals change as suites are added, so do not compare against a fixed number. To confirm reachability mid-run, from another shell:
+
+```bash
+curl -s http://192.168.56.20:2375/containers/json    # expect a postgres:16-alpine container and a Ryuk container
+```
+
+**Troubleshooting**
+
+- `Could not find a working container runtime strategy`: the two variables are not exported in this shell. Re-export and rerun.
+- `_ping` fails or hangs: the VM is off (`vagrant status`) or the host-only network is down. Run `vagrant up`, then check that `192.168.56.20` responds and port `2375` is reachable (`nc -zv 192.168.56.20 2375`).
+- `apps/api` caps Vitest at `maxWorkers: 2` to match the VM's 2 vCPUs; more workers starve it and trip the 5s test / 10s hook timeouts.
+- `src/tests/helpers/loopback.setup.ts` points supertest at the address the server actually bound; on macOS, supertest's hardcoded `127.0.0.1` can reach an unrelated local process instead of the app (wrong 401/404, `socket hang up`).
+- Timeouts on a Docker-backed file: the VM is small, so heavy parallel container startup can be slow. Rerun that one file alone (`npm run test -w apps/api -- <path>`) to diagnose. If it fails again, treat it as a real failure.
+
+**Cleanup.** Testcontainers' Ryuk container removes test containers when the run ends. To check for leftovers:
+
+```bash
+curl -s "http://192.168.56.20:2375/containers/json?all=1"
+```
+
+When finished, stop only this VM, from its own directory: `cd ~/scripts/docker-test-vm && vagrant halt`. Never halt or touch `razs-services-vm` or any production infrastructure.
+
+---
+
 ## Writing a test
 
 ### API service unit test — mocked Prisma (`vitest-mock-extended`)

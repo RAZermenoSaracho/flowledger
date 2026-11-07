@@ -228,6 +228,31 @@ describe("TransactionsPage", () => {
     });
   });
 
+  it("groups a transaction under its local month at UTC-6", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Mexico_City";
+    try {
+      mockBaseline({
+        transactions: [
+          makeTransaction({ id: "tx-1", name: "Boundary", date: "2026-06-01T03:00:00.000Z" })
+        ]
+      });
+      const user = userEvent.setup();
+      renderWithProviders(<TransactionsPage />, { withAuth: true });
+
+      await waitFor(() => expect(screen.getByText("Boundary")).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+      await user.click(screen.getByLabelText("Month"));
+
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { level: 3, name: "2026-05" })).toBeInTheDocument()
+      );
+      expect(screen.queryByRole("heading", { level: 3, name: "2026-06" })).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("imports a single imported transaction end-to-end", async () => {
     mockBaseline({
       importedTransactions: [makeImportedTransaction({ categoryId: "cat-1" })],

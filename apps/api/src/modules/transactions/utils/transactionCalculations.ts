@@ -69,10 +69,20 @@ export function withAccountBalances<
   }));
 }
 
+/**
+ * Aggregates transactions into per-month cashflow buckets, optionally narrowed by category.
+ * Months are bucketed in `timeZone` (an IANA name), defaulting to UTC.
+ */
 export function calculateMonthlyCashflow(
   transactions: CashflowTransaction[],
-  filters: { categoryId?: string | null; categoryIds?: string[] | null } = {}
+  filters: { categoryId?: string | null; categoryIds?: string[] | null } = {},
+  timeZone = "UTC"
 ) {
+  const monthFormat = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit"
+  });
   const categoryIds =
     filters.categoryIds && filters.categoryIds.length
       ? filters.categoryIds
@@ -101,7 +111,8 @@ export function calculateMonthlyCashflow(
       continue;
     }
 
-    const month = transaction.date.toISOString().slice(0, 7);
+    const parts = monthFormat.formatToParts(transaction.date);
+    const month = `${parts.find(({ type }) => type === "year")!.value}-${parts.find(({ type }) => type === "month")!.value}`;
     const row = monthly.get(month) ?? {
       month,
       income: 0,

@@ -35,6 +35,22 @@ describe("transactionSearchFilterSchema", () => {
     expect(transactionSearchFilterSchema.safeParse({ dateFrom: "01/02/2024" }).success).toBe(false);
   });
 
+  it("accepts datetimes with Z or an offset and bare dates as bounds", () => {
+    expect(
+      transactionSearchFilterSchema.safeParse({
+        dateFrom: "2026-11-05T06:00:00.000Z",
+        dateTo: "2026-11-05T23:59:59-06:00"
+      }).success
+    ).toBe(true);
+    expect(
+      transactionSearchFilterSchema.safeParse({ dateFrom: "2026-11-05", dateTo: "2026-11-06" }).success
+    ).toBe(true);
+  });
+
+  it("rejects a datetime without a zone", () => {
+    expect(transactionSearchFilterSchema.safeParse({ dateTo: "2026-11-05T06:00:00" }).success).toBe(false);
+  });
+
   it("rejects unknown keys", () => {
     expect(transactionSearchFilterSchema.safeParse({ userId: "x" }).success).toBe(false);
   });

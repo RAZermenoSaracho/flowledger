@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   addChild,
   conditionValueText,
@@ -6,6 +6,7 @@ import {
   createCondition,
   createConditionWithValue,
   createEmptyGroup,
+  pruneIncompleteConditions,
   defaultValueForField,
   domainToSummaryText,
   domainToWhere,
@@ -315,16 +316,105 @@ describe("domainToWhere", () => {
     });
   });
 
-  it("leaves both bounds as strings for a between on a non-number field", () => {
+  it("leaves both bounds as strings for a between on a non-number, non-date field", () => {
     const node = conditionNode({
-      fieldName: "date",
+      fieldName: "name",
       operator: "between",
-      value: ["2024-01-01", "2024-01-31"]
+      value: ["a", "m"]
     });
-    expect(domainToWhere(node, [...fields, dateField])).toEqual({
-      field: "date",
+    expect(domainToWhere(node, fields)).toEqual({
+      field: "name",
       op: "between",
-      value: ["2024-01-01", "2024-01-31"]
+      value: ["a", "m"]
+    });
+  });
+
+  describe("date fields compile to local-day UTC boundaries", () => {
+    const dateFields = [...fields, dateField];
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it("compiles >= to the start of the local day", () => {
+      process.env.TZ = "Pacific/Kiritimati";
+      const node = conditionNode({ fieldName: "date", operator: ">=", value: "2026-11-05" });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        field: "date",
+        op: ">=",
+        value: "2026-11-04T10:00:00.000Z"
+      });
+    });
+
+    it("compiles <= to an exclusive bound at the start of the next local day", () => {
+      process.env.TZ = "Pacific/Kiritimati";
+      const node = conditionNode({ fieldName: "date", operator: "<=", value: "2026-11-05" });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        field: "date",
+        op: "<",
+        value: "2026-11-05T10:00:00.000Z"
+      });
+    });
+
+    it("compiles between to a half-open range covering both local days", () => {
+      process.env.TZ = "America/Los_Angeles";
+      const node = conditionNode({
+        fieldName: "date",
+        operator: "between",
+        value: ["2026-03-08", "2026-03-08"]
+      });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        and: [
+          { field: "date", op: ">=", value: "2026-03-08T08:00:00.000Z" },
+          { field: "date", op: "<", value: "2026-03-09T07:00:00.000Z" }
+        ]
+      });
+    });
+
+    it("compiles timed bounds with an inclusive upper minute", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({
+        fieldName: "date",
+        operator: "between",
+        value: ["2026-11-05T09:00", "2026-11-05T17:00"]
+      });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        and: [
+          { field: "date", op: ">=", value: "2026-11-05T15:00:00.000Z" },
+          { field: "date", op: "<", value: "2026-11-05T23:01:00.000Z" }
+        ]
+      });
+      expect(
+        domainToWhere(conditionNode({ fieldName: "date", operator: "<=", value: "2026-11-05T14:30" }), dateFields)
+      ).toEqual({ field: "date", op: "<", value: "2026-11-05T20:31:00.000Z" });
+    });
+
+    it("compiles mixed day and time bounds", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({
+        fieldName: "date",
+        operator: "between",
+        value: ["2026-11-05", "2026-11-06T08:00"]
+      });
+      expect(domainToWhere(node, dateFields)).toEqual({
+        and: [
+          { field: "date", op: ">=", value: "2026-11-05T06:00:00.000Z" },
+          { field: "date", op: "<", value: "2026-11-06T14:01:00.000Z" }
+        ]
+      });
+    });
+
+    it("leaves isNull untouched", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({ fieldName: "date", operator: "isNull", value: "" });
+      expect(domainToWhere(node, dateFields)).toEqual({ field: "date", op: "isNull" });
+    });
+
+    it("leaves a number field's between as numeric bounds", () => {
+      process.env.TZ = "America/Mexico_City";
+      const node = conditionNode({ fieldName: "amount", operator: "between", value: ["10", "20"] });
+      expect(domainToWhere(node, dateFields)).toEqual({ field: "amount", op: "between", value: [10, 20] });
     });
   });
 
@@ -662,5 +752,31 @@ describe("domainToSummaryText", () => {
       ]
     };
     expect(domainToSummaryText(group, fields)).toBe("(Name is groceries) OR (Amount greater than 10)");
+  });
+});
+
+describe("conditionValueText for date fields", () => {
+  it("formats day, time, and between values in the local locale", () => {
+    const text = (operator: DomainConditionNode["operator"], value: DomainConditionNode["value"]) =>
+      conditionValueText(dateField, conditionNode({ fieldName: "date", operator, value }));
+    expect(text("<=", "2026-11-05T14:30")).toBe("at most 11/5/2026, 2:30 PM");
+    expect(text(">=", "2026-11-05")).toBe(`at least ${new Date(2026, 10, 5).toLocaleDateString()}`);
+    expect(text("between", ["2026-11-05", "2026-11-06T08:00"])).toBe(
+      `is between ${new Date(2026, 10, 5).toLocaleDateString()} and 11/6/2026, 8:00 AM`
+    );
+    expect(text("isNull", "")).toBe("is empty ");
+  });
+});
+
+describe("pruneIncompleteConditions", () => {
+  it("removes incomplete conditions and groups left empty, keeps complete ones and isNull", () => {
+    const keep = createConditionWithValue("a", "=", "x");
+    const nullCond = createConditionWithValue("b", "isNull", "");
+    const inner = { ...createEmptyGroup("or"), children: [createConditionWithValue("c", "between", ["1", ""])] };
+    const root = {
+      ...createEmptyGroup("and"),
+      children: [keep, createConditionWithValue("d", "=", ""), nullCond, inner]
+    };
+    expect(pruneIncompleteConditions(root).children).toEqual([keep, nullCond]);
   });
 });

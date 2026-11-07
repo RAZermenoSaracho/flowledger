@@ -42,7 +42,7 @@ export function registerPersonalReadTools(server: McpServer, auth: McpAuth) {
     "get_report",
     {
       description:
-        "Run a report: `summary` (income/expense/balance), `by_category` (per-category breakdown) or `monthly_cashflow`. Optional date range, group/category and currency filters.",
+        "Run a report: `summary` (income/expense/balance), `by_category` (per-category breakdown) or `monthly_cashflow`. Optional date range, group/category and currency filters. A datetime dateTo is exclusive. Pass an IANA timeZone to bucket monthly_cashflow by local month (default UTC).",
       inputSchema: getReportToolSchema.shape,
       annotations: READ_ONLY
     },

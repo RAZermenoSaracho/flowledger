@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { Transaction } from "../../../../types/transactions.types";
 import { TransactionList } from "../TransactionList";
@@ -175,5 +175,58 @@ describe("TransactionList", () => {
     );
 
     expect(screen.getByText("$1,000.00")).toHaveClass("text-pine");
+  });
+
+  describe("date display", () => {
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    function renderOne(transaction: Transaction) {
+      renderWithProviders(
+        <TransactionList
+          groupedTransactions={[{ key: "k", label: "K", items: [transaction] }]}
+          totalCount={1}
+          isDeleting={false}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      );
+    }
+
+    function expectedDateTime(timeZone: string, iso: string) {
+      return new Date(iso).toLocaleString(undefined, {
+        timeZone,
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    it.each(["America/Mexico_City", "Pacific/Kiritimati"])(
+      "shows the local date and time in %s",
+      (zone) => {
+        process.env.TZ = zone;
+        const date = "2026-11-06T03:00:00.000Z";
+        renderOne(makeTransaction({ date }));
+        expect(
+          screen.getByText((content) => content.startsWith(`${expectedDateTime(zone, date)} ·`))
+        ).toBeInTheDocument();
+      }
+    );
+
+    it("shows no time for an unedited provider date at UTC noon", () => {
+      process.env.TZ = "America/Mexico_City";
+      const date = "2026-06-04T12:00:00.000Z";
+      renderOne(makeTransaction({ date, providerImportedTransaction: { transactionDate: date } }));
+      const shown = new Date(date).toLocaleDateString(undefined, { timeZone: "America/Mexico_City" });
+      expect(
+        screen.getByText((content) => content.startsWith(`${shown} ·`))
+      ).toBeInTheDocument();
+    });
   });
 });

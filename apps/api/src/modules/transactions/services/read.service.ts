@@ -221,7 +221,8 @@ const transactionInclude = {
   transferToAccount: true,
   category: true,
   expenseOffsetCategory: true,
-  group: true
+  group: true,
+  providerImportedTransaction: { select: { transactionDate: true } }
 } as const;
 
 /** Lists `userId`'s transactions matching the DSQL expression in `rawQuery` (the decoded `query` request param). */
@@ -285,6 +286,7 @@ export async function getTransactionById(userId: string, id: string) {
       category: true,
       expenseOffsetCategory: true,
       group: true,
+      providerImportedTransaction: { select: { transactionDate: true } },
       relations: { include: { relatedTransaction: true } },
       relatedBy: { include: { transaction: true } },
       sharedExpense: { include: { participants: true } }

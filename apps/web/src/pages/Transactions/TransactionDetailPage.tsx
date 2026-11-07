@@ -8,6 +8,7 @@ import {
   getTransaction
 } from "../../services/transactions.client";
 import { formatMoney } from "../../utils/currency";
+import { formatTransactionDate } from "../../utils/dateTime";
 import { formatEnumLabel } from "../../utils/enumLabels";
 import type { Transaction } from "../../types/transactions.types";
 
@@ -132,7 +133,7 @@ export function TransactionDetailPage() {
           <Detail label="Type" value={formatEnumLabel(transaction.type)} />
           <Detail
             label="Date"
-            value={new Date(transaction.date).toLocaleDateString()}
+            value={formatTransactionDate(transaction)}
           />
           <Detail
             label={transaction.type === "transfer" ? "From account" : "Account"}

@@ -26,6 +26,7 @@ import * as categoriesClient from "../../services/categories.client";
 import { listGroups } from "../../services/groups.client";
 import * as transactionsClient from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
+import { transactionDateInputValue } from "../../utils/dateTime";
 import type { TransactionsTab } from "./types/transactions.types";
 
 // groupByFields (components/SearchComponent.tsx) keys its group defs by
@@ -156,7 +157,7 @@ export function TransactionsPage() {
       };
     }
     if (groupById === "month") {
-      const month = transaction.date.slice(0, 7);
+      const month = transactionDateInputValue(transaction).slice(0, 7);
       return { key: month, label: month };
     }
     return { key: "", label: "" };

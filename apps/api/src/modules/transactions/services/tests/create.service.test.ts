@@ -88,6 +88,30 @@ describe("createTransaction", () => {
     expect(createSharedExpenseForTransactionMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["2026-11-05", "2026-11-05T00:00:00.000Z"],
+    ["2026-11-05T14:30:00-06:00", "2026-11-05T20:30:00.000Z"],
+    ["2026-11-05T20:30:00.000Z", "2026-11-05T20:30:00.000Z"]
+  ])("stores date %s as the UTC instant %s", async (input, expected) => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({
+      preferredCurrency: null
+    } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "USD",
+      exchangeRate: 1,
+      amountInPreferredCurrency: 100
+    });
+    const tx = mockTx();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    await createTransaction("user-1", { name: "Coffee", amount: 5, type: "expense", date: input });
+
+    const data = tx.transaction.create.mock.calls[0]?.[0].data as { date: Date };
+    expect(data.date.toISOString()).toBe(expected);
+  });
+
   it("creates the attached shared expense when sharedExpense is given", async () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       preferredCurrency: null

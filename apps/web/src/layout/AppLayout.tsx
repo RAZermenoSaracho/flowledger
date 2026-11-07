@@ -45,15 +45,12 @@ export function AppLayout() {
 
       <div className="min-w-0 flex-1">
         <AppHeader />
-        {/* overflow-y must be set explicitly alongside overflow-x: hidden —
-            per the CSS overflow spec, a "visible" axis paired with a
-            non-visible axis on the other computes to "auto" instead,
-            which would silently turn <main> into its own vertical scroll
-            container (nested inside the document's own scroll) on any
-            page tall enough to exceed it. Nested scroll containers are a
-            known trigger for iOS Safari misrendering `position: fixed`
-            elements (e.g. the bottom nav) on long pages. */}
-        <main className="mx-auto max-w-7xl min-w-0 overflow-x-hidden overflow-y-visible px-4 py-6 sm:px-6 lg:px-8">
+        {/* `overflow-x-clip` (not `-hidden`) on purpose: `hidden` on one axis
+            forces the other axis from `visible` to `auto`, turning <main>
+            into a scroll container that clips absolutely positioned menus
+            and nests a scroll inside the document's (an iOS Safari
+            `position: fixed` hazard). `clip` leaves the y axis visible. */}
+        <main className="mx-auto max-w-7xl min-w-0 overflow-x-clip px-4 py-6 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>

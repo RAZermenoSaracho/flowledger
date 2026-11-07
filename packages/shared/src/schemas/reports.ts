@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { currencyCodeSchema, optionalDateStringSchema } from "./common.js";
+import { currencyCodeSchema, optionalDateStringSchema, timeZoneSchema } from "./common.js";
 
 const optionalIdArraySchema = z
   .preprocess(
@@ -14,6 +14,7 @@ const optionalIdArraySchema = z
 export const reportFiltersSchema = z.object({
   dateFrom: optionalDateStringSchema,
   dateTo: optionalDateStringSchema,
+  timeZone: timeZoneSchema.optional(),
   groupIds: optionalIdArraySchema,
   categoryIds: optionalIdArraySchema,
   groupId: z.string().min(1).optional(),

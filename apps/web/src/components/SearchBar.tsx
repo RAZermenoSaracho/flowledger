@@ -87,7 +87,10 @@ export function SearchBar({
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isFilterBuilderOpen, setIsFilterBuilderOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
+  const [announcement, setAnnouncement] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -129,6 +132,35 @@ export function SearchBar({
         ? current.filter((id) => id !== groupById)
         : [...current, groupById]
     );
+  }
+
+  /** Single removal path for every chip: updates state, announces, and moves focus off the removed button. */
+  function removeChip(chip: { kind: "filter" | "group"; id: string; text: string }) {
+    if (chip.kind === "filter") setDomain((current) => removeNode(current, chip.id));
+    else toggleGroupBy(chip.id);
+    setAnnouncement(`Removed ${chip.text} filter`);
+    (inputRef.current ?? menuButtonRef.current)?.focus();
+  }
+
+  function groupChipText(groupById: string) {
+    const groupBy = groupableFields.find((entry) => entry.name === groupById);
+    return groupBy ? `Group by ${groupBy.label}` : null;
+  }
+
+  function removeLastChip() {
+    const lastGroupId = [...groupBys].reverse().find((id) => groupChipText(id) !== null);
+    if (lastGroupId) {
+      removeChip({ kind: "group", id: lastGroupId, text: groupChipText(lastGroupId)! });
+      return;
+    }
+    const lastFilter = domain.children[domain.children.length - 1];
+    if (lastFilter) {
+      removeChip({
+        kind: "filter",
+        id: lastFilter.id,
+        text: domainToSummaryText(lastFilter, fields)
+      });
+    }
   }
 
   function clearAll() {
@@ -181,18 +213,24 @@ export function SearchBar({
               <FilterPill
                 key={child.id}
                 text={domainToSummaryText(child, fields)}
-                onRemove={() => setDomain(removeNode(domain, child.id))}
+                onRemove={() =>
+                  removeChip({
+                    kind: "filter",
+                    id: child.id,
+                    text: domainToSummaryText(child, fields)
+                  })
+                }
               />
             ))}
 
             {groupBys.map((groupById) => {
-              const groupBy = groupableFields.find((entry) => entry.name === groupById);
-              if (!groupBy) return null;
+              const text = groupChipText(groupById);
+              if (!text) return null;
               return (
                 <FilterPill
                   key={`group-${groupById}`}
-                  text={`Group by ${groupBy.label}`}
-                  onRemove={() => toggleGroupBy(groupById)}
+                  text={text}
+                  onRemove={() => removeChip({ kind: "group", id: groupById, text })}
                 />
               );
             })}
@@ -201,6 +239,7 @@ export function SearchBar({
               <input
                 className="min-w-32 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-slate-400 dark:text-slate-100"
                 type="search"
+                ref={inputRef}
                 aria-label={placeholder}
                 placeholder={
                   domain.children.length === 0 && groupBys.length === 0 ? placeholder : ""
@@ -211,6 +250,20 @@ export function SearchBar({
                   if (event.key === "Enter") {
                     event.preventDefault();
                     commitSearchDraft();
+                    return;
+                  }
+                  if (
+                    event.key === "Backspace" &&
+                    searchDraft === "" &&
+                    !event.repeat &&
+                    !event.nativeEvent.isComposing &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
+                    !event.altKey &&
+                    !event.shiftKey
+                  ) {
+                    event.preventDefault();
+                    removeLastChip();
                   }
                 }}
               />
@@ -222,6 +275,7 @@ export function SearchBar({
           <button
             type="button"
             className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-slate-200 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            ref={menuButtonRef}
             aria-haspopup="menu"
             aria-expanded={isPanelOpen}
             aria-label="Filter, group, and sort"
@@ -315,6 +369,10 @@ export function SearchBar({
         ) : null}
       </div>
 
+      <span role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </span>
+
       {activeConditionCount > 0 || groupBys.length > 0 ? (
         <button
           type="button"
@@ -348,6 +406,12 @@ function FilterPill({ text, onRemove }: { text: string; onRemove: () => void }) 
         className="rounded-full text-pine/70 hover:text-pine dark:text-emerald-300/70 dark:hover:text-emerald-200"
         aria-label={`Remove ${text} filter`}
         onClick={onRemove}
+        onKeyDown={(event) => {
+          if ((event.key === "Backspace" || event.key === "Delete") && !event.repeat) {
+            event.preventDefault();
+            onRemove();
+          }
+        }}
       >
         <X className="h-3 w-3" aria-hidden="true" />
       </button>

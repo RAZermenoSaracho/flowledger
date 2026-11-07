@@ -1,7 +1,7 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import { server } from "../../../../tests/mocks/server";
 import type { Account } from "../../../../types/accounts.types";
@@ -100,6 +100,17 @@ function baseProps(overrides: Partial<Parameters<typeof TransactionFormCard>[0]>
 }
 
 describe("TransactionFormCard", () => {
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "America/Mexico_City";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+  });
+
   it("renders nothing when isOpen is false", () => {
     mockCurrencies();
     renderWithProviders(<TransactionFormCard {...baseProps({ isOpen: false })} />, {
@@ -131,34 +142,54 @@ describe("TransactionFormCard", () => {
     expect(cancelButton.closest("form")).not.toBeNull();
   });
 
-  it("defaults the date field to today's local date", () => {
+  it("defaults the date-and-time field to the current local date and time", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+    vi.setSystemTime(new Date("2026-11-06T03:07:00.000Z"));
     mockCurrencies();
     renderWithProviders(<TransactionFormCard {...baseProps()} />, { withAuth: true });
 
-    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
-    vi.useRealTimers();
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-11-05T21:07");
   });
 
-  it("resets the date field to today after Cancel, even if it was changed", async () => {
+  it("resets the date-and-time field to now after Cancel, even if it was changed", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date(2024, 2, 5));
+    vi.setSystemTime(new Date("2026-11-06T03:07:00.000Z"));
     mockCurrencies();
     const user = userEvent.setup({ delay: null });
-    // onClose is a no-op spy — isOpen never flips, so the component stays
-    // mounted and closeForm()'s setForm(emptyForm(...)) reset is observable
-    // directly, the same way it would be if the parent re-opened the form.
     renderWithProviders(<TransactionFormCard {...baseProps()} />, { withAuth: true });
 
-    await user.clear(screen.getByLabelText("Date"));
-    await user.type(screen.getByLabelText("Date"), "2024-01-15");
-    expect(screen.getByLabelText("Date")).toHaveValue("2024-01-15");
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2024-01-15T10:00" }
+    });
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2024-01-15T10:00");
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    expect(screen.getByLabelText("Date")).toHaveValue("2024-03-05");
-    vi.useRealTimers();
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-11-05T21:07");
+  });
+
+  it("sends the entered local date and time as a UTC instant", async () => {
+    mockCurrencies();
+    let postedBody: { date?: string } = {};
+    server.use(
+      http.post(`${API_URL}/transactions`, async ({ request }) => {
+        postedBody = (await request.json()) as { date?: string };
+        return HttpResponse.json({ transaction: { id: "tx-1" } });
+      })
+    );
+    const user = userEvent.setup();
+    const props = baseProps();
+    renderWithProviders(<TransactionFormCard {...props} />, { withAuth: true });
+
+    await user.type(screen.getByLabelText("Name"), "Dinner");
+    await user.type(screen.getByLabelText("Amount"), "10");
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2026-11-05T14:30" }
+    });
+    await user.click(screen.getByRole("button", { name: "Save transaction" }));
+
+    await waitFor(() => expect(props.onCreated).toHaveBeenCalled());
+    expect(postedBody.date).toBe("2026-11-05T20:30:00.000Z");
   });
 
   it("submits the form and calls onCreated/onClose on success", async () => {

@@ -76,4 +76,45 @@ describe("/reports routes", () => {
     expect(cashflowResponse.body.cashflow).toHaveLength(1);
     expect(cashflowResponse.body.cashflow[0]).toMatchObject({ income: 1000 });
   });
+
+  describe("monthly-cashflow timeZone", () => {
+    async function seedBoundaryTransaction() {
+      const { token } = await createAuthedUser(app);
+      await request(app)
+        .post("/transactions")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          name: "Boundary",
+          amount: 100,
+          type: "income",
+          date: "2026-06-01T03:00:00.000Z"
+        });
+      return token;
+    }
+
+    it("buckets by the requested timeZone and defaults to UTC", async () => {
+      const token = await seedBoundaryTransaction();
+      const get = (query: Record<string, string>) =>
+        request(app)
+          .get("/reports/monthly-cashflow")
+          .set("Authorization", `Bearer ${token}`)
+          .query({ currency: "USD", ...query });
+
+      const local = await get({ timeZone: "America/Mexico_City" });
+      expect(local.status).toBe(200);
+      expect(local.body.cashflow.map((row: { month: string }) => row.month)).toEqual(["2026-05"]);
+
+      const utc = await get({});
+      expect(utc.body.cashflow.map((row: { month: string }) => row.month)).toEqual(["2026-06"]);
+    });
+
+    it("rejects an invalid timeZone with 400", async () => {
+      const { token } = await createAuthedUser(app);
+      const response = await request(app)
+        .get("/reports/monthly-cashflow")
+        .set("Authorization", `Bearer ${token}`)
+        .query({ currency: "USD", timeZone: "Not/AZone" });
+      expect(response.status).toBe(400);
+    });
+  });
 });

@@ -200,6 +200,6 @@ describe("notification bell -> cross-page navigation (integration)", () => {
     // notificationTarget() resolves debt_owed_money to /debts?debtId=<id>,
     // which DebtsPage reads and redirects to /debts/balances/:personKey,
     // carrying the debtId along so the detail page can highlight the debt.
-    await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument(), { timeout: 5000 });
   });
 });

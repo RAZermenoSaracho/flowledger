@@ -152,4 +152,14 @@ describe("AppLayout", () => {
       expect(screen.queryByText("Dashboard content")).not.toBeInTheDocument();
     });
   });
+
+  it("clips <main> horizontally without making it a scroll container", () => {
+    mockBaseline();
+    renderLayout();
+
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("overflow-x-clip");
+    expect(main).not.toHaveClass("overflow-x-hidden");
+    expect(main.className).not.toMatch(/overflow-y-(auto|scroll|hidden)/);
+  });
 });

@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: "node",
     mockReset: true,
+    setupFiles: ["src/tests/helpers/loopback.setup.ts"],
+    // docker-test-vm has 2 vCPUs; default parallelism drives its load to ~30 and trips 5s test / 10s hook timeouts.
+    maxWorkers: 2,
     include: ["src/**/tests/**/*.test.ts"],
     coverage: {
       provider: "v8",

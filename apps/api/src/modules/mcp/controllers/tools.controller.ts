@@ -49,7 +49,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
     "search_transactions",
     {
       description:
-        "Search the user's transactions, newest first. Dates are YYYY-MM-DD and inclusive; pageSize max 100.",
+        "Search the user's transactions, newest first. A YYYY-MM-DD date means that whole UTC day. For a local day, send datetimes: dateFrom is inclusive and a datetime dateTo is exclusive. pageSize max 100.",
       inputSchema: transactionSearchFilterSchema.shape,
       annotations: READ_ONLY
     },
@@ -63,7 +63,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "get_transaction_summary",
     {
-      description: "Total income, expenses and balance of the user's transactions matching the filter.",
+      description: "Total income, expenses and balance of the user's transactions matching the filter. A YYYY-MM-DD date means that whole UTC day; dateFrom is inclusive and a datetime dateTo is exclusive.",
       inputSchema: transactionSummaryFilterSchema.shape,
       annotations: READ_ONLY
     },
@@ -78,7 +78,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "create_transaction",
     {
-      description: "Create a transaction for the user. Same rules as the FlowLedger web app.",
+      description: "Create a transaction for the user. Same rules as the FlowLedger web app. `date` is the execution time: a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC on that date.",
       inputSchema: baseTransactionSchema.shape
     },
     async (args) =>
@@ -92,7 +92,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "update_transaction",
     {
-      description: "Update fields of one of the user's transactions by id.",
+      description: "Update fields of one of the user's transactions by id. `date` is a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC; omit it to keep the stored time.",
       inputSchema: updateTransactionToolSchema.shape,
       annotations: { idempotentHint: true }
     },

@@ -1,3 +1,5 @@
+import { filterBoundInstant, formatFilterValue } from "./dateTime";
+
 // Generic, model-agnostic query domain for <SearchBar>/<FilterBuilder>
 // (src/components/). Nothing in this file knows about any specific
 // module's fields — every module passes its own SearchFieldConfig[]
@@ -202,6 +204,21 @@ export function isValueComplete(operator: Operator, value: ConditionValue): bool
   return value !== "";
 }
 
+/** Returns a copy of `root` with every incomplete condition removed (see {@link isValueComplete}) and any non-root group left empty by that, so an unfinished condition never lingers as a chip or hidden draft state. */
+export function pruneIncompleteConditions(root: DomainGroupNode): DomainGroupNode {
+  function walk(group: DomainGroupNode): DomainGroupNode {
+    const children = group.children.flatMap((child): DomainNode[] => {
+      if (child.type === "condition") {
+        return isValueComplete(child.operator, child.value) ? [child] : [];
+      }
+      const pruned = walk(child);
+      return pruned.children.length > 0 ? [pruned] : [];
+    });
+    return { ...group, children };
+  }
+  return walk(root);
+}
+
 // Every tree-editing helper below is immutable (returns a new root),
 // matching React state-update conventions.
 
@@ -259,12 +276,31 @@ function conditionToWhere(
   const targetFields = field?.expandsToFields ?? [node.fieldName];
   const isNumber = field?.type === "number";
   const isBoolean = field?.type === "boolean";
+  const isDate = field?.type === "date";
 
   function leafFor(targetField: string): WhereNode {
     // isNull/isNotNull are DSQL's NoValueOperator — the condition shape
     // never includes a `value` key at all, not even an empty one.
     if (node.operator === "isNull" || node.operator === "isNotNull") {
       return { field: targetField, op: node.operator };
+    }
+
+    if (isDate && node.operator === "between") {
+      const [from, to] = node.value as [string, string];
+      return {
+        and: [
+          { field: targetField, op: ">=", value: filterBoundInstant(from, "lower") },
+          { field: targetField, op: "<", value: filterBoundInstant(to, "upper") }
+        ]
+      };
+    }
+    if (isDate && (node.operator === ">=" || node.operator === "<=")) {
+      const upper = node.operator === "<=";
+      return {
+        field: targetField,
+        op: upper ? "<" : ">=",
+        value: filterBoundInstant(node.value as string, upper ? "upper" : "lower")
+      };
     }
 
     if (node.operator === "between") {
@@ -424,7 +460,8 @@ export function conditionValueText(field: SearchFieldConfig, node: DomainConditi
   const operatorLabel = OPERATOR_LABELS[node.operator] ?? node.operator;
 
   if (Array.isArray(node.value) && node.value.length === 2 && node.operator === "between") {
-    return `${operatorLabel} ${node.value[0]} and ${node.value[1]}`;
+    const [from, to] = field.type === "date" ? node.value.map(formatFilterValue) : node.value;
+    return `${operatorLabel} ${from} and ${to}`;
   }
 
   if (Array.isArray(node.value)) {
@@ -432,6 +469,10 @@ export function conditionValueText(field: SearchFieldConfig, node: DomainConditi
       (value) => field.options?.find((option) => option.value === value)?.label ?? value
     );
     return `${operatorLabel} ${labels.join(", ")}`;
+  }
+
+  if (field.type === "date" && node.value && node.operator !== "isNull" && node.operator !== "isNotNull") {
+    return `${operatorLabel} ${formatFilterValue(node.value)}`;
   }
 
   const label = field.options?.find((option) => option.value === node.value)?.label ?? node.value;

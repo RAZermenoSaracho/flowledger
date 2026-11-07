@@ -285,3 +285,77 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Both are withheld pending an operator decision because of the issues logged in #014 and #018.
 
 **Suggested fix:** Expose them once #014 and #018 are resolved.
+
+---
+
+## [OPEN] #024 — Legacy and date-only transactions display, filter, and bucket as UTC instants
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** `Transaction.date` records stored at UTC midnight; API `/v1` and MCP date-only writes; web display, filters, and monthly cashflow.
+
+**Description:** Existing UTC-midnight records and bare-date API/MCP writes are read as the instants they hold, so in negative UTC offsets they can show the previous local day, and those on the first of a month can count in the previous month.
+
+**Suggested fix:** No cleanup is planned. Rewriting or reinterpreting existing data needs separate approval.
+
+
+---
+
+## [OPEN] #025 — Syncfy dates arrive at exactly UTC noon with no execution time
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** Syncfy-imported transactions (`ProviderImportedTransaction.transactionDate` and linked `Transaction.date`).
+
+**Description:** All staging imported rows have `dt_transaction` at exactly UTC noon (confirmed only in local staging; production was not inspected). They display without a time while unedited, but the edit picker still shows a local time such as 6:00 AM. Filters and reports treat them as instants, and viewers at UTC+12 or beyond see the next calendar day.
+
+**Suggested fix:** Confirm the provider behavior in production, then decide whether provider dates need a date-only representation.
+
+
+---
+
+## [OPEN] #026 — `search_transactions`, `get_transaction_summary`, and report range filters have no timezone parameter
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** MCP `search_transactions` and `get_transaction_summary`; report range filters on REST and `/v1`.
+
+**Description:** Only monthly cashflow accepts `timeZone`. For other range filters, API clients must send datetimes to select a local day; bare dates mean whole UTC days.
+
+**Suggested fix:** Add an optional `timeZone` to these filters if API clients need local-day ranges without computing instants.
+
+
+---
+
+## [RESOLVED] #027 — `SYNCFY_AUTO_SYNC_ENABLED=false` enables the auto-sync scheduler
+
+**Found in:** `fix-transaction-date-display`.
+
+**Scope:** `apps/api/src/config/env.ts` (line 70) and the Syncfy auto-sync scheduler.
+
+**Description:** `SYNCFY_AUTO_SYNC_ENABLED` is parsed with `z.coerce.boolean()`, so the string `"false"` becomes `true` and the scheduler runs whenever the variable is set to any non-empty value, including `false`. During QA, a throwaway instance started with `false` ran one scheduler job that made one outbound Syncfy `GET /v1/accounts` call, which returned 402, and wrote no data.
+
+**Workaround:** Leave the variable empty or unset.
+
+**Suggested fix:** Parse the string explicitly (for example `z.enum(["true", "false"]).transform((v) => v === "true")`).
+
+**Resolution:** `fix-filter-usability-and-autosync-flag`: `SYNCFY_AUTO_SYNC_ENABLED` is parsed explicitly; `false` starts no scheduler and makes no Syncfy call, and an invalid value fails startup (verified in QA).
+
+
+---
+
+## [OPEN] #028 — Groups page filter modal appears behind parts of the selected group's form
+
+**Found in:** `fix-transaction-date-display` PR review. It is an existing production bug; this PR did not cause it.
+
+**Scope:** `apps/web/src/pages/Groups/GroupsPage.tsx`, `GroupsListCard.tsx`, and the shared `FilterBuilder` modal.
+
+**Description:** On the Groups page, opening the filter modal from the group list leaves it partly covered by the selected group's detail form, so stacking and overlap are wrong. The page shows the list and the detail side by side at `xl`, with the list column wrapped in `xl:sticky xl:top-6`. Not reproduced or verified in this session. Plausible: the sticky wrapper forms its own stacking context, so the modal's `fixed z-50` (`FilterBuilder.tsx`) is confined to it and can paint under positioned elements in the detail `Card`. `<main>` overflow changed in this PR (`overflow-x-clip`); there is no evidence it is involved.
+
+**Suggested fix:** Resolved by the Group overview redesign, ST-024 (B-004), which removes the side-by-side layout and sticky column.
+
+**Scope:** `apps/web/src/components/FilterBuilder.tsx` (the "Filters" modal).
+
+**Description:** The modal has no Escape-key handling and no focus management: Escape does nothing, focus is not moved in on open or returned to the trigger on close. Found in browser QA; present before the date-filter changes.
+
+**Suggested fix:** Close on Escape and return focus to the opener, matching the Reports popover.

@@ -65,6 +65,61 @@ describe("/groups routes", () => {
     expect(getResponse.status).toBe(200);
   });
 
+  it("scopes group detail transactions and their provider date to the caller", async () => {
+    const { prisma } = await import("../../../db/prisma.js");
+    const owner = await createAuthedUser(app);
+    const member = await createAuthedUser(app);
+    const createResponse = await request(app)
+      .post("/groups")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ name: "Imports" });
+    const groupId = createResponse.body.group.id as string;
+    await request(app)
+      .post(`/groups/${groupId}/members`)
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ userId: member.user.id });
+
+    const transaction = await prisma.transaction.create({
+      data: {
+        userId: owner.user.id,
+        groupId,
+        name: "Provider coffee",
+        amount: 12.5,
+        amountInPreferredCurrency: 12.5,
+        type: "expense",
+        date: new Date("2026-06-04T12:00:00.000Z")
+      }
+    });
+    await prisma.providerImportedTransaction.create({
+      data: {
+        userId: owner.user.id,
+        transactionId: transaction.id,
+        provider: "syncfy",
+        providerCredentialId: "cred-1",
+        providerAccountId: "acct-1",
+        providerTransactionId: `tx-${Date.now()}`,
+        description: "Provider coffee",
+        amount: -12.5,
+        currency: "USD",
+        transactionDate: new Date("2026-06-04T12:00:00.000Z"),
+        rawData: { secret: "must-not-leak" }
+      }
+    });
+
+    const ownerView = await request(app)
+      .get(`/groups/${groupId}`)
+      .set("Authorization", `Bearer ${owner.token}`);
+    expect(ownerView.body.group.transactions[0].providerImportedTransaction).toEqual({
+      transactionDate: "2026-06-04T12:00:00.000Z"
+    });
+
+    const memberView = await request(app)
+      .get(`/groups/${groupId}`)
+      .set("Authorization", `Bearer ${member.token}`);
+    expect(memberView.body.group.transactions).toEqual([]);
+    expect(JSON.stringify(memberView.body)).not.toContain("must-not-leak");
+  });
+
   it("rejects adding a member when the caller isn't a group admin", async () => {
     const owner = await createAuthedUser(app);
     const outsider = await createAuthedUser(app);

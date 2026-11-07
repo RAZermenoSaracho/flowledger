@@ -1,5 +1,6 @@
 import type { Group } from "../../../types/groups.types";
 import { formatMoney } from "../../../utils/currency";
+import { formatTransactionDate } from "../../../utils/dateTime";
 
 /** Section listing a group's recent transactions. */
 export function GroupTransactionsSection({
@@ -26,7 +27,7 @@ export function GroupTransactionsSection({
             </div>
             <p className="text-slate-500 dark:text-slate-400">
               {transaction.category?.name ?? "No group category"} ·{" "}
-              {new Date(transaction.date).toLocaleDateString()}
+              {formatTransactionDate(transaction)}
             </p>
           </div>
         ))}
