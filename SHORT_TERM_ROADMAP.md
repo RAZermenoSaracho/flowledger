@@ -34,7 +34,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 
 | ID | Intent | Priority | Dependencies | Status | Odoo Reference |
 |---|---|---|---|---|---|
-| ST-001 | Correct transaction execution date and time | High | None | Planned | Task #129 |
+| ST-001 | Correct transaction execution date and time | High | None | Completed | Task #129 |
 | ST-002 | "Keep me logged in on this device" | High | None | Planned | Task #128 |
 | ST-003 | Convert an existing transaction to shared | High | None | Planned | Task #127 |
 | ST-004 | Neutral charcoal dark theme | Medium | None | Planned | None |
@@ -745,7 +745,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 | Batch | Intent(s), in implementation order | Objective | Dependencies | Estimated Size | Status |
 |---|---|---|---|---|---|
-| B-001 | ST-001 | Enter, show, filter, group, and report transaction date and time in the client's timezone | None | L | Planned |
+| B-001 | ST-001 | Enter, show, filter, group, and report transaction date and time in the client's timezone | None | L | Completed |
 | B-002 | ST-004, ST-002 | Neutral charcoal dark theme, and persistent login on trusted devices | None | M | Planned |
 | B-003 | ST-003, ST-009 | Convert an existing transaction to shared, and bulk delete with retention for imported transactions | None | M | Planned |
 | B-004 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-003 | XL | Planned |
@@ -762,7 +762,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-008 are the two XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-005 is sequenced after B-004 without a technical dependency, as explained in its details. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** B-001 comes first. It fixes a confirmed problem that affects every user away from UTC, and merging it unlocks B-006.
+**Where to start:** B-002 is next. B-001 is complete, which unlocks B-006.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
