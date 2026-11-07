@@ -24,7 +24,8 @@ export const tokenStore = {
 export class ApiError extends Error {
   constructor(
     message: string,
-    public body?: unknown
+    public body?: unknown,
+    public status?: number
   ) {
     super(message);
   }
@@ -67,11 +68,10 @@ export function registerSessionExpiredHandler(handler: () => void) {
  * Attempts to obtain a fresh access token from the httpOnly refresh cookie
  * via `POST /auth/refresh`, storing it in `tokenStore` on success. Uses a
  * raw `fetch` (not `apiRequest`) so it can never recurse into itself, and
- * de-dupes concurrent callers onto a single in-flight request. On failure,
- * clears the now-unusable access token and notifies `sessionExpiredHandler`
- * — this function is only ever reached from `apiRequest`'s own 401 retry, so
- * a failure here always means a previously-active session just ended, never
- * "not signed in yet".
+ * de-dupes concurrent callers onto a single in-flight request. A 401 means
+ * the session ended, so it clears the access token and notifies
+ * `sessionExpiredHandler`. Any other failure resolves `false` and leaves the
+ * session alone, because a network error or 5xx says nothing about its validity.
  */
 export function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
@@ -80,20 +80,17 @@ export function refreshAccessToken(): Promise<boolean> {
       credentials: "include"
     })
       .then(async (response) => {
-        if (!response.ok) {
+        if (response.status === 401) {
           tokenStore.clear();
           sessionExpiredHandler?.();
           return false;
         }
+        if (!response.ok) return false;
         const data = (await response.json()) as { token: string };
         tokenStore.set(data.token);
         return true;
       })
-      .catch(() => {
-        tokenStore.clear();
-        sessionExpiredHandler?.();
-        return false;
-      })
+      .catch(() => false)
       .finally(() => {
         refreshPromise = null;
       });
@@ -106,7 +103,8 @@ export function refreshAccessToken(): Promise<boolean> {
  * Generic authenticated fetch wrapper used by every `<module>.client.ts`
  * function; attaches the bearer token, sends/receives the httpOnly refresh
  * cookie, and throws `ApiError` on non-2xx responses. On a 401 from any
- * non-`/auth` path, attempts one silent token refresh and retries the
+ * non-`/auth` path, or from `/auth/password` (an ordinary access-token route
+ * despite its prefix), attempts one silent token refresh and retries the
  * request before giving up.
  */
 export async function apiRequest<T>(
@@ -145,7 +143,9 @@ export async function apiRequest<T>(
     body: requestBody
   });
 
-  if (response.status === 401 && !isRetry && !path.startsWith("/auth/")) {
+  const isSessionEndpoint = path.startsWith("/auth/") && path !== "/auth/password";
+
+  if (response.status === 401 && !isRetry && !isSessionEndpoint) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       return apiRequest<T>(path, options, true);
@@ -156,7 +156,7 @@ export async function apiRequest<T>(
     const errorBody = (await response.json().catch(() => null)) as {
       message?: string;
     } | null;
-    throw new ApiError(errorBody?.message ?? "Request failed", errorBody);
+    throw new ApiError(errorBody?.message ?? "Request failed", errorBody, response.status);
   }
 
   if (response.status === 204) {

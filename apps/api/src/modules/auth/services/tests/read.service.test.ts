@@ -22,7 +22,7 @@ describe("authenticateUser", () => {
     prismaMock.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      authenticateUser({ email: "missing@example.com", password: "x" })
+      authenticateUser({ email: "missing@example.com", password: "x", keepLoggedIn: true })
     ).rejects.toThrow("Invalid email or password");
   });
 
@@ -33,7 +33,7 @@ describe("authenticateUser", () => {
     } as never);
 
     await expect(
-      authenticateUser({ email: "ada@example.com", password: "x" })
+      authenticateUser({ email: "ada@example.com", password: "x", keepLoggedIn: true })
     ).rejects.toThrow("Invalid email or password");
     expect(bcrypt.compare).not.toHaveBeenCalled();
   });
@@ -46,7 +46,7 @@ describe("authenticateUser", () => {
     vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
 
     await expect(
-      authenticateUser({ email: "ada@example.com", password: "wrong" })
+      authenticateUser({ email: "ada@example.com", password: "wrong", keepLoggedIn: true })
     ).rejects.toThrow("Invalid email or password");
   });
 
@@ -59,17 +59,37 @@ describe("authenticateUser", () => {
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     issueRefreshTokenMock.mockResolvedValue({
       token: "refresh-token",
-      expiresAt: new Date()
+      expiresAt: new Date(),
+      persistent: true
     });
 
     const result = await authenticateUser({
       email: "ada@example.com",
-      password: "correct"
+      password: "correct",
+      keepLoggedIn: true
     });
 
     expect(result.user).toMatchObject({ id: "user-1" });
     expect(result.refreshToken.token).toBe("refresh-token");
     expect(typeof result.token).toBe("string");
+  });
+
+  it.each([true, false])("passes keepLoggedIn=%s through to issueRefreshToken", async (keepLoggedIn) => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      email: "ada@example.com",
+      passwordHash: "hash"
+    } as never);
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    issueRefreshTokenMock.mockResolvedValue({
+      token: "refresh-token",
+      expiresAt: new Date(),
+      persistent: keepLoggedIn
+    });
+
+    await authenticateUser({ email: "ada@example.com", password: "correct", keepLoggedIn });
+
+    expect(issueRefreshTokenMock).toHaveBeenCalledWith("user-1", keepLoggedIn);
   });
 });
 

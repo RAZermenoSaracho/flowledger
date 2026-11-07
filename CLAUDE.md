@@ -53,7 +53,9 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `JWT_SECRET` | ≥16-char secret for signing tokens |
-| `JWT_EXPIRES_IN` | Token lifetime (default `7d`) |
+| `JWT_EXPIRES_IN` | Access token lifetime (default `15m`) |
+| `REFRESH_TOKEN_EXPIRES_IN_DAYS` | Persistent session lifetime (default `30`) |
+| `REFRESH_TOKEN_COOKIE_DOMAIN` | Parent domain for session cookies (optional) |
 | `API_PORT` | API listen port (default `4000`) |
 | `WEB_APP_URL` | Frontend origin (e.g. `http://localhost:5173`) |
 | `VITE_API_URL` | API base URL consumed by the web app |
@@ -69,7 +71,7 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 
 - **Provider abstraction layer** — All bank integrations go through `FinancialProviderAdapter` (`apps/api/src/modules/accounts/types/provider.types.ts`). Never hardcode Syncfy-specific logic outside `apps/api/src/modules/accounts/providers/syncfy/`. Providers live inside the module that owns their domain (e.g. Google OAuth under `auth/providers/google/`, Binance/Frankfurter under `currencies/providers/`) — see `apps/api/CLAUDE.md` for the full pattern.
 - **Imported transaction staging** — Provider transactions land in `ProviderImportedTransaction` (status `pending`) and only become user `Transaction` records after explicit review. This prevents accidental imports and preserves provider metadata.
-- **JWT auth only** — All authenticated routes require `Authorization: Bearer <token>`. The `requireAuth` middleware populates `req.user`. No session cookies.
+- **Short-lived JWT plus rotating refresh cookie** — Authenticated routes require `Authorization: Bearer <token>`, and `requireAuth` populates `req.user`. The access token lives only in memory; `/auth/*` renews it through an `HttpOnly` refresh cookie. See `docs/AUTH_FLOW.md`.
 - **Shared Zod schemas** — All request validation uses schemas from `@flowledger/shared`. Backend and frontend share the same contracts.
 - **User ownership enforcement** — Every data query scopes by `userId`. There are no admin bypass patterns.
 - **Webhook signature enforcement** — Syncfy webhook events are HMAC-verified before processing. Never remove this check.

@@ -1,11 +1,11 @@
-import { apiRequest, apiUrl, registerSessionExpiredHandler, tokenStore } from "./api.client";
+import { ApiError, apiRequest, apiUrl, registerSessionExpiredHandler, tokenStore } from "./api.client";
 import type { User } from "../types/users.types";
 
 /** Authenticates via email/password. */
-export function login(email: string, password: string) {
+export function login(email: string, password: string, keepLoggedIn: boolean) {
   return apiRequest<{ token: string; user: User }>("/auth/login", {
     method: "POST",
-    body: { email, password }
+    body: { email, password, keepLoggedIn }
   });
 }
 
@@ -22,11 +22,16 @@ export function getMe() {
   return apiRequest<{ user: User }>("/auth/me");
 }
 
-/** Silently restores a session from the httpOnly refresh cookie; throws if there is no valid refresh token. */
-export function refreshSession() {
-  return apiRequest<{ token: string; user: User }>("/auth/refresh", {
-    method: "POST"
-  });
+/** Silently restores a session from the httpOnly refresh cookie. Resolves `null` when the server rejects the session, and throws when it can't be reached or fails, since the session may still be valid. */
+export async function refreshSession() {
+  try {
+    return await apiRequest<{ token: string; user: User }>("/auth/refresh", {
+      method: "POST"
+    });
+  } catch (caught) {
+    if (caught instanceof ApiError && caught.status === 401) return null;
+    throw caught;
+  }
 }
 
 /** Revokes the refresh token server-side and clears the local access token; best-effort — local state is cleared even if the request fails. */
@@ -38,9 +43,9 @@ export async function logout() {
   }
 }
 
-/** Builds the Google OAuth start URL, encoding where to redirect after login. */
-export function googleOAuthUrl(redirect: string) {
-  return apiUrl(`/auth/google?redirect=${encodeURIComponent(redirect)}`);
+/** Builds the Google OAuth start URL, encoding where to redirect after login and the session mode. */
+export function googleOAuthUrl(redirect: string, keepLoggedIn: boolean) {
+  return apiUrl(`/auth/google?redirect=${encodeURIComponent(redirect)}&keepLoggedIn=${keepLoggedIn}`);
 }
 
 /**

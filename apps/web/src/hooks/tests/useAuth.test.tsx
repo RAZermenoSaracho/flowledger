@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { act } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { refreshAccessToken } from "../../services/api.client";
 import { getToken } from "../../services/auth.client";
 import { renderWithProviders } from "../../tests/utils/renderWithProviders";
@@ -23,12 +24,13 @@ const testUser: User = {
 };
 
 function Consumer() {
-  const { user, isInitializing, login, register, logout } = useAuth();
+  const { user, isInitializing, isSessionUnavailable, login, register, logout } = useAuth();
   return (
     <div>
       <span data-testid="initializing">{String(isInitializing)}</span>
+      <span data-testid="unavailable">{String(isSessionUnavailable)}</span>
       <span data-testid="user-email">{user?.email ?? "none"}</span>
-      <button onClick={() => login("jane@example.com", "password123")}>Login</button>
+      <button onClick={() => login("jane@example.com", "password123", true)}>Login</button>
       <button onClick={() => register("Jane Doe", "jane@example.com", "password123")}>
         Register
       </button>
@@ -223,6 +225,87 @@ describe("useAuth", () => {
     await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
     expect(queryClient.getQueryData(["current-session-data"])).toBeUndefined();
     expect(getToken()).toBeNull();
+  });
+});
+
+describe("session availability", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("stays unavailable after a 502, then restores the user on the 5s retry", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => {
+        calls += 1;
+        return calls === 1
+          ? new HttpResponse(null, { status: 502 })
+          : HttpResponse.json({ token: "tok", user: testUser });
+      })
+    );
+
+    renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() => expect(screen.getByTestId("unavailable")).toHaveTextContent("true"));
+    expect(screen.getByTestId("initializing")).toHaveTextContent("false");
+    expect(screen.getByTestId("user-email")).toHaveTextContent("none");
+
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    expect(screen.getByTestId("unavailable")).toHaveTextContent("false");
+    expect(calls).toBe(2);
+  });
+
+  it("treats a 401 as signed out, not unavailable", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 }))
+    );
+
+    renderWithProviders(<Consumer />, { withAuth: true });
+
+    await waitFor(() => expect(screen.getByTestId("initializing")).toHaveTextContent("false"));
+    expect(screen.getByTestId("user-email")).toHaveTextContent("none");
+    expect(screen.getByTestId("unavailable")).toHaveTextContent("false");
+  });
+
+  it("clears the retry timer on unmount so no further request is made", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let calls = 0;
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => {
+        calls += 1;
+        return new HttpResponse(null, { status: 502 });
+      })
+    );
+
+    const { unmount } = renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() => expect(screen.getByTestId("unavailable")).toHaveTextContent("true"));
+    unmount();
+
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(calls).toBe(1);
+  });
+
+  it("keeps the user signed in when a mid-session refresh gets a 502", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "tok", user: testUser })
+      )
+    );
+
+    renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 502 }))
+    );
+    expect(await refreshAccessToken()).toBe(false);
+
+    expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com");
+    expect(getToken()).toBe("tok");
   });
 });
 

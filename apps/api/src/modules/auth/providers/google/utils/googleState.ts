@@ -21,5 +21,9 @@ export function verifyGoogleState(stateToken: string) {
     throw new HttpError(400, "Invalid OAuth state");
   }
 
-  return { nonce: payload.nonce, redirect: payload.redirect };
+  return {
+    nonce: payload.nonce,
+    redirect: payload.redirect,
+    keepLoggedIn: payload.keepLoggedIn !== false
+  };
 }

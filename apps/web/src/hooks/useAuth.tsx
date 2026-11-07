@@ -14,40 +14,55 @@ type AuthContextValue = {
   user: User | null;
   /** True until the boot-time silent `/auth/refresh` attempt has settled; protected routes should wait for this before deciding to redirect to login. */
   isInitializing: boolean;
+  /** True while the session couldn't be checked because the API was unreachable or failing; restoring retries automatically until it gets an answer. */
+  isSessionUnavailable: boolean;
   setUser: (user: User | null) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, keepLoggedIn: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const SESSION_RETRY_MS = 5000;
+
 /** React context provider holding the authenticated user and login/register/logout actions; restores a session from the httpOnly refresh cookie on mount. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isSessionUnavailable, setIsSessionUnavailable] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    authClient
-      .refreshSession()
-      .then((response) => {
-        if (!cancelled) {
-          authClient.setToken(response.token);
-          setUser(response.user);
-        }
-      })
-      .catch(() => {
-        // No valid refresh cookie — the user simply isn't signed in yet.
-      })
-      .finally(() => {
-        if (!cancelled) setIsInitializing(false);
-      });
+    function restoreSession() {
+      authClient
+        .refreshSession()
+        .then((session) => {
+          if (cancelled) return;
+          if (session) {
+            authClient.setToken(session.token);
+            setUser(session.user);
+          }
+          setIsSessionUnavailable(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setIsSessionUnavailable(true);
+          retryTimer = setTimeout(restoreSession, SESSION_RETRY_MS);
+        })
+        .finally(() => {
+          if (!cancelled) setIsInitializing(false);
+        });
+    }
+
+    restoreSession();
 
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
     };
   }, []);
 
@@ -66,9 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isInitializing,
+      isSessionUnavailable,
       setUser,
-      login: async (email, password) => {
-        const response = await authClient.login(email, password);
+      login: async (email, password, keepLoggedIn) => {
+        const response = await authClient.login(email, password, keepLoggedIn);
         authClient.setToken(response.token);
         queryClient.clear();
         setUser(response.user);
@@ -85,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       }
     }),
-    [user, isInitializing, queryClient]
+    [user, isInitializing, isSessionUnavailable, queryClient]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

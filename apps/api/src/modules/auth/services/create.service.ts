@@ -3,11 +3,17 @@ import { HttpError } from "../../../utils/httpError.js";
 import { generateRefreshToken, signAccessToken } from "../utils/tokens.js";
 import bcrypt from "bcryptjs";
 
-/** Persists a new refresh token for `userId`, returning its plaintext value and expiry. */
-export async function issueRefreshToken(userId: string) {
-  const { token, tokenHash, expiresAt } = generateRefreshToken();
-  await prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
-  return { token, expiresAt };
+/** Persists a new refresh token for `userId`, returning what the session cookies need. `previousTokenId` links a rotated token to the one it replaces. */
+export async function issueRefreshToken(
+  userId: string,
+  persistent: boolean,
+  previousTokenId?: string
+) {
+  const { token, tokenHash, expiresAt } = generateRefreshToken(persistent);
+  await prisma.refreshToken.create({
+    data: { userId, tokenHash, expiresAt, persistent, previousTokenId }
+  });
+  return { token, expiresAt, persistent };
 }
 
 /** Creates a new user with a hashed password and issues an access+refresh token pair; throws 409 if the email is already registered. */
@@ -33,6 +39,6 @@ export async function registerUser(input: {
     }
   });
 
-  const refreshToken = await issueRefreshToken(user.id);
+  const refreshToken = await issueRefreshToken(user.id, true);
   return { token: signAccessToken(user), refreshToken, user };
 }

@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
+import { hashRefreshToken } from "../../auth/utils/tokens.js";
 import { imageExtension } from "../utils/imageExtension.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -83,10 +84,11 @@ export async function uploadAvatar(
   });
 }
 
-/** Changes a user's password after verifying `input.currentPassword` against the stored hash. */
+/** Changes a user's password after verifying `input.currentPassword` (400 on mismatch), and atomically revokes every refresh token except `currentRefreshToken`, or all of them if it is absent. */
 export async function updatePassword(
   userId: string,
-  input: UpdateUserPasswordInput
+  input: UpdateUserPasswordInput,
+  currentRefreshToken?: string
 ) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const isCurrentPasswordValid = user.passwordHash
@@ -94,14 +96,23 @@ export async function updatePassword(
     : false;
 
   if (!isCurrentPasswordValid) {
-    throw new HttpError(401, "Current password is incorrect");
+    throw new HttpError(400, "Current password is incorrect");
   }
 
   const passwordHash = await bcrypt.hash(input.newPassword, 12);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash }
-  });
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+    prisma.refreshToken.updateMany({
+      where: {
+        userId,
+        revokedAt: null,
+        ...(currentRefreshToken
+          ? { tokenHash: { not: hashRefreshToken(currentRefreshToken) } }
+          : {})
+      },
+      data: { revokedAt: new Date() }
+    })
+  ]);
 }
 
 /** Updates a user's plan tier. */

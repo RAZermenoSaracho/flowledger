@@ -14,10 +14,10 @@ import { exchangeGoogleCode, verifyGoogleIdentity } from "./google.client.js";
 
 const googleOAuthProvider = "google";
 
-/** Builds the Google consent-screen URL, embedding a signed state JWT carrying a fresh nonce and the post-login `redirect` path. */
-export function buildGoogleAuthUrl(redirect: string) {
+/** Builds the Google consent-screen URL, embedding a signed state JWT carrying a fresh nonce the post-login `redirect` path, and the session mode. */
+export function buildGoogleAuthUrl(redirect: string, keepLoggedIn: boolean) {
   const nonce = randomBytes(32).toString("base64url");
-  const state = signGoogleState({ nonce, redirect });
+  const state = signGoogleState({ nonce, redirect, keepLoggedIn });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 
   url.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
@@ -104,7 +104,7 @@ export async function handleGoogleCallback(input: {
     googleTokens.access_token
   );
   const user = await findOrCreateGoogleUser(googleProfile);
-  const refreshToken = await issueRefreshToken(user.id);
+  const refreshToken = await issueRefreshToken(user.id, state.keepLoggedIn);
 
   return { token: signAccessToken(user), refreshToken, redirect: state.redirect };
 }

@@ -6,19 +6,19 @@ vi.mock("../../services/create.service.js", () => ({
 }));
 
 vi.mock("../../utils/refreshTokenCookie.js", () => ({
-  buildRefreshTokenCookie: vi.fn()
+  buildSessionCookies: vi.fn()
 }));
 
 const { registerUser } = await import("../../services/create.service.js");
-const { buildRefreshTokenCookie } = await import("../../utils/refreshTokenCookie.js");
+const { buildSessionCookies } = await import("../../utils/refreshTokenCookie.js");
 const { register } = await import("../create.controller.js");
 
 describe("register", () => {
-  it("registers the user, sets the refresh cookie, and responds 201 without the password hash", async () => {
-    vi.mocked(buildRefreshTokenCookie).mockReturnValue("flowledger_refresh_token=x");
+  it("registers the user, sets both session cookies, and responds 201 without the password hash", async () => {
+    vi.mocked(buildSessionCookies).mockReturnValue(["refresh=x", "presence=1"]);
     vi.mocked(registerUser).mockResolvedValue({
       token: "access-token",
-      refreshToken: { token: "refresh-token", expiresAt: new Date() },
+      refreshToken: { token: "refresh-token", expiresAt: new Date(), persistent: true },
       user: { id: "user-1", email: "ada@example.com", passwordHash: "secret" }
     } as never);
     const res = mockResponse();
@@ -28,11 +28,12 @@ describe("register", () => {
       res
     );
 
-    expect(buildRefreshTokenCookie).toHaveBeenCalledWith(
-      "refresh-token",
-      expect.any(Date)
-    );
-    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "flowledger_refresh_token=x");
+    expect(buildSessionCookies).toHaveBeenCalledWith({
+      token: "refresh-token",
+      expiresAt: expect.any(Date),
+      persistent: true
+    });
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", ["refresh=x", "presence=1"]);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       token: "access-token",

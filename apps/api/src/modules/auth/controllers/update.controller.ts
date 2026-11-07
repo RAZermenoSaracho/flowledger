@@ -3,7 +3,7 @@ import { HttpError } from "../../../utils/httpError.js";
 import { publicUser } from "../../../utils/serialize.js";
 import { rotateRefreshToken } from "../services/update.service.js";
 import {
-  buildRefreshTokenCookie,
+  buildSessionCookies,
   readRefreshTokenCookie
 } from "../utils/refreshTokenCookie.js";
 
@@ -19,9 +19,6 @@ export async function refresh(req: Request, res: Response) {
     plaintextRefreshToken
   );
 
-  res.setHeader(
-    "Set-Cookie",
-    buildRefreshTokenCookie(refreshToken.token, refreshToken.expiresAt)
-  );
+  res.setHeader("Set-Cookie", buildSessionCookies(refreshToken));
   res.json({ token, user: publicUser(user) });
 }

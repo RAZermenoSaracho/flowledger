@@ -2,12 +2,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../../hooks/useAuth";
 import { server } from "../../tests/mocks/server";
 import { ProtectedRoute } from "../ProtectedRoute";
 
 const API_URL = "http://localhost:4000";
+
+let authOverride: Record<string, unknown> | null = null;
+
+vi.mock("../../hooks/useAuth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../hooks/useAuth")>();
+  return { ...actual, useAuth: () => authOverride ?? actual.useAuth() };
+});
 
 function LoginProbe() {
   const location = useLocation();
@@ -40,6 +47,10 @@ function renderProtected(initial = "/protected") {
 }
 
 describe("ProtectedRoute", () => {
+  afterEach(() => {
+    authOverride = null;
+  });
+
   it("renders nothing while the boot-time session restore is still in flight", () => {
     server.use(
       http.post(`${API_URL}/auth/refresh`, async () => {
@@ -99,5 +110,26 @@ describe("ProtectedRoute", () => {
     renderProtected();
 
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+  });
+
+  it("shows a status message instead of redirecting while the session is unavailable", async () => {
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 502 }))
+    );
+
+    renderProtected();
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/reconnecting/i);
+    expect(screen.queryByText(/Login page/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("renders children when a user is present even if the session is flagged unavailable", () => {
+    authOverride = { user: { id: "user-1" }, isInitializing: false, isSessionUnavailable: true };
+
+    renderProtected();
+
+    expect(screen.getByText("Protected content")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

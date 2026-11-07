@@ -128,7 +128,7 @@ describe("auth flow (e2e)", () => {
     const user = userEvent.setup();
     render(<App initialEntry="/login" />);
 
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
+    await user.type(await screen.findByLabelText("Email"), "jane@example.com");
     await user.type(screen.getByLabelText("Password"), "password123");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 

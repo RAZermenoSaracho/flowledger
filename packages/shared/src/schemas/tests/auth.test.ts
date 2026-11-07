@@ -39,6 +39,23 @@ describe("loginSchema", () => {
     ).toBe(true);
   });
 
+  it("defaults keepLoggedIn to true", () => {
+    expect(loginSchema.parse({ email: "ada@example.com", password: "x" }).keepLoggedIn).toBe(true);
+  });
+
+  it("accepts keepLoggedIn=false", () => {
+    expect(
+      loginSchema.parse({ email: "ada@example.com", password: "x", keepLoggedIn: false })
+        .keepLoggedIn
+    ).toBe(false);
+  });
+
+  it("rejects a non-boolean keepLoggedIn", () => {
+    expect(
+      loginSchema.safeParse({ email: "ada@example.com", password: "x", keepLoggedIn: "no" }).success
+    ).toBe(false);
+  });
+
   it("rejects an empty password", () => {
     expect(
       loginSchema.safeParse({ email: "ada@example.com", password: "" }).success
@@ -49,6 +66,18 @@ describe("loginSchema", () => {
 describe("googleOAuthStartQuerySchema", () => {
   it("defaults redirect to '/'", () => {
     expect(googleOAuthStartQuerySchema.parse({})).toEqual({ redirect: "/" });
+  });
+
+  it.each(["true", "false"])("accepts keepLoggedIn=%s", (value) => {
+    expect(googleOAuthStartQuerySchema.parse({ keepLoggedIn: value }).keepLoggedIn).toBe(value);
+  });
+
+  it("leaves keepLoggedIn undefined when omitted", () => {
+    expect(googleOAuthStartQuerySchema.parse({}).keepLoggedIn).toBeUndefined();
+  });
+
+  it.each(["yes", "1", "TRUE", ""])("rejects keepLoggedIn=%j", (value) => {
+    expect(googleOAuthStartQuerySchema.safeParse({ keepLoggedIn: value }).success).toBe(false);
   });
 
   it("accepts an app-relative path", () => {

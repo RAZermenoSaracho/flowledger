@@ -5,15 +5,29 @@ import { signGoogleState, verifyGoogleState } from "../googleState.js";
 
 describe("signGoogleState / verifyGoogleState", () => {
   it("round-trips a valid state payload", () => {
-    const token = signGoogleState({ nonce: "abc", redirect: "/dashboard" });
+    const token = signGoogleState({ nonce: "abc", redirect: "/dashboard", keepLoggedIn: true });
     expect(verifyGoogleState(token)).toEqual({
       nonce: "abc",
-      redirect: "/dashboard"
+      redirect: "/dashboard",
+      keepLoggedIn: true
     });
   });
 
+  it("round-trips keepLoggedIn=false as false", () => {
+    const token = signGoogleState({ nonce: "abc", redirect: "/", keepLoggedIn: false });
+    expect(verifyGoogleState(token).keepLoggedIn).toBe(false);
+  });
+
+  it("reads a state signed without keepLoggedIn as true", () => {
+    const token = jwt.sign({ nonce: "abc", redirect: "/" }, env.JWT_SECRET, {
+      audience: "google-oauth",
+      expiresIn: "10m"
+    });
+    expect(verifyGoogleState(token).keepLoggedIn).toBe(true);
+  });
+
   it("scopes the signed token to the google-oauth audience", () => {
-    const token = signGoogleState({ nonce: "abc", redirect: "/" });
+    const token = signGoogleState({ nonce: "abc", redirect: "/", keepLoggedIn: true });
     const payload = jwt.verify(token, env.JWT_SECRET, {
       audience: "google-oauth"
     });

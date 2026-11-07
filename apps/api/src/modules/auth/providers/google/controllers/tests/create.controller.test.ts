@@ -15,13 +15,14 @@ vi.mock("../../utils/googleStateCookie.js", () => ({
 }));
 
 vi.mock("../../../../utils/refreshTokenCookie.js", () => ({
-  buildRefreshTokenCookie: vi.fn()
+  buildSessionCookies: vi.fn()
 }));
 
 const { buildGoogleAuthUrl, handleGoogleCallback } = await import(
   "../../services/create.service.js"
 );
 const { googleStateCookie } = await import("../../utils/googleStateCookie.js");
+const { buildSessionCookies } = await import("../../../../utils/refreshTokenCookie.js");
 const { googleOAuthCallback, googleOAuthStart } = await import(
   "../create.controller.js"
 );
@@ -37,11 +38,33 @@ describe("googleOAuthStart", () => {
 
     await googleOAuthStart(mockRequest({ query: { redirect: "/dashboard" } }), res);
 
-    expect(buildGoogleAuthUrl).toHaveBeenCalledWith("/dashboard");
+    expect(buildGoogleAuthUrl).toHaveBeenCalledWith("/dashboard", true);
     expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "google-state-cookie");
     expect(res.redirect).toHaveBeenCalledWith(
       "https://accounts.google.com/o/oauth2/v2/auth?x=1"
     );
+  });
+
+  it("passes keepLoggedIn=false when the query says \"false\"", async () => {
+    vi.mocked(buildGoogleAuthUrl).mockReturnValue({ nonce: "n", url: "https://x" });
+
+    await googleOAuthStart(
+      mockRequest({ query: { redirect: "/", keepLoggedIn: "false" } }),
+      mockResponse()
+    );
+
+    expect(buildGoogleAuthUrl).toHaveBeenCalledWith("/", false);
+  });
+
+  it("passes keepLoggedIn=true when the query says \"true\"", async () => {
+    vi.mocked(buildGoogleAuthUrl).mockReturnValue({ nonce: "n", url: "https://x" });
+
+    await googleOAuthStart(
+      mockRequest({ query: { redirect: "/", keepLoggedIn: "true" } }),
+      mockResponse()
+    );
+
+    expect(buildGoogleAuthUrl).toHaveBeenCalledWith("/", true);
   });
 });
 
@@ -49,9 +72,11 @@ describe("googleOAuthCallback", () => {
   it("redirects to the web app with a token fragment on success", async () => {
     vi.mocked(handleGoogleCallback).mockResolvedValue({
       token: "access-token",
-      refreshToken: { token: "refresh-token", expiresAt: new Date() },
+      refreshToken: { token: "refresh-token", expiresAt: new Date(), persistent: false },
       redirect: "/dashboard"
     });
+    vi.mocked(googleStateCookie).mockReturnValue("cleared-state");
+    vi.mocked(buildSessionCookies).mockReturnValue(["refresh=x", "presence=1"]);
     const res = mockResponse();
 
     await googleOAuthCallback(
@@ -59,6 +84,15 @@ describe("googleOAuthCallback", () => {
       res
     );
 
+    expect(buildSessionCookies).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "refresh-token", persistent: false })
+    );
+    expect(googleStateCookie).toHaveBeenCalledWith("", 0);
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", [
+      "cleared-state",
+      "refresh=x",
+      "presence=1"
+    ]);
     expect(res.redirect).toHaveBeenCalledWith(
       expect.stringContaining("/auth/oauth/callback")
     );

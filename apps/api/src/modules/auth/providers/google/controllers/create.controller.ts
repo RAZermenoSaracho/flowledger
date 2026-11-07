@@ -7,7 +7,7 @@ import { env } from "../../../../../config/env.js";
 import { HttpError } from "../../../../../utils/httpError.js";
 import { buildGoogleAuthUrl, handleGoogleCallback } from "../services/create.service.js";
 import { googleStateCookie } from "../utils/googleStateCookie.js";
-import { buildRefreshTokenCookie } from "../../../utils/refreshTokenCookie.js";
+import { buildSessionCookies } from "../../../utils/refreshTokenCookie.js";
 
 function redirectOAuthFailure(res: Response, message: string) {
   const url = new URL("/login", env.WEB_APP_URL);
@@ -18,7 +18,10 @@ function redirectOAuthFailure(res: Response, message: string) {
 /** Sets a short-lived state cookie and redirects the browser to Google's OAuth consent screen. */
 export async function googleOAuthStart(req: Request, res: Response) {
   const query = req.query as unknown as GoogleOAuthStartQuery;
-  const { nonce, url } = buildGoogleAuthUrl(query.redirect);
+  const { nonce, url } = buildGoogleAuthUrl(
+    query.redirect,
+    query.keepLoggedIn !== "false"
+  );
 
   res.setHeader("Set-Cookie", googleStateCookie(nonce, 10 * 60));
   res.redirect(url);
@@ -41,7 +44,7 @@ export async function googleOAuthCallback(req: Request, res: Response) {
 
     res.setHeader("Set-Cookie", [
       googleStateCookie("", 0),
-      buildRefreshTokenCookie(refreshToken.token, refreshToken.expiresAt)
+      ...buildSessionCookies(refreshToken)
     ]);
     res.redirect(redirectUrl.toString());
   } catch (caught) {

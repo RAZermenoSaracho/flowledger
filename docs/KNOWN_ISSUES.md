@@ -92,7 +92,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Description:** Web login has no rate limiting. Refresh tokens are rotated, but there is no token family tracking or reuse detection to revoke a session after a previously used token is replayed.
 
-**Suggested fix:** Rate-limit login attempts and add refresh token family tracking with reuse detection and family revocation.
+**Suggested fix:** Rate-limit login attempts and add refresh token family tracking with reuse detection and family revocation. Since B-002, a rotated token stays valid until its successor is first used, and `RefreshToken.previousTokenId` links one rotation step, so detection should treat replay of a token with an unused successor as legitimate.
 
 ---
 
@@ -359,3 +359,51 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** The modal has no Escape-key handling and no focus management: Escape does nothing, focus is not moved in on open or returned to the trigger on close. Found in browser QA; present before the date-filter changes.
 
 **Suggested fix:** Close on Escape and return focus to the opener, matching the Reports popover.
+
+---
+
+## [OPEN] #029 — Refresh token rows are never deleted
+
+**Found in:** B-002 discovery.
+
+**Scope:** `RefreshToken` table.
+
+**Description:** Expired and revoked rows stay forever, because each refresh adds a row. `flowledger_staging` held 663 rows for 2 users on 2026-11-06.
+
+**Suggested fix:** Periodically delete rows whose `expiresAt` has passed.
+
+---
+
+## [OPEN] #030 — Light flash before the dark theme applies
+
+**Found in:** B-002 discovery.
+
+**Scope:** `apps/web/index.html`, `hooks/useTheme.tsx`.
+
+**Description:** The `dark` class and `color-scheme` are applied in an effect after React mounts, so dark-mode users can see a light page first.
+
+**Suggested fix:** Apply the stored theme in a small inline script in `index.html`.
+
+---
+
+## [OPEN] #031 — A failed logout request leaves the session alive
+
+**Found in:** B-002 security audit.
+
+**Scope:** `apps/web/src/hooks/useAuth.tsx` `logout`, `services/auth.client.ts`.
+
+**Description:** If `POST /auth/logout` fails (offline, 5xx), `logout` rethrows after clearing the access token, so `setUser(null)` never runs and the refresh cookie and token stay valid. The next 401 silently refreshes, so a user who believes they signed out may remain signed in. Persistent sessions make this matter more. Signing out only the UI wouldn't fix it, because the server token stays valid and a reload restores it.
+
+**Suggested fix:** Show a clear "couldn't sign out" error, and retry revocation when the connection returns.
+
+---
+
+## [OPEN] #032 — Landing gateway still ignores the session presence cookie
+
+**Found in:** B-002 discovery.
+
+**Scope:** `flowledger_landing/server/gateway.js` (separate repo).
+
+**Description:** The gateway looks for `flowledger_refresh_token` on `/`, but that cookie is `Path=/auth` and never reaches it, so a signed-in user opening `/` gets the landing page. "Log in" then forwards them straight into the app, which costs one extra click.
+
+**Suggested fix:** Change the gateway's `REFRESH_TOKEN_COOKIE_NAME` to `flowledger_session`, which the API now sets on `Path=/`, and deploy it after the API.

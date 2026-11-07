@@ -1,7 +1,16 @@
 import { env } from "../../../config/env.js";
 
-/** Cookie name carrying the opaque refresh token. */
-export const refreshTokenCookieName = "flowledger_refresh_token";
+const isProduction = env.NODE_ENV === "production";
+
+/** Cookie name carrying the opaque refresh token. Differs outside production because environments on sibling subdomains share one cookie domain. */
+export const refreshTokenCookieName = isProduction
+  ? "flowledger_refresh_token"
+  : "flowledger_dev_refresh_token";
+
+/** Name of the non-secret cookie that tells the landing gateway a session exists, since the refresh cookie is never sent on `/`. */
+export const sessionPresenceCookieName = isProduction
+  ? "flowledger_session"
+  : "flowledger_dev_session";
 
 /** Parses a raw `Cookie` header into a name-to-value map, URI-decoding values. */
 export function parseCookies(header: string | undefined) {
@@ -24,19 +33,8 @@ export function readRefreshTokenCookie(cookieHeader: string | undefined) {
   return parseCookies(cookieHeader).get(refreshTokenCookieName);
 }
 
-/** Builds the `Set-Cookie` header value for the refresh token: httpOnly, `SameSite=Strict`, scoped to `/auth`, `Max-Age` derived from `expiresAt`, and (in production) `Domain`/`Secure`. */
-export function buildRefreshTokenCookie(token: string, expiresAt: Date) {
-  const maxAgeSeconds = Math.max(
-    0,
-    Math.floor((expiresAt.getTime() - Date.now()) / 1000)
-  );
-  const parts = [
-    `${refreshTokenCookieName}=${encodeURIComponent(token)}`,
-    "HttpOnly",
-    "SameSite=Strict",
-    "Path=/auth",
-    `Max-Age=${maxAgeSeconds}`
-  ];
+function sharedAttributes() {
+  const parts: string[] = [];
 
   if (env.REFRESH_TOKEN_COOKIE_DOMAIN) {
     parts.push(`Domain=${env.REFRESH_TOKEN_COOKIE_DOMAIN}`);
@@ -46,26 +44,57 @@ export function buildRefreshTokenCookie(token: string, expiresAt: Date) {
     parts.push("Secure");
   }
 
-  return parts.join("; ");
+  return parts;
 }
 
-/** Builds the `Set-Cookie` header value that clears the refresh token cookie. */
-export function clearRefreshTokenCookie() {
-  const parts = [
-    `${refreshTokenCookieName}=`,
-    "HttpOnly",
-    "SameSite=Strict",
-    "Path=/auth",
-    "Max-Age=0"
+function buildCookies(
+  refreshTokenValue: string,
+  presenceValue: string,
+  lifetime: string[]
+) {
+  return [
+    [
+      `${refreshTokenCookieName}=${refreshTokenValue}`,
+      "HttpOnly",
+      "SameSite=Strict",
+      "Path=/auth",
+      ...lifetime,
+      ...sharedAttributes()
+    ].join("; "),
+    [
+      `${sessionPresenceCookieName}=${presenceValue}`,
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/",
+      ...lifetime,
+      ...sharedAttributes()
+    ].join("; ")
   ];
+}
 
-  if (env.REFRESH_TOKEN_COOKIE_DOMAIN) {
-    parts.push(`Domain=${env.REFRESH_TOKEN_COOKIE_DOMAIN}`);
-  }
+/**
+ * Builds the `Set-Cookie` values for a session: the refresh token, and a presence cookie holding no credential.
+ *
+ * A persistent session gets a `Max-Age` derived from `expiresAt`; otherwise both are browser-session cookies.
+ */
+export function buildSessionCookies(refreshToken: {
+  token: string;
+  expiresAt: Date;
+  persistent: boolean;
+}) {
+  const maxAgeSeconds = Math.max(
+    0,
+    Math.floor((refreshToken.expiresAt.getTime() - Date.now()) / 1000)
+  );
 
-  if (env.NODE_ENV === "production") {
-    parts.push("Secure");
-  }
+  return buildCookies(
+    encodeURIComponent(refreshToken.token),
+    "1",
+    refreshToken.persistent ? [`Max-Age=${maxAgeSeconds}`] : []
+  );
+}
 
-  return parts.join("; ");
+/** Builds the `Set-Cookie` values that clear both session cookies. */
+export function clearSessionCookies() {
+  return buildCookies("", "", ["Max-Age=0"]);
 }

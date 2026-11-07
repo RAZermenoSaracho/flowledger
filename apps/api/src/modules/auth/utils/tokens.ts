@@ -4,6 +4,7 @@ import { env } from "../../../config/env.js";
 
 const REFRESH_TOKEN_BYTES = 48;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const SESSION_REFRESH_TOKEN_TTL_MS = MS_PER_DAY;
 
 /** Signs a short-lived access JWT for `user`, using their id as `sub` and embedding their email. */
 export function signAccessToken(user: { id: string; email: string }) {
@@ -15,12 +16,13 @@ export function signAccessToken(user: { id: string; email: string }) {
   return jwt.sign({ email: user.email }, env.JWT_SECRET, options);
 }
 
-/** Generates a high-entropy opaque refresh token value, its SHA-256 hash for storage, and its expiry. */
-export function generateRefreshToken() {
+/** Generates a high-entropy opaque refresh token value, its SHA-256 hash for storage, and its expiry: `REFRESH_TOKEN_EXPIRES_IN_DAYS` when `persistent`, else 24 hours. */
+export function generateRefreshToken(persistent: boolean) {
   const token = randomBytes(REFRESH_TOKEN_BYTES).toString("base64url");
-  const expiresAt = new Date(
-    Date.now() + env.REFRESH_TOKEN_EXPIRES_IN_DAYS * MS_PER_DAY
-  );
+  const lifetimeMs = persistent
+    ? env.REFRESH_TOKEN_EXPIRES_IN_DAYS * MS_PER_DAY
+    : SESSION_REFRESH_TOKEN_TTL_MS;
+  const expiresAt = new Date(Date.now() + lifetimeMs);
 
   return { token, tokenHash: hashRefreshToken(token), expiresAt };
 }

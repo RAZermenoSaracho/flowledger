@@ -67,7 +67,7 @@ function baseProps(
 }
 
 describe("ReportFiltersCard", () => {
-  it("always shows every control directly, with no Filters button, popover, or collapse toggle", () => {
+  it("renders every control, with no popover", () => {
     mockCurrencies();
     renderWithProviders(<ReportFiltersCard {...baseProps()} />);
 
@@ -92,22 +92,58 @@ describe("ReportFiltersCard", () => {
     expect(
       screen.getByRole("group", { name: "Report amount basis" })
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /^Filters/ })
-    ).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("stacks the controls responsively without hiding any of them", () => {
+  it("collapses the controls below lg by default, and always shows them from lg", () => {
     mockCurrencies();
-    const { container } = renderWithProviders(
-      <ReportFiltersCard {...baseProps()} />
+    renderWithProviders(<ReportFiltersCard {...baseProps()} />);
+
+    const toggle = screen.getByRole("button", { name: "Filters" });
+    const content = document.getElementById(
+      toggle.getAttribute("aria-controls") as string
     );
 
-    expect(container.querySelector(".hidden")).toBeNull();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("lg:hidden");
+    expect(content).toHaveClass("hidden", "lg:block");
+  });
+
+  it("expands and collapses from the Filters button without losing entered values", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    const props = baseProps();
+    renderWithProviders(
+      <ReportFiltersCard
+        {...props}
+        filters={{ ...props.filters, dateFrom: "2026-11-05T14:30" }}
+      />
+    );
+    const toggle = screen.getByRole("button", { name: "Filters" });
+    const content = document.getElementById(
+      toggle.getAttribute("aria-controls") as string
+    );
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(content).toHaveClass("block");
+    expect(content).not.toHaveClass("hidden");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(content).toHaveClass("hidden");
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T14:30");
+  });
+
+  it("shows on the collapsed button that filters are active", () => {
+    mockCurrencies();
+    renderWithProviders(
+      <ReportFiltersCard {...baseProps()} hasActiveFilters />
+    );
+
     expect(
-      container.querySelector(".grid-cols-1.md\\:grid-cols-2")
-    ).not.toBeNull();
+      screen.getByRole("button", { name: "Filters (active)" })
+    ).toBeInTheDocument();
   });
 
   it("calls onFiltersChange with a full date-time when the date fields change", () => {
