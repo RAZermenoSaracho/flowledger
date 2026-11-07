@@ -57,6 +57,11 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-022 | Custom and non-public assets | Medium | ST-015 | Planned | None |
 | ST-023 | Multi-currency balance correctness | High | ST-001, ST-007 | Planned | None |
 | ST-024 | Group overview and Group Form View | Medium | ST-005 | Planned | None |
+| ST-025 | Access-token purpose validation | Critical | None | Planned | None |
+| ST-026 | Account identity and session hardening | High | ST-025 | Planned | None |
+| ST-027 | Financial data isolation | High | ST-025 | Planned | None |
+| ST-028 | Authenticated root routing and tokenless Google callback | Medium | ST-025 | Planned | None |
+| ST-029 | API and deployment hardening | Medium | ST-025 | Planned | None |
 
 ST-012 (debit support) is retired and has no active row; see its note under the intent details. IDs are stable and are not reused or renumbered, so numeric order is not execution order.
 
@@ -739,6 +744,26 @@ So the missing data is the applied account amount when currencies differ, the de
 - Does the overview show a summary on each card, and what does it do with archived Groups?
 - Does `?groupId=` redirect to the new detail route, or stay supported as is?
 
+### Security hardening initiative (ST-025 to ST-029)
+
+**Objective:** Fix verified weaknesses in authentication, identity, data isolation, entry routing, and deployment before product work resumes at B-003. Findings came from a read-only audit of production `main` (`9d57822`) and `flowledger_landing` (`efdfc72`) on 2026-11-07. Each intent's evidence, design, and acceptance criteria live in its OpenSpec change. **None of this work has been implemented.**
+
+| Intent | OpenSpec change | Batch |
+|---|---|---|
+| ST-025 | `fix-access-token-purpose-validation` | S-001 |
+| ST-026 | `harden-account-identity-and-sessions` | S-002 |
+| ST-027 | `enforce-financial-data-isolation` | S-003 |
+| ST-028 | `route-authenticated-root-and-remove-oauth-url-token` | S-004 |
+| ST-029 | `harden-api-and-deployment-config` | S-005 |
+
+**Acceptance criteria:** Every requirement and scenario in the change's specs is met, tests pass, and the change's deployment verification is recorded.
+
+**Dependencies:** ST-025 first. ST-026 to ST-029 depend on it only for sequencing; ST-029's owner actions on Cloudflare, GitHub, and the host can begin at any time.
+
+**Delivery:** Batches S-001 to S-005, each independently deployable. S-001 reaches `main` as soon as it's approved, without waiting for anything else.
+
+**Security disclosure rule:** The repository is public. The security planning commit stays local until the owner confirms ST-025 is live, and then the owner decides whether to publish the rest while lower-severity findings remain open.
+
 ## Implementation Batches / PR Execution Plan
 
 This plan is the authoritative execution order. A batch is a set of closely related intents delivered together in one cohesive pull request; an intent stays an independent requirement with its own scope and criteria, and belongs to exactly one batch. The plan is strictly sequential: **a batch doesn't start until the previous one is completed, tested, reviewed, approved, merged, and closed.** Nothing has been started, so every batch is `Planned`.
@@ -747,7 +772,12 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 |---|---|---|---|---|---|
 | B-001 | ST-001 | Enter, show, filter, group, and report transaction date and time in the client's timezone | None | L | Completed |
 | B-002 | ST-004, ST-002 | Neutral charcoal dark theme, and persistent login on trusted devices | None | M | Completed |
-| B-003 | ST-003, ST-009 | Convert an existing transaction to shared, and bulk delete with retention for imported transactions | None | M | Planned |
+| S-001 | ST-025 | Accept only access-purpose tokens with a real subject on authenticated routes | None | S | Planned |
+| S-002 | ST-026 | Stop linking Google by email, re-authenticate email changes, and add rate limits, replay response, and a host-only refresh cookie | S-001 | L | Planned |
+| S-003 | ST-027 | Narrow participant data, align user search, and add a cross-user isolation test suite | S-001 | M | Planned |
+| S-004 | ST-028 | Show signed-in users their dashboard at `/` and remove the access token from the Google callback | S-001 | S | Planned |
+| S-005 | ST-029 | Edge HTTPS, security headers, loopback binding, fail-closed webhooks, safe logs, and dependency updates | S-001 | M | Planned |
+| B-003 | ST-003, ST-009 | Convert an existing transaction to shared, and bulk delete with retention for imported transactions | S-001 to S-005 (sequencing only) | M | Planned |
 | B-004 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-003 | XL | Planned |
 | B-005 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Planned |
@@ -762,7 +792,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-008 are the two XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-005 is sequenced after B-004 without a technical dependency, as explained in its details. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** B-003 is next. B-001 and B-002 are complete; B-001 unlocks B-006.
+**Where to start:** S-001 is next, followed by S-002 to S-005, then B-003. B-001 and B-002 are complete; B-001 unlocks B-006. S-001 is an exception to the sequential rule's pace: it ships to `main` as soon as it's approved rather than waiting on any other batch.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
@@ -821,6 +851,13 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Prerequisites:** None. The cause of mobile logouts is identified first.
 - **Testing:** Visual check of light and dark modes, contrast, charts, and native selects. Session lifetime both ways, logout, password change, and token rotation.
 - **Done when:** Dark surfaces have no dominant blue tint and light mode is unchanged, and the session survives reopening on mobile and desktop.
+
+**S-001 to S-005: ST-025 to ST-029.**
+- **Deliverable:** The OpenSpec change named for each intent under [Security hardening initiative](#security-hardening-initiative-st-025-to-st-029).
+- **Implementation order:** S-001, S-002, S-003, S-004, S-005. Within S-004, API and web deploy before the gateway. Within S-005, owner actions can start at any time.
+- **Prerequisites:** S-001 has none. Its branch starts from `origin/main`, so the held planning commit stays out of it.
+- **Testing:** As listed in each change's tasks, with synthetic users only. No exploit testing against production.
+- **Done when:** Each change's acceptance scenarios pass and its deployment verification is recorded. S-004 also needs the real-device check on an installed iOS app.
 
 **B-003: ST-003 (Odoo task #127), ST-009.**
 - **Deliverable:** Sharing controls in the transaction edit view, using the existing backend path (ST-003); bulk delete and oldest-first retention for imported transactions (ST-009).

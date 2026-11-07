@@ -407,3 +407,123 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** The gateway looks for `flowledger_refresh_token` on `/`, but that cookie is `Path=/auth` and never reaches it, so a signed-in user opening `/` gets the landing page. "Log in" then forwards them straight into the app, which costs one extra click.
 
 **Suggested fix:** Change the gateway's `REFRESH_TOKEN_COOKIE_NAME` to `flowledger_session`, which the API now sets on `Path=/`, and deploy it after the API.
+
+---
+
+## [OPEN] #033 — No email verification or password reset
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `auth/services/create.service.ts`, `users/services/update.service.ts`; the API has no mail-sending code.
+
+**Description:** Accounts never prove they own their address, and there is no reset path. `harden-account-identity-and-sessions` stops Google sign-in from merging into an unlinked account, but someone registering a victim's address first can still block that person from using it. A user who forgets a password has no recovery path.
+
+**Suggested fix:** TBD. Needs an owner decision on a mail provider; then add verification and reset together, and resolve squatted addresses through verified ownership.
+
+---
+
+## [OPEN] #034 — Other sibling-subdomain cookie risks remain after the refresh cookie is host-only
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `auth/providers/google/utils/googleStateCookie.ts`, session cookies, other `razs.dev` applications.
+
+**Description:** A compromised `razs.dev` sibling can plant cookies for FlowLedger's hosts, which could sign a browser into an attacker's session or tamper with Google state. It needs a compromised sibling first. `__Host-` isn't usable for the refresh cookie, because it requires `Path=/`.
+
+**Suggested fix:** Keep the sibling inventory tight. Longer term, move FlowLedger to its own registrable domain, which also removes the shared-cookie concern.
+
+---
+
+## [OPEN] #035 — API keys and OAuth grants survive a password change
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `users/services/update.service.ts` `updatePassword`.
+
+**Description:** A password change revokes refresh tokens only. A key or grant created by an attacker keeps working until revoked by hand, which is defensible because they are separately visible credentials, but a user recovering from a compromise has to know to check them.
+
+**Suggested fix:** Offer "also revoke API keys and connected apps" on password change.
+
+---
+
+## [OPEN] #036 — Any user can set their own plan
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `PATCH /users/me/plan`, `users/services/update.service.ts`.
+
+**Description:** Any signed-in user can select `flowledger_one` with no payment or admin check. Nothing gates on `planType` today, so this has no current impact.
+
+**Suggested fix:** Make the field server-controlled before any feature depends on it.
+
+---
+
+## [OPEN] #037 — Group members are added without consent
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `addGroupMember`.
+
+**Description:** A group admin can add any user id, and that exposes member names and emails within the group. Related to #019.
+
+**Suggested fix:** TBD. Needs a product decision on an invite-and-accept step, ideally decided together with #019.
+
+---
+
+## [OPEN] #038 — Mixed-case emails can create separate accounts
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `registerSchema`, `loginSchema`, `authenticateUser`.
+
+**Description:** Registration and login keep the email's letter case, while Google matching is case-insensitive. Addresses differing only in case can become separate password accounts. Lowercasing input alone would lock out any existing mixed-case account.
+
+**Suggested fix:** Check production for mixed-case and colliding emails, normalize stored values with a migration, then lowercase in the shared schemas.
+
+---
+
+## [OPEN] #039 — MCP consent request isn't bound to a user or single use
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `oauth/utils/consentRequest.ts`.
+
+**Description:** The signed consent request has no user binding and can be reused for 10 minutes. The user must still review the client and approve, so this is ordinary consent-phishing exposure rather than a bypass.
+
+**Suggested fix:** Bind it to the session and add a single-use id if MCP use grows.
+
+---
+
+## [OPEN] #040 — Remaining dependency advisories after non-major updates
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `zod` (3.x, memory use on oversized collections; the fix is a major upgrade), `@syncfy/authentication-widget` (no fix available, and it installs testing and Vue dependencies in production).
+
+**Description:** `npm audit --omit=dev` reported 29 high advisories, most through the Syncfy widget. Reachability wasn't verified per advisory. Request bodies are limited to 1 MB, which bounds the `zod` issue.
+
+**Suggested fix:** Plan the `zod` 4 migration separately, and ask Syncfy for a slimmer widget package or isolate its tree.
+
+---
+
+## [OPEN] #041 — Raw errors are written to logs
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `middleware/errorHandler.ts`, `mcp/utils/toolResult.ts`.
+
+**Description:** `console.error(error)` logs whole error objects. Prisma errors may include query values such as financial fields. Whether they do in practice wasn't verified.
+
+**Suggested fix:** Log the error name, code, and stack, without Prisma's message text and metadata.
+
+---
+
+## [OPEN] #042 — Replaced avatars stay public and keep their metadata
+
+**Found in:** Security audit, 2026-11-07.
+
+**Scope:** `users/services/update.service.ts`, `/uploads`.
+
+**Description:** Old avatar files aren't deleted, `/uploads` is public, and images aren't re-encoded, so EXIF data such as location can remain.
+
+**Suggested fix:** Delete the previous file on replacement, and strip metadata if an image library is added for other reasons.
