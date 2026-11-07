@@ -56,6 +56,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-021 | Public securities catalog (stocks and ETFs) | Medium | ST-015 | Planned | None |
 | ST-022 | Custom and non-public assets | Medium | ST-015 | Planned | None |
 | ST-023 | Multi-currency balance correctness | High | ST-001, ST-007 | Planned | None |
+| ST-024 | Group overview and Group Form View | Medium | ST-005 | Planned | None |
 
 ST-012 (debit support) is retired and has no active row; see its note under the intent details. IDs are stable and are not reused or renumbered, so numeric order is not execution order.
 
@@ -153,7 +154,7 @@ ST-012 (debit support) is retired and has no active row; see its note under the 
 
 **Objective:** FlowLedger has one reusable, Odoo-inspired form view, so models reuse the entire editing experience and not merely individual inputs. Users open a record, click or tap a value to edit it, and need no global Edit button.
 
-**Scope:** Extract the common experience from Profile into a model-agnostic foundation, and migrate Profile onto it within this intent as its first real consumer. Accounts and Transactions adopt it separately (ST-006, ST-007).
+**Scope:** Extract the common experience from Profile into a model-agnostic foundation, and migrate Profile onto it within this intent as its first real consumer. Accounts, Transactions, and Groups adopt it separately (ST-006, ST-007, ST-024).
 
 | Shared Form View owns | Each model view owns |
 |---|---|
@@ -181,6 +182,8 @@ Direct editing does not mean persisting each field on change: edits accumulate i
 
 **Dependencies:** None.
 
+**Delivery:** Batch B-006, together with ST-006, ST-007, and ST-024. It is implemented first, as the shared foundation the other three build on.
+
 **Relevant existing architecture:** Draft state is hand-written in three places (`useProfileDetails.ts`, `useAccountEditForm.ts`, `TransactionEditPage.tsx`), but only Profile has click-to-edit, dirty tracking, a persistence-error display, and an unload guard. `ProfileInlineField.tsx` has no Profile imports but only finds `input` and `select`. `ProfileTabs.tsx` has an accessible, URL-driven tablist but is hardcoded to Profile's tabs. Generic parts of `useProfileDetails.ts` are the draft diff, cancel, saving and error state, the guard, and validation gating of save. Profile-specific parts are name and email rules, avatar preview, display helpers, and the two-step save. The avatar file also counts as dirty, so the lifecycle needs custom save functions and an additional dirty source. Preferences, Security, and Subscription tabs use their own mutations and can stay independent. `ProfileHeader.test.tsx`, `ProfilePage.test.tsx`, and `ProfileInlineField.test.tsx` pin current behavior, which makes this migration a safe proof of no UX change. The web app uses TanStack Query and has no form library. Keep single selects native, per `openspec/specs/select-dropdowns`.
 
 **Profile adoption decision:** Include Profile in this intent. An estimated 8-10 files change, it is the only reference implementation, and its existing tests prove reuse. A separate intent would leave a foundation with no consumer and two implementations in the meantime.
@@ -206,6 +209,8 @@ Direct editing does not mean persisting each field on change: edits accumulate i
 
 **Dependencies:** ST-005.
 
+**Delivery:** Batch B-006, implemented after ST-005.
+
 **Relevant existing architecture:** `AccountsPage.tsx` is the only account route. Clicking a row expands it (`AccountListItem.tsx`), and Edit swaps in an inline form (`useAccountEditForm.ts`) for name, type, identifier, currency, and initial balance. There is no type-specific logic. The UI shows the raw enum as the type label.
 
 **Open questions:**
@@ -229,7 +234,7 @@ Direct editing does not mean persisting each field on change: edits accumulate i
 
 **Dependencies:** ST-005. Sequence after ST-003.
 
-**Delivery:** Two batches. B-009 makes existing transactions directly editable. B-013 adds prefilled new drafts just before ST-014 uses them.
+**Delivery:** Batch B-006, implemented after ST-005 and ST-006. The prefilled-draft capability ships here, and ST-014 (B-011) consumes it.
 
 **Relevant existing architecture:** `/transactions/:id` is read-only with an Edit button, and `/transactions/:id/edit` is a separate form linked from `TransactionsPage.tsx` and `TransactionDetailPage.tsx`. `TransactionEditPage.tsx` (362 lines) re-implements fields that the create form shares through `TransactionCoreFields`, so the two can drift. Coupled fields: choosing an account changes the currency; choosing transfer clears category, group, and sharing and requires a different destination; changing group resets the category and forces sharing. These rules are repeated in inline handlers today. Pure functions owned by the Transactions page could serve both create and edit while the foundation stays free of them. Creation currently happens only inline on the list page, and no prefill mechanism exists.
 
@@ -298,7 +303,7 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 **Progressive enhancement:**
 - ST-023 corrects cross-currency balances and removes the related disclosure once affected test data follows the pre-production data policy. Exchange-rate movement can still change net worth, because it is a current valuation, but never an account's native balance.
 - ST-014 decides how declared card payments affect net worth.
-- ST-015 adds holdings to this same calculation (B-019) and removes the `investment` disclosure for accounts with holdings. It must not introduce a second net-worth calculation.
+- ST-015 adds holdings to this same calculation (B-016) and removes the `investment` disclosure for accounts with holdings. It must not introduce a second net-worth calculation.
 - Investment returns stay deferred on ST-015. Emergency fund coverage and fixed vs variable expenses wait for a confirmed need for the classification they share.
 
 **Open questions:**
@@ -439,7 +444,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Dependencies:** ST-013, ST-007 for prefilled transaction drafts, and ST-023, since a card payment can cross currencies.
 
-**Delivery:** Three batches. B-012 adds statements and status, B-014 adds payments and their accounting, and B-015 adds reminders. The accounting mechanism is settled before B-012, because it shapes statement storage.
+**Delivery:** Three batches. B-010 adds statements and status, B-011 adds payments and their accounting, and B-012 adds reminders. The accounting mechanism is settled before B-010, because it shapes statement storage.
 
 **Relevant existing architecture:** No statement, billing, or due-date concept exists. Transfers from checking to a card are the only existing path correct for both accounts, and reports exclude transfers from income and expense. `Transaction.accountId` is nullable in the schema, but the API requires both sides of a transfer. `ProviderImportedTransaction.transactionId` and `SharedExpense.transactionId` show a nullable unique link pattern. Notifications are in-app only (`Notification` with a `NotificationType` enum, so a new type needs a migration); there is no email or push, and per-statement deduplication would be new. The only background job is `SyncfyAutoSyncScheduler`, a `setInterval` in the API process with an in-memory overlap guard, so it is not safe across multiple instances.
 
@@ -484,7 +489,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Dependencies:** ST-006, ST-008 for net-worth integration, and ST-023 so crypto quantities use its exact precision.
 
-**Delivery:** Two batches. B-018 adds holdings and manual valuations, and B-019 adds aggregate value and net-worth integration.
+**Delivery:** Two batches. B-015 adds holdings and manual valuations, and B-016 adds aggregate value and net-worth integration.
 
 **Future metric:** Investment returns (ST-008) become possible only with holdings plus contributions, withdrawals, cost basis, and valuation history. This intent doesn't add those, and an account's current balance compared with its initial balance is not a return.
 
@@ -553,7 +558,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Dependencies:** ST-015.
 
-**Delivery:** Two batches. B-024 adds secure credential storage with connect and revoke, which ST-020 reuses. B-025 adds quantity sync.
+**Delivery:** Two batches. B-021 adds secure credential storage with connect and revoke, which ST-020 reuses. B-022 adds quantity sync.
 
 **Relevant existing architecture:** `FinancialProviderAdapter` is the required pattern for account providers, and Milestone 11 expects it. It is a composition of optional capabilities, and `InstitutionCategory` already includes `exchange` and `wallet`, so a positions capability could be added without requiring transactions. **No per-user secret storage exists:** `ApiKey` hashes values, which won't work for a secret that must be read back, and no encryption code exists in `apps/api`. Current Binance use is public price REST only.
 
@@ -690,7 +695,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 - Affected test records follow the pre-production data policy, and no amount is guessed silently.
 - The temporary ST-008 cross-currency disclosure is removed.
 
-**Dependencies:** ST-001's UTC execution instant (B-001), and ST-007's first batch (B-009), so transaction form changes happen in one place. ST-014 and ST-015 depend on this intent.
+**Dependencies:** ST-001's UTC execution instant (B-001), and ST-007 (B-006), so transaction form changes happen in one place. ST-014 and ST-015 depend on this intent.
 
 **Relevant existing architecture:**
 
@@ -707,6 +712,33 @@ So the missing data is the applied account amount when currencies differ, the de
 - How should an explicit fee affect reports? Reports exclude transfers today, so a transfer fee recorded only as a detail wouldn't appear as an expense.
 - What is the smallest coherent reset under the pre-production data policy? Transactions connect to shared expenses, settlements, relations, and imported-transaction links, so the proposal must map those dependencies and the records actually affected, including existing timed rows that lack an offset. Any destructive operation needs explicit approval of the exact operation.
 
+### ST-024: Group overview and Group Form View
+
+**Objective:** Groups are browsed in a clean, responsive, card-based overview (Kanban-like), and each Group opens in its own dedicated view built on the shared Form View, instead of showing the list and detail side by side.
+
+**Scope:** Replace the simultaneous list and detail with a card overview of Groups. Clicking a Group navigates to its dedicated detail/form view, composed from ST-005, and the overview is no longer visible beside it. Moving between the two is one step each way. Resolve the modal stacking, dropdown layering, and overflow problems of the current layout, including `docs/KNOWN_ISSUES.md` #028 (filter modal stacking and overlapping fields). Group management, members, categories, permissions, summary, and transactions keep their behavior. No other form system is introduced.
+
+**Acceptance criteria:**
+- The overview shows Groups as responsive cards, usable from mobile to desktop width.
+- Clicking a Group opens its detail view at a linkable URL, and the overview is not shown beside it.
+- A clear control returns to the overview, and the browser back button does the same.
+- The Group detail view uses the shared Form View with no Group-specific copy of its lifecycle.
+- Filter modals and dropdowns appear above all page content on both views, and nothing is clipped, which closes #028.
+- Create, edit, archive, members, categories, roles, summary, and transactions work as before, and only members can open a Group.
+- Existing `?groupId=` links keep working.
+- Covered by tests.
+
+**Dependencies:** ST-005.
+
+**Delivery:** Batch B-006, implemented last, after ST-005, ST-006, and ST-007.
+
+**Relevant existing architecture:** `/groups` is the only Group route (`main.tsx`), and no detail route exists. `GroupsPage.tsx` keeps `selectedGroupId` in state and renders `GroupCreateCard` and `GroupsListCard` beside a detail `Card` in an `xl` two-column grid, with the list column `xl:sticky`. `?groupId=` selects a Group (used by notification targets). Detail sections are `GroupHeader`, `GroupMembersSection`, `GroupCategoriesSection`, `GroupSummarySection`, and `GroupTransactionsSection`. Editing is handled by `useGroupManagement` and `useGroupCategoryManagement`, not by a shared form.
+
+**Open questions:**
+- Which parts of a Group are direct-edit fields, and which stay separate actions, such as members and categories?
+- Does the overview show a summary on each card, and what does it do with archived Groups?
+- Does `?groupId=` redirect to the new detail route, or stay supported as is?
+
 ## Implementation Batches / PR Execution Plan
 
 This plan is the authoritative execution order. Each batch is one focused pull request, and the plan is strictly sequential: **a batch doesn't start until the previous one is completed, tested, reviewed, approved, merged, and closed.** Nothing has been started, so every batch is `Planned`.
@@ -718,57 +750,56 @@ This plan is the authoritative execution order. Each batch is one focused pull r
 | B-003 | ST-002 | Keep users logged in on trusted devices | None | M | Planned |
 | B-004 | ST-004 | Neutral charcoal dark theme | None | S | Planned |
 | B-005 | ST-009 | Bulk delete and retention for imported transactions | None | M | Planned |
-| B-006 | ST-005 | Shared Form View, proven by migrating Profile | None | M | Planned |
+| B-006 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-002 | XL | Planned |
 | B-007 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |
-| B-008 | ST-006 | Account Form View | B-006 | M | Planned |
-| B-009 | ST-007 part 1 | Directly editable existing transactions | B-002, B-006 | M | Planned |
-| B-010 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-009 | L | Planned |
-| B-011 | ST-013 | Credit limit and available credit | B-008 | S | Planned |
-| B-012 | ST-014 part 1 | Statements, dates, and unpaid status | B-011 | M | Planned |
-| B-013 | ST-007 part 2 | Prefilled new transaction drafts | B-009 | S | Planned |
-| B-014 | ST-014 part 2 | Statement payments and their accounting | B-010, B-012, B-013 | L | Planned |
-| B-015 | ST-014 part 3 | One reminder per statement | B-014 | M | Planned |
-| B-016 | ST-010 | Notification regex rules | B-006 | M | Planned |
-| B-017 | ST-011 | Notification ingestion endpoint | B-016 | M | Planned |
-| B-018 | ST-015 part 1 | Manual holdings and valuations | B-008, B-010 | M | Planned |
-| B-019 | ST-015 part 2 | Aggregate value and net-worth integration | B-007, B-018 | S | Planned |
-| B-020 | ST-016 | Automatic crypto holding prices | B-019 | S | Planned |
-| B-021 | ST-021 | Public securities catalog | B-019 | M | Planned |
-| B-022 | ST-022 | Custom and non-public assets | B-019 | M | Planned |
-| B-023 | ST-017 | Stock and ETF market data | B-021 | M | Planned |
-| B-024 | ST-018 part 1 | Secure exchange credential storage | B-018 | M | Planned |
-| B-025 | ST-018 part 2 | Binance quantity sync | B-024 | M | Planned |
-| B-026 | ST-019 | On-chain wallet sync | B-018 | M | Planned |
-| B-027 | ST-020 | User-configured external sync | B-018, B-024 | L | Planned |
+| B-008 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-006 | L | Planned |
+| B-009 | ST-013 | Credit limit and available credit | B-006 | S | Planned |
+| B-010 | ST-014 part 1 | Statements, dates, and unpaid status | B-009 | M | Planned |
+| B-011 | ST-014 part 2 | Statement payments and their accounting | B-006, B-008, B-010 | L | Planned |
+| B-012 | ST-014 part 3 | One reminder per statement | B-011 | M | Planned |
+| B-013 | ST-010 | Notification regex rules | B-006 | M | Planned |
+| B-014 | ST-011 | Notification ingestion endpoint | B-013 | M | Planned |
+| B-015 | ST-015 part 1 | Manual holdings and valuations | B-006, B-008 | M | Planned |
+| B-016 | ST-015 part 2 | Aggregate value and net-worth integration | B-007, B-015 | S | Planned |
+| B-017 | ST-016 | Automatic crypto holding prices | B-016 | S | Planned |
+| B-018 | ST-021 | Public securities catalog | B-016 | M | Planned |
+| B-019 | ST-022 | Custom and non-public assets | B-016 | M | Planned |
+| B-020 | ST-017 | Stock and ETF market data | B-018 | M | Planned |
+| B-021 | ST-018 part 1 | Secure exchange credential storage | B-015 | M | Planned |
+| B-022 | ST-018 part 2 | Binance quantity sync | B-021 | M | Planned |
+| B-023 | ST-019 | On-chain wallet sync | B-015 | M | Planned |
+| B-024 | ST-020 | User-configured external sync | B-015, B-021 | L | Planned |
 
-Sizes are relative engineering estimates, not time commitments. Dependencies list only real technical prerequisites; the order above still applies to every batch.
+Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-006 is the one XL batch. Dependencies list only real technical prerequisites; the order above still applies to every batch.
 
 **Where to start:** B-001 comes first. It fixes a confirmed problem that affects every user away from UTC, and merging it unlocks B-002.
+
+**Execution rule:** Batches run strictly one at a time, and each receives explicit approval before implementation begins.
 
 **Split intents:** An intent that spans batches is complete only when its last batch merges.
 
 | Intent | Batches | Why it is split |
 |---|---|---|
-| ST-007 | B-009, B-013 | Drafts have no consumer until ST-014 |
-| ST-014 | B-012, B-014, B-015 | Its statements, payment accounting, and reminders are independently reviewable |
-| ST-015 | B-018, B-019 | Net-worth integration is the main double-counting risk, so it gets its own review |
-| ST-018 | B-024, B-025 | Secret storage needs its own security review, and ST-020 reuses it |
+| ST-014 | B-010, B-011, B-012 | Its statements, payment accounting, and reminders are independently reviewable |
+| ST-015 | B-015, B-016 | Net-worth integration is the main double-counting risk, so it gets its own review |
+| ST-018 | B-021, B-022 | Secret storage needs its own security review, and ST-020 reuses it |
 
-**L batches kept whole:**
-- **B-010:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
-- **B-014:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant.
-- **B-027:** It may be dropped at its go/no-go check. If it goes ahead, discovery should re-evaluate splitting it.
+**Large batches kept whole:**
+- **B-006:** ST-005, ST-006, ST-007, and ST-024 stay four independent intents, each with its own scope and criteria, but by deliberate product-owner decision they ship as one larger PR that is **not to be split** into phases, parts, or optional follow-ups. Implementation order within the PR: ST-005 first as the shared foundation (with Profile as proof of no UX change), then ST-006, ST-007, and ST-024.
+- **B-008:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest L batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
+- **B-011:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant.
+- **B-024:** It may be dropped at its go/no-go check. If it goes ahead, discovery should re-evaluate splitting it.
 
 **External feasibility and provider risks:**
 
 | Batch | Check before starting |
 |---|---|
-| B-016, B-017 | Whether iPhone automations can read bank notifications. Test on real devices. If this fails, reconsider both batches. |
-| B-020 | Whether the USDT-as-USD assumption is accurate enough for displayed valuations |
-| B-023 | Provider choice, rate limits, and display and redistribution licensing |
-| B-024, B-025 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it |
-| B-026 | RPC or indexer provider, and whether a fixed token list is enough |
-| B-027 | Whether the need remains after B-020 to B-026 (go/no-go); this is the first user-controlled outbound request |
+| B-013, B-014 | Whether iPhone automations can read bank notifications. Test on real devices. If this fails, reconsider both batches. |
+| B-017 | Whether the USDT-as-USD assumption is accurate enough for displayed valuations |
+| B-020 | Provider choice, rate limits, and display and redistribution licensing |
+| B-021, B-022 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it |
+| B-023 | RPC or indexer provider, and whether a fixed token list is enough |
+| B-024 | Whether the need remains after B-017 to B-023 (go/no-go); this is the first user-controlled outbound request |
 
 ### Batch details
 
@@ -782,7 +813,7 @@ Unless noted, a batch meets its intent's full acceptance criteria. The completio
 
 **B-002: ST-003 (Odoo task #127).**
 - **Deliverable:** Sharing controls in the transaction edit view, using the existing backend path.
-- **Prerequisites:** None. It precedes B-009, which must preserve it.
+- **Prerequisites:** None. It precedes B-006, which must preserve it.
 - **Testing:** Conversion on both layouts, transfer rejection, and share limits.
 - **Done when:** A converted transaction appears as shared in the list and in debts.
 
@@ -804,11 +835,12 @@ Unless noted, a batch meets its intent's full acceptance criteria. The completio
 - **Testing:** Limit boundaries, re-sync, user isolation, and preservation of linked records.
 - **Done when:** A deleted record behaves as agreed on the next sync.
 
-**B-006: ST-005.**
-- **Deliverable:** The shared Form View, with Profile migrated onto it.
-- **Prerequisites:** None. The rule for unsaved-change protection is decided first.
-- **Testing:** Existing Profile tests stay valid, plus one non-Profile test consumer.
-- **Done when:** Profile's UX is unchanged and the shared code names no model.
+**B-006: ST-005, ST-006, ST-007, ST-024.**
+- **Deliverable:** The shared Form View with Profile migrated onto it (ST-005); an account route and view with clear `checking` labeling (ST-006); the transaction view directly editable, plus prefilled new drafts at their own URL (ST-007); and the Group card overview with a dedicated Group detail view (ST-024).
+- **Implementation order:** ST-005, then ST-006, then ST-007, then ST-024. ST-005 is the shared foundation the other three consume. One larger PR by deliberate product-owner decision; it is not to be split.
+- **Prerequisites:** B-002, so the transaction view only has to preserve the sharing flow. The rule for unsaved-change protection is decided first.
+- **Testing:** Existing Profile tests stay valid, plus one non-Profile test consumer. Accounts: ownership, field editing, existing actions, and mobile width. Transactions: coupled-field rules, invalid in-between states, sharing, old edit links, stored times surviving unrelated edits, and nothing created until a draft is saved. Groups: navigation both ways, `?groupId=` links, member-only access, existing management behavior, and filter modal and dropdown layering at mobile and desktop width.
+- **Done when:** All criteria of ST-005, ST-006, ST-007, and ST-024 are met, and #028 is resolved.
 
 **B-007: ST-008.**
 - **Deliverable:** `GET /reports/financial-overview` and the Financial overview section. Requires no migration.
@@ -816,123 +848,105 @@ Unless noted, a batch meets its intent's full acceptance criteria. The completio
 - **Testing:** Service tests for each disclosure, missing rates, zero income, settlement neutrality, month selection, and user isolation.
 - **Done when:** Both metrics show correctly labeled figures, and a failure in one leaves the other metric and Profile working.
 
-**B-008: ST-006.**
-- **Deliverable:** An account route and view on the shared Form View, with clear `checking` labeling.
-- **Prerequisites:** B-006.
-- **Testing:** Ownership, field editing, existing actions, and mobile width.
-- **Done when:** Every account type opens a linkable, editable view.
-
-**B-009: ST-007 part 1.**
-- **Deliverable:** Directly editable existing transactions on the shared Form View.
-- **Prerequisites:** B-002 and B-006.
-- **Testing:** Coupled-field rules, invalid in-between states, sharing, old edit links, and stored times surviving unrelated edits.
-- **Done when:** All ST-007 criteria except new drafts are met.
-
-**B-010: ST-023.**
+**B-008: ST-023.**
 - **Deliverable:** Persisted applied amounts and execution details for cross-currency records, correct native balances, suggested and correctable rates and received amounts, `Decimal(30,18)` native crypto amounts with exact arithmetic, the `TransactionCorrection` history, and the form changes they need.
-- **Prerequisites:** B-001 and B-009. The proposal documents any reset, and the exact operation is separately approved before execution.
+- **Prerequisites:** B-001 and B-006. The proposal documents any reset, and the exact operation is separately approved before execution.
 - **Testing:** Balance calculation across currency combinations, rate changes leaving balances and history untouched, net-only versus explicit-fee records, an 18-decimal round trip, fiat behaving as before, correction rows, every write path, and no change for same-currency records.
 - **Done when:** Native balances are exact and correct, each cross-currency record has an auditable history, and every financial correction records who changed what and when.
 
-**B-011: ST-013.**
+**B-009: ST-013.**
 - **Deliverable:** The credit limit, derived available credit, and the debit-card inference fix.
-- **Prerequisites:** B-008.
+- **Prerequisites:** B-006.
 - **Testing:** Over-limit, overpaid, and no-limit cards, plus type inference.
 - **Done when:** Limit, outstanding balance, and available credit show on the account view.
 
-**B-012: ST-014 part 1.**
-- **Deliverable:** Statements with dates, amount, and status. No payment can be recorded yet, so outstanding and overdue highlighting waits for B-014 to avoid false alarms.
-- **Prerequisites:** B-011. The accounting mechanism and statement storage are decided first.
+**B-010: ST-014 part 1.**
+- **Deliverable:** Statements with dates, amount, and status. No payment can be recorded yet, so outstanding and overdue highlighting waits for B-011 to avoid false alarms.
+- **Prerequisites:** B-009. The accounting mechanism and statement storage are decided first.
 - **Testing:** Cycle boundaries, short months, and a new cycle starting unpaid.
 - **Done when:** A card shows its statements, separately from its current balance and available credit.
 
-**B-013: ST-007 part 2.**
-- **Deliverable:** A prefilled new-transaction draft at its own URL.
-- **Prerequisites:** B-009.
-- **Testing:** Nothing is created until save; abandoning a draft leaves no record.
-- **Done when:** The remaining ST-007 criteria are met.
-
-**B-014: ST-014 part 2.**
+**B-011: ST-014 part 2.**
 - **Deliverable:** The partial and full payment flow, the modal, optional transaction creation through a draft, the chosen accounting mechanism, and outstanding and overdue highlighting.
-- **Prerequisites:** B-010, B-012, and B-013.
+- **Prerequisites:** B-006 (prefilled transaction drafts), B-008, and B-010.
 - **Testing:** The $30,000/$10,000/$2,000/$12,000/$6,000 scenario, multiple partial payments, later matching, linked edits and deletes, and net worth.
 - **Done when:** Every balance change from a payment traces to one record and never applies twice.
 
-**B-015: ST-014 part 3.**
+**B-012: ST-014 part 3.**
 - **Deliverable:** In-app reminders, delivered once per statement.
-- **Prerequisites:** B-014, so a fully paid statement gets no reminder.
+- **Prerequisites:** B-011, so a fully paid statement gets no reminder.
 - **Testing:** Restarts, repeated scheduler runs, and paid statements.
 - **Done when:** All remaining ST-014 criteria are met.
 
-**B-016: ST-010.**
+**B-013: ST-010.**
 - **Deliverable:** Rule configuration on the shared Form View, a sample-text test, and safe regex evaluation.
 - **Prerequisites:** B-006 and the device feasibility check.
 - **Testing:** Activation rules, pathological patterns, oversized input, and user isolation.
 - **Done when:** A user can test and activate a rule, and no pattern can stall the API.
 
-**B-017: ST-011.**
+**B-014: ST-011.**
 - **Deliverable:** The ingest endpoint, a restricted credential, and the review flow.
-- **Prerequisites:** B-016.
+- **Prerequisites:** B-013.
 - **Testing:** Duplicates, limits, cross-user isolation, and no notification text or credentials in logs.
 - **Done when:** An automation can send text and get a reviewable record.
 
-**B-018: ST-015 part 1.**
+**B-015: ST-015 part 1.**
 - **Deliverable:** Holdings and manual valuations on the account view, with manual crypto portfolios as the first use. Account value and net worth don't change yet.
-- **Prerequisites:** B-008 and B-010. The instrument reference and the relationship between holdings and balance are decided first.
+- **Prerequisites:** B-006 and B-008. The instrument reference and the relationship between holdings and balance are decided first.
 - **Testing:** Multiple holdings, the same instrument across accounts, stale values, and ownership.
 - **Done when:** Users can maintain positions, and existing balances are unchanged.
 
-**B-019: ST-015 part 2.**
+**B-016: ST-015 part 2.**
 - **Deliverable:** Aggregate account value and holdings in the existing net-worth calculation.
-- **Prerequisites:** B-007 and B-018.
+- **Prerequisites:** B-007 and B-015.
 - **Testing:** No double counting, stale and missing valuations, and removal of the `investment` disclosure for accounts with holdings.
 - **Done when:** There is one net-worth calculation, and it includes holdings.
 
-**B-020: ST-016.**
+**B-017: ST-016.**
 - **Deliverable:** Market values on crypto holdings, with manual overrides taking priority.
-- **Prerequisites:** B-019.
+- **Prerequisites:** B-016.
 - **Testing:** Override priority, unsupported assets, and unavailable prices never showing zero.
 - **Done when:** A supported holding shows a timestamped market value.
 
-**B-021: ST-021.**
+**B-018: ST-021.**
 - **Deliverable:** One securities model, search-select-create when adding a holding, and a security form view.
-- **Prerequisites:** B-019. The ownership model is decided first.
+- **Prerequisites:** B-016. The ownership model is decided first.
 - **Testing:** Two positions in one security, the same ticker on different exchanges, and user isolation.
 - **Done when:** It works fully without a market-data provider.
 
-**B-022: ST-022.**
+**B-019: ST-022.**
 - **Deliverable:** Custom asset records in a form view, holdable in eligible accounts.
-- **Prerequisites:** B-019.
+- **Prerequisites:** B-016.
 - **Testing:** Ownership, manual valuation, stale marking, and net-worth inclusion.
 - **Done when:** A custom asset counts toward account value and net worth.
 
-**B-023: ST-017.**
+**B-020: ST-017.**
 - **Deliverable:** One provider's optional prices for catalog securities.
-- **Prerequisites:** B-021 and the provider and licensing check.
+- **Prerequisites:** B-018 and the provider and licensing check.
 - **Testing:** Provider failure, rate limits, delayed labels, and override priority.
 - **Done when:** Supported holdings show sourced prices, and failures leave the last value visible as stale.
 
-**B-024: ST-018 part 1.**
+**B-021: ST-018 part 1.**
 - **Deliverable:** Encrypted per-user credentials, plus connect, read-only verification, and revoke.
-- **Prerequisites:** B-018, the host reachability check, and a security review of encryption and key management.
+- **Prerequisites:** B-015, the host reachability check, and a security review of encryption and key management.
 - **Testing:** Secrets absent from responses and logs, rejected trading keys, and removal on disconnect.
 - **Done when:** A user can connect and revoke a verified read-only key.
 
-**B-025: ST-018 part 2.**
+**B-022: ST-018 part 2.**
 - **Deliverable:** Quantity sync into holdings through `FinancialProviderAdapter`, with sync status.
-- **Prerequisites:** B-024.
+- **Prerequisites:** B-021.
 - **Testing:** Refresh, failures keeping the last quantities, and manual overrides.
 - **Done when:** All remaining ST-018 criteria are met.
 
-**B-026: ST-019.**
+**B-023: ST-019.**
 - **Deliverable:** Public-address balances for a limited set of chains, read into holdings.
-- **Prerequisites:** B-018 and the provider and chain decisions.
+- **Prerequisites:** B-015 and the provider and chain decisions.
 - **Testing:** No key or signature requests, unsupported assets, and failed syncs.
 - **Done when:** A pasted public address produces holdings that refresh by sync.
 
-**B-027: ST-020.**
+**B-024: ST-020.**
 - **Deliverable:** Configurable outbound sources with SSRF protection, if the go/no-go check confirms the need.
-- **Prerequisites:** B-018, B-024, and the go/no-go check.
+- **Prerequisites:** B-015, B-021, and the go/no-go check.
 - **Testing:** Blocked private and metadata addresses, DNS rebinding, redirects, timeouts, and size limits.
 - **Done when:** A user can configure and test a source, with every request protected.
 
@@ -977,6 +991,8 @@ ST-005 --+--> ST-007 --+--> ST-023 ---------+
          |                           +--> ST-019
          |                           +--> ST-021 --> ST-017
          |                           +--> ST-022
+         +--> ST-024
+         |
          +--> ST-010 --> ST-011
 
 ST-001 --> ST-023 (execution instant and shared date helper)
