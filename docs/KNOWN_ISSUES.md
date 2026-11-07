@@ -395,3 +395,15 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** If `POST /auth/logout` fails (offline, 5xx), `logout` rethrows after clearing the access token, so `setUser(null)` never runs and the refresh cookie and token stay valid. The next 401 silently refreshes, so a user who believes they signed out may remain signed in. Persistent sessions make this matter more. Signing out only the UI wouldn't fix it, because the server token stays valid and a reload restores it.
 
 **Suggested fix:** Show a clear "couldn't sign out" error, and retry revocation when the connection returns.
+
+---
+
+## [OPEN] #032 — Landing gateway still ignores the session presence cookie
+
+**Found in:** B-002 discovery.
+
+**Scope:** `flowledger_landing/server/gateway.js` (separate repo).
+
+**Description:** The gateway looks for `flowledger_refresh_token` on `/`, but that cookie is `Path=/auth` and never reaches it, so a signed-in user opening `/` gets the landing page. "Log in" then forwards them straight into the app, which costs one extra click.
+
+**Suggested fix:** Change the gateway's `REFRESH_TOKEN_COOKIE_NAME` to `flowledger_session`, which the API now sets on `Path=/`, and deploy it after the API.

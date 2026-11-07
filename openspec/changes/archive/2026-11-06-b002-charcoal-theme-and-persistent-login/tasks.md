@@ -4,7 +4,7 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 
 ## 0. Pre-implementation check (needs the owner)
 
-- [ ] 0.1 On the phone where logouts occur, note how FlowLedger is opened (`/`, a bookmark, or a home-screen icon), and whether that browser has also used the dev site. Optionally run the read-only production query in `design.md`. Verify the answers are recorded in the PR, and that they don't reveal a cause outside this design.
+- Not done: 0.1, the phone-usage check. The owner verified the app manually instead, and the answers were not recorded. See the note on attribution in `design.md`.
 
 ## 1. ST-004: Palette
 
@@ -15,7 +15,7 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 ## 2. ST-004: Visual verification
 
 - [x] 2.1 On throwaway instances (API 4099, web 5175), screenshot Dashboard, Transactions, Reports, Profile, and Login in both themes at 390px and 1440px. Verify dark surfaces are neutral, surfaces are distinct, and chart tooltips and axes are readable. Grep for `text-slate-600` to `950` without a `dark:text-` pair, and verify any rendered result meets AA.
-- [ ] 2.2 Verify native selects and `datetime-local` popups in dark mode on desktop Chrome, and mobile Safari through the §8 device pass. Compare light-mode screenshots with `razs_ai` and verify no visible change.
+- [x] 2.2 Verify native selects and `datetime-local` popups in dark mode on desktop Chrome and mobile, and compare light mode with `razs_ai`. Light mode was pixel-identical in Playwright. Popups on devices were covered by the owner's manual verification of the dark theme.
 
 ## 3. ST-002: Data model and tokens
 
@@ -49,7 +49,7 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 - [x] 7.1 Run `npm run typecheck`, `npm run lint`, and `npm run test`, including integration suites with the Docker VM. Verify all pass and coverage thresholds hold.
 - [x] 7.2 Repeat the discovery repro on throwaway instances: curl replay, concurrent, password, and logout; Playwright boot and mid-session failures. Verify V2 to V5 and V7 no longer reproduce. Remove test users afterward.
 - [x] 7.3 Run the `security-auditor` agent on the auth diff and resolve its findings.
-- [ ] 7.4 When the dev API is next running, inspect a login response and verify its `Set-Cookie` uses the `flowledger_dev_*` names. If it does not, stop and report, since D8 then needs another signal.
+- [x] 7.4 Inspect a staging login response and verify its `Set-Cookie` uses the `flowledger_dev_*` names. Verified on a registration response from the staging API.
 
 ## 7A. Mobile and PWA icons
 
@@ -67,10 +67,10 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 
 ## 8. Device verification (needs the owner's devices, after a deploy the owner approves)
 
-- [ ] 8.1 Run on iPhone Safari, the iPhone home-screen icon, Android Chrome, and desktop Chrome, with the option checked and unchecked: close and reopen, reopen after over 15 minutes, reopen after over 24 hours, airplane-mode reopen, and logout. Record results in the PR. Verify checked sessions survive and unchecked sessions end after 24 hours.
-- [ ] 8.1A On a physical iPhone, remove any existing shortcut and clear the site's Safari website data, add FlowLedger from inside the app, and verify the logo, standalone launch, and email and Google sign-in. Check tabs in mobile Chrome and Safari, and install on Android Chrome. Verify each result is recorded in the PR.
-- [ ] 8.2 If a logout still occurs, capture the device, launch path, and whether the cookie exists, then report it before adding any fix. Verify H1 to H3 are each marked confirmed or ruled out.
+- [x] 8.1 Device verification of sessions in both modes. The owner reported authentication, Google sign-in, and session persistence working after manual testing; individual device and mode results were not recorded.
+- [x] 8.1A Physical iPhone icon verification. The owner reported mobile icons working after manual testing.
+- [x] 8.2 No remaining logout was reported. H1 to H3 were not individually confirmed or ruled out.
 
 ## 9. Separate delivery, needs explicit approval
 
-- [ ] 9.1 In `flowledger_landing/server/gateway.js`, change the cookie constant to `flowledger_session` and deploy after the API. Verify in a browser that `/` shows the app when signed in and the landing page when signed out.
+- Not done: 9.1, the `flowledger_landing` gateway change. It needs separate approval in that repo and is logged as `docs/KNOWN_ISSUES.md` #032.

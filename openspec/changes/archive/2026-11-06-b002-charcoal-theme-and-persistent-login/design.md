@@ -177,7 +177,8 @@ Merging to `razs_ai` releases nothing. A production release stays an explicit ow
 
 ## Open Questions
 
-- The dominant real-world cause on the owner's phone. Answered by tasks §8; it does not change the specs or approach unless a device test exposes a new cause, which would be raised before any extra fix.
+- Which verified defect caused the original mobile logouts was never attributed. The owner's manual testing after the fixes found no remaining problem, so this stays unknown without affecting the design.
+- Which of the icon changes resolved the iPhone fallback was not isolated. The owner reported icons working after the 240x240 icon and the 404 change shipped together.
 
 ## Production diagnostic (read-only, needs owner approval)
 
