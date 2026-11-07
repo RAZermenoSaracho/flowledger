@@ -119,6 +119,27 @@ describe("NotificationsMenu", () => {
     expect(screen.getByText("Jane split Dinner with you")).toBeInTheDocument();
   });
 
+  it("shows a UTC-midnight createdAt in local time, on the previous day at UTC-6", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "America/Mexico_City";
+    try {
+      const createdAt = "2026-11-05T00:00:00.000Z";
+      mockBaseline({ unreadCount: 1, notifications: [makeNotification({ createdAt })] });
+      const user = userEvent.setup();
+      renderMenu();
+
+      await user.click(await screen.findByRole("button", { name: "Notifications" }));
+
+      const expected = new Date(createdAt).toLocaleString(undefined, {
+        timeZone: "America/Mexico_City"
+      });
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+      expect(expected).not.toBe(new Date(createdAt).toLocaleString(undefined, { timeZone: "UTC" }));
+    } finally {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("disables 'Mark all read' when there are no unread notifications", async () => {
     mockBaseline({ unreadCount: 0, notifications: [makeNotification({ readAt: "2024-01-02T00:00:00.000Z" })] });
     const user = userEvent.setup();

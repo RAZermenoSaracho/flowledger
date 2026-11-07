@@ -1,7 +1,7 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
 import { ReportsPage } from "../ReportsPage";
@@ -107,7 +107,6 @@ describe("ReportsPage", () => {
 
   it("shows 'Reset filters' once a filter is active", async () => {
     mockBaseline();
-    const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
 
     await waitFor(() =>
@@ -117,10 +116,106 @@ describe("ReportsPage", () => {
       screen.queryByRole("button", { name: "Reset filters" })
     ).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("From"), "2024-01-01");
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2024-01-01T00:00" }
+    });
 
     expect(
       screen.getByRole("button", { name: "Reset filters" })
     ).toBeInTheDocument();
+  });
+
+  describe("local-day date filters", () => {
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it("sends the first local day start and the following day start for default-time bounds ", async () => {
+      process.env.TZ = "America/Mexico_City";
+      mockBaseline();
+      const queries: URLSearchParams[] = [];
+      server.use(
+        http.get(`${API_URL}/reports/summary`, ({ request }) => {
+          queries.push(new URL(request.url).searchParams);
+          return HttpResponse.json({
+            summary: {
+              totalIncome: 0,
+              totalGrossIncome: 0,
+              totalNetIncome: 0,
+              totalExpenses: 0,
+              totalGrossExpenses: 0,
+              totalExpenseReimbursements: 0,
+              totalNetExpenses: 0,
+              currentBalance: 0,
+              reportIncome: 0,
+              reportExpenses: 0,
+              reportBalance: 0
+            },
+            currency: "USD"
+          });
+        })
+      );
+      renderWithProviders(<ReportsPage />, { withAuth: true });
+
+      fireEvent.change(screen.getByLabelText("From"), {
+        target: { value: "2026-11-05T00:00" }
+      });
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T23:59" }
+      });
+
+      await waitFor(() => {
+        const last = queries.at(-1);
+        expect(last?.get("dateFrom")).toBe("2026-11-05T06:00:00.000Z");
+        expect(last?.get("dateTo")).toBe("2026-11-06T06:00:00.000Z");
+      });
+    });
+
+    it("sends dateTo as the exclusive minute after a timed upper bound", async () => {
+      process.env.TZ = "America/Mexico_City";
+      mockBaseline();
+      const queries: URLSearchParams[] = [];
+      server.use(
+        http.get(`${API_URL}/reports/monthly-cashflow`, ({ request }) => {
+          queries.push(new URL(request.url).searchParams);
+          return HttpResponse.json({ cashflow: [], currency: "USD" });
+        })
+      );
+      renderWithProviders(<ReportsPage />, { withAuth: true });
+
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T23:59" }
+      });
+      await waitFor(() =>
+        expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-06T06:00:00.000Z")
+      );
+      fireEvent.change(screen.getByLabelText("To"), {
+        target: { value: "2026-11-05T14:30" }
+      });
+
+      await waitFor(() =>
+        expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-05T20:31:00.000Z")
+      );
+    });
+
+    it("sends the device timeZone with the monthly cashflow request", async () => {
+      process.env.TZ = "America/Mexico_City";
+      mockBaseline();
+      let timeZone: string | null = null;
+      server.use(
+        http.get(`${API_URL}/reports/monthly-cashflow`, ({ request }) => {
+          timeZone = new URL(request.url).searchParams.get("timeZone");
+          return HttpResponse.json({ cashflow: [], currency: "USD" });
+        })
+      );
+      renderWithProviders(<ReportsPage />, { withAuth: true });
+
+      await waitFor(() =>
+        expect(timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      );
+      expect(timeZone).toBe("America/Mexico_City");
+    });
   });
 });

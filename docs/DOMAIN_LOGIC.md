@@ -45,6 +45,15 @@ In reports, expense offset amounts are subtracted from the expense category's ne
 
 Transfers: cannot have categories, groups, or shared expenses. Source and destination accounts must differ.
 
+### Date and time
+
+`Transaction.date` is a UTC instant. The web app converts it to and from the device timezone for display and entry, and always sends a full UTC ISO instant on writes.
+
+- **Writes:** a bare `YYYY-MM-DD` means 00:00 UTC; an offset datetime is normalized to its UTC instant. An update that omits `date` preserves the stored value.
+- **Range filters:** `dateFrom` is inclusive. A datetime `dateTo` is exclusive; a bare `dateFrom`/`dateTo` covers whole UTC days. The web app sends instants for local-day boundaries (the start of the local day, and the start of the next local day for an upper bound).
+- **Web date filter values:** a date filter value is `YYYY-MM-DD` (whole local days) or `YYYY-MM-DDTHH:mm` (local time to the minute), entered through one always-visible `datetime-local` field with no toggle (while empty and focused it shows a local draft of today at `00:00` for a lower bound or `23:59` for an upper bound and emits nothing until changed, so a date alone covers the whole day; a bare saved date displays at that default time). A partly filled or non-four-digit-year entry is not applied and shows "Incomplete or invalid, not applied". `filterBoundInstant` converts it to a UTC instant for a half-open `[start, end)` range: a lower bound starts at its day or minute, and an upper bound is the start of the next day or minute, so an "at most" time is inclusive of its displayed minute (2:30 PM matches stored times through 2:30:59.999 PM). This applies to list searches and to the Reports `dateFrom`/`dateTo`; chips show the value in the device locale.
+- **Monthly cashflow:** buckets months in the optional IANA `timeZone` filter, defaulting to UTC. The web client sends the device timezone; API and MCP callers that omit it get UTC months.
+
 ### Currency
 
 Every `Transaction` is denominated in `executionCurrency` (defaults to the account's currency, falling back to the user's `preferredCurrency`, falling back to `"USD"`). `resolveTransactionCurrencyFields()` in `transactions/utils/transactionCurrency.ts` looks up the live rate from `executionCurrency` to the user's `preferredCurrency` (via `currencies/services/read.service.ts`'s `getExchangeRate()`) and snapshots it as `exchangeRate`, with `amountInPreferredCurrency = amount * exchangeRate`. This snapshot is only recomputed when the transaction's `executionCurrency` or `amount` changes — it does not retroactively update if the user later changes their `preferredCurrency`.
@@ -206,7 +215,7 @@ Net expense = gross expense - reimbursements. Net income = gross income - income
 
 `calculateMonthlyCashflow(transactions, filters?)` in `transactionCalculations.ts` — a pure function operating on whatever `amount` it's given. The caller (`getMonthlyCashflowReport()`) first converts every transaction's `amount` from its own `executionCurrency` to `targetCurrency` (`convertAmount()`), so the amounts this function sums are already in the report's target currency.
 
-Groups by `YYYY-MM`. For each month:
+Groups by `YYYY-MM` in `filters.timeZone` (default UTC; see "Date and time"). For each month:
 - `grossIncome` — sum of income
 - `incomeOffsets` — income with `expenseOffsetCategoryId`
 - `netIncome` = `grossIncome - incomeOffsets`

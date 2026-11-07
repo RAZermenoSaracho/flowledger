@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   currencyCodeSchema,
+  dateStringSchema,
   idSchema,
   moneySchema,
   optionalArraySchema,
   optionalDateStringSchema,
-  paginationQuerySchema
+  paginationQuerySchema,
+  timeZoneSchema
 } from "../common.js";
 
 describe("idSchema", () => {
@@ -38,6 +40,29 @@ describe("optionalDateStringSchema", () => {
     expect(optionalDateStringSchema.safeParse("not-a-date").success).toBe(
       false
     );
+  });
+});
+
+describe("dateStringSchema", () => {
+  it.each(["2026-11-05T20:30:00.000Z", "2026-11-05T14:30:00-06:00", "2026-11-05T14:30:00+14:00", "2026-11-05"])(
+    "accepts %s",
+    (value) => {
+      expect(dateStringSchema.safeParse(value).success).toBe(true);
+    }
+  );
+
+  it.each(["garbage", "11/05/2026", "2026-11-05T14:30:00", ""])("rejects %s", (value) => {
+    expect(dateStringSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("timeZoneSchema", () => {
+  it.each(["America/Mexico_City", "UTC"])("accepts %s", (value) => {
+    expect(timeZoneSchema.safeParse(value).success).toBe(true);
+  });
+
+  it.each(["Not/AZone", ""])("rejects %s", (value) => {
+    expect(timeZoneSchema.safeParse(value).success).toBe(false);
   });
 });
 

@@ -32,10 +32,10 @@ export function getByCategoryReport(query: ReportQuery) {
   }>("/reports/by-category", { query });
 }
 
-/** Fetches monthly cashflow rows. */
+/** Fetches monthly cashflow rows, bucketed by the device's timezone. */
 export function getMonthlyCashflowReport(query: ReportQuery) {
   return apiRequest<{ cashflow: CashflowRow[]; currency: string }>(
     "/reports/monthly-cashflow",
-    { query }
+    { query: { ...query, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } }
   );
 }

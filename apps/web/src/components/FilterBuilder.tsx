@@ -7,6 +7,7 @@ import {
   defaultValueForField,
   operatorsForField,
   OPERATOR_LABELS,
+  pruneIncompleteConditions,
   removeNode,
   updateNode,
   type ConditionValue,
@@ -17,6 +18,7 @@ import {
 } from "../utils/searchDomain";
 import { Button } from "./Button";
 import { SelectField, selectTriggerClassName, TextInput } from "./FormField";
+import { DateTimeFilterInput } from "./DateTimeFilterInput";
 import { ChevronDown } from "lucide-react";
 
 /**
@@ -27,7 +29,8 @@ import { ChevronDown } from "lucide-react";
  *
  * Edits happen against a local draft, seeded from `initialDomain` each
  * time the popup opens; `onApply` only fires when the user clicks
- * "Done". Closing any other way (the X button, clicking the backdrop)
+ * "Done", with incomplete conditions (empty value, one
+ * empty `between` bound) dropped first so they never become chips. Closing any other way (the X button, clicking the backdrop)
  * discards the draft, so the caller's committed domain — and whatever
  * query it drives — never changes mid-edit.
  */
@@ -105,7 +108,7 @@ export function FilterBuilder({
           <Button
             type="button"
             variant="primary"
-            onClick={() => onApply(draftDomain)}
+            onClick={() => onApply(pruneIncompleteConditions(draftDomain))}
           >
             Done
           </Button>
@@ -376,19 +379,37 @@ function FieldValueInput({
         ? (value as [string, string])
         : ["", ""];
     return (
-      <div className="grid grid-cols-2 gap-2">
-        <TextInput
-          label="From"
-          type={inputType}
-          value={from}
-          onChange={(event) => onChange([event.target.value, to])}
-        />
-        <TextInput
-          label="To"
-          type={inputType}
-          value={to}
-          onChange={(event) => onChange([from, event.target.value])}
-        />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {field.type === "date" ? (
+          <>
+            <DateTimeFilterInput
+              label="From"
+              value={from}
+              onChange={(next) => onChange([next, to])}
+            />
+            <DateTimeFilterInput
+              label="To"
+              value={to}
+              defaultTime="23:59"
+              onChange={(next) => onChange([from, next])}
+            />
+          </>
+        ) : (
+          <>
+            <TextInput
+              label="From"
+              type={inputType}
+              value={from}
+              onChange={(event) => onChange([event.target.value, to])}
+            />
+            <TextInput
+              label="To"
+              type={inputType}
+              value={to}
+              onChange={(event) => onChange([from, event.target.value])}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -419,6 +440,17 @@ function FieldValueInput({
         <option value="true">True</option>
         <option value="false">False</option>
       </SelectField>
+    );
+  }
+
+  if (field.type === "date") {
+    return (
+      <DateTimeFilterInput
+        label="Value"
+        value={typeof value === "string" ? value : ""}
+        defaultTime={operator === "<=" ? "23:59" : "00:00"}
+        onChange={onChange}
+      />
     );
   }
 

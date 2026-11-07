@@ -42,6 +42,14 @@ if (workspaceRoot) {
   dotenv.config({ override: process.env.NODE_ENV === "production" });
 }
 
+/** Parses a boolean env flag: `true`/`1` enable; `false`/`0`/empty/unset disable (case-insensitive, trimmed); anything else fails validation. */
+const envFlag = z
+  .string()
+  .default("")
+  .transform((v) => v.trim().toLowerCase())
+  .pipe(z.enum(["true", "1", "false", "0", ""], { message: "must be one of true, 1, false, 0, or empty" }))
+  .transform((v) => v === "true" || v === "1");
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
@@ -67,7 +75,7 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://cdn.jsdelivr.net/npm/@paybook/sync-widget/dist/widget.css"),
-  SYNCFY_AUTO_SYNC_ENABLED: z.coerce.boolean().default(false),
+  SYNCFY_AUTO_SYNC_ENABLED: envFlag,
   SYNCFY_AUTO_SYNC_INTERVAL_MINUTES: z.coerce
     .number()
     .int()

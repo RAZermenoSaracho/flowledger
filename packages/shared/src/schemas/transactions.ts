@@ -3,7 +3,7 @@ import {
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
-import { currencyCodeSchema, moneySchema } from "./common.js";
+import { currencyCodeSchema, dateStringSchema, moneySchema } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
 export const transactionSharedExpenseSchema = z.object({
@@ -16,10 +16,7 @@ export const baseTransactionSchema =z.object({
   amount: moneySchema,
   executionCurrency: currencyCodeSchema.optional(),
   type: z.enum(TRANSACTION_TYPES),
-  date: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  date: dateStringSchema,
   categoryId: z.string().min(1).optional().nullable(),
   expenseOffsetCategoryId: z.string().min(1).optional().nullable(),
   groupId: z.string().min(1).optional().nullable(),

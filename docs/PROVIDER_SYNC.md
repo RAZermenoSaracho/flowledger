@@ -164,7 +164,7 @@ The scheduler is created and started in `server.ts` on boot.
 
 | Env var | Default | Description |
 |---|---|---|
-| `SYNCFY_AUTO_SYNC_ENABLED` | `false` | Master on/off switch |
+| `SYNCFY_AUTO_SYNC_ENABLED` | `false` | Master switch for the background scheduler only (manual resync and webhooks are unaffected). `true`/`1` enable; `false`/`0`/empty/unset disable (case-insensitive); any other value fails startup |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | `60` | How often to run |
 | `SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS` | `120000` (2 min) | Per-job timeout |
 | `SYNCFY_AUTO_SYNC_CONCURRENCY` | `1` | Jobs processed in parallel |

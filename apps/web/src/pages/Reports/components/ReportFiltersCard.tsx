@@ -1,9 +1,7 @@
-import { ChevronDown } from "lucide-react";
-import { useState } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { CurrencySelect } from "../../../components/CurrencySelect";
-import { TextInput } from "../../../components/FormField";
+import { DateTimeFilterInput } from "../../../components/DateTimeFilterInput";
 import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { ReportAmountMode, ReportFilters } from "../types/reports.types";
@@ -22,7 +20,7 @@ export const emptyReportFilters: ReportFilters = {
   categoryIds: []
 };
 
-/** Date range, group, and category filter controls for reports. */
+/** Always-visible date-time range, group, and category filter controls for reports, plus currency and net/gross; stacks responsively with no collapse. */
 export function ReportFiltersCard({
   filters,
   onFiltersChange,
@@ -44,11 +42,6 @@ export function ReportFiltersCard({
   reportAmountMode: ReportAmountMode;
   onReportAmountModeChange: (mode: ReportAmountMode) => void;
 }) {
-  // Collapsed by default only below `lg`: the `lg:hidden` toggle and the
-  // `hidden lg:block` content wrapper below mean desktop always renders
-  // the form open regardless of this state — this is a mobile-only affordance,
-  // the form itself (and its desktop behavior) is otherwise untouched.
-  const [isOpenOnMobile, setIsOpenOnMobile] = useState(false);
   const setGroupIds = (groupIds: string[]) => {
     const nextCategoryIds = groupIds.length
       ? filters.categoryIds.filter((categoryId) =>
@@ -76,44 +69,18 @@ export function ReportFiltersCard({
 
   return (
     <Card>
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-2 lg:hidden"
-        aria-expanded={isOpenOnMobile}
-        aria-controls="report-filters-content"
-        onClick={() => setIsOpenOnMobile((current) => !current)}
-      >
-        <span className="text-sm font-semibold text-ink dark:text-slate-100">
-          Filters{hasActiveFilters ? " (active)" : ""}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 text-slate-500 transition dark:text-slate-400 ${
-            isOpenOnMobile ? "rotate-180" : ""
-          }`}
-          aria-hidden="true"
-        />
-      </button>
-      <div
-        id="report-filters-content"
-        className={`${isOpenOnMobile ? "mt-4 block" : "hidden"} lg:mt-0 lg:block`}
-      >
-        <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <TextInput
+      <div className="grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(13.5rem,1.3fr))_repeat(2,minmax(0,1fr))]">
+          <DateTimeFilterInput
             label="From"
-            type="date"
             value={filters.dateFrom}
-            onChange={(event) =>
-              onFiltersChange({ ...filters, dateFrom: event.target.value })
-            }
+            onChange={(next) => onFiltersChange({ ...filters, dateFrom: next })}
           />
-          <TextInput
+          <DateTimeFilterInput
             label="To"
-            type="date"
             value={filters.dateTo}
-            onChange={(event) =>
-              onFiltersChange({ ...filters, dateTo: event.target.value })
-            }
+            defaultTime="23:59"
+            onChange={(next) => onFiltersChange({ ...filters, dateTo: next })}
           />
           <MultiSelectFilter
             label="Groups"
@@ -139,7 +106,7 @@ export function ReportFiltersCard({
           />
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row xl:items-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           {hasActiveFilters ? (
             <Button
               type="button"
@@ -184,7 +151,6 @@ export function ReportFiltersCard({
               })}
             </div>
           </div>
-        </div>
         </div>
       </div>
     </Card>

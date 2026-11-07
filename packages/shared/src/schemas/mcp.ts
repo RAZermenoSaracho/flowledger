@@ -2,19 +2,18 @@ import { z } from "zod";
 import { PROVIDER_IMPORTED_TRANSACTION_STATUSES, TRANSACTION_TYPES } from "../constants/index.js";
 import { updateAccountSchema } from "./accounts.js";
 import { categorySchema } from "./categories.js";
+import { optionalDateStringSchema } from "./common.js";
 import { currencyRateQuerySchema } from "./currencies.js";
 import { settlementRequestSchema } from "./debts.js";
 import { groupSchema } from "./groups.js";
 import { reportFiltersSchema } from "./reports.js";
 import { updateProviderImportedTransactionSchema, updateTransactionSchema } from "./transactions.js";
 
-const isoDaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-
 /** Structured filter accepted by the MCP `search_transactions` tool; strict so unknown keys are rejected instead of silently ignored. */
 export const transactionSearchFilterSchema = z
   .object({
-    dateFrom: isoDaySchema.optional(),
-    dateTo: isoDaySchema.optional(),
+    dateFrom: optionalDateStringSchema,
+    dateTo: optionalDateStringSchema,
     accountId: z.string().min(1).optional(),
     categoryId: z.string().min(1).optional(),
     text: z.string().trim().min(1).max(100).optional(),

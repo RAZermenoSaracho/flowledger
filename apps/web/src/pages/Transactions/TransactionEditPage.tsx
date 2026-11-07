@@ -16,7 +16,11 @@ import {
 } from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
 import type { TransactionEditForm } from "./types/transactions.types";
-import { todayDateString } from "./utils/transactions";
+import {
+  transactionDateInputValue,
+  transactionDateNowInputValue,
+  transactionDateRequestValue
+} from "../../utils/dateTime";
 
 const TRANSFER_ACCOUNT_VALIDATION_MESSAGE =
   "Source and destination accounts must be different";
@@ -27,7 +31,7 @@ function formFromTransaction(transaction: Transaction): TransactionEditForm {
     amount: String(transaction.amount),
     executionCurrency: transaction.executionCurrency,
     type: transaction.type,
-    date: transaction.date.slice(0, 10),
+    date: transactionDateInputValue(transaction),
     accountId: transaction.accountId ?? "",
     transferToAccountId: transaction.transferToAccountId ?? "",
     categoryId: transaction.categoryId ?? "",
@@ -75,7 +79,7 @@ export function TransactionEditPage() {
         amount: Number(form.amount),
         executionCurrency: form.executionCurrency,
         type: form.type,
-        date: form.date,
+        date: transactionDateRequestValue(form.date, transactionQuery.data),
         accountId: form.accountId || null,
         transferToAccountId:
           form.type === "transfer" ? form.transferToAccountId || null : null,
@@ -240,8 +244,8 @@ export function TransactionEditPage() {
           </SelectField>
           <div className="relative">
             <TextInput
-              label="Date"
-              type="date"
+              label="Date and time"
+              type="datetime-local"
               value={form.date}
               onChange={(event) =>
                 setForm({ ...form, date: event.target.value })
@@ -251,13 +255,13 @@ export function TransactionEditPage() {
             />
             {/* The native date picker's own reset control is browser-rendered
                 and unreliable on some mobile browsers — this bypasses it
-                entirely by writing today's date straight to form state. */}
+                entirely by writing the current time straight to form state. */}
             <button
               type="button"
-              onClick={() => setForm({ ...form, date: todayDateString() })}
+              onClick={() => setForm({ ...form, date: transactionDateNowInputValue() })}
               className="absolute right-0 top-0 text-xs font-semibold text-pine hover:underline dark:text-emerald-300"
             >
-              Reset to today
+              Reset to now
             </button>
           </div>
           {form.type === "transfer" ? (

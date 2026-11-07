@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import { server } from "../../../../tests/mocks/server";
 import type { Account } from "../../../../types/accounts.types";
@@ -18,7 +18,7 @@ function makeForm(overrides: Partial<TransactionFormState> = {}): TransactionFor
     amount: "",
     executionCurrency: "USD",
     type: "expense",
-    date: "2024-01-15",
+    date: "2024-01-15T09:30",
     accountId: "",
     transferToAccountId: "",
     categoryId: "",
@@ -71,6 +71,13 @@ function mockCurrencies() {
 }
 
 describe("TransactionCoreFields", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.TZ = originalTz;
+  });
+
   it("renders Account (not From/To) fields for a non-transfer type", () => {
     mockCurrencies();
     renderWithProviders(<TransactionCoreFields {...baseProps()} />);
@@ -217,20 +224,44 @@ describe("TransactionCoreFields", () => {
     expect(props.onGroupSelected).toHaveBeenCalledWith(group);
   });
 
-  it("Reset to today sets the date field to today's local date regardless of its current value", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date(2024, 2, 5)); // March 5, 2024, local time
+  it("labels a single datetime-local field for date and time", () => {
     mockCurrencies();
-    const user = userEvent.setup({ delay: null });
-    const props = baseProps({ form: makeForm({ date: "2024-01-15" }) });
+    renderWithProviders(<TransactionCoreFields {...baseProps()} />);
+
+    const field = screen.getByLabelText("Date and time");
+    expect(field).toHaveAttribute("type", "datetime-local");
+    expect(field).toHaveValue("2024-01-15T09:30");
+    expect(screen.queryByLabelText("Date")).not.toBeInTheDocument();
+  });
+
+  it("reports a changed date-and-time value through onFormChange", () => {
+    mockCurrencies();
+    const props = baseProps();
     renderWithProviders(<TransactionCoreFields {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Reset to today" }));
+    fireEvent.change(screen.getByLabelText("Date and time"), {
+      target: { value: "2026-11-05T14:30" }
+    });
 
     expect(props.onFormChange).toHaveBeenCalledWith(
-      expect.objectContaining({ date: "2024-03-05" })
+      expect.objectContaining({ date: "2026-11-05T14:30" })
     );
-    vi.useRealTimers();
+  });
+
+  it("Reset to now sets the field to the current local date and time regardless of its current value", async () => {
+    process.env.TZ = "America/Mexico_City";
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-06T03:07:00.000Z"));
+    mockCurrencies();
+    const user = userEvent.setup({ delay: null });
+    const props = baseProps();
+    renderWithProviders(<TransactionCoreFields {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Reset to now" }));
+
+    expect(props.onFormChange).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2026-11-05T21:07" })
+    );
   });
 
   it("shows the transfer-specific notes helper text only for transfer type", () => {

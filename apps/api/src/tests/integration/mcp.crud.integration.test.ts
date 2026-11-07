@@ -2,11 +2,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Express } from "express";
 import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createAuthedUser } from "../helpers/authTestUser.js";
 import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js";
+import { loopbackOrigin } from "../helpers/loopback.js";
 
 // Cross-module integration test: needs Docker (see CLAUDE.local.md). Drives the new personal-CRUD MCP tools
 // with the real SDK client and compares them with the /v1 REST routes over a testcontainers Postgres.
@@ -153,7 +153,7 @@ describe("MCP personal CRUD tools", () => {
     ({ app } = await import("../../app.js"));
     ({ prisma } = await import("../../db/prisma.js"));
     server = app.listen(0);
-    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    baseUrl = loopbackOrigin(server);
     a = await createActor();
     b = await createActor();
   }, 180_000);

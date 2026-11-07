@@ -132,7 +132,11 @@ export async function getGroupById(userId: string, groupId: string) {
         ...groupInclude(userId),
         transactions: {
           where: { userId },
-          include: { account: true, category: true },
+          include: {
+            account: true,
+            category: true,
+            providerImportedTransaction: { select: { transactionDate: true } }
+          },
           orderBy: { date: "desc" },
           take: 25
         }

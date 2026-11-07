@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../../../hooks/useAuth";
 import { server } from "../../../tests/mocks/server";
 import type { Transaction } from "../../../types/transactions.types";
@@ -196,5 +196,43 @@ describe("TransactionDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(deleted).toBe(false);
+  });
+
+  describe("date display", () => {
+    const originalTz = process.env.TZ;
+
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it.each(["America/Mexico_City", "Pacific/Kiritimati"])(
+      "shows the local date and time in %s",
+      async (zone) => {
+        process.env.TZ = zone;
+        const date = "2026-11-06T03:00:00.000Z";
+        mockBaseline(makeTransaction({ date }));
+        renderPage();
+
+        const expected = new Date(date).toLocaleString(undefined, {
+          timeZone: zone,
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        });
+        expect(await screen.findByText(expected)).toBeInTheDocument();
+      }
+    );
+
+    it("shows no time for an unedited provider date at UTC noon", async () => {
+      process.env.TZ = "America/Mexico_City";
+      const date = "2026-06-04T12:00:00.000Z";
+      mockBaseline(makeTransaction({ date, providerImportedTransaction: { transactionDate: date } }));
+      renderPage();
+
+      const shown = new Date(date).toLocaleDateString(undefined, { timeZone: "America/Mexico_City" });
+      expect(await screen.findByText(shown)).toBeInTheDocument();
+    });
   });
 });

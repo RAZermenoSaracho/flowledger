@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Card } from "../../../components/Card";
 import { RecordCard, type RecordCardAction } from "../../../components/RecordCard";
 import { formatMoney } from "../../../utils/currency";
+import { formatTransactionDate } from "../../../utils/dateTime";
 import { parseTransactionAmount } from "../utils/transactions";
 import type { Transaction } from "../../../types/transactions.types";
 
@@ -83,7 +84,7 @@ export function TransactionList({
                     }
                     subtitle={
                       <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {new Date(transaction.date).toLocaleDateString()} ·{" "}
+                        {formatTransactionDate(transaction)} ·{" "}
                         {transaction.type === "transfer"
                           ? "Transfer"
                           : (transaction.category?.name ??

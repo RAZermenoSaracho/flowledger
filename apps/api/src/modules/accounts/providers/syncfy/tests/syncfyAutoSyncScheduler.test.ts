@@ -75,9 +75,15 @@ describe("SyncfyAutoSyncScheduler", () => {
 
   it("start() returns false and does not schedule when disabled", () => {
     vi.useFakeTimers();
-    const scheduler = buildScheduler({ enabled: false });
+    const loadJobs = vi.fn().mockResolvedValue([]);
+    const processJob = vi.fn();
+    const scheduler = buildScheduler({ enabled: false, loadJobs, processJob });
 
     expect(scheduler.start()).toBe(false);
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(loadJobs).not.toHaveBeenCalled();
+    expect(processJob).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 

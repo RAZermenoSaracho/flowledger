@@ -115,7 +115,7 @@ export function importedTransactionSearchWhere(
   const dateSearch = /^\d{4}-\d{2}-\d{2}/.test(search) ? new Date(search) : null;
   if (dateSearch && !Number.isNaN(dateSearch.getTime())) {
     const nextDay = new Date(dateSearch);
-    nextDay.setDate(nextDay.getDate() + 1);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     searchFilters.push({ transactionDate: { gte: dateSearch, lt: nextDay } });
   }
 

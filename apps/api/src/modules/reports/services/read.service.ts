@@ -302,9 +302,11 @@ export async function getMonthlyCashflowReport(
   );
 
   const amountMode = filters.amountMode ?? "net";
-  const cashflow = calculateMonthlyCashflow(convertedTransactions, {
-    categoryIds: selectedCategoryIds(filters)
-  }).map((row) => ({
+  const cashflow = calculateMonthlyCashflow(
+    convertedTransactions,
+    { categoryIds: selectedCategoryIds(filters) },
+    filters.timeZone
+  ).map((row) => ({
     ...row,
     reportIncome: amountMode === "gross" ? row.grossIncome : row.netIncome,
     reportExpenses: amountMode === "gross" ? row.grossExpenses : row.netExpenses

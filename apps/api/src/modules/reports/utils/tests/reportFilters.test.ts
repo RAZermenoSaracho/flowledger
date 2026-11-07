@@ -19,10 +19,28 @@ describe("dateRangeWhere", () => {
     expect(result).not.toHaveProperty("lte");
   });
 
-  it("treats a full ISO datetime dateTo as an inclusive literal bound", () => {
+  it("treats a datetime dateTo as an exclusive literal bound", () => {
     const result = dateRangeWhere({ dateTo: "2024-03-15T12:00:00.000Z" });
-    expect(result?.lte).toEqual(new Date("2024-03-15T12:00:00.000Z"));
-    expect(result).not.toHaveProperty("lt");
+    expect(result?.lt).toEqual(new Date("2024-03-15T12:00:00.000Z"));
+    expect(result).not.toHaveProperty("lte");
+  });
+
+  it("normalizes an offset datetime dateTo to an exclusive UTC bound", () => {
+    const result = dateRangeWhere({ dateTo: "2026-11-05T14:30:00-06:00" });
+    expect(result).toEqual({ lt: new Date("2026-11-05T20:30:00.000Z") });
+  });
+
+  it("rolls a bare dateTo at a month end to the first of the next month", () => {
+    expect(dateRangeWhere({ dateTo: "2024-02-29" })).toEqual({ lt: new Date("2024-03-01T00:00:00.000Z") });
+  });
+
+  it("sets both bounds for datetime dateFrom and dateTo", () => {
+    expect(
+      dateRangeWhere({ dateFrom: "2026-11-05T06:00:00.000Z", dateTo: "2026-11-06T06:00:00.000Z" })
+    ).toEqual({
+      gte: new Date("2026-11-05T06:00:00.000Z"),
+      lt: new Date("2026-11-06T06:00:00.000Z")
+    });
   });
 
   it("sets gte from dateFrom alone", () => {

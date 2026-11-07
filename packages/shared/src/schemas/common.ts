@@ -2,11 +2,23 @@ import { z } from "zod";
 
 export const idSchema = z.string().min(1);
 
-export const optionalDateStringSchema = z
+/** A datetime with `Z` or an offset, or a bare `YYYY-MM-DD` date meaning that UTC calendar day. `new Date()` reads both as UTC instants. */
+export const dateStringSchema = z
   .string()
-  .datetime()
-  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
-  .optional();
+  .datetime({ offset: true })
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/));
+
+export const optionalDateStringSchema = dateStringSchema.optional();
+
+/** An IANA timezone name the runtime recognizes, such as `America/Mexico_City`. */
+export const timeZoneSchema = z.string().refine((value) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}, "Invalid IANA time zone");
 
 export const moneySchema = z.coerce.number().finite();
 

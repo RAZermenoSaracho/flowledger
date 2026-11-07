@@ -23,12 +23,14 @@ body {
 
 /* iOS Safari gives date inputs a non-shrinkable intrinsic width that overflows grid tracks. */
 @supports (-webkit-touch-callout: none) {
-  input[type="date"] {
+  input[type="date"],
+  input[type="datetime-local"] {
     -webkit-appearance: none;
     appearance: none;
   }
 
-  input[type="date"]::-webkit-date-and-time-value {
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
     text-align: left;
     min-width: 0;
   }
