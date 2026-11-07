@@ -1,13 +1,17 @@
 import type { SharedExpenseInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
+import { assertAllowedQueryFields } from "../../../db/sieveFieldGuard.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import type {
   SharedExpenseListRecord,
   SharedExpensesQueryInput
 } from "../types/sharedExpenses.types.js";
+import { withVisibleTransaction } from "../utils/transactionVisibility.js";
 
 const sharedExpensesSieve = createSieve(prisma.sharedExpense);
+// Participants can list these rows, so a filter on `transaction.*` would reveal the owner's private fields.
+const QUERYABLE_FIELDS = new Set(["id", "title", "totalAmount", "status", "createdAt", "updatedAt"]);
 
 /** Fetches a transaction owned by `userId`, or `null` if no `transactionId` was given; throws if `transactionId` was given but doesn't resolve. */
 export async function getOwnedTransaction(userId: string, transactionId?: string) {
@@ -137,19 +141,22 @@ function parseSharedExpensesQueryParam(raw: string | undefined) {
   return decoded as SharedExpensesQueryInput;
 }
 
-/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query. */
+/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query; non-owners get the public transaction fields only. */
 export async function listSharedExpenses(
   userId: string,
   rawQuery: string | undefined
 ) {
   const input = parseSharedExpensesQueryParam(rawQuery);
+  assertAllowedQueryFields({ where: input.where, sort: input.sort }, QUERYABLE_FIELDS);
   const visibleIds = await getVisibleSharedExpenseIds(userId);
   const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
   const where = input.where
     ? { and: [scopeCondition, input.where] }
     : scopeCondition;
 
-  const result = await sharedExpensesSieve.query<SharedExpenseListRecord>({
+  const result = await sharedExpensesSieve.query<
+    SharedExpenseListRecord & { transaction?: Record<string, unknown> | null }
+  >({
     where,
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     include: {
@@ -158,10 +165,10 @@ export async function listSharedExpenses(
       owner: { select: { id: true, name: true } }
     }
   });
-  return result.data;
+  return result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId));
 }
 
-/** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant. */
+/** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant; non-owners get the public transaction fields only. */
 export async function getSharedExpenseById(userId: string, sharedExpenseId: string) {
   const sharedExpense = await prisma.sharedExpense.findFirst({
     where: {
@@ -179,5 +186,5 @@ export async function getSharedExpenseById(userId: string, sharedExpenseId: stri
   });
   if (!sharedExpense) throw notFound("Shared expense");
 
-  return sharedExpense;
+  return withVisibleTransaction(sharedExpense, userId);
 }

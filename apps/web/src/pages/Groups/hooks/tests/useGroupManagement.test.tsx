@@ -202,9 +202,15 @@ describe("useGroupManagement", () => {
     expect(deleted).toBe(false);
   });
 
-  it("only enables the user search once a group is selected and the search is longer than 1 char", async () => {
+  it("does not search with fewer than 3 characters", () => {
+    const { result } = renderManagement(makeGroup());
+    act(() => result.current.setUserSearch("ja"));
+    expect(result.current.userSearchQuery.fetchStatus).toBe("idle");
+  });
+
+  it("only enables the user search once a group is selected and the search has at least 3 char", async () => {
     const { result: withoutSelection } = renderManagement(null);
-    act(() => withoutSelection.current.setUserSearch("ja"));
+    act(() => withoutSelection.current.setUserSearch("jan"));
     expect(withoutSelection.current.userSearchQuery.fetchStatus).toBe("idle");
 
     server.use(
@@ -213,7 +219,7 @@ describe("useGroupManagement", () => {
       )
     );
     const { result: withSelection } = renderManagement(makeGroup());
-    act(() => withSelection.current.setUserSearch("ja"));
+    act(() => withSelection.current.setUserSearch("jan"));
 
     await waitFor(() => expect(withSelection.current.userSearchQuery.data).toBeDefined());
   });

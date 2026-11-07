@@ -14,7 +14,8 @@ export function signGoogleState(state: GoogleState) {
 /** Verifies and decodes a signed OAuth state JWT; throws a 400 `HttpError` if the payload shape is wrong. */
 export function verifyGoogleState(stateToken: string) {
   const payload = jwt.verify(stateToken, env.JWT_SECRET, {
-    audience: "google-oauth"
+    audience: "google-oauth",
+    algorithms: ["HS256"]
   }) as jwt.JwtPayload;
 
   if (typeof payload.nonce !== "string" || typeof payload.redirect !== "string") {
@@ -24,6 +25,7 @@ export function verifyGoogleState(stateToken: string) {
   return {
     nonce: payload.nonce,
     redirect: payload.redirect,
-    keepLoggedIn: payload.keepLoggedIn !== false
+    keepLoggedIn: payload.keepLoggedIn !== false,
+    ...(typeof payload.linkUserId === "string" ? { linkUserId: payload.linkUserId } : {})
   };
 }

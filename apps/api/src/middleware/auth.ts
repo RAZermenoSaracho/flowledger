@@ -1,14 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { env } from "../config/env.js";
+import { verifyAccessToken } from "../modules/auth/utils/tokens.js";
 import { HttpError } from "../utils/httpError.js";
 
-type TokenPayload = {
-  sub: string;
-  email: string;
-};
-
-/** Validates the `Authorization: Bearer` JWT and attaches `{ id, email }` to `req.user`; rejects with 401 if missing or invalid. */
+/** Validates the `Authorization: Bearer` access token and attaches `{ id, email }` to `req.user`; rejects with 401 if missing or invalid. */
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const header = req.header("authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
@@ -19,8 +13,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   }
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
-    req.user = { id: payload.sub, email: payload.email };
+    req.user = verifyAccessToken(token);
     next();
   } catch {
     next(new HttpError(401, "Invalid or expired token"));

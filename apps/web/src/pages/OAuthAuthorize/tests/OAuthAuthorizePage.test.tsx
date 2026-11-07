@@ -39,6 +39,16 @@ describe("OAuthAuthorizePage", () => {
     expect(screen.getByLabelText("1 month")).toBeChecked();
   });
 
+  it("shows an error and stays on the page when 'Not you?' sign-out fails", async () => {
+    mockContext();
+    server.use(http.post(`${API}/auth/logout`, () => new HttpResponse(null, { status: 500 })));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Not you?" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign-out did not complete");
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+  });
+
   it("warns on Never lifetime", async () => {
     mockContext();
     const user = userEvent.setup();

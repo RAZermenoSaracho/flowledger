@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { describe, expect, it } from "vitest";
 import { env } from "../../../../../../config/env.js";
+import { signAccessToken } from "../../../../utils/tokens.js";
 import { signGoogleState, verifyGoogleState } from "../googleState.js";
 
 describe("signGoogleState / verifyGoogleState", () => {
@@ -51,6 +52,30 @@ describe("signGoogleState / verifyGoogleState", () => {
     });
 
     expect(() => verifyGoogleState(token)).toThrow("Invalid OAuth state");
+  });
+
+  it("round-trips the signed link user and omits it otherwise", () => {
+    const linked = signGoogleState({
+      nonce: "abc",
+      redirect: "/profile",
+      keepLoggedIn: true,
+      linkUserId: "user-1"
+    });
+    const signIn = signGoogleState({ nonce: "abc", redirect: "/", keepLoggedIn: true });
+
+    expect(verifyGoogleState(linked).linkUserId).toBe("user-1");
+    expect(verifyGoogleState(signIn)).not.toHaveProperty("linkUserId");
+  });
+
+  it("rejects a wrong algorithm and an access token", () => {
+    const wrongAlgorithm = jwt.sign({ nonce: "n", redirect: "/" }, env.JWT_SECRET, {
+      audience: "google-oauth",
+      algorithm: "HS512"
+    });
+    const accessToken = signAccessToken({ id: "user-1", email: "user1@example.com" });
+
+    expect(() => verifyGoogleState(wrongAlgorithm)).toThrow();
+    expect(() => verifyGoogleState(accessToken)).toThrow();
   });
 
   it("rejects a malformed token", () => {

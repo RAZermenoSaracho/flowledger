@@ -226,13 +226,14 @@ describe("userSearchQuerySchema", () => {
     });
   });
 
-  it("rejects an empty query", () => {
+  it("rejects a query shorter than three characters after trimming", () => {
     expect(userSearchQuerySchema.safeParse({ q: "" }).success).toBe(false);
+    expect(userSearchQuerySchema.safeParse({ q: " ad " }).success).toBe(false);
   });
 
-  it("rejects a limit above 25", () => {
+  it("rejects a limit above 10", () => {
     expect(
-      userSearchQuerySchema.safeParse({ q: "ada", limit: "26" }).success
+      userSearchQuerySchema.safeParse({ q: "ada", limit: "11" }).success
     ).toBe(false);
   });
 });

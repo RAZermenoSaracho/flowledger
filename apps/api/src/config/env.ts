@@ -89,6 +89,22 @@ const envSchema = z.object({
   SYNCFY_AUTO_SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
   SYNCFY_TRANSACTION_LOOKBACK_DAYS: z.coerce.number().int().positive().default(60),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
+}).superRefine((input, context) => {
+  if (input.SYNCFY_API_KEY && !input.SYNCFY_WEBHOOK_SIGNATURE_KEY) {
+    context.addIssue({
+      code: "custom",
+      path: ["SYNCFY_WEBHOOK_SIGNATURE_KEY"],
+      message: "is required when SYNCFY_API_KEY is set"
+    });
+  }
+
+  if (input.NODE_ENV === "production" && input.JWT_SECRET.length < 32) {
+    context.addIssue({
+      code: "custom",
+      path: ["JWT_SECRET"],
+      message: "must be at least 32 characters in production"
+    });
+  }
 });
 
 /** Validated process environment; throws at startup if required vars are missing or malformed. */

@@ -132,6 +132,19 @@ describe("listSharedExpenses", () => {
     );
   });
 
+  it.each(["transaction.notes", "transaction.accountId", "owner.passwordHash"])(
+    "rejects a filter or sort on %s before querying",
+    async (field) => {
+      prismaMock.sharedExpense.findMany.mockClear();
+      const filter = JSON.stringify({ where: { field, op: "=", value: "x" } });
+      const sort = JSON.stringify({ sort: [{ field, direction: "asc" }] });
+
+      await expect(listSharedExpenses("user-1", filter)).rejects.toMatchObject({ statusCode: 400 });
+      await expect(listSharedExpenses("user-1", sort)).rejects.toMatchObject({ statusCode: 400 });
+      expect(prismaMock.sharedExpense.findMany).not.toHaveBeenCalled();
+    }
+  );
+
   it("rejects invalid query JSON", async () => {
     await expect(
       listSharedExpenses("user-1", "not json")

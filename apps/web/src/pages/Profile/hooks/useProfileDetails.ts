@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useCurrenciesQuery } from "../../../components/CurrencySelect";
+import * as authClient from "../../../services/auth.client";
 import * as usersClient from "../../../services/users.client";
 import type { ProfileDraft, ProfileDraftField } from "../types/profile.types";
 import { useProfileUser } from "./useProfileUser";
@@ -9,7 +10,9 @@ import { useProfileUser } from "./useProfileUser";
  * Read model for the Profile page: the user plus derived display values (avatar URL, initials,
  * currency label, member-since date) plus the inline-edit draft. Owned by `ProfilePage`, which stays
  * mounted across tab switches so drafts survive them. Nothing persists until `save()`; while dirty a
- * `beforeunload` guard is registered. `save()` is a no-op when `fieldErrors` is non-empty.
+ * `beforeunload` guard is registered. `save()` is a no-op when `fieldErrors` is non-empty. When the email
+ * changed, `save()` instead opens the password prompt (`isPasswordPromptOpen`); `confirmEmailChange(password)`
+ * then changes the email first (replacing the access token), followed by the remaining name/currency/avatar changes.
  */
 export function useProfileDetails() {
   const { query, user, syncUser } = useProfileUser();
@@ -18,6 +21,7 @@ export function useProfileDetails() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [draft, setDraft] = useState<Partial<ProfileDraft>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isPasswordPromptOpen, setIsPasswordPromptOpen] = useState(false);
 
   const original: ProfileDraft = {
     name: user?.name ?? "",
@@ -45,10 +49,23 @@ export function useProfileDetails() {
   }, [isDirty]);
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (currentPassword?: string) => {
+      let email = original.email;
+      if (draft.email !== undefined && currentPassword !== undefined) {
+        const changed = await usersClient.updateEmail({
+          email: values.email.trim(),
+          currentPassword
+        });
+        authClient.setToken(changed.token);
+        syncUser(changed.user);
+        setDraft(({ email: _email, ...rest }) => rest);
+        email = changed.user.email;
+      } else {
+        email = values.email.trim();
+      }
       let saved = await usersClient.updateProfile({
         name: values.name.trim(),
-        email: values.email.trim(),
+        email,
         preferredCurrency: values.preferredCurrency || null
       });
       if (avatarFile) saved = await usersClient.uploadAvatar(avatarFile);
@@ -59,6 +76,7 @@ export function useProfileDetails() {
       setDraft({});
       setAvatarFile(null);
       setSaveError(null);
+      setIsPasswordPromptOpen(false);
     },
     onError: (caught) =>
       setSaveError(
@@ -86,13 +104,31 @@ export function useProfileDetails() {
     setDraft({});
     setAvatarFile(null);
     setSaveError(null);
+    setIsPasswordPromptOpen(false);
   }
 
-  /** Persists the draft (profile first, then avatar); no-op while invalid or already saving. */
+  /** Persists the draft (email, then profile, then avatar); no-op while invalid or already saving. A changed email opens the password prompt instead of saving. */
   function save() {
     if (Object.keys(fieldErrors).length > 0 || saveMutation.isPending) return;
     setSaveError(null);
-    saveMutation.mutate();
+    if (draft.email !== undefined) {
+      setIsPasswordPromptOpen(true);
+      return;
+    }
+    saveMutation.mutate(undefined);
+  }
+
+  /** Submits the email change with the user's current password; a rejection leaves the prompt open with `saveError` set. */
+  function confirmEmailChange(currentPassword: string) {
+    if (saveMutation.isPending) return;
+    setSaveError(null);
+    saveMutation.mutate(currentPassword);
+  }
+
+  /** Closes the password prompt without saving, keeping the draft. */
+  function closePasswordPrompt() {
+    setIsPasswordPromptOpen(false);
+    setSaveError(null);
   }
 
   useEffect(() => {
@@ -143,6 +179,9 @@ export function useProfileDetails() {
     setField,
     revertField,
     save,
-    cancel
+    cancel,
+    isPasswordPromptOpen,
+    confirmEmailChange,
+    closePasswordPrompt
   };
 }

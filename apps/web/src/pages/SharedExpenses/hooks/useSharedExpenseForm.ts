@@ -36,7 +36,7 @@ export function useSharedExpenseForm() {
   });
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: trimmedUserSearch.length > 1,
+    enabled: trimmedUserSearch.length >= 3,
     queryFn: async () => (await searchUsers(trimmedUserSearch)).users
   });
   const selectedTransaction = (transactionsQuery.data ?? []).find(

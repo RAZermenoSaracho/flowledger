@@ -4,7 +4,8 @@ import { env } from "../../../../config/env.js";
 import {
   generateRefreshToken,
   hashRefreshToken,
-  signAccessToken
+  signAccessToken,
+  verifyAccessToken
 } from "../tokens.js";
 
 describe("signAccessToken", () => {
@@ -14,6 +15,31 @@ describe("signAccessToken", () => {
 
     expect(payload.sub).toBe("user-1");
     expect(payload.email).toBe("user1@example.com");
+  });
+});
+
+describe("verifyAccessToken", () => {
+  it("returns the user from a token signAccessToken issued", () => {
+    const token = signAccessToken({ id: "user-1", email: "user1@example.com" });
+
+    expect(verifyAccessToken(token)).toEqual({ id: "user-1", email: "user1@example.com" });
+  });
+
+  it("throws for a token signed for another audience", () => {
+    const token = jwt.sign({ email: "a@example.com" }, env.JWT_SECRET, {
+      subject: "user-1",
+      audience: "google-oauth"
+    });
+
+    expect(() => verifyAccessToken(token)).toThrow();
+  });
+
+  it("throws when the subject is missing", () => {
+    const token = jwt.sign({ email: "a@example.com" }, env.JWT_SECRET, {
+      audience: "flowledger-access"
+    });
+
+    expect(() => verifyAccessToken(token)).toThrow();
   });
 });
 

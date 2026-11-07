@@ -19,6 +19,7 @@ import {
   importedTransactionInclude,
   resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
+import { boundedPagination } from "../utils/boundedPagination.js";
 
 const transactionsSieve = createSieve(prisma.transaction);
 
@@ -230,15 +231,12 @@ export async function listTransactions(userId: string, rawQuery: string | undefi
   const input = parseTransactionsQueryParam(rawQuery);
   const where = await buildTransactionsWhere(userId, input);
 
-  // No fallback for sort/pagination: an omission should reach datasieve
-  // as an omission, not be forced into a FlowLedger-chosen default —
-  // datasieve itself decides what "no sort"/"no pagination" means
-  // (unordered/unpaginated). The frontend supplies its own sensible
-  // defaults (e.g. date desc) when building the request.
+  // No fallback for sort: an omission reaches datasieve as an omission, and the
+  // frontend supplies its own default (e.g. date desc) when building the request.
   return transactionsSieve.query<TransactionRecord>({
     where,
     sort: input.sort,
-    pagination: input.pagination,
+    pagination: boundedPagination(input.pagination),
     include: transactionInclude
   });
 }

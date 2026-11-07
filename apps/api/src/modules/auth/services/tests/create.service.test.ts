@@ -50,6 +50,27 @@ describe("issueRefreshToken", () => {
   });
 });
 
+describe("issueRefreshToken cleanup", () => {
+  it("deletes only the user's expired tokens", async () => {
+    prismaMock.refreshToken.create.mockResolvedValue({} as never);
+    prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 } as never);
+
+    await issueRefreshToken("user-1", true);
+
+    expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", expiresAt: { lt: expect.any(Date) } }
+    });
+  });
+
+  it("still returns the token when the delete fails", async () => {
+    prismaMock.refreshToken.create.mockResolvedValue({} as never);
+    prismaMock.refreshToken.deleteMany.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(issueRefreshToken("user-1", true)).resolves.toMatchObject({ persistent: true });
+  });
+});
+
 describe("registerUser", () => {
   it("throws a 409 when the email is already registered", async () => {
     prismaMock.user.findUnique.mockResolvedValue({ id: "existing" } as never);

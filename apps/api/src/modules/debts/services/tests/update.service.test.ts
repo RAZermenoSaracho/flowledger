@@ -98,13 +98,22 @@ describe("settleDebtDirectly", () => {
     );
   });
 
-  it("throws a 404 when the caller isn't the creditor", async () => {
-    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
-      debtRow() as never
-    );
+  it("scopes the lookup to the creditor, so a non-creditor gets the same 404", async () => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(null);
 
     await expect(settleDebtDirectly("not-the-owner", "debt-1")).rejects.toThrow(
       "Debt not found"
+    );
+    expect(prismaMock.sharedExpenseParticipant.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "debt-1",
+          OR: [
+            { sharedExpense: { ownerUserId: "not-the-owner", transaction: { type: "expense" } } },
+            { userId: "not-the-owner", sharedExpense: { transaction: { type: "income" } } }
+          ]
+        }
+      })
     );
   });
 

@@ -7,13 +7,15 @@ import { API_URL } from "../../tests/profileFixtures";
 import { SecurityTab } from "../SecurityTab";
 
 describe("SecurityTab", () => {
-  it("renders the four sections with the client instructions collapsed", async () => {
+  it("renders the five sections with the client instructions collapsed", async () => {
     server.use(
+      http.get(`${API_URL}/auth/google/link`, () => HttpResponse.json({ connected: false })),
       http.get(`${API_URL}/users/me/api-keys`, () => HttpResponse.json({ apiKeys: [] })),
       http.get(`${API_URL}/users/me/oauth-grants`, () => HttpResponse.json({ grants: [] }))
     );
     renderWithProviders(<SecurityTab />);
     expect(screen.getByRole("heading", { name: "Password" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Google" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Personal API keys" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Connected apps" })).toBeInTheDocument();
     expect(await screen.findByText("No connected apps.")).toBeInTheDocument();

@@ -255,31 +255,11 @@ describe("getProviderWebhookHealth", () => {
 });
 
 describe("handleProviderWebhook — non-syncfy provider", () => {
-  it("records a generic webhook event and forwards it to the provider's handleWebhook", async () => {
-    const handleWebhook = vi.fn().mockResolvedValue({ status: "ok" });
+  it("rejects without storing or forwarding, because the provider has no verifier", async () => {
+    const handleWebhook = vi.fn();
     getProviderMock.mockReturnValue({ key: "other", handleWebhook } as never);
-    prismaMock.providerWebhookEvent.create.mockResolvedValue({
-      id: "row-1"
-    } as never);
-
-    const result = await handleProviderWebhook({
-      providerParam: "other",
-      headers: {},
-      rawBody: Buffer.from("{}"),
-      body: { some: "payload" }
-    });
-
-    expect(result).toEqual({ kind: "generic", result: { status: "ok" } });
-    expect(handleWebhook).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "row-1" })
-    );
-  });
-
-  it("returns 'ignored' when the provider has no handleWebhook", async () => {
-    getProviderMock.mockReturnValue({ key: "other" } as never);
-    prismaMock.providerWebhookEvent.create.mockResolvedValue({
-      id: "row-1"
-    } as never);
+    prismaMock.providerWebhookEvent.create.mockClear();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await handleProviderWebhook({
       providerParam: "other",
@@ -288,7 +268,9 @@ describe("handleProviderWebhook — non-syncfy provider", () => {
       body: {}
     });
 
-    expect(result).toEqual({ kind: "generic", result: { status: "ignored" } });
+    expect(result).toEqual({ kind: "invalid_signature" });
+    expect(prismaMock.providerWebhookEvent.create).not.toHaveBeenCalled();
+    expect(handleWebhook).not.toHaveBeenCalled();
   });
 });
 
@@ -308,9 +290,26 @@ describe("handleProviderWebhook — syncfy provider", () => {
     expect(result).toEqual({ kind: "invalid_signature" });
   });
 
+  it("stores nothing for an invalid signature", async () => {
+    const handleWebhook = vi.fn();
+    getProviderMock.mockReturnValue({ key: "syncfy", handleWebhook } as never);
+    verifySyncfyWebhookSignatureMock.mockReturnValue("invalid");
+    prismaMock.providerWebhookEvent.create.mockClear();
+
+    await handleProviderWebhook({
+      providerParam: "syncfy",
+      headers: {},
+      rawBody: Buffer.from("{}"),
+      body: { events: [] }
+    });
+
+    expect(prismaMock.providerWebhookEvent.create).not.toHaveBeenCalled();
+    expect(handleWebhook).not.toHaveBeenCalled();
+  });
+
   it("rejects a payload that fails schema validation", async () => {
     getProviderMock.mockReturnValue({ key: "syncfy" } as never);
-    verifySyncfyWebhookSignatureMock.mockReturnValue("skipped");
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
     prismaMock.providerWebhookEvent.create.mockResolvedValue({} as never);
 
     const result = await handleProviderWebhook({
@@ -350,7 +349,7 @@ describe("handleProviderWebhook — syncfy provider", () => {
 
   it("redacts sensitive headers (including array values) while passing through others", async () => {
     getProviderMock.mockReturnValue({ key: "syncfy" } as never);
-    verifySyncfyWebhookSignatureMock.mockReturnValue("invalid");
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
     prismaMock.providerWebhookEvent.create.mockResolvedValue({} as never);
 
     await handleProviderWebhook({
@@ -376,7 +375,7 @@ describe("handleProviderWebhook — syncfy provider", () => {
 
   it("redacts a sensitive header even when its value is absent", async () => {
     getProviderMock.mockReturnValue({ key: "syncfy" } as never);
-    verifySyncfyWebhookSignatureMock.mockReturnValue("invalid");
+    verifySyncfyWebhookSignatureMock.mockReturnValue("valid");
     prismaMock.providerWebhookEvent.create.mockResolvedValue({} as never);
 
     await handleProviderWebhook({

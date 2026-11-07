@@ -65,6 +65,12 @@ export const updateUserPasswordSchema = z
     path: ["confirmPassword"]
   });
 
+/** Body of `PATCH /auth/email`: changing the login email always needs the current password. */
+export const updateUserEmailSchema = z.object({
+  email: z.string().trim().email().max(255),
+  currentPassword: z.string().min(1).max(128)
+});
+
 export const updateUserPlanSchema = z.object({
   planType: z.enum(PLAN_TYPES)
 });
@@ -74,8 +80,8 @@ export const updateUserSidebarSideSchema = z.object({
 });
 
 export const userSearchQuerySchema = z.object({
-  q: z.string().trim().min(1).max(120),
-  limit: z.coerce.number().int().positive().max(25).default(10)
+  q: z.string().trim().min(3).max(120),
+  limit: z.coerce.number().int().positive().max(10).default(10)
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -85,6 +91,7 @@ export type GoogleOAuthCallbackQuery = z.infer<typeof googleOAuthCallbackQuerySc
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 export type UpdateUserPreferencesInput = z.infer<typeof updateUserPreferencesSchema>;
 export type UpdateUserPasswordInput = z.infer<typeof updateUserPasswordSchema>;
+export type UpdateUserEmailInput = z.infer<typeof updateUserEmailSchema>;
 export type UpdateUserPlanInput = z.infer<typeof updateUserPlanSchema>;
 export type UpdateUserSidebarSideInput = z.infer<
   typeof updateUserSidebarSideSchema

@@ -136,7 +136,7 @@ function safeEqualString(left: string, right: string) {
   );
 }
 
-/** Verifies a Syncfy webhook's HMAC signature against the configured signing key, trying multiple key/secret and digest encodings since Syncfy's format isn't fully documented; returns `"skipped"` if no key is configured. */
+/** Verifies a Syncfy webhook's HMAC signature against the configured signing key, trying multiple key/secret and digest encodings since Syncfy's format isn't fully documented; with no key configured nothing can be verified, so the result is `"invalid"`. */
 export function verifySyncfyWebhookSignature(input: {
   rawBody: Buffer | undefined;
   signature: string | undefined;
@@ -145,7 +145,7 @@ export function verifySyncfyWebhookSignature(input: {
   const secrets = getCandidateSecrets(input.signatureKey);
 
   if (secrets.length === 0) {
-    return "skipped";
+    return "invalid";
   }
 
   const body = input.rawBody ?? Buffer.from("");

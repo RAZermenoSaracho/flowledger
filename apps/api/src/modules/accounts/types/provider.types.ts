@@ -210,9 +210,8 @@ export interface ProviderTransactionsAdapter {
   ): ProviderTransaction;
 }
 
-/** Outcome of `handleProviderWebhook` — `"generic"` for non-Syncfy providers (no signature verification), the rest specific to the Syncfy signature-then-parse pipeline. */
+/** Outcome of `handleProviderWebhook`'s signature-then-parse pipeline. */
 export type ProviderWebhookHandlingResult =
-  | { kind: "generic"; result: unknown }
   | { kind: "invalid_signature" }
   | { kind: "invalid_payload" }
   | {

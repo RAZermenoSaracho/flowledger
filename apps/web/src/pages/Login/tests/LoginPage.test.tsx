@@ -51,6 +51,18 @@ describe("LoginPage", () => {
     window.history.pushState({}, "", "/login");
   });
 
+  it("shows the existing-account Google refusal from the oauthError param", async () => {
+    mockRefresh401();
+    const message = "An account with this email already exists. Sign in with your password, then connect Google from Profile.";
+    window.history.pushState({}, "", `/login?oauthError=${encodeURIComponent(message)}`);
+
+    renderWithProviders(<LoginPage />, { withAuth: true });
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+
+    window.history.pushState({}, "", "/login");
+  });
+
   it("logs in and navigates to the dashboard on success", async () => {
     mockRefresh401();
     server.use(

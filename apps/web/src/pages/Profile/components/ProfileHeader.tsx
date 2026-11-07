@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Button } from "../../../components/Button";
 import { TextInput } from "../../../components/FormField";
 import { planLabels } from "../constants";
+import { ChangeEmailDialog } from "./ChangeEmailDialog";
 import { ProfileInlineField } from "./ProfileInlineField";
 import type { useProfileDetails } from "../hooks/useProfileDetails";
 
@@ -127,6 +128,15 @@ export function ProfileHeader({
           ) : null}
         </div>
       </div>
+      {p.isPasswordPromptOpen ? (
+        <ChangeEmailDialog
+          email={p.values.email.trim()}
+          error={p.saveError}
+          isPending={p.isSaving}
+          onSubmit={p.confirmEmailChange}
+          onCancel={p.closePasswordPrompt}
+        />
+      ) : null}
     </header>
   );
 }

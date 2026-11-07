@@ -1,4 +1,4 @@
-import { env } from "../../../../../config/env.js";
+import { secureAttribute } from "../../../utils/refreshTokenCookie.js";
 
 /** Cookie name carrying the OAuth state nonce between the start and callback legs. */
 export const googleStateCookieName = "flowledger_google_oauth_state";
@@ -19,7 +19,7 @@ export function parseCookies(header: string | undefined) {
   return cookies;
 }
 
-/** Builds the `Set-Cookie` header value for the OAuth state cookie, scoped to the callback path and `Secure` in production. */
+/** Builds the `Set-Cookie` header value for the OAuth state cookie, scoped to the callback path and `Secure` on HTTPS deployments. */
 export function googleStateCookie(nonce: string, maxAgeSeconds: number) {
   const parts = [
     `${googleStateCookieName}=${encodeURIComponent(nonce)}`,
@@ -29,9 +29,5 @@ export function googleStateCookie(nonce: string, maxAgeSeconds: number) {
     `Max-Age=${maxAgeSeconds}`
   ];
 
-  if (env.NODE_ENV === "production") {
-    parts.push("Secure");
-  }
-
-  return parts.join("; ");
+  return [...parts, ...secureAttribute()].join("; ");
 }

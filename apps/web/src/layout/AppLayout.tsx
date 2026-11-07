@@ -15,6 +15,7 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const mobileSidebarSide: MobileSidebarSide =
     auth.user?.mobileSidebarSide ?? "left";
 
@@ -33,10 +34,15 @@ export function AppLayout() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isMobileMenuOpen]);
 
-  const logout = () => {
+  const logout = async () => {
     setIsMobileMenuOpen(false);
-    void auth.logout();
-    navigate(routes.login);
+    setLogoutError(null);
+    try {
+      await auth.logout();
+      navigate(routes.login);
+    } catch {
+      setLogoutError("Sign-out did not complete. You are still signed in; try again.");
+    }
   };
 
   return (
@@ -45,6 +51,11 @@ export function AppLayout() {
 
       <div className="min-w-0 flex-1">
         <AppHeader />
+        {logoutError ? (
+          <p role="alert" className="mx-auto max-w-7xl px-4 pt-4 text-sm text-red-600 sm:px-6 lg:px-8 dark:text-red-400">
+            {logoutError}
+          </p>
+        ) : null}
         {/* `overflow-x-clip` (not `-hidden`) on purpose: `hidden` on one axis
             forces the other axis from `visible` to `auto`, turning <main>
             into a scroll container that clips absolutely positioned menus

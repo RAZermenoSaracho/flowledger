@@ -34,13 +34,20 @@ export async function refreshSession() {
   }
 }
 
-/** Revokes the refresh token server-side and clears the local access token; best-effort — local state is cleared even if the request fails. */
+/** Revokes the refresh token server-side, then clears the local access token. Throws on failure and leaves the token in place, so the session is still usable and the caller can retry. */
 export async function logout() {
-  try {
-    await apiRequest("/auth/logout", { method: "POST" });
-  } finally {
-    clearToken();
-  }
+  await apiRequest("/auth/logout", { method: "POST" });
+  clearToken();
+}
+
+/** Asks the API to start linking a Google identity to the signed-in user; resolves the Google consent URL to navigate to. */
+export function startGoogleLink() {
+  return apiRequest<{ url: string }>("/auth/google/link", { method: "POST" });
+}
+
+/** Reports whether the signed-in user has a Google identity linked. */
+export function getGoogleLinkStatus() {
+  return apiRequest<{ connected: boolean }>("/auth/google/link");
 }
 
 /** Builds the Google OAuth start URL, encoding where to redirect after login and the session mode. */

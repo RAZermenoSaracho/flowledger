@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -17,6 +18,7 @@ const { mkdir, writeFile } = await import("node:fs/promises");
 
 const {
   maxAvatarBytes,
+  updateEmail,
   updatePassword,
   updatePlan,
   updateProfile,
@@ -27,34 +29,139 @@ const {
 const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
 
 describe("updateProfile", () => {
-  it("throws a 409 when the new email belongs to a different user", async () => {
-    prismaMock.user.findUnique.mockResolvedValue({ id: "other-user" } as never);
+  it("rejects a differing email without changing anything", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ email: "mine@example.com" } as never);
+    prismaMock.user.update.mockClear();
 
     await expect(
-      updateProfile("user-1", { name: "Ada", email: "taken@example.com" })
-    ).rejects.toThrow("Email is already registered");
+      updateProfile("user-1", { name: "Ada", email: "new@example.com" })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("allows keeping your own email", async () => {
-    prismaMock.user.findUnique.mockResolvedValue({ id: "user-1" } as never);
+  it("saves other fields when the email is unchanged, and never writes email", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ email: "mine@example.com" } as never);
     prismaMock.user.update.mockResolvedValue({} as never);
 
     await updateProfile("user-1", { name: "Ada", email: "mine@example.com" });
 
-    expect(prismaMock.user.update).toHaveBeenCalled();
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { name: "Ada" }
+    });
   });
 
-  it("omits preferredCurrency from the update when not provided", async () => {
-    prismaMock.user.findUnique.mockResolvedValue(null);
+  it("includes preferredCurrency when provided", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ email: "mine@example.com" } as never);
     prismaMock.user.update.mockResolvedValue({} as never);
 
-    await updateProfile("user-1", { name: "Ada", email: "new@example.com" });
+    await updateProfile("user-1", {
+      name: "Ada",
+      email: "mine@example.com",
+      preferredCurrency: "USD"
+    });
 
     expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { name: "Ada", preferredCurrency: "USD" } })
+    );
+  });
+});
+
+describe("updateEmail", () => {
+  const input = { email: "new@example.com", currentPassword: "pw" };
+
+  function user(passwordHash: string | null = "stored-hash") {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ id: "user-1", passwordHash } as never);
+    prismaMock.user.update.mockClear();
+    prismaMock.refreshToken.updateMany.mockClear();
+    prismaMock.$transaction.mockClear();
+  }
+
+  function expectNothingChanged() {
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.refreshToken.updateMany).not.toHaveBeenCalled();
+  }
+
+  it("rejects a password-less account with a 400", async () => {
+    user(null);
+
+    await expect(updateEmail("user-1", input)).rejects.toMatchObject({ statusCode: 400 });
+    expectNothingChanged();
+  });
+
+  it("rejects a wrong password with a 400", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(false as never);
+
+    await expect(updateEmail("user-1", input)).rejects.toThrow("Current password is incorrect");
+    expectNothingChanged();
+  });
+
+  it("returns a 409 when another account has the email in any letter case", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    prismaMock.user.findFirst.mockResolvedValue({ id: "other" } as never);
+
+    await expect(updateEmail("user-1", input)).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.user.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.not.objectContaining({ preferredCurrency: expect.anything() })
+        where: {
+          email: { equals: "new@example.com", mode: "insensitive" },
+          id: { not: "user-1" }
+        }
       })
     );
+    expectNothingChanged();
+  });
+
+  it("updates the email and revokes other sessions in one transaction, keeping this device", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.$transaction.mockResolvedValue([{ id: "user-1", email: input.email }, { count: 2 }] as never);
+
+    const updated = await updateEmail("user-1", input, "this-device-token");
+
+    expect(updated).toEqual({ id: "user-1", email: input.email });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { email: input.email }
+    });
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        revokedAt: null,
+        tokenHash: { not: expect.any(String) }
+      },
+      data: { revokedAt: expect.any(Date) }
+    });
+  });
+
+  it("returns a 409 when a concurrent change takes the email first", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("duplicate", { code: "P2002", clientVersion: "test" })
+    );
+
+    await expect(updateEmail("user-1", input)).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("revokes every session when no refresh cookie identifies this device", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.$transaction.mockResolvedValue([{ id: "user-1" }, { count: 2 }] as never);
+
+    await updateEmail("user-1", input);
+
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) }
+    });
   });
 });
 
