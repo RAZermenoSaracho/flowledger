@@ -1,6 +1,7 @@
 import type { SharedExpenseInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
+import { assertAllowedQueryFields } from "../../../db/sieveFieldGuard.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import type {
   SharedExpenseListRecord,
@@ -9,6 +10,8 @@ import type {
 import { withVisibleTransaction } from "../utils/transactionVisibility.js";
 
 const sharedExpensesSieve = createSieve(prisma.sharedExpense);
+// Participants can list these rows, so a filter on `transaction.*` would reveal the owner's private fields.
+const QUERYABLE_FIELDS = new Set(["id", "title", "totalAmount", "status", "createdAt", "updatedAt"]);
 
 /** Fetches a transaction owned by `userId`, or `null` if no `transactionId` was given; throws if `transactionId` was given but doesn't resolve. */
 export async function getOwnedTransaction(userId: string, transactionId?: string) {
@@ -144,6 +147,7 @@ export async function listSharedExpenses(
   rawQuery: string | undefined
 ) {
   const input = parseSharedExpensesQueryParam(rawQuery);
+  assertAllowedQueryFields({ where: input.where, sort: input.sort }, QUERYABLE_FIELDS);
   const visibleIds = await getVisibleSharedExpenseIds(userId);
   const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
   const where = input.where

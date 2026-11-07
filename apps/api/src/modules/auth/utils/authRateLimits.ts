@@ -42,5 +42,5 @@ export const registerLimiter = limiter(60 * MINUTE_MS, 10, clientIpKey);
 /** Session refreshes per client address. */
 export const refreshLimiter = limiter(MINUTE_MS, 60, clientIpKey);
 
-/** Password and email changes per access token. */
-export const credentialChangeLimiter = limiter(15 * MINUTE_MS, 10);
+/** Password and email changes per user, so minting new access tokens doesn't buy more password guesses. */
+export const credentialChangeLimiter = limiter(15 * MINUTE_MS, 10, (req) => req.user?.id ?? clientIpKey(req));

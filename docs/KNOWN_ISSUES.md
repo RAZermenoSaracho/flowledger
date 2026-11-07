@@ -540,6 +540,16 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
+## [OPEN] #045 — Two remaining gaps from the hardening review
+
+**Found in:** Security review of the hardening branch, 2026-11-07.
+
+**Description:** (1) Case-variant emails can still race past the case-insensitive check in `updateEmail` and registration, because the database constraint is case-sensitive; #038 covers the fix. (2) The Google link callback doesn't confirm that the caller is `linkUserId`. A browser holding an attacker's state nonce could link its Google identity to the attacker's account, which needs cookie planting from a sibling subdomain (#034).
+
+**Suggested fix:** A case-insensitive unique index with #038. For the link, compare against the session once #034 is addressed.
+
+---
+
 ## [OPEN] #043 — `package-lock.json` is gitignored, so installs can't be pinned
 
 **Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07.

@@ -198,7 +198,7 @@ Limits are in `auth/utils/authRateLimits.ts`, and a 429 doesn't end a session be
 | `POST /auth/login` | Client address | 50 per 15 min |
 | `POST /auth/register` | Client address | 10 per hour |
 | `POST /auth/refresh` | Client address | 60 per min |
-| `PATCH /auth/password`, `PATCH /auth/email` | Access token | 10 per 15 min |
+| `PATCH /auth/password`, `PATCH /auth/email` | User | 10 per 15 min |
 
 `requireWebOrigin` rejects a foreign `Origin` with 403 on register, login, refresh, logout, and credential changes; a request with no `Origin` passes. Login does one bcrypt comparison whether or not the account or its password exists.
 

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -136,6 +137,17 @@ describe("updateEmail", () => {
       },
       data: { revokedAt: expect.any(Date) }
     });
+  });
+
+  it("returns a 409 when a concurrent change takes the email first", async () => {
+    user();
+    vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("duplicate", { code: "P2002", clientVersion: "test" })
+    );
+
+    await expect(updateEmail("user-1", input)).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it("revokes every session when no refresh cookie identifies this device", async () => {

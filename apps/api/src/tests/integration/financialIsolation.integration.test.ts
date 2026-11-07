@@ -229,6 +229,22 @@ describe("financial data isolation", () => {
     });
 
     describe("filter expressions cannot widen scope", () => {
+      it.each([
+        ["/shared-expenses", "owner.passwordHash"],
+        ["/shared-expenses", "transaction.notes"],
+        ["/transactions", "group.owner.passwordHash"],
+        ["/transactions", "user.email"],
+        ["/accounts", "user.passwordHash"]
+      ])("%s rejects a filter on %s", async (path, field) => {
+        const response = await send(ctx.b.token, {
+          method: "get",
+          path,
+          query: dsql({ field, op: "ilike", value: "$2" })
+        });
+
+        expect(response.status).toBe(400);
+      });
+
       it("a top-level `or` on /transactions returns only the caller's rows", async () => {
         const bAccount = await seedOwnerData(ctx.b);
         const own = await seedTransaction(ctx.b, bAccount.accountId, bAccount.categoryId, { name: "B only", amount: 55 });

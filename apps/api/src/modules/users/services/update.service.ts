@@ -5,6 +5,7 @@ import type {
   UpdateUserProfileInput,
   UpdateUserSidebarSideInput
 } from "@flowledger/shared";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -111,21 +112,28 @@ export async function updateEmail(
     throw new HttpError(409, "Email is already registered");
   }
 
-  const [updatedUser] = await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { email: input.email } }),
-    prisma.refreshToken.updateMany({
-      where: {
-        userId,
-        revokedAt: null,
-        ...(currentRefreshToken
-          ? { tokenHash: { not: hashRefreshToken(currentRefreshToken) } }
-          : {})
-      },
-      data: { revokedAt: new Date() }
-    })
-  ]);
+  try {
+    const [updatedUser] = await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { email: input.email } }),
+      prisma.refreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+          ...(currentRefreshToken
+            ? { tokenHash: { not: hashRefreshToken(currentRefreshToken) } }
+            : {})
+        },
+        data: { revokedAt: new Date() }
+      })
+    ]);
 
-  return updatedUser;
+    return updatedUser;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new HttpError(409, "Email is already registered");
+    }
+    throw error;
+  }
 }
 
 /** Changes a user's password after verifying `input.currentPassword` (400 on mismatch), and atomically revokes every refresh token except `currentRefreshToken`, or all of them if it is absent. */
