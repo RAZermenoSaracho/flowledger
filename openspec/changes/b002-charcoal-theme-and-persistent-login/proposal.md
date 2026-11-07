@@ -26,6 +26,10 @@ Roadmap batch B-002 holds two independent intents. **ST-004:** dark mode reads a
 
 - iOS home-screen shortcuts show a generated "F" and mobile tabs are inconsistent, because only an SVG favicon exists. Add a raster favicon, an Apple touch icon, and a web app manifest, all derived from the in-app logo mark. No service worker.
 
+**Mobile Reports filters (owner-approved addition to B-002)**
+
+- B-001 made the Reports filters always visible at every width, which pushes results far down on a phone. Restore the earlier behavior below `lg`: collapsed by default, with a Filters button. Desktop stays always visible.
+
 **Non-goals**
 
 - Login rate limiting and refresh reuse detection (`docs/KNOWN_ISSUES.md` #007).
@@ -43,7 +47,7 @@ Roadmap batch B-002 holds two independent intents. **ST-004:** dark mode reads a
 
 ### Modified Capabilities
 
-None. `select-dropdowns` already treats native option popups as browser-rendered.
+- `transaction-datetime`: The Reports filter bar collapses behind a Filters button below `lg`. `select-dropdowns` is unchanged: it already treats native option popups as browser-rendered.
 
 ## Impact
 

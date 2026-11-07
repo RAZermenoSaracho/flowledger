@@ -15,7 +15,7 @@ describe("app icons", () => {
   it.each([
     ['rel="icon" href="/favicon.ico"'],
     ['href="/favicon.svg"'],
-    ['rel="apple-touch-icon" href="/apple-touch-icon.png"'],
+    ['rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"'],
     ['rel="manifest" href="/manifest.webmanifest"']
   ])("declares %s in index.html", (declaration) => {
     expect(html).toContain(declaration);
@@ -26,6 +26,12 @@ describe("app icons", () => {
     const rgbColorType = 2;
     expect(pngSize(icon)).toBe("180x180");
     expect(icon[25]).toBe(rgbColorType);
+  });
+
+  it("serves the Apple icon at the precomposed path iOS probes, so the app-shell fallback can't answer it with HTML", () => {
+    expect(
+      publicFile("apple-touch-icon-precomposed.png").equals(publicFile("apple-touch-icon.png"))
+    ).toBe(true);
   });
 
   it("provides a 32x32 favicon.ico holding a PNG image", () => {

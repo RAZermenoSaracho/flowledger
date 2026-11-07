@@ -265,7 +265,7 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 
 ## App icons
 
-`public/` holds static icons at conventional root paths, declared in `index.html` and `manifest.webmanifest`, and `src/tests/appIcons.test.ts` guards their sizes and declarations. All show the `BrandLogo` mark. If the mark changes, re-render every PNG and `favicon.ico`: `apple-touch-icon.png` must stay opaque and full-bleed, and `icon-maskable-512.png` must stay padded for the maskable safe zone.
+`public/` holds static icons at conventional root paths, because the server answers any missing path with the app shell as `200 text/html` and iOS probes those paths, declared in `index.html` and `manifest.webmanifest`, and `src/tests/appIcons.test.ts` guards their sizes and declarations. All show the `BrandLogo` mark. If the mark changes, re-render every PNG and `favicon.ico`: `apple-touch-icon.png` must stay opaque and full-bleed, and `icon-maskable-512.png` must stay padded for the maskable safe zone.
 
 ## Auth context
 

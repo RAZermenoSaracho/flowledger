@@ -57,10 +57,18 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 - [x] 7A.2 Add `manifest.webmanifest` and the `index.html` declarations, plus `src/tests/appIcons.test.ts`. Verify the test checks declarations, manifest entries, and PNG and ICO dimensions.
 - [x] 7A.3 Serve the production build and verify every icon URL returns its real file and content type, then run `npm run typecheck`, `lint`, `test`, and `build`.
 
+## 7A-2. iOS icon follow-up
+
+- [x] 7A.4 Serve the Apple icon at `/apple-touch-icon-precomposed.png`, declare `sizes` on the link, and extend `appIcons.test.ts`. Verify the path returns `image/png` from the production build.
+
+## 7B. Mobile Reports filters
+
+- [x] 7B.1 Restore the collapse below `lg` in `ReportFiltersCard`, and update its tests. Verify with Playwright at 390 px and 1440 px that the default, toggle, and preserved values match the spec, and run `npm run typecheck`, `lint`, `test`, and `build`.
+
 ## 8. Device verification (needs the owner's devices, after a deploy the owner approves)
 
 - [ ] 8.1 Run on iPhone Safari, the iPhone home-screen icon, Android Chrome, and desktop Chrome, with the option checked and unchecked: close and reopen, reopen after over 15 minutes, reopen after over 24 hours, airplane-mode reopen, and logout. Record results in the PR. Verify checked sessions survive and unchecked sessions end after 24 hours.
-- [ ] 8.1A On a physical iPhone, remove any existing shortcut, add FlowLedger from inside the app, and verify the logo, standalone launch, and email and Google sign-in. Check tabs in mobile Chrome and Safari, and install on Android Chrome. Verify each result is recorded in the PR.
+- [ ] 8.1A On a physical iPhone, remove any existing shortcut and clear the site's Safari website data, add FlowLedger from inside the app, and verify the logo, standalone launch, and email and Google sign-in. Check tabs in mobile Chrome and Safari, and install on Android Chrome. Verify each result is recorded in the PR.
 - [ ] 8.2 If a logout still occurs, capture the device, launch path, and whether the cookie exists, then report it before adding any fix. Verify H1 to H3 are each marked confirmed or ruled out.
 
 ## 9. Separate delivery, needs explicit approval

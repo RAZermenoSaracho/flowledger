@@ -136,6 +136,8 @@ Use the conventional minimal set: `favicon.ico` (32), `favicon.svg`, `apple-touc
 
 All icons come from the `BrandLogo` mark, and `favicon.svg` is replaced with it, because it had drifted slightly in proportion. The Apple icon is opaque and full-bleed, because iOS applies its own mask and renders transparency as black. The maskable icon is padded to a 64-unit canvas, because the ledger's corners would otherwise fall outside the 40% safe radius.
 
+**Follow-up on a physical iPhone:** the shortcut still showed a white "F" on `theme_color` green after the first icon deploy. Cloudflare request logs showed iOS 27.2 fetching `/apple-touch-icon.png` as a valid PNG, and also `/apple-touch-icon-precomposed.png`, which the app-shell fallback answered with `200 text/html`. iOS never requested the manifest icons. So the precomposed path now serves the same PNG. Attributing the "F" to that response is the leading explanation rather than proven, because iOS's selection logic isn't observable; a device retest decides. Other unprobed `/apple-touch-icon-*` variants still reach the fallback, so log any that iOS requests before adding them.
+
 PNGs are rendered once with the installed Playwright Chromium and committed, with no build step or dependency.
 
 `display: standalone` enables installation. `start_url: /login` avoids the landing page, because `LoginPage` already sends signed-in users into the app.
