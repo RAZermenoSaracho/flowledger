@@ -165,22 +165,41 @@ Date filters in the web transaction search, imported-transaction search, other l
 
 ### Requirement: Date filter input keeps day-only intent
 
-The date filter control SHALL be a native date field followed by an optional native time field, in the device's locale, so the time uses the same hour, minute, and AM or PM segments as the transaction form. Choosing only a date SHALL be a complete filter that covers the whole day. The time field SHALL be disabled until a date is chosen, and clearing it SHALL return the filter to the whole day. A partially filled single `datetime-local` field reports an empty value in Chrome, so it is not used for filters.
+The date filter control SHALL be one native input in the device's locale: a `date` field by default, and a single `datetime-local` field (the same hour, minute, and AM or PM segments as the transaction form, with no separate time input) once the user checks "Specific time". Choosing only a date SHALL be a complete filter that covers the whole day. Checking "Specific time" with a date set SHALL seed that date at `00:00` for a lower bound or `23:59` for an upper bound, which covers the same whole day under the inclusive-minute rule; seeding SHALL happen only on that explicit action, never on focus or tabbing. Unchecking SHALL return the filter to the bare date. A value that already has a time SHALL open in the `datetime-local` field. An incomplete entry (Chrome reports `""` for a partly filled field and fires no event while typing), or a year that is not four digits, SHALL leave the filter unapplied and SHALL show a visible "Incomplete or invalid, not applied" message on change and on blur, and SHALL NOT throw.
 
 #### Scenario: Date without time
 
 - **WHEN** a user chooses only November 5, 2026
 - **THEN** the filter is complete and covers that whole local day
 
-#### Scenario: Time before date
+#### Scenario: Specific time seeded for an upper bound
 
-- **WHEN** no date is chosen
-- **THEN** the time field is disabled
+- **WHEN** a user has chosen November 5, 2026 as an upper bound and checks "Specific time"
+- **THEN** the single field shows November 5, 2026 11:59 PM and the filter still covers the whole day
 
-#### Scenario: Clearing the time
+#### Scenario: Tabbing through
 
-- **WHEN** a user clears the time field after choosing 2:30 PM
+- **WHEN** a user focuses or tabs through an empty filter field
+- **THEN** no filter value is emitted
+
+#### Scenario: Partly filled field
+
+- **WHEN** a user types a date but leaves the time of a `datetime-local` filter blank, and leaves the field
+- **THEN** the filter is not applied and "Incomplete or invalid, not applied" is shown
+
+#### Scenario: Unchecking the time
+
+- **WHEN** a user unchecks "Specific time" after choosing 2:30 PM
 - **THEN** the filter value is the bare date and covers the whole day
+
+### Requirement: Reports filters are a compact popover
+
+The Reports page SHALL show one compact toolbar: a Filters button that opens a popover holding From, To, Groups, and Categories, a summary of active filters (localized dates, group and category counts) with "Reset filters", and the Currency and Net or Gross controls. The popover SHALL close on Escape or an outside click, SHALL stay within the viewport from 360 px to 1920 px, and SHALL NOT change what the filters send.
+
+#### Scenario: Active summary
+
+- **WHEN** From is November 5, 2026 and one group is selected and the popover is closed
+- **THEN** the toolbar shows the localized From value and "1 group", and "Reset filters"
 
 ### Requirement: Date filter chips show local date and time
 
@@ -198,7 +217,7 @@ A filter chip for a date condition SHALL show the value in the device's locale: 
 
 ### Requirement: Reports date filters accept date and time
 
-The Reports From and To filters SHALL use the same input and local-to-UTC rules as list filters. `dateFrom` SHALL be inclusive and `dateTo` SHALL be sent as an exclusive instant, so a To of 2:30 PM includes transactions through 2:30:59.999 PM. Grouping, calculations, and API acceptance of bare dates SHALL be unchanged.
+The Reports From and To filters SHALL use the same single-field input and local-to-UTC rules as list filters. `dateFrom` SHALL be inclusive and `dateTo` SHALL be sent as an exclusive instant, so a To of 2:30 PM includes transactions through 2:30:59.999 PM. Grouping, calculations, and API acceptance of bare dates SHALL be unchanged.
 
 #### Scenario: Reports upper bound with time
 

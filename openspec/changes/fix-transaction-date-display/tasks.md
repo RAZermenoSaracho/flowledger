@@ -48,3 +48,12 @@
 - [x] 7.5 Use it in `ReportFiltersCard.tsx` and compile `dateFrom` and `dateTo` in `ReportsPage.tsx` with `filterBoundInstant`; update both test files. Verify through msw request assertions the "Reports upper bound with time" and "Reports day only" scenarios, and that grouping and totals are unchanged.
 - [x] 7.6 Update `docs/DOMAIN_LOGIC.md` with the filter value forms and inclusive-minute rule. Verify by reviewing the diff.
 - [x] 7.7 After tasks 7.1 to 7.6, in the running app at UTC-6, verify in Chrome that choosing only a date filters the whole day on Transactions and Reports, a time-bounded range is correct, chips read clearly, and the Imported tab works; stop any browser started and remove test records.
+
+## 8. Single-field filter datetime and compact Reports filters (follow-up)
+
+- [x] 8.1 Rework `components/DateTimeFilterInput.tsx` into one `date` or `datetime-local` input with a "Specific time" checkbox seeding `00:00` or `23:59`, and flagging partial or non-four-digit-year entries as "Incomplete or invalid, not applied". Verify in `tests/DateTimeFilterInput.test.tsx` that seeding happens only on the toggle, focus and tab emit nothing, partial entries emit `""` and show the message, and a bare date still renders.
+- [x] 8.2 Pass `defaultTime` from `FilterBuilder.tsx` (`<=` and between To use `23:59`) and update `components/tests/FilterBuilder.test.tsx` for the single field. Verify day-only and timed conditions stay complete.
+- [x] 8.3 Replace `ReportFiltersCard.tsx` with a compact toolbar and Filters popover with an active summary, and update `ReportFiltersCard.test.tsx` and `ReportsPage.test.tsx`. Verify the msw request assertions still show the same `dateFrom` and `dateTo` instants, including "day then specific time" equal to day-only.
+- [x] 8.4 Update `docs/DOMAIN_LOGIC.md` for the single-field input. Verify by reviewing the diff.
+- [x] 8.5 In Chrome with `America/Mexico_City`, `Pacific/Kiritimati`, and both `America/Los_Angeles` DST days, verify request instants for at least, at most, between, and day-only; verify keyboard entry, a partly filled field, and the Reports layout at 360 to 1920 px in light and dark. Remove QA data and stop browsers.
+

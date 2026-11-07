@@ -67,25 +67,25 @@ function baseProps(
 }
 
 describe("ReportFiltersCard", () => {
-  it("renders date/group/category filters and the amount-mode toggle", async () => {
+  it("renders a compact toolbar and keeps the filter controls inside a Filters popover", async () => {
     mockCurrencies();
+    const user = userEvent.setup();
     renderWithProviders(<ReportFiltersCard {...baseProps()} />);
 
-    expect(screen.getByLabelText("From")).toBeInTheDocument();
-    expect(screen.getByLabelText("To")).toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
     expect(
       screen.getByRole("group", { name: "Report amount basis" })
     ).toBeInTheDocument();
-  });
+    expect(screen.getByLabelText("Currency")).toBeInTheDocument();
 
-  it("renders From/To as date inputs inside a single-column-on-mobile grid", () => {
-    renderWithProviders(<ReportFiltersCard {...baseProps()} />);
-    const from = screen.getByLabelText("From");
-    expect(from).toHaveAttribute("type", "date");
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+
+    expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
     expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
-    const grid = from.closest(".grid.grid-cols-1")!;
-    expect(grid).toHaveClass("md:grid-cols-2");
-    expect(grid.className).not.toMatch(/(?:^|\s)(?:xl|2xl):grid-cols-4/);
+    expect(screen.getByRole("button", { name: "Groups All groups" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters" })).toHaveFocus();
   });
 
   it("calls onFiltersChange when the date fields change", async () => {
@@ -94,21 +94,26 @@ describe("ReportFiltersCard", () => {
     const props = baseProps();
     renderWithProviders(<ReportFiltersCard {...props} />);
 
-    await user.type(screen.getByLabelText("From"), "2024-01-01");
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
 
-    expect(props.onFiltersChange).toHaveBeenCalled();
+    expect(props.onFiltersChange).toHaveBeenCalledWith({ ...emptyReportFilters, dateFrom: "2024-01-01" });
   });
 
-  it("emits a timed value once a time is chosen after a date and disables time without a date", () => {
+  it("uses one datetime-local field for a timed bound and summarizes active filters", async () => {
     mockCurrencies();
-    const props = baseProps();
-    const { rerender } = renderWithProviders(<ReportFiltersCard {...props} />);
-    expect(screen.getByLabelText("To time")).toBeDisabled();
+    const user = userEvent.setup();
+    const props = baseProps({
+      hasActiveFilters: true,
+      filters: { ...emptyReportFilters, dateTo: "2026-11-05T14:30", groupIds: ["group-1"] }
+    });
+    renderWithProviders(<ReportFiltersCard {...props} />);
 
-    rerender(<ReportFiltersCard {...props} filters={{ ...emptyReportFilters, dateTo: "2026-11-05" }} />);
-    fireEvent.change(screen.getByLabelText("To time"), { target: { value: "14:30" } });
-
-    expect(props.onFiltersChange).toHaveBeenLastCalledWith({ ...emptyReportFilters, dateTo: "2026-11-05T14:30" });
+    expect(screen.getByText("1 group")).toBeInTheDocument();
+    expect(screen.getByText(/^To .*2026.*2:30/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Filters (active)" }));
+    expect(screen.getByLabelText("To")).toHaveAttribute("type", "datetime-local");
+    expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T14:30");
   });
 
   it("hides 'Reset filters' when hasActiveFilters is false, shows it and resets when true", async () => {
@@ -145,6 +150,7 @@ describe("ReportFiltersCard", () => {
     });
     renderWithProviders(<ReportFiltersCard {...props} />);
 
+    await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(screen.getByRole("button", { name: "Groups All groups" }));
     await user.click(screen.getByRole("checkbox", { name: "Roommates" }));
 
@@ -161,6 +167,7 @@ describe("ReportFiltersCard", () => {
     const props = baseProps();
     renderWithProviders(<ReportFiltersCard {...props} />);
 
+    await user.click(screen.getByRole("button", { name: "Filters" }));
     await user.click(
       screen.getByRole("button", { name: "Categories All categories" })
     );
@@ -172,7 +179,7 @@ describe("ReportFiltersCard", () => {
     });
   });
 
-  it("toggles the mobile filters section open/closed", async () => {
+  it("toggles the filters popover open/closed", async () => {
     mockCurrencies();
     const user = userEvent.setup();
     renderWithProviders(<ReportFiltersCard {...baseProps()} />);
@@ -183,9 +190,10 @@ describe("ReportFiltersCard", () => {
     await user.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Report filters" })).toBeInTheDocument();
   });
 
-  it("shows '(active)' in the mobile toggle label when hasActiveFilters is true", async () => {
+  it("shows '(active)' in the toggle label when hasActiveFilters is true", async () => {
     mockCurrencies();
     renderWithProviders(
       <ReportFiltersCard {...baseProps({ hasActiveFilters: true })} />

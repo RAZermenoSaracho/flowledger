@@ -390,6 +390,7 @@ function FieldValueInput({
             <DateTimeFilterInput
               label="To"
               value={to}
+              defaultTime="23:59"
               onChange={(next) => onChange([from, next])}
             />
           </>
@@ -447,6 +448,7 @@ function FieldValueInput({
       <DateTimeFilterInput
         label="Value"
         value={typeof value === "string" ? value : ""}
+        defaultTime={operator === "<=" ? "23:59" : "00:00"}
         onChange={onChange}
       />
     );

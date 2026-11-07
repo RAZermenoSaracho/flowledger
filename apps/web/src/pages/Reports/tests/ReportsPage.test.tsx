@@ -71,6 +71,10 @@ function mockBaseline() {
   );
 }
 
+async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /^Filters/ }));
+}
+
 describe("ReportsPage", () => {
   it("renders the filters card, summary cards, category breakdowns, and cashflow chart", async () => {
     mockBaseline();
@@ -88,6 +92,7 @@ describe("ReportsPage", () => {
     mockBaseline();
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
+    await openFilters(user);
 
     await waitFor(() =>
       expect(
@@ -109,6 +114,7 @@ describe("ReportsPage", () => {
     mockBaseline();
     const user = userEvent.setup();
     renderWithProviders(<ReportsPage />, { withAuth: true });
+    await openFilters(user);
 
     await waitFor(() =>
       expect(screen.getByLabelText("From")).toBeInTheDocument()
@@ -117,11 +123,12 @@ describe("ReportsPage", () => {
       screen.queryByRole("button", { name: "Reset filters" })
     ).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("From"), "2024-01-01");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
 
     expect(
       screen.getByRole("button", { name: "Reset filters" })
     ).toBeInTheDocument();
+    expect(screen.getByText(/^From .*2024/)).toBeInTheDocument();
   });
 
   describe("local-day date filters", () => {
@@ -159,9 +166,9 @@ describe("ReportsPage", () => {
       const user = userEvent.setup();
       renderWithProviders(<ReportsPage />, { withAuth: true });
 
-      await waitFor(() => expect(screen.getByLabelText("From")).toBeInTheDocument());
-      await user.type(screen.getByLabelText("From"), "2026-11-05");
-      await user.type(screen.getByLabelText("To"), "2026-11-05");
+      await openFilters(user);
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
 
       await waitFor(() => {
         const last = queries.at(-1);
@@ -180,11 +187,17 @@ describe("ReportsPage", () => {
           return HttpResponse.json({ cashflow: [], currency: "USD" });
         })
       );
+      const user = userEvent.setup();
       renderWithProviders(<ReportsPage />, { withAuth: true });
 
-      await waitFor(() => expect(screen.getByLabelText("To")).toBeInTheDocument());
+      await openFilters(user);
       fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
-      fireEvent.change(screen.getByLabelText("To time"), { target: { value: "14:30" } });
+      await user.click(screen.getByLabelText("To specific time"));
+      expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T23:59");
+      await waitFor(() =>
+        expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-06T06:00:00.000Z")
+      );
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05T14:30" } });
 
       await waitFor(() =>
         expect(queries.at(-1)?.get("dateTo")).toBe("2026-11-05T20:31:00.000Z")

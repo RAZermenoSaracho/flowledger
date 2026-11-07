@@ -299,21 +299,24 @@ describe("FilterBuilder", () => {
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ operator: ">=", value: "2026-11-05" });
 
-    fireEvent.change(screen.getByLabelText("Value time"), { target: { value: "14:30" } });
+    await user.click(screen.getByLabelText("Value specific time"));
+    expect(screen.getByLabelText("Value")).toHaveAttribute("type", "datetime-local");
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-11-05T14:30" } });
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onApply.mock.calls.at(-1)![0].children[0]).toMatchObject({ value: "2026-11-05T14:30" });
   });
 
-  it("disables the time field until a date is set and labels both between bounds", async () => {
+  it("offers a single date field per between bound, with the time option off by default", async () => {
     const user = userEvent.setup();
     renderBuilder();
 
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
-    expect(screen.getByLabelText("Value time")).toBeDisabled();
+    expect(screen.getByLabelText("Value")).toHaveAttribute("type", "date");
     await user.selectOptions(screen.getByLabelText("Operator"), "between");
     expect(screen.getByLabelText("From")).toHaveAttribute("type", "date");
-    expect(screen.getByLabelText("To time")).toBeDisabled();
+    expect(screen.getByLabelText("To")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("To specific time")).not.toBeChecked();
   });
 
   it("drops a date condition whose value was cleared instead of applying an empty condition", async () => {
@@ -341,13 +344,19 @@ describe("FilterBuilder", () => {
     expect(onApply.mock.calls.at(-1)![0].children).toEqual([]);
   });
 
-  it("stacks between bounds below sm and lets each date/time pair wrap", async () => {
+  it("seeds 23:59 on an upper bound and 00:00 on a lower bound when the time option is turned on", async () => {
     const user = userEvent.setup();
     renderBuilder();
     await user.click(screen.getByRole("button", { name: "+ Condition" }));
     await user.selectOptions(screen.getByLabelText("Field"), "date");
     await user.selectOptions(screen.getByLabelText("Operator"), "between");
-    const pairs = screen.getByLabelText("From").closest("div.flex-wrap")!.parentElement!;
-    expect(pairs).toHaveClass("grid-cols-1", "sm:grid-cols-2");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-11-05" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-11-05" } });
+    await user.click(screen.getByLabelText("From specific time"));
+    await user.click(screen.getByLabelText("To specific time"));
+    expect(screen.getByLabelText("From")).toHaveValue("2026-11-05T00:00");
+    expect(screen.getByLabelText("To")).toHaveValue("2026-11-05T23:59");
+    const grid = screen.getByLabelText("From").closest("div.grid-cols-1")!;
+    expect(grid).toHaveClass("sm:grid-cols-2");
   });
 });

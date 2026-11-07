@@ -353,3 +353,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** On the Groups page, opening the filter modal from the group list leaves it partly covered by the selected group's detail form, so stacking and overlap are wrong. The page shows the list and the detail side by side at `xl`, with the list column wrapped in `xl:sticky xl:top-6`. Not reproduced or verified in this session. Plausible: the sticky wrapper forms its own stacking context, so the modal's `fixed z-50` (`FilterBuilder.tsx`) is confined to it and can paint under positioned elements in the detail `Card`. `<main>` overflow changed in this PR (`overflow-x-clip`); there is no evidence it is involved.
 
 **Suggested fix:** Resolved by the Group overview redesign, ST-024 (B-006), which removes the side-by-side layout and sticky column.
+
+**Scope:** `apps/web/src/components/FilterBuilder.tsx` (the "Filters" modal).
+
+**Description:** The modal has no Escape-key handling and no focus management: Escape does nothing, focus is not moved in on open or returned to the trigger on close. Found in browser QA; present before the date-filter changes.
+
+**Suggested fix:** Close on Escape and return focus to the opener, matching the Reports popover.
