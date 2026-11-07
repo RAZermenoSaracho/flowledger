@@ -25,6 +25,7 @@ export function verifyGoogleState(stateToken: string) {
   return {
     nonce: payload.nonce,
     redirect: payload.redirect,
-    keepLoggedIn: payload.keepLoggedIn !== false
+    keepLoggedIn: payload.keepLoggedIn !== false,
+    ...(typeof payload.linkUserId === "string" ? { linkUserId: payload.linkUserId } : {})
   };
 }

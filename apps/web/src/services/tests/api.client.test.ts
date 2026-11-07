@@ -39,6 +39,16 @@ describe("refreshAccessToken", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("keeps the token and skips the handler on a 429", async () => {
+    registerSessionExpiredHandler(handler);
+    tokenStore.set("old");
+    server.use(http.post(`${API}/auth/refresh`, () => HttpResponse.json({ message: "Too many" }, { status: 429 })));
+
+    expect(await refreshAccessToken()).toBe(false);
+    expect(tokenStore.get()).toBe("old");
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("keeps the token and skips the handler on a network error", async () => {
     registerSessionExpiredHandler(handler);
     tokenStore.set("old");
@@ -78,6 +88,27 @@ describe("apiRequest", () => {
 
     expect(await apiRequest("/auth/password", { method: "PATCH", body: {} })).toEqual({ ok: true });
     expect(refreshes).toBe(1);
+    expect(calls).toBe(2);
+  });
+
+  it.each(["/auth/email", "/auth/google/link"])("refreshes and retries after a 401 from %s", async (path) => {
+    let calls = 0;
+    server.use(
+      http.patch(`${API}${path}`, () => {
+        calls += 1;
+        return calls === 1 ? new HttpResponse(null, { status: 401 }) : HttpResponse.json({ ok: true });
+      }),
+      http.post(`${API}${path}`, () => {
+        calls += 1;
+        return calls === 1 ? new HttpResponse(null, { status: 401 }) : HttpResponse.json({ ok: true });
+      }),
+      http.get(`${API}${path}`, () => {
+        calls += 1;
+        return calls === 1 ? new HttpResponse(null, { status: 401 }) : HttpResponse.json({ ok: true });
+      }),
+      http.post(`${API}/auth/refresh`, () => HttpResponse.json({ token: "fresh" }))
+    );
+    await apiRequest(path, { method: path === "/auth/email" ? "PATCH" : "GET" });
     expect(calls).toBe(2);
   });
 

@@ -84,7 +84,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #007 — Web login lacks rate limiting and refresh tokens lack reuse detection
+## [RESOLVED] #007 — Web login lacks rate limiting and refresh tokens lack reuse detection
+
+**Resolved:** Login, registration, refresh and credential changes are rate limited, and replay after a 60-second grace period revokes descendant tokens (`harden-account-identity-and-sessions`).
 
 **Found in:** Personal API key auth documentation pass.
 
@@ -362,7 +364,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #029 — Refresh token rows are never deleted
+## [RESOLVED] #029 — Refresh token rows are never deleted
+
+**Resolved:** Issuing a refresh token now deletes that user's expired rows (`harden-account-identity-and-sessions`).
 
 **Found in:** B-002 discovery.
 
@@ -386,7 +390,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #031 — A failed logout request leaves the session alive
+## [RESOLVED] #031 — A failed logout request leaves the session alive
+
+**Resolved:** A failed logout now shows an error and keeps the session (`harden-account-identity-and-sessions`).
 
 **Found in:** B-002 security audit.
 

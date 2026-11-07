@@ -19,6 +19,7 @@ type AuthContextValue = {
   setUser: (user: User | null) => void;
   login: (email: string, password: string, keepLoggedIn: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  /** Rejects when sign-out fails, leaving the user and token intact so the caller can show the error and retry. */
   logout: () => Promise<void>;
 };
 

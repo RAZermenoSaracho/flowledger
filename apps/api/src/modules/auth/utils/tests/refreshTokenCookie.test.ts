@@ -107,11 +107,29 @@ describe("buildSessionCookies", () => {
     }
   });
 
-  it("adds Domain to both cookies when REFRESH_TOKEN_COOKIE_DOMAIN is configured", () => {
+  it("keeps the refresh cookie host-only, scopes presence to the domain, and expires the old domain copy", () => {
     Object.assign(env, { REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
-    for (const cookie of buildSessionCookies({ token: "t", expiresAt: future(), persistent: true })) {
-      expect(cookie).toContain("Domain=.example.com");
-    }
+    const cookies = buildSessionCookies({ token: "t", expiresAt: future(), persistent: true });
+
+    expect(cookies).toHaveLength(3);
+    const [refresh, presence, clearOld] = cookies;
+    expect(refresh).toContain(`${refreshTokenCookieName}=t`);
+    expect(refresh).not.toContain("Domain=");
+    expect(presence).toContain("Domain=.example.com");
+    expect(clearOld).toContain(`${refreshTokenCookieName}=;`);
+    expect(clearOld).toContain("Path=/auth");
+    expect(clearOld).toContain("Max-Age=0");
+    expect(clearOld).toContain("Domain=.example.com");
+  });
+
+  it("keeps the same attributes for browser-session cookies, with no Max-Age on the live ones", () => {
+    Object.assign(env, { REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
+    const [refresh, presence] = buildSessionCookies({ token: "t", expiresAt: future(), persistent: false });
+
+    expect(refresh).not.toContain("Domain=");
+    expect(refresh).not.toContain("Max-Age");
+    expect(presence).toContain("Domain=.example.com");
+    expect(presence).not.toContain("Max-Age");
   });
 
   it("adds Secure to both cookies in production", () => {
@@ -138,10 +156,15 @@ describe("clearSessionCookies", () => {
     expect(presence).toContain("Max-Age=0");
   });
 
-  it("adds Domain/Secure to both cookies the same way buildSessionCookies does", () => {
+  it("clears the host-only refresh cookie, the presence cookie and the old domain copy", () => {
     Object.assign(env, { NODE_ENV: "production", REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
-    for (const cookie of clearSessionCookies()) {
-      expect(cookie).toContain("Domain=.example.com");
+    const [refresh, presence, clearOld] = clearSessionCookies();
+
+    expect(refresh).not.toContain("Domain=");
+    expect(presence).toContain("Domain=.example.com");
+    expect(clearOld).toContain("Domain=.example.com");
+    for (const cookie of [refresh, presence, clearOld]) {
+      expect(cookie).toContain("Max-Age=0");
       expect(cookie).toContain("Secure");
     }
   });

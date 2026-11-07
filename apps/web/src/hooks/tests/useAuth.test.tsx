@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { act } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { refreshAccessToken } from "../../services/api.client";
 import { getToken } from "../../services/auth.client";
@@ -24,6 +25,7 @@ const testUser: User = {
 };
 
 function Consumer() {
+  const [logoutError, setLogoutError] = useState("");
   const { user, isInitializing, isSessionUnavailable, login, register, logout } = useAuth();
   return (
     <div>
@@ -34,7 +36,8 @@ function Consumer() {
       <button onClick={() => register("Jane Doe", "jane@example.com", "password123")}>
         Register
       </button>
-      <button onClick={() => logout()}>Logout</button>
+      <span data-testid="logout-error">{logoutError}</span>
+      <button onClick={() => logout().catch(() => setLogoutError("failed"))}>Logout</button>
     </div>
   );
 }
@@ -131,6 +134,33 @@ describe("useAuth", () => {
     await user.click(screen.getByRole("button", { name: "Logout" }));
 
     await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
+  });
+
+  it("keeps the user and token when logout fails, then clears them when a retry succeeds", async () => {
+    let fail = true;
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "refreshed-token", user: testUser })
+      ),
+      http.post(`${API_URL}/auth/logout`, () =>
+        fail ? new HttpResponse(null, { status: 500 }) : new HttpResponse(null, { status: 204 })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() => expect(screen.getByTestId("logout-error")).toHaveTextContent("failed"));
+    expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com");
+    expect(getToken()).toBe("refreshed-token");
+
+    fail = false;
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+    await waitFor(() => expect(screen.getByTestId("user-email")).toHaveTextContent("none"));
+    expect(getToken()).toBeNull();
   });
 
   it("clears the query cache on login, so a prior session's data can't linger", async () => {

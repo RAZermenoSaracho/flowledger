@@ -7,7 +7,8 @@ vi.mock("../../../../../../config/env.js", () => ({
 
 vi.mock("../../services/create.service.js", () => ({
   buildGoogleAuthUrl: vi.fn(),
-  handleGoogleCallback: vi.fn()
+  handleGoogleCallback: vi.fn(),
+  hasGoogleLink: vi.fn()
 }));
 
 vi.mock("../../utils/googleStateCookie.js", () => ({
@@ -18,12 +19,12 @@ vi.mock("../../../../utils/refreshTokenCookie.js", () => ({
   buildSessionCookies: vi.fn()
 }));
 
-const { buildGoogleAuthUrl, handleGoogleCallback } = await import(
+const { buildGoogleAuthUrl, handleGoogleCallback, hasGoogleLink } = await import(
   "../../services/create.service.js"
 );
 const { googleStateCookie } = await import("../../utils/googleStateCookie.js");
 const { buildSessionCookies } = await import("../../../../utils/refreshTokenCookie.js");
-const { googleOAuthCallback, googleOAuthStart } = await import(
+const { googleLinkStart, googleLinkStatus, googleOAuthCallback, googleOAuthStart } = await import(
   "../create.controller.js"
 );
 
@@ -109,6 +110,49 @@ describe("googleOAuthCallback", () => {
 
     expect(res.redirect).toHaveBeenCalledWith(
       expect.stringContaining("/login")
+    );
+  });
+});
+
+describe("googleLinkStart", () => {
+  it("binds the flow to the signed-in user, sets the state cookie, and returns the URL", async () => {
+    vi.mocked(buildGoogleAuthUrl).mockReturnValue({ nonce: "n", url: "https://google.test/a" });
+    vi.mocked(googleStateCookie).mockReturnValue("state-cookie");
+    const res = mockResponse();
+
+    await googleLinkStart(mockRequest({ user: { id: "user-1", email: "a@example.com" } }), res);
+
+    expect(buildGoogleAuthUrl).toHaveBeenCalledWith("/profile", true, "user-1");
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "state-cookie");
+    expect(res.json).toHaveBeenCalledWith({ url: "https://google.test/a" });
+  });
+});
+
+describe("googleLinkStatus", () => {
+  it("reports the connection for the signed-in user", async () => {
+    vi.mocked(hasGoogleLink).mockResolvedValue(true);
+    const res = mockResponse();
+
+    await googleLinkStatus(mockRequest({ user: { id: "user-1", email: "a@example.com" } }), res);
+
+    expect(hasGoogleLink).toHaveBeenCalledWith("user-1");
+    expect(res.json).toHaveBeenCalledWith({ connected: true });
+  });
+});
+
+describe("googleOAuthCallback in link mode", () => {
+  it("returns to Profile with the result and sets no session cookie", async () => {
+    vi.mocked(handleGoogleCallback).mockResolvedValue({ linkResult: "conflict" } as never);
+    vi.mocked(buildSessionCookies).mockClear();
+    vi.mocked(googleStateCookie).mockReturnValue("cleared-state");
+    const res = mockResponse();
+
+    await googleOAuthCallback(mockRequest({ query: { state: "s", code: "c" }, headers: {} }), res);
+
+    expect(buildSessionCookies).not.toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "cleared-state");
+    expect(res.redirect).toHaveBeenCalledWith(
+      "http://localhost:5173/profile?tab=security&googleLink=conflict"
     );
   });
 });

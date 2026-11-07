@@ -33,18 +33,12 @@ export function readRefreshTokenCookie(cookieHeader: string | undefined) {
   return parseCookies(cookieHeader).get(refreshTokenCookieName);
 }
 
-function sharedAttributes() {
-  const parts: string[] = [];
+function secureAttribute() {
+  return env.NODE_ENV === "production" ? ["Secure"] : [];
+}
 
-  if (env.REFRESH_TOKEN_COOKIE_DOMAIN) {
-    parts.push(`Domain=${env.REFRESH_TOKEN_COOKIE_DOMAIN}`);
-  }
-
-  if (env.NODE_ENV === "production") {
-    parts.push("Secure");
-  }
-
-  return parts;
+function domainAttribute() {
+  return env.REFRESH_TOKEN_COOKIE_DOMAIN ? [`Domain=${env.REFRESH_TOKEN_COOKIE_DOMAIN}`] : [];
 }
 
 function buildCookies(
@@ -52,14 +46,14 @@ function buildCookies(
   presenceValue: string,
   lifetime: string[]
 ) {
-  return [
+  const cookies = [
     [
       `${refreshTokenCookieName}=${refreshTokenValue}`,
       "HttpOnly",
       "SameSite=Strict",
       "Path=/auth",
       ...lifetime,
-      ...sharedAttributes()
+      ...secureAttribute()
     ].join("; "),
     [
       `${sessionPresenceCookieName}=${presenceValue}`,
@@ -67,13 +61,32 @@ function buildCookies(
       "SameSite=Lax",
       "Path=/",
       ...lifetime,
-      ...sharedAttributes()
+      ...domainAttribute(),
+      ...secureAttribute()
     ].join("; ")
   ];
+
+  // Browsers from before the refresh cookie became host-only still hold a domain-scoped copy,
+  // which a same-named host-only cookie doesn't replace.
+  if (env.REFRESH_TOKEN_COOKIE_DOMAIN) {
+    cookies.push(
+      [
+        `${refreshTokenCookieName}=`,
+        "HttpOnly",
+        "SameSite=Strict",
+        "Path=/auth",
+        "Max-Age=0",
+        ...domainAttribute(),
+        ...secureAttribute()
+      ].join("; ")
+    );
+  }
+
+  return cookies;
 }
 
 /**
- * Builds the `Set-Cookie` values for a session: the refresh token, and a presence cookie holding no credential.
+ * Builds the `Set-Cookie` values for a session: a host-only refresh token, a presence cookie holding no credential, and an expired copy of any older domain-scoped refresh cookie.
  *
  * A persistent session gets a `Max-Age` derived from `expiresAt`; otherwise both are browser-session cookies.
  */

@@ -37,6 +37,7 @@ export function OAuthAuthorizePage() {
   const [allowWrite, setAllowWrite] = useState(false);
   const [lifetime, setLifetime] = useState<CredentialLifetime>("1m");
   const [framed] = useState(isFramed);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const context = useQuery({
     queryKey: ["oauth-consent", req],
@@ -79,11 +80,19 @@ export function OAuthAuthorizePage() {
           <button
             type="button"
             className="font-semibold text-pine underline dark:text-emerald-300"
-            onClick={() => void auth.logout()}
+            onClick={() => {
+              setLogoutError(null);
+              auth.logout().catch(() => setLogoutError("Sign-out did not complete. You are still signed in; try again."));
+            }}
           >
             Not you?
           </button>
         </p>
+        {logoutError ? (
+          <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {logoutError}
+          </p>
+        ) : null}
 
         <fieldset className="mt-5">
           <legend className="text-sm font-medium text-slate-700 dark:text-slate-300">Permissions</legend>

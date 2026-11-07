@@ -39,7 +39,7 @@ Built/read by `apps/api/src/modules/auth/utils/refreshTokenCookie.ts`.
 - `SameSite=Strict`
 - `Path=/auth` — only sent on `/auth/*` requests (refresh, logout), not on every API call
 - `Max-Age` derived from the refresh token's `expiresAt` for a persistent session; omitted for a browser session
-- `Domain=REFRESH_TOKEN_COOKIE_DOMAIN` when set (e.g. `.razs.dev` in `.env.example`) — scopes the cookie to the parent domain rather than the API's own host, so it's readable by other subdomains under the same registrable domain
+- No `Domain` attribute — host-only, so only the API host receives it. Each session response also expires any older copy scoped to `REFRESH_TOKEN_COOKIE_DOMAIN`
 - `Secure` when `NODE_ENV=production`
 
 ### Session presence cookie
@@ -113,7 +113,7 @@ GET /auth/google/callback?code=<code>&state=<state>
 4. Verify `id_token`: check `aud == GOOGLE_CLIENT_ID`, `iss` in Google's issuer list, `email_verified == true`
 5. Fetch user info from `https://openidconnect.googleapis.com/v1/userinfo`
 6. Verify sub/email consistency between id_token and userinfo
-7. `findOrCreateGoogleUser`: look up `UserAuthAccount` by `(provider="google", providerAccountId)` → create User + UserAuthAccount if new, link to existing user by email if partial match
+7. `findOrCreateGoogleUser`: look up `UserAuthAccount` by `(provider="google", providerAccountId)` → enter that user if linked; otherwise refuse with 409 if any account has the email in any letter case; otherwise create User + UserAuthAccount. Email never links an identity
 8. Issue an access+refresh token pair exactly like a regular login (`handleGoogleCallback` in `providers/google/services/create.service.ts`)
 9. Clear the nonce cookie, set the refresh token cookie
 10. Redirect to `<WEB_APP_URL>/auth/oauth/callback#token=<accessToken>&redirect=<destination>` — only the access token travels through the URL fragment; the refresh token was already set as a cookie on this same response
@@ -175,6 +175,32 @@ On mount, calls `authClient.refreshSession()` (`POST /auth/refresh`) to attempt 
 Every authenticated request goes through `apiRequest`, which attaches `Authorization: Bearer <token>` from `tokenStore` and always sends `credentials: "include"` (so the refresh cookie rides along, even though it's scoped to `/auth` and thus only actually sent on refresh/logout calls). If a request comes back `401` from a non-`/auth/*` path, or from `/auth/password`, `apiRequest` calls `refreshAccessToken()` once, and if that succeeds, retries the original request with the new access token. `refreshAccessToken()` de-dupes concurrent callers onto a single in-flight `POST /auth/refresh` request so a burst of parallel requests after token expiry doesn't trigger a burst of refresh calls.
 
 Only a `401` from `/auth/refresh` ends the session: it clears the token and notifies `AuthProvider`, and route guards then redirect. A network error or other failure leaves the session in place, the caller sees the original error, and a later request can refresh.
+
+---
+
+## Connecting Google to an existing account
+
+`POST /auth/google/link` (behind `requireAuth`) returns the Google URL and sets the nonce cookie, with the signed state carrying `linkUserId`. The callback then creates only the link, issues no session, and returns to `/profile?tab=security&googleLink=connected|conflict|failed`. An identity linked to another account, or a user already linked to a different identity, gets `conflict`, which never names the other account. `GET /auth/google/link` reports `{ connected }`.
+
+## Changing email
+
+`PATCH /auth/email` needs the current password, and in one transaction updates the email and revokes every other refresh token, keeping this device (the refresh cookie identifies it). It returns a new access token, because the old one embeds the previous email. `PATCH /users/me` rejects a different email, and `/v1` and MCP can't change it. An account with no password can't change its email.
+
+## Abuse resistance
+
+Limits are in `auth/utils/authRateLimits.ts`, and a 429 doesn't end a session because only a 401 does:
+
+| Route | Key | Limit |
+|---|---|---|
+| `POST /auth/login` | Client address + email, failures only | 10 per 15 min |
+| `POST /auth/login` | Client address | 50 per 15 min |
+| `POST /auth/register` | Client address | 10 per hour |
+| `POST /auth/refresh` | Client address | 60 per min |
+| `PATCH /auth/password`, `PATCH /auth/email` | Access token | 10 per 15 min |
+
+`requireWebOrigin` rejects a foreign `Origin` with 403 on register, login, refresh, logout, and credential changes; a request with no `Origin` passes. Login does one bcrypt comparison whether or not the account or its password exists.
+
+Presenting a refresh token revoked more than 60 seconds ago also revokes everything issued from it. Inside that minute it may be a request in flight during a rotation, so descendants stay valid. Issuing a token deletes the user's expired rows and keeps revoked unexpired ones, so a replay can still be recognized.
 
 ---
 

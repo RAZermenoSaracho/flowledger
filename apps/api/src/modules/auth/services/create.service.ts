@@ -3,7 +3,11 @@ import { HttpError } from "../../../utils/httpError.js";
 import { generateRefreshToken, signAccessToken } from "../utils/tokens.js";
 import bcrypt from "bcryptjs";
 
-/** Persists a new refresh token for `userId`, returning what the session cookies need. `previousTokenId` links a rotated token to the one it replaces. */
+/**
+ * Persists a new refresh token for `userId`, returning what the session cookies need. `previousTokenId` links a rotated token to the one it replaces.
+ *
+ * Also deletes the user's expired tokens. Revoked but unexpired ones stay, so a replay can still be recognized, and a failed delete never fails the sign-in.
+ */
 export async function issueRefreshToken(
   userId: string,
   persistent: boolean,
@@ -13,6 +17,11 @@ export async function issueRefreshToken(
   await prisma.refreshToken.create({
     data: { userId, tokenHash, expiresAt, persistent, previousTokenId }
   });
+  try {
+    await prisma.refreshToken.deleteMany({ where: { userId, expiresAt: { lt: new Date() } } });
+  } catch (error) {
+    console.error("Failed to delete expired refresh tokens", error);
+  }
   return { token, expiresAt, persistent };
 }
 

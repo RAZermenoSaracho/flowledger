@@ -153,6 +153,21 @@ describe("AppLayout", () => {
     });
   });
 
+  it("shows an error and keeps the page when sign-out fails", async () => {
+    mockBaseline();
+    server.use(http.post(`${API_URL}/auth/logout`, () => new HttpResponse(null, { status: 500 })));
+    const user = userEvent.setup();
+    renderLayout();
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBeGreaterThan(0)
+    );
+    await user.click(screen.getAllByRole("button", { name: "Sign out" })[0]!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign-out did not complete");
+    expect(screen.getByText("Dashboard content")).toBeInTheDocument();
+  });
+
   it("clips <main> horizontally without making it a scroll container", () => {
     mockBaseline();
     renderLayout();

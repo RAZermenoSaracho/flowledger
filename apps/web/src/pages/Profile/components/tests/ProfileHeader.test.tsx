@@ -1,9 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { server } from "../../../../tests/mocks/server";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
+import { getToken } from "../../../../services/auth.client";
 import { API_URL, baseUser, mockBaseline } from "../../tests/profileFixtures";
 import { ProfileHeader } from "../ProfileHeader";
 import { useProfileDetails } from "../../hooks/useProfileDetails";
@@ -113,6 +114,58 @@ describe("ProfileHeader", () => {
     expect(
       screen.queryByRole("button", { name: "Save" })
     ).not.toBeInTheDocument();
+  });
+
+  it("asks for the current password on an email change, then replaces the token and saves the rest", async () => {
+    mockBaseline();
+    let emailBody: unknown;
+    let profileBody: unknown;
+    const changed = { ...baseUser, email: "new@example.com" };
+    server.use(
+      http.patch(`${API_URL}/auth/email`, async ({ request }) => {
+        emailBody = await request.json();
+        return HttpResponse.json({ token: "new-tok", user: changed });
+      }),
+      http.patch(`${API_URL}/users/me`, async ({ request }) => {
+        profileBody = await request.json();
+        return HttpResponse.json({ user: changed });
+      })
+    );
+    const user = userEvent.setup();
+    render();
+    await user.click(await screen.findByRole("button", { name: /Edit Email/ }));
+    const input = await screen.findByLabelText("Email");
+    await user.clear(input);
+    await user.type(input, "new@example.com");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(profileBody).toBeUndefined();
+    await user.type(await screen.findByLabelText("Current password"), "secret");
+    await user.click(screen.getByRole("button", { name: "Change email" }));
+    await waitFor(() => expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument());
+    expect(emailBody).toEqual({ email: "new@example.com", currentPassword: "secret" });
+    expect(profileBody).toMatchObject({ email: "new@example.com" });
+    expect(getToken()).toBe("new-tok");
+    expect(await screen.findByText("new@example.com")).toBeInTheDocument();
+  });
+
+  it("keeps the dialog open and shows the server message when the email is taken", async () => {
+    mockBaseline();
+    server.use(
+      http.patch(`${API_URL}/auth/email`, () =>
+        HttpResponse.json({ message: "Email already registered" }, { status: 409 })
+      )
+    );
+    const user = userEvent.setup();
+    render();
+    await user.click(await screen.findByRole("button", { name: /Edit Email/ }));
+    const input = await screen.findByLabelText("Email");
+    await user.clear(input);
+    await user.type(input, "taken@example.com");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.type(await screen.findByLabelText("Current password"), "secret");
+    await user.click(screen.getByRole("button", { name: "Change email" }));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Email already registered");
   });
 
   it("previews a chosen avatar and uploads it on Save; beforeunload only while dirty", async () => {
