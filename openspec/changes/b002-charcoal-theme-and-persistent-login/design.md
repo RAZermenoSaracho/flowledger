@@ -128,6 +128,20 @@ The gateway's `REFRESH_TOKEN_COOKIE_NAME` changes to `flowledger_session` in `fl
 
 `GET /auth/google` takes an optional `keepLoggedIn`, validated as `"true"` or `"false"` because query values are strings (`z.coerce.boolean` would read `"false"` as true), and carried in the signed state. Omitted means `true` everywhere, matching the approved checked default and today's behavior: the state check uses `payload.keepLoggedIn !== false`, so a state issued before deploy still works. `GoogleOAuthButton` takes an optional `keepLoggedIn` prop defaulting to `true`, and Login passes its checkbox state. `loginSchema` gains `keepLoggedIn` defaulting to `true`.
 
+### D10. Icons: static files at conventional paths
+
+**Root cause, verified on both live hosts:** `index.html` declared only `favicon.svg`. `/apple-touch-icon.png` and `/manifest.webmanifest` returned `200 text/html` from the app-shell fallback, and `/favicon.ico` returned 404. The hostname is not a factor. The Cloudflare `max-age=14400` affects only rollout.
+
+Use the conventional minimal set: `favicon.ico` (32), `favicon.svg`, `apple-touch-icon.png` (180), and a manifest with 192, 512, and maskable 512 PNGs. Files sit at root paths, so the landing page, served at `/` with only an SVG declaration, also benefits from the browsers' root-path lookups without a change to that repo.
+
+All icons come from the `BrandLogo` mark, and `favicon.svg` is replaced with it, because it had drifted slightly in proportion. The Apple icon is opaque and full-bleed, because iOS applies its own mask and renders transparency as black. The maskable icon is padded to a 64-unit canvas, because the ledger's corners would otherwise fall outside the 40% safe radius.
+
+PNGs are rendered once with the installed Playwright Chromium and committed, with no build step or dependency.
+
+`display: standalone` enables installation. `start_url: /login` avoids the landing page, because `LoginPage` already sends signed-in users into the app.
+
+**Rejected:** `vite-plugin-pwa` and a service worker add infrastructure with no need. A build-time icon pipeline is unnecessary for assets that rarely change. `display: browser` keeps today's shortcut behavior but blocks PWA installation.
+
 ## Risks / Trade-offs
 
 - [Checked by default keeps 30-day sessions on shared computers unless the user unticks it] → Owner decision that preserves today's behavior. Logout still ends the session.
@@ -136,6 +150,9 @@ The gateway's `REFRESH_TOKEN_COOKIE_NAME` changes to `flowledger_session` in `fl
 - [A stale presence cookie after a refresh 401 sends the user through the app to `/login` instead of the landing page] → Harmless and expires with the session. Clearing cookies on a refresh 401 is rejected, because a late 401 could wipe a live cookie from a parallel refresh.
 - [A failed logout request leaves the session alive, which is pre-existing] → Signing out only the UI wouldn't revoke the server token, and a reload would restore it. Logged as #031.
 - [A refresh validated just before a password change can insert a successor that survives revocation] → Narrow race, accepted.
+- [`display: standalone` gives an iOS home-screen app its own cookie store, so it needs its own login, and the Google redirect leaves the app's scope] → Requires device testing in tasks §8. Changing one manifest field reverts to a browser shortcut.
+- [iOS and Cloudflare cache icons: the HTML fallback at `/apple-touch-icon.png` may be served for up to 4 hours after deploy, and existing shortcuts keep their icon] → Wait or purge, then remove and re-add the shortcut.
+- [A shortcut added from the landing page at `/` gets no manifest behavior, because that page doesn't link it] → Add from inside the app or `/login`.
 - [Rows grow, as they do today] → Logged as a known issue, not addressed.
 - [Browsers holding a dev-written cookie under the production name fail once on production] → One login heals it.
 - [Theme flash before React mounts, pre-existing] → Logged as a known issue.

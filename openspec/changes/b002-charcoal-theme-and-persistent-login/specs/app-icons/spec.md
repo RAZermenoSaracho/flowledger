@@ -1,0 +1,43 @@
+# Spec Delta
+
+## Purpose
+
+Defines how FlowLedger's existing brand mark appears in browser tabs, iOS home-screen shortcuts, and supported PWA installations, on any hostname.
+
+## ADDED Requirements
+
+### Requirement: Consistent icons derived from the in-app mark
+
+Every app icon SHALL show the same mark as the in-app logo, and SHALL be served from root-relative paths with no hostname dependency.
+
+#### Scenario: Browser tab
+- **WHEN** a browser that does not use SVG favicons opens the app
+- **THEN** a 32x32 raster favicon of the mark is available at `/favicon.ico`
+
+#### Scenario: Any host
+- **WHEN** the app is served from production or staging
+- **THEN** the same icon and manifest URLs resolve to their real files with correct image and manifest content types
+
+### Requirement: iOS home-screen icon
+
+The app SHALL provide a 180x180 opaque, full-bleed PNG at the conventional `/apple-touch-icon.png` path and declare it in the HTML.
+
+#### Scenario: Add to home screen
+- **WHEN** a user adds FlowLedger to the iOS home screen
+- **THEN** the shortcut shows the FlowLedger mark instead of a generated letter
+
+#### Scenario: Opaque corners
+- **WHEN** iOS applies its own corner mask to the icon
+- **THEN** no transparent corner pixels exist that could render as black
+
+### Requirement: PWA installation metadata
+
+The app SHALL declare a web app manifest with the app name, standalone display, and 192x192, 512x512, and 512x512 maskable icons. The maskable icon SHALL keep the mark inside its safe zone. The app SHALL NOT add a service worker for this purpose.
+
+#### Scenario: Manifest icons
+- **WHEN** the manifest is evaluated
+- **THEN** every listed icon resolves to a PNG with its declared dimensions
+
+#### Scenario: Launching the installed app
+- **WHEN** an installed app launches
+- **THEN** it opens the login route, which sends a signed-in user straight into the app

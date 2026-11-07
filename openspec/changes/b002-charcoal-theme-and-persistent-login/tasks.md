@@ -51,9 +51,16 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 - [x] 7.3 Run the `security-auditor` agent on the auth diff and resolve its findings.
 - [ ] 7.4 When the dev API is next running, inspect a login response and verify its `Set-Cookie` uses the `flowledger_dev_*` names. If it does not, stop and report, since D8 then needs another signal.
 
+## 7A. Mobile and PWA icons
+
+- [x] 7A.1 Replace `favicon.svg` with the `BrandLogo` mark, and render `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, and `icon-maskable-512.png` into `apps/web/public`. Verify dimensions, and in a browser verify the Apple and maskable icons are opaque.
+- [x] 7A.2 Add `manifest.webmanifest` and the `index.html` declarations, plus `src/tests/appIcons.test.ts`. Verify the test checks declarations, manifest entries, and PNG and ICO dimensions.
+- [x] 7A.3 Serve the production build and verify every icon URL returns its real file and content type, then run `npm run typecheck`, `lint`, `test`, and `build`.
+
 ## 8. Device verification (needs the owner's devices, after a deploy the owner approves)
 
 - [ ] 8.1 Run on iPhone Safari, the iPhone home-screen icon, Android Chrome, and desktop Chrome, with the option checked and unchecked: close and reopen, reopen after over 15 minutes, reopen after over 24 hours, airplane-mode reopen, and logout. Record results in the PR. Verify checked sessions survive and unchecked sessions end after 24 hours.
+- [ ] 8.1A On a physical iPhone, remove any existing shortcut, add FlowLedger from inside the app, and verify the logo, standalone launch, and email and Google sign-in. Check tabs in mobile Chrome and Safari, and install on Android Chrome. Verify each result is recorded in the PR.
 - [ ] 8.2 If a logout still occurs, capture the device, launch path, and whether the cookie exists, then report it before adding any fix. Verify H1 to H3 are each marked confirmed or ruled out.
 
 ## 9. Separate delivery, needs explicit approval

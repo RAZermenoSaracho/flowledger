@@ -22,6 +22,10 @@ Roadmap batch B-002 holds two independent intents. **ST-004:** dark mode reads a
 - Changing a password revokes every other session. **BREAKING (internal):** `PATCH /users/me/password` moves to `PATCH /auth/password`, because the refresh cookie is only sent under `/auth`. The web app is the only caller.
 - Correct `CLAUDE.md`, `apps/web/CLAUDE.md`, and `docs/AUTH_FLOW.md`.
 
+**Mobile and PWA icons (owner-approved addition to B-002)**
+
+- iOS home-screen shortcuts show a generated "F" and mobile tabs are inconsistent, because only an SVG favicon exists. Add a raster favicon, an Apple touch icon, and a web app manifest, all derived from the in-app logo mark. No service worker.
+
 **Non-goals**
 
 - Login rate limiting and refresh reuse detection (`docs/KNOWN_ISSUES.md` #007).
@@ -35,6 +39,8 @@ Roadmap batch B-002 holds two independent intents. **ST-004:** dark mode reads a
 - `dark-theme`: Neutral dark palette, contrast and surface distinctness, chart and native-control readability, and an unchanged light theme.
 - `session-persistence`: Per-device session choice, lifetime, resilience to transient failures and lost refresh responses, revocation on logout and password change, and session detection from the landing gateway.
 
+- `app-icons`: Brand icons in browser tabs, iOS home-screen shortcuts, and supported PWA installations.
+
 ### Modified Capabilities
 
 None. `select-dropdowns` already treats native option popups as browser-rendered.
@@ -45,5 +51,6 @@ None. `select-dropdowns` already treats native option popups as browser-rendered
 - **API:** `auth` module (cookie, tokens, services, controllers, routes, Google state), `users` module (password code moves out).
 - **Shared:** `loginSchema`, `googleOAuthStartQuerySchema`.
 - **Database:** one additive Prisma migration on `RefreshToken`: `persistent`, `previousTokenId`.
+- **Static assets:** new icons and `manifest.webmanifest` in `apps/web/public`; `index.html` declarations.
 - **Other repo:** one-line constant change in `flowledger_landing/server/gateway.js`, delivered separately after approval.
 - **Dependencies and environment:** none new.
