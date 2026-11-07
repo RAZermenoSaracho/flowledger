@@ -3,8 +3,8 @@ import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { createSyncfyAutoSyncScheduler } from "./modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.js";
 
-const server = app.listen(env.API_PORT, () => {
-  console.log(`FlowLedger API listening on port ${env.API_PORT}`);
+const server = app.listen(env.API_PORT, "127.0.0.1", () => {
+  console.log(`FlowLedger API listening on 127.0.0.1:${env.API_PORT}`);
 });
 const syncfyAutoSyncScheduler = createSyncfyAutoSyncScheduler();
 syncfyAutoSyncScheduler.start();

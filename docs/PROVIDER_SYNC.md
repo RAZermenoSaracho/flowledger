@@ -99,7 +99,7 @@ Signature can arrive in many formats:
 
 The verifier tries all combinations of key material extraction and digest encoding, using constant-time comparison to prevent timing attacks.
 
-Return values: `"valid"` | `"invalid"` | `"skipped"` (no key configured).
+Return values: `"valid"` | `"invalid"`. With no key configured, nothing can be verified, so the result is `"invalid"`, and the API refuses to start with `SYNCFY_API_KEY` set but no signing key. An unverified request gets 401, nothing is processed, and no row is stored; only the diagnostic log line remains. Other providers are rejected until they have a verifier. `/providers/webhooks` is limited to 300 requests per minute per address.
 
 **NEVER remove or bypass signature verification.**
 

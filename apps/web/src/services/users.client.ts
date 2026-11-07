@@ -1,6 +1,6 @@
 import { apiAssetUrl, apiRequest } from "./api.client";
 import type { PublicUser, User } from "../types/users.types";
-import type { PlanType, MobileSidebarSide } from "@flowledger/shared";
+import type { PlanType, MobileSidebarSide, UpdateUserEmailInput } from "@flowledger/shared";
 
 /** Fetches the current user's profile. */
 export function getProfile() {
@@ -33,6 +33,14 @@ export function updatePassword(body: {
   confirmPassword: string;
 }) {
   return apiRequest<void>("/auth/password", {
+    method: "PATCH",
+    body
+  });
+}
+
+/** Changes the user's email after re-checking their password; resolves a fresh access token for this device while other devices are signed out. */
+export function updateEmail(body: UpdateUserEmailInput) {
+  return apiRequest<{ token: string; user: User }>("/auth/email", {
     method: "PATCH",
     body
   });

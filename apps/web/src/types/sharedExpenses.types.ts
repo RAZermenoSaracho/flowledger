@@ -12,6 +12,12 @@ export type SharedExpenseParticipant = {
   status: ParticipantStatus;
 };
 
+/** Transaction fields every viewer of a shared expense gets; the owner also receives the rest of the {@link Transaction}. */
+export type SharedExpenseTransaction = Pick<
+  Transaction,
+  "id" | "name" | "amount" | "executionCurrency" | "type" | "date" | "categoryId" | "groupId"
+>;
+
 /** Shared expense record shape. */
 export type SharedExpense = {
   id: string;
@@ -20,7 +26,7 @@ export type SharedExpense = {
   title: string;
   totalAmount: number;
   status: SharedExpenseStatus;
-  transaction?: Transaction;
+  transaction?: SharedExpenseTransaction;
   owner?: { id: string; name: string };
   participants: SharedExpenseParticipant[];
   createdAt: string;

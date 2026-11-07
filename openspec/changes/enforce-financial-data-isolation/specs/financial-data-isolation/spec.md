@@ -77,3 +77,15 @@ Web user search SHALL require at least three characters and return at most 10 re
 #### Scenario: Result cap
 - **WHEN** a query matches more than 10 users
 - **THEN** at most 10 are returned
+
+### Requirement: Queries can't reach private fields through relations
+
+A user-supplied query SHALL NOT filter, sort, or group on another user's record or on any stored hash through a relation path. Shared-expense lists SHALL accept only the shared expense's own public fields, because participants can list them.
+
+#### Scenario: Hash through a relation
+- **WHEN** a query uses `owner.passwordHash`, `group.owner.passwordHash`, or a similar path, on any list
+- **THEN** the response is 400 and no query runs
+
+#### Scenario: Owner-only field as a participant
+- **WHEN** a participant filters shared expenses on `transaction.notes`
+- **THEN** the response is 400

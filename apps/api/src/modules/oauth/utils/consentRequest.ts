@@ -13,7 +13,10 @@ export function signConsentRequest(claims: OAuthConsentRequest) {
 /** Verifies signature, audience, expiry and claim shape; any failure is a 400 `HttpError`. */
 export function verifyConsentRequest(token: string): OAuthConsentRequest {
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET, { audience: AUDIENCE });
+    const payload = jwt.verify(token, env.JWT_SECRET, {
+      audience: AUDIENCE,
+      algorithms: ["HS256"]
+    });
     const parsed = oauthConsentRequestSchema.safeParse(payload);
     if (parsed.success) return parsed.data;
   } catch {

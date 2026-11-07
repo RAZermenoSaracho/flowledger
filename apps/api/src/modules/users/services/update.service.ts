@@ -1,9 +1,11 @@
 import type {
+  UpdateUserEmailInput,
   UpdateUserPasswordInput,
   UpdateUserPlanInput,
   UpdateUserProfileInput,
   UpdateUserSidebarSideInput
 } from "@flowledger/shared";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -24,24 +26,21 @@ const avatarContentTypes = new Set([
   "image/gif"
 ]);
 
-/** Updates a user's name/email/preferred currency; rejects if the new email is already registered to a different user. */
+/** Updates a user's name and preferred currency. Rejects a differing email, which only {@link updateEmail} can change. */
 export async function updateProfile(
   userId: string,
   input: UpdateUserProfileInput
 ) {
-  const emailOwner = await prisma.user.findUnique({
-    where: { email: input.email }
-  });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-  if (emailOwner && emailOwner.id !== userId) {
-    throw new HttpError(409, "Email is already registered");
+  if (input.email !== user.email) {
+    throw new HttpError(400, "Email can only be changed with your current password");
   }
 
   return prisma.user.update({
     where: { id: userId },
     data: {
       name: input.name,
-      email: input.email,
       ...(input.preferredCurrency !== undefined
         ? { preferredCurrency: input.preferredCurrency }
         : {})
@@ -82,6 +81,59 @@ export async function uploadAvatar(
     where: { id: userId },
     data: { avatarUrl: `/uploads/avatars/${filename}` }
   });
+}
+
+/**
+ * Changes the login email after re-checking the current password, and in the same transaction revokes every refresh token except this device's (or all of them, with no cookie).
+ *
+ * @throws 400 for a wrong password or an account with no password, 409 if another account has the email in any letter case.
+ */
+export async function updateEmail(
+  userId: string,
+  input: UpdateUserEmailInput,
+  currentRefreshToken?: string
+) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+  if (!user.passwordHash) {
+    throw new HttpError(400, "This account has no password, so its email can't be changed");
+  }
+
+  if (!(await bcrypt.compare(input.currentPassword, user.passwordHash))) {
+    throw new HttpError(400, "Current password is incorrect");
+  }
+
+  const emailOwner = await prisma.user.findFirst({
+    where: { email: { equals: input.email, mode: "insensitive" }, id: { not: userId } },
+    select: { id: true }
+  });
+
+  if (emailOwner) {
+    throw new HttpError(409, "Email is already registered");
+  }
+
+  try {
+    const [updatedUser] = await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { email: input.email } }),
+      prisma.refreshToken.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+          ...(currentRefreshToken
+            ? { tokenHash: { not: hashRefreshToken(currentRefreshToken) } }
+            : {})
+        },
+        data: { revokedAt: new Date() }
+      })
+    ]);
+
+    return updatedUser;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new HttpError(409, "Email is already registered");
+    }
+    throw error;
+  }
 }
 
 /** Changes a user's password after verifying `input.currentPassword` (400 on mismatch), and atomically revokes every refresh token except `currentRefreshToken`, or all of them if it is absent. */

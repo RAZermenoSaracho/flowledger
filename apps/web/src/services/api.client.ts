@@ -49,6 +49,9 @@ export function apiUrl(path: string) {
   return `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/** `/auth/*` routes that are ordinary access-token routes, so a 401 on them is retried after a silent refresh. */
+const ACCESS_TOKEN_AUTH_PATHS = new Set(["/auth/password", "/auth/email", "/auth/google/link"]);
+
 let refreshPromise: Promise<boolean> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
@@ -103,8 +106,8 @@ export function refreshAccessToken(): Promise<boolean> {
  * Generic authenticated fetch wrapper used by every `<module>.client.ts`
  * function; attaches the bearer token, sends/receives the httpOnly refresh
  * cookie, and throws `ApiError` on non-2xx responses. On a 401 from any
- * non-`/auth` path, or from `/auth/password` (an ordinary access-token route
- * despite its prefix), attempts one silent token refresh and retries the
+ * non-`/auth` path, or from `/auth/password`, `/auth/email` or `/auth/google/link`
+ * (ordinary access-token routes despite their prefix), attempts one silent token refresh and retries the
  * request before giving up.
  */
 export async function apiRequest<T>(
@@ -143,7 +146,7 @@ export async function apiRequest<T>(
     body: requestBody
   });
 
-  const isSessionEndpoint = path.startsWith("/auth/") && path !== "/auth/password";
+  const isSessionEndpoint = path.startsWith("/auth/") && !ACCESS_TOKEN_AUTH_PATHS.has(path);
 
   if (response.status === 401 && !isRetry && !isSessionEndpoint) {
     const refreshed = await refreshAccessToken();

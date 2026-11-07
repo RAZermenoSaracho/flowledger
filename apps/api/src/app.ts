@@ -34,6 +34,7 @@ import { v1Router } from "./modules/v1/v1.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { currenciesRouter } from "./modules/currencies/currencies.routes.js";
 import syncfyRoutes from "./modules/accounts/providers/syncfy/syncfy.routes.js";
+import { requestLogFormat } from "./utils/requestLogFormat.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(moduleDir, "../uploads");
@@ -60,7 +61,7 @@ app.use(
     }
   })
 );
-app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(requestLogFormat));
 app.use("/uploads", express.static(uploadDir));
 
 app.get("/health", (_req, res) => {

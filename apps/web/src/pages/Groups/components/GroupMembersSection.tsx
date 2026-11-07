@@ -37,7 +37,12 @@ export function GroupMembersSection({
             onChange={(event) => management.setUserSearch(event.target.value)}
             placeholder="Search by name or email"
           />
-          {management.trimmedUserSearch.length > 1 ? (
+          {management.trimmedUserSearch.length > 0 && management.trimmedUserSearch.length < 3 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Type at least 3 characters to search.
+            </p>
+          ) : null}
+          {management.trimmedUserSearch.length >= 3 ? (
             <div className="grid gap-2">
               {management.userSearchQuery.isFetching ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">

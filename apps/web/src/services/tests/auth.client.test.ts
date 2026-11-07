@@ -1,7 +1,15 @@
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "../../tests/mocks/server";
-import { googleOAuthUrl, login, refreshSession } from "../auth.client";
+import { tokenStore } from "../api.client";
+import {
+  getGoogleLinkStatus,
+  googleOAuthUrl,
+  login,
+  logout,
+  refreshSession,
+  startGoogleLink
+} from "../auth.client";
 
 const API = "http://localhost:4000";
 const session = { token: "tok", user: { id: "u1" } };
@@ -47,5 +55,36 @@ describe("googleOAuthUrl", () => {
     expect(googleOAuthUrl("/x", keepLoggedIn)).toBe(
       `${API}/auth/google?redirect=%2Fx&keepLoggedIn=${keepLoggedIn}`
     );
+  });
+});
+
+describe("logout", () => {
+  it("clears the token on success", async () => {
+    tokenStore.set("tok");
+    server.use(http.post(`${API}/auth/logout`, () => new HttpResponse(null, { status: 204 })));
+    await logout();
+    expect(tokenStore.get()).toBeNull();
+  });
+
+  it("keeps the token and throws on a 500 or network error", async () => {
+    tokenStore.set("tok");
+    server.use(http.post(`${API}/auth/logout`, () => new HttpResponse(null, { status: 500 })));
+    await expect(logout()).rejects.toMatchObject({ status: 500 });
+    server.use(http.post(`${API}/auth/logout`, () => HttpResponse.error()));
+    await expect(logout()).rejects.toThrow();
+    expect(tokenStore.get()).toBe("tok");
+    tokenStore.clear();
+  });
+});
+
+describe("Google link", () => {
+  it("starts the link with a POST and returns the consent url", async () => {
+    server.use(http.post(`${API}/auth/google/link`, () => HttpResponse.json({ url: "https://g.example/consent" })));
+    expect(await startGoogleLink()).toEqual({ url: "https://g.example/consent" });
+  });
+
+  it("reads the connected status", async () => {
+    server.use(http.get(`${API}/auth/google/link`, () => HttpResponse.json({ connected: true })));
+    expect(await getGoogleLinkStatus()).toEqual({ connected: true });
   });
 });

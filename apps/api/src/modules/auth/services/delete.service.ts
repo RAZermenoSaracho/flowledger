@@ -23,3 +23,21 @@ export async function revokeRefreshToken(plaintextRefreshToken: string) {
     data: { revokedAt: new Date() }
   });
 }
+
+/** Revokes every token issued from `tokenId`, directly or indirectly, including siblings from concurrent refreshes. */
+export async function revokeDescendants(tokenId: string, userId: string) {
+  let parentIds = [tokenId];
+
+  while (parentIds.length > 0) {
+    const children = await prisma.refreshToken.findMany({
+      where: { userId, previousTokenId: { in: parentIds } },
+      select: { id: true }
+    });
+    parentIds = children.map((child) => child.id);
+
+    await prisma.refreshToken.updateMany({
+      where: { id: { in: parentIds }, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+  }
+}

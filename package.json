@@ -25,7 +25,7 @@
     "prisma:seed": "tsx database/seed.ts",
     "start": "npm run build && npm-run-all --parallel start:api start:web",
     "start:api": "node apps/api/dist/server.js",
-    "start:web": "npm run preview -w @flowledger/web -- --host 0.0.0.0 --port 5174"
+    "start:web": "npm run preview -w @flowledger/web -- --host 127.0.0.1 --port 5174"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
@@ -40,5 +40,8 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.16.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "axios": "^1.21.0"
   }
 }

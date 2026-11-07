@@ -3,6 +3,7 @@ export const publicTransactionSelect = {
   id: true,
   name: true,
   amount: true,
+  executionCurrency: true,
   type: true,
   date: true,
   categoryId: true,

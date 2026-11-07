@@ -9,6 +9,8 @@ Work on a feature branch from the latest `razs_ai`, after `fix-access-token-purp
 - [ ] 1.3 Scope `settleDebtDirectly`'s load by creditor in the query. Verify `debts/services/tests/update.service.test.ts` keeps the uniform 404 for a non-creditor and an unknown id.
 - [ ] 1.4 Apply a three-character minimum and 10-result cap to web user search through the shared schema, and show a hint in the search inputs. Verify schema, route, and component tests, then flip `docs/KNOWN_ISSUES.md` #022 to `[RESOLVED]`.
 
+- [ ] 1.5 Reject user queries that reach another user's record or a stored hash in `createSieve`, and allowlist shared-expense query fields. Verify `db/tests/sieveFieldGuard.test.ts`, the service test, and integration rows.
+
 ## 2. Isolation regression suite
 
 - [ ] 2.1 Add `apps/api/src/tests/integration/financialIsolation.integration.test.ts`, with an anonymous table asserting 401 on every protected mount in `apps/api/src/app.ts`. Verify by temporarily confirming each row fails when authentication is removed in a local-only experiment, then discard the experiment.

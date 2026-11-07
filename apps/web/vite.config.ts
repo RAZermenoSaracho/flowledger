@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
     preview: { headers: frameHeaders },
     server: {
       headers: frameHeaders,
-      host: "0.0.0.0",
+      host: "127.0.0.1",
       port: Number(env.WEB_PORT ?? 5173),
       allowedHosts: ["flowledger.razs.dev", "flowledger-dev.razs.dev"]
     }

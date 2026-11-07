@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
+import { StrictMode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { AuthProvider } from "../../../hooks/useAuth";
@@ -65,59 +66,108 @@ function renderCallbackWithRoutes(hash: string) {
   );
 }
 
+function mockRefreshSuccess() {
+  server.use(
+    http.post(`${API_URL}/auth/refresh`, () =>
+      HttpResponse.json({ token: "access-token", user: testUser })
+    )
+  );
+}
+
 describe("OAuthCallbackPage", () => {
   afterEach(() => {
     window.location.hash = "";
   });
 
-  it("shows an error when the callback URL has no token", async () => {
-    mockRefresh401();
-    renderCallback("");
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("Google authentication did not return a valid session.")
-      ).toBeInTheDocument()
-    );
-  });
-
-  it("exchanges the token for a session and navigates to the dashboard by default", async () => {
-    mockRefresh401();
-    server.use(http.get(`${API_URL}/auth/me`, () => HttpResponse.json({ user: testUser })));
-
-    renderCallbackWithRoutes("#token=abc123");
+  it("restores the session and navigates to the dashboard by default", async () => {
+    mockRefreshSuccess();
+    renderCallbackWithRoutes("");
 
     await waitFor(() => expect(screen.getByText("Dashboard page")).toBeInTheDocument());
   });
 
-  it("navigates to an explicit same-origin redirect path", async () => {
-    mockRefresh401();
-    server.use(http.get(`${API_URL}/auth/me`, () => HttpResponse.json({ user: testUser })));
-
-    renderCallbackWithRoutes("#token=abc123&redirect=%2Ftransactions");
+  it("navigates to an explicit same-origin destination", async () => {
+    mockRefreshSuccess();
+    renderCallbackWithRoutes("#redirect=%2Ftransactions");
 
     await waitFor(() => expect(screen.getByText("Transactions page")).toBeInTheDocument());
   });
 
-  it("falls back to the dashboard for a protocol-relative redirect (rejected as unsafe)", async () => {
-    mockRefresh401();
-    server.use(http.get(`${API_URL}/auth/me`, () => HttpResponse.json({ user: testUser })));
-
-    renderCallbackWithRoutes("#token=abc123&redirect=%2F%2Fevil.com");
+  it("falls back to the dashboard for an unsafe destination", async () => {
+    mockRefreshSuccess();
+    renderCallbackWithRoutes("#redirect=%2F%2Fevil.com");
 
     await waitFor(() => expect(screen.getByText("Dashboard page")).toBeInTheDocument());
   });
 
-  it("shows an error and does not navigate when exchanging the token fails", async () => {
-    mockRefresh401();
+  it("ignores any token in the fragment and never sends it", async () => {
+    let authorization: string | null = null;
     server.use(
-      http.get(`${API_URL}/auth/me`, () =>
-        HttpResponse.json({ message: "Session expired" }, { status: 401 })
-      )
+      http.post(`${API_URL}/auth/refresh`, ({ request }) => {
+        authorization = request.headers.get("authorization");
+        return new HttpResponse(null, { status: 401 });
+      })
     );
-
     renderCallback("#token=abc123");
 
-    await waitFor(() => expect(screen.getByText("Session expired")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(authorization ?? "").not.toContain("abc123");
+  });
+
+  it("shows a sign-in error with a login link when restore is rejected, and cleans the URL", async () => {
+    mockRefresh401();
+    renderCallback("#redirect=%2Ftransactions");
+
+    await waitFor(() =>
+      expect(screen.getByText("Google sign-in didn't finish on this device.")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("link", { name: "Go to login" })).toHaveAttribute("href", "/login");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("shows the connection message on a temporary failure, then continues", async () => {
+    let attempts = 0;
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () => {
+        attempts += 1;
+        return attempts === 1
+          ? new HttpResponse(null, { status: 503 })
+          : HttpResponse.json({ token: "access-token", user: testUser });
+      })
+    );
+    renderCallbackWithRoutes("");
+
+    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Dashboard page")).toBeInTheDocument(), {
+      timeout: 15_000
+    });
+  }, 20_000);
+
+  it("navigates once under StrictMode", async () => {
+    mockRefreshSuccess();
+    const pushes: string[] = [];
+    function CountingDashboard() {
+      const location = useLocation();
+      pushes.push(location.pathname);
+      return <div>Dashboard page</div>;
+    }
+    const queryClient = new QueryClient();
+    render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/auth/oauth/callback"]}>
+            <AuthProvider>
+              <Routes>
+                <Route path="/auth/oauth/callback" element={<OAuthCallbackPage />} />
+                <Route path="/" element={<CountingDashboard />} />
+              </Routes>
+            </AuthProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </StrictMode>
+    );
+
+    await waitFor(() => expect(screen.getByText("Dashboard page")).toBeInTheDocument());
+    expect(new Set(pushes)).toEqual(new Set(["/"]));
   });
 });

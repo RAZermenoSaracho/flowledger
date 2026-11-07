@@ -44,7 +44,7 @@ Add an optional key generator and a JSON message to the existing helper.
 | `POST /auth/login` | IP | 50 per 15 min |
 | `POST /auth/register` | IP | 10 per hour |
 | `POST /auth/refresh` | IP | 60 per min |
-| `PATCH /auth/password`, `PATCH /auth/email` | Bearer hash (existing default) | 10 per 15 min |
+| `PATCH /auth/password`, `PATCH /auth/email` | User id, so a stolen refresh cookie can't mint more guesses | 10 per 15 min |
 
 Keying on the pair avoids letting an attacker lock a victim out. It does not stop a distributed attack, which needs edge rules or a shared store if it is ever observed. Limits are starting values, set in one place and tuned from logs.
 

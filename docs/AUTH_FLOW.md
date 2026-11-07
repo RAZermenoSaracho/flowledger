@@ -39,10 +39,12 @@ Built/read by `apps/api/src/modules/auth/utils/refreshTokenCookie.ts`.
 - `SameSite=Strict`
 - `Path=/auth` — only sent on `/auth/*` requests (refresh, logout), not on every API call
 - `Max-Age` derived from the refresh token's `expiresAt` for a persistent session; omitted for a browser session
-- `Domain=REFRESH_TOKEN_COOKIE_DOMAIN` when set (e.g. `.razs.dev` in `.env.example`) — scopes the cookie to the parent domain rather than the API's own host, so it's readable by other subdomains under the same registrable domain
-- `Secure` when `NODE_ENV=production`
+- No `Domain` attribute — host-only, so only the API host receives it. Each session response also expires any older copy scoped to `REFRESH_TOKEN_COOKIE_DOMAIN`
+- `Secure` in production and on any deployment whose `WEB_APP_URL` uses HTTPS
 
 ### Session presence cookie
+
+A rejected refresh (401) expires only the presence cookie, never the refresh cookie, because another tab's rotation may have just set a valid one. The next successful refresh sets it again.
 
 `Path=/auth` means browsers never send the refresh cookie on `/`, so the `flowledger_landing` gateway cannot use it to choose between the landing page and the app. The API therefore also sets `flowledger_session=1` (`flowledger_dev_session` outside production): `HttpOnly`, `SameSite=Lax` so a link from another site still reaches the app, `Path=/`, same `Domain`, `Secure`, and lifetime as the refresh cookie. It holds no credential and only says a session probably exists; the app still validates it through `/auth/refresh`.
 
@@ -113,14 +115,14 @@ GET /auth/google/callback?code=<code>&state=<state>
 4. Verify `id_token`: check `aud == GOOGLE_CLIENT_ID`, `iss` in Google's issuer list, `email_verified == true`
 5. Fetch user info from `https://openidconnect.googleapis.com/v1/userinfo`
 6. Verify sub/email consistency between id_token and userinfo
-7. `findOrCreateGoogleUser`: look up `UserAuthAccount` by `(provider="google", providerAccountId)` → create User + UserAuthAccount if new, link to existing user by email if partial match
+7. `findOrCreateGoogleUser`: look up `UserAuthAccount` by `(provider="google", providerAccountId)` → enter that user if linked; otherwise refuse with 409 if any account has the email in any letter case; otherwise create User + UserAuthAccount. Email never links an identity
 8. Issue an access+refresh token pair exactly like a regular login (`handleGoogleCallback` in `providers/google/services/create.service.ts`)
 9. Clear the nonce cookie, set the refresh token cookie
-10. Redirect to `<WEB_APP_URL>/auth/oauth/callback#token=<accessToken>&redirect=<destination>` — only the access token travels through the URL fragment; the refresh token was already set as a cookie on this same response
+10. Redirect to `<WEB_APP_URL>/auth/oauth/callback#redirect=<destination>`. No token appears in the URL
 
 ### Step 3 — Frontend completes login
 
-`OAuthCallbackPage` reads `token` and `redirect` from the URL hash fragment, stores the access token in `tokenStore` via `setToken`, calls `GET /auth/me` to fetch the user, and navigates to the redirect destination. The refresh cookie is already present from step 2, so subsequent silent refreshes work the same as for email/password logins.
+`OAuthCallbackPage` reads `redirect` from the URL hash fragment and removes the fragment. The redirect carries no token: `AuthProvider`'s normal session restore calls `/auth/refresh` with the cookie the callback just set, and the page then navigates once to the destination. A 401 shows a sign-in error with a link to login; a network error or 5xx shows a connection message and keeps retrying.
 
 ---
 
@@ -178,6 +180,32 @@ Only a `401` from `/auth/refresh` ends the session: it clears the token and noti
 
 ---
 
+## Connecting Google to an existing account
+
+`POST /auth/google/link` (behind `requireAuth`) returns the Google URL and sets the nonce cookie, with the signed state carrying `linkUserId`. The callback then creates only the link, issues no session, and returns to `/profile?tab=security&googleLink=connected|conflict|failed`. An identity linked to another account, or a user already linked to a different identity, gets `conflict`, which never names the other account. `GET /auth/google/link` reports `{ connected }`.
+
+## Changing email
+
+`PATCH /auth/email` needs the current password, and in one transaction updates the email and revokes every other refresh token, keeping this device (the refresh cookie identifies it). It returns a new access token, because the old one embeds the previous email. `PATCH /users/me` rejects a different email, and `/v1` and MCP can't change it. An account with no password can't change its email.
+
+## Abuse resistance
+
+Limits are in `auth/utils/authRateLimits.ts`, and a 429 doesn't end a session because only a 401 does:
+
+| Route | Key | Limit |
+|---|---|---|
+| `POST /auth/login` | Client address + email, failures only | 10 per 15 min |
+| `POST /auth/login` | Client address | 50 per 15 min |
+| `POST /auth/register` | Client address | 10 per hour |
+| `POST /auth/refresh` | Client address | 60 per min |
+| `PATCH /auth/password`, `PATCH /auth/email` | User | 10 per 15 min |
+
+`requireWebOrigin` rejects a foreign `Origin` with 403 on register, login, refresh, logout, and credential changes; a request with no `Origin` passes. Login does one bcrypt comparison whether or not the account or its password exists.
+
+Presenting a refresh token revoked more than 60 seconds ago also revokes everything issued from it. Inside that minute it may be a request in flight during a rotation, so descendants stay valid. Issuing a token deletes the user's expired rows and keeps revoked unexpired ones, so a replay can still be recognized.
+
+---
+
 ## `requireAuth` Middleware
 
 Located: `apps/api/src/middleware/auth.ts`. Unchanged by the refresh-token migration — it only ever validates the access token.
@@ -187,11 +215,23 @@ Authorization: Bearer <token>
 ```
 
 1. Extract token from `Authorization` header
-2. `jwt.verify(token, JWT_SECRET)` — throws on invalid/expired
-3. Set `req.user = { id: payload.sub, email: payload.email }`
+2. `verifyAccessToken(token)` (`auth/utils/tokens.ts`) — throws unless the signature and expiry are valid, the audience is `flowledger-access`, the algorithm is HS256, `sub` is a non-empty string, and `email` is a string
+3. Set `req.user` to the returned `{ id, email }`
 4. Call `next()`
 
 On failure: passes `HttpError(401)` to error handler.
+
+### Token purposes
+
+All JWTs share `JWT_SECRET`, so every verifier names its audience and algorithm, and each purpose is rejected by the others.
+
+| Purpose | Audience | Signed in | Verified in |
+|---|---|---|---|
+| Access token | `flowledger-access` | `auth/utils/tokens.ts` | `verifyAccessToken` |
+| Google OAuth state | `google-oauth` | `auth/providers/google/utils/googleState.ts` | `verifyGoogleState` |
+| MCP consent request | `oauth-consent` | `oauth/utils/consentRequest.ts` | `verifyConsentRequest` |
+
+The subject check matters because Prisma removes `undefined` from a `where`, so a request with no user id would otherwise lose its owner filter.
 
 The middleware is applied per-router, not globally. The `/providers/webhooks` and `/auth` routes are intentionally unauthenticated — `/auth/refresh` and `/auth/logout` in particular rely on the refresh cookie instead.
 

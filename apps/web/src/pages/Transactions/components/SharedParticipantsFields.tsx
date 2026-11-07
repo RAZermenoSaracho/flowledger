@@ -59,7 +59,7 @@ export function SharedParticipantsFields({
   const trimmedUserSearch = userSearch.trim();
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: isShared && trimmedUserSearch.length > 1,
+    enabled: isShared && trimmedUserSearch.length >= 3,
     queryFn: async () => (await searchUsers(trimmedUserSearch)).users
   });
   const eligibleUsers = (userSearchQuery.data ?? []).filter(
@@ -151,7 +151,12 @@ export function SharedParticipantsFields({
               </div>
             ) : null}
           </div>
-          {trimmedUserSearch.length > 1 ? (
+          {trimmedUserSearch.length > 0 && trimmedUserSearch.length < 3 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Type at least 3 characters to search.
+            </p>
+          ) : null}
+          {trimmedUserSearch.length >= 3 ? (
             <div className="grid gap-2">
               {userSearchQuery.isFetching ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">

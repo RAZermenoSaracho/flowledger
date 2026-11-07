@@ -1,10 +1,12 @@
 import type {
+  UpdateUserEmailInput,
   UpdateUserPasswordInput,
   UpdateUserPlanInput,
   UpdateUserProfileInput,
   UpdateUserSidebarSideInput
 } from "@flowledger/shared";
 import type { Request, Response } from "express";
+import { signAccessToken } from "../../auth/utils/tokens.js";
 import { readRefreshTokenCookie } from "../../auth/utils/refreshTokenCookie.js";
 import { HttpError } from "../../../utils/httpError.js";
 import { readMultipartParts } from "../../../utils/multipart.js";
@@ -12,6 +14,7 @@ import { publicUser } from "../../../utils/serialize.js";
 import {
   maxAvatarBytes,
   updatePassword,
+  updateEmail,
   updatePlan,
   updateProfile,
   updateSidebarSide,
@@ -47,6 +50,13 @@ export async function patchPassword(req: Request, res: Response) {
   const input = req.body as UpdateUserPasswordInput;
   await updatePassword(req.user!.id, input, readRefreshTokenCookie(req.headers.cookie));
   res.status(204).send();
+}
+
+/** Changes the login email, keeping this device signed in, and returns a fresh access token because the old one embeds the previous email. */
+export async function patchEmail(req: Request, res: Response) {
+  const input = req.body as UpdateUserEmailInput;
+  const user = await updateEmail(req.user!.id, input, readRefreshTokenCookie(req.headers.cookie));
+  res.json({ token: signAccessToken(user), user: publicUser(user) });
 }
 
 /** Updates the authenticated user's plan tier. */

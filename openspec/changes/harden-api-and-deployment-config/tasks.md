@@ -8,12 +8,12 @@ Application work uses a feature branch from the latest `razs_ai`. Landing work u
 - [ ] 1.2 Run `chmod 600` on `/Users/razs/production/flowledger/.env`, move its `.env.backup.*` out of the application directory with mode 600, and check `~/backups` dump permissions. Verify with `ls -l`. Rotate secrets only if the host has had untrusted local users.
 - [ ] 1.3 On GitHub, protect `main`: require a pull request, block force pushes and deletions, and apply the rules to administrators if practical. Verify a read of the branch protection API returns the rules.
 - [ ] 1.4 Put `flowledger-dev.razs.dev` and `api-flowledger-dev.razs.dev` behind Cloudflare Access, with bypass paths for required OAuth and webhook callbacks, or stop the tunnels while unused. Verify an unauthenticated browser is stopped at Access.
-- [ ] 1.5 Change `~/scripts/deploy-flowledger-prod.sh` and `~/scripts/deploy-flowledger-landing-prod.sh` from `npm install` to `npm ci`. Verify on the next deploy that the lockfile is unchanged.
+- [ ] 1.5 Change `~/scripts/deploy-flowledger-landing-prod.sh` from `npm install` to `npm ci`, since that repository tracks its lockfile. The app repository ignores its lockfile, so its script can't use `npm ci` until `docs/KNOWN_ISSUES.md` #043 is done. Verify on the next landing deploy that the lockfile is unchanged.
 
 ## 2. Configuration and webhook (API)
 
 - [ ] 2.1 Before deploying, confirm by pass or fail only that production has the webhook signing key and a `JWT_SECRET` of at least 32 characters. Verify the result is recorded with no value or exact length.
-- [ ] 2.2 Add `env.ts` refinements for the webhook key, HTTPS-without-production, and the production secret length. Verify `config/tests/` covers each failure, with error messages naming variables only.
+- [ ] 2.2 Add `env.ts` refinements for the webhook key and the production secret length, and derive `Secure` cookies from an HTTPS web origin, since staging runs HTTPS with `NODE_ENV=development`. Verify `config/tests/` covers each failure, with error messages naming variables only.
 - [ ] 2.3 Remove the "skipped" signature result, reject unverified events in `providerWebhooks.service.ts`, including the non-Syncfy branch, and stop storing bad-signature requests. Verify service tests, including that HMAC verification still runs on the raw body.
 - [ ] 2.4 Add a limiter on `/providers/webhooks`. Verify a route test gets 429 past the limit, and that a signed event within the limit succeeds.
 
@@ -21,7 +21,7 @@ Application work uses a feature branch from the latest `razs_ai`. Landing work u
 
 - [ ] 3.1 Replace `morgan`'s format with one that omits query strings. Verify a test or captured log line for `/auth/google/callback?code=x&state=y` contains neither value.
 - [ ] 3.2 Bind the API to `127.0.0.1` in `server.ts`. Change the `start:web` script and Vite `server.host` to loopback. Verify locally with `lsof`.
-- [ ] 3.3 Run `npm audit fix` without `--force` and update `vite`, `react-router-dom`, and transitive `body-parser` and `axios` within their majors. Verify `npm audit --omit=dev` shows those packages no longer flagged, and that the app builds.
+- [ ] 3.3 Raise the minimum versions of `vite`, `react-router-dom`, `express` (which pins `body-parser`) within their majors, and override transitive `axios`, because the lockfile isn't tracked and `npm audit fix` alone wouldn't reach production. Verify `npm audit --omit=dev` shows those packages no longer flagged, and that the app builds.
 - [ ] 3.4 Log the remaining dependency advisories, with reasons, in `docs/KNOWN_ISSUES.md`. Verify each remaining high item has either a reason or an owner decision.
 - [ ] 3.5 Check datasieve's limits and existing client pagination, then add default and maximum page sizes to transaction reads and a bound on report reads. Verify service tests at and above the maximum, and that web list pages still load all pages.
 

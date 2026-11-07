@@ -272,6 +272,9 @@ export async function getByCategoryReport(
   };
 }
 
+// ponytail: bounds memory for one report; a user past this many matching rows sees only the oldest, aggregate in SQL if it's ever reached.
+const MAX_CASHFLOW_TRANSACTIONS = 100_000;
+
 /** Computes month-by-month income/expense/balance rows for the cashflow report. */
 export async function getMonthlyCashflowReport(
   userId: string,
@@ -288,7 +291,8 @@ export async function getMonthlyCashflowReport(
       categoryId: true,
       expenseOffsetCategoryId: true
     },
-    orderBy: { date: "asc" }
+    orderBy: { date: "asc" },
+    take: MAX_CASHFLOW_TRANSACTIONS
   });
   const convertedTransactions = await Promise.all(
     transactions.map(async (transaction) => ({
