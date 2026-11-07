@@ -265,7 +265,7 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 
 ## App icons
 
-`public/` holds static icons at conventional root paths, because the server answers any missing path with the app shell as `200 text/html` and iOS probes those paths, declared in `index.html` and `manifest.webmanifest`, and `src/tests/appIcons.test.ts` guards their sizes and declarations. All show the `BrandLogo` mark. If the mark changes, re-render every PNG and `favicon.ico`: `apple-touch-icon.png` must stay opaque and full-bleed, and `icon-maskable-512.png` must stay padded for the maskable safe zone.
+`public/` holds static icons at conventional root paths, and `vite.config.ts` answers missing root-level `.png`/`.ico` requests with 404 instead of the app shell, because iOS probes icon paths, declared in `index.html` and `manifest.webmanifest`, and `src/tests/appIcons.test.ts` and `appIcons.http.test.ts` guard their sizes, declarations, and HTTP responses. All show the `BrandLogo` mark. If the mark changes, re-render every PNG and `favicon.ico`: `apple-touch-icon.png` must stay opaque and full-bleed, and `icon-maskable-512.png` must stay padded for the maskable safe zone.
 
 ## Auth context
 
@@ -326,5 +326,5 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 | `src/hooks/useAuth.tsx` | Auth context shape and how token/user state is managed |
 | `src/layout/AppLayout.tsx` | Sidebar nav, notification bell, mobile layout — shared shell for all auth'd pages |
 | `src/types/` | Per-client global API response types (`<client>.types.ts`) — check here before adding a new response shape |
-| `src/tests/mocks/server.ts` + `src/tests/setup.ts` | msw server/handlers and Vitest global setup — read before writing a component/hook test |
+| `src/tests/mocks/server.ts` + `src/tests/domSetup.ts` | msw server/handlers and Vitest global setup — read before writing a component/hook test |
 | `docs/TESTING.md` | Test architecture, coverage thresholds, `renderWithProviders`/msw patterns |

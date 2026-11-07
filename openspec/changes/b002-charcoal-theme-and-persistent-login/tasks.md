@@ -59,7 +59,7 @@ Work on a feature branch from the latest `razs_ai`; one PR targets `razs_ai`. Ev
 
 ## 7A-2. iOS icon follow-up
 
-- [x] 7A.4 Serve the Apple icon at `/apple-touch-icon-precomposed.png`, declare `sizes` on the link, and extend `appIcons.test.ts`. Verify the path returns `image/png` from the production build.
+- [x] 7A.4 Serve a real 240x240 icon, declare both sizes, and answer other missing root-level icon paths with 404 through a Vite plugin. Add `appIcons.http.test.ts`. Verify icon content types and 404s on the dev server, on the preview server, on the production build, and on staging.
 
 ## 7B. Mobile Reports filters
 

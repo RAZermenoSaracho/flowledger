@@ -20,15 +20,19 @@ Every app icon SHALL show the same mark as the in-app logo, and SHALL be served 
 
 ### Requirement: iOS home-screen icon
 
-The app SHALL provide a 180x180 opaque, full-bleed PNG at the conventional `/apple-touch-icon.png` and `/apple-touch-icon-precomposed.png` paths, and declare the former in the HTML.
+The app SHALL provide opaque, full-bleed PNGs at `/apple-touch-icon.png` (180x180) and `/apple-touch-icon-240x240.png` (240x240), and declare both in the HTML. A request for any other missing root-level icon path SHALL receive a 404, not the app shell.
 
 #### Scenario: Add to home screen
 - **WHEN** a user adds FlowLedger to the iOS home screen
 - **THEN** the shortcut shows the FlowLedger mark instead of a generated letter
 
-#### Scenario: iOS probes the precomposed path
-- **WHEN** iOS requests `/apple-touch-icon-precomposed.png`
-- **THEN** the response is the icon image, not the app shell's HTML
+#### Scenario: iOS probes a missing icon path
+- **WHEN** iOS requests `/apple-touch-icon-240x240-precomposed.png` or `/apple-touch-icon-precomposed.png`
+- **THEN** the response is a 404, not the app shell's HTML
+
+#### Scenario: Client routes still work
+- **WHEN** a browser requests a client route such as `/login`
+- **THEN** the response is the app shell with its icon declarations
 
 #### Scenario: Opaque corners
 - **WHEN** iOS applies its own corner mask to the icon

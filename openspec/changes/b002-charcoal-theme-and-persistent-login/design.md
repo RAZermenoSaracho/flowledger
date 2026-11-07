@@ -136,7 +136,15 @@ Use the conventional minimal set: `favicon.ico` (32), `favicon.svg`, `apple-touc
 
 All icons come from the `BrandLogo` mark, and `favicon.svg` is replaced with it, because it had drifted slightly in proportion. The Apple icon is opaque and full-bleed, because iOS applies its own mask and renders transparency as black. The maskable icon is padded to a 64-unit canvas, because the ledger's corners would otherwise fall outside the 40% safe radius.
 
-**Follow-up on a physical iPhone:** the shortcut still showed a white "F" on `theme_color` green after the first icon deploy. Cloudflare request logs showed iOS 27.2 fetching `/apple-touch-icon.png` as a valid PNG, and also `/apple-touch-icon-precomposed.png`, which the app-shell fallback answered with `200 text/html`. iOS never requested the manifest icons. So the precomposed path now serves the same PNG. Attributing the "F" to that response is the leading explanation rather than proven, because iOS's selection logic isn't observable; a device retest decides. Other unprobed `/apple-touch-icon-*` variants still reach the fallback, so log any that iOS requests before adding them.
+**Follow-up on a physical iPhone.** The shortcut kept showing a white "F" on `theme_color` green, in Safari and Chrome. Cloudflare event logs from those attempts establish:
+
+- Confirmed: Vite's SPA fallback answered missing icon paths with `200 text/html`. Safari probed `/apple-touch-icon-240x240.png` and its `-precomposed` variant at 04:35:23 and got HTML.
+- Confirmed: iOS's fetcher received a valid PNG from `/apple-touch-icon.png` on each attempt, so CDN caching and blocked requests are not the cause. It refetched on every attempt, so it wasn't skipping the fetch because of a device cache.
+- Ruled out: serving a PNG at `/apple-touch-icon-precomposed.png`. The fetcher got HTML there at 04:14 and a PNG from 04:29, and the owner still reported the "F". That duplicate was removed.
+- Confirmed: iOS never requested the manifest icons.
+- Hypothesis: iOS uses the `240x240` response, or wants that size, so the HTML or the missing size produces the fallback. Its selection logic isn't observable. A device test decides.
+
+So: add a real 240x240 icon and declare it, and return 404 for other missing root-level `.png` and `.ico` requests through a small Vite plugin used by both the dev and preview servers. Production's landing page is separate and declares only the SVG.
 
 PNGs are rendered once with the installed Playwright Chromium and committed, with no build step or dependency.
 
