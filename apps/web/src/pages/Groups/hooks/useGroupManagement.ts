@@ -26,7 +26,7 @@ export function useGroupManagement({
 
   const userSearchQuery = useQuery({
     queryKey: ["users", "search", trimmedUserSearch],
-    enabled: Boolean(selectedGroupId) && trimmedUserSearch.length > 1,
+    enabled: Boolean(selectedGroupId) && trimmedUserSearch.length >= 3,
     queryFn: async () => (await searchUsers(trimmedUserSearch)).users
   });
 

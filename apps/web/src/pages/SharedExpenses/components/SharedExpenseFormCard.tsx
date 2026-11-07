@@ -87,7 +87,12 @@ export function SharedExpenseFormCard({
           placeholder="Search by name or email"
         />
         <div className="grid gap-2 md:col-span-2">
-          {form.trimmedUserSearch.length > 1 ? (
+          {form.trimmedUserSearch.length > 0 && form.trimmedUserSearch.length < 3 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Type at least 3 characters to search.
+            </p>
+          ) : null}
+          {form.trimmedUserSearch.length >= 3 ? (
             form.userSearchQuery.isFetching ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Searching app users...

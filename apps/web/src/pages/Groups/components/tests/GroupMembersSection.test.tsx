@@ -68,6 +68,15 @@ describe("GroupMembersSection", () => {
     expect(screen.queryByLabelText("Find app user")).not.toBeInTheDocument();
   });
 
+  it("asks for three characters before searching", async () => {
+    const user = userEvent.setup();
+    renderSection(makeGroup());
+
+    await user.type(screen.getByLabelText("Find app user"), "sa");
+
+    expect(screen.getByText("Type at least 3 characters to search.")).toBeInTheDocument();
+  });
+
   it("searches app users and adds one as a member", async () => {
     server.use(
       http.get(`${API_URL}/users/search`, () =>

@@ -68,6 +68,14 @@ describe("SharedParticipantsFields", () => {
     expect(screen.queryByRole("button", { name: /Participants/ })).not.toBeInTheDocument();
   });
 
+  it("asks for three characters before searching", () => {
+    renderWithProviders(
+      <SharedParticipantsFields {...baseProps({ isShared: true, areFieldsOpen: true, userSearch: "sa" })} />
+    );
+
+    expect(screen.getByText("Type at least 3 characters to search.")).toBeInTheDocument();
+  });
+
   it("calls onIsSharedChange from the checkbox", async () => {
     const user = userEvent.setup();
     const props = baseProps({ isShared: false });

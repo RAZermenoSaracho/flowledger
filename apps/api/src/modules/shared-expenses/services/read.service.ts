@@ -6,6 +6,7 @@ import type {
   SharedExpenseListRecord,
   SharedExpensesQueryInput
 } from "../types/sharedExpenses.types.js";
+import { withVisibleTransaction } from "../utils/transactionVisibility.js";
 
 const sharedExpensesSieve = createSieve(prisma.sharedExpense);
 
@@ -137,7 +138,7 @@ function parseSharedExpensesQueryParam(raw: string | undefined) {
   return decoded as SharedExpensesQueryInput;
 }
 
-/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query. */
+/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query; non-owners get the public transaction fields only. */
 export async function listSharedExpenses(
   userId: string,
   rawQuery: string | undefined
@@ -149,7 +150,9 @@ export async function listSharedExpenses(
     ? { and: [scopeCondition, input.where] }
     : scopeCondition;
 
-  const result = await sharedExpensesSieve.query<SharedExpenseListRecord>({
+  const result = await sharedExpensesSieve.query<
+    SharedExpenseListRecord & { transaction?: Record<string, unknown> | null }
+  >({
     where,
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     include: {
@@ -158,10 +161,10 @@ export async function listSharedExpenses(
       owner: { select: { id: true, name: true } }
     }
   });
-  return result.data;
+  return result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId));
 }
 
-/** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant. */
+/** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant; non-owners get the public transaction fields only. */
 export async function getSharedExpenseById(userId: string, sharedExpenseId: string) {
   const sharedExpense = await prisma.sharedExpense.findFirst({
     where: {
@@ -179,5 +182,5 @@ export async function getSharedExpenseById(userId: string, sharedExpenseId: stri
   });
   if (!sharedExpense) throw notFound("Shared expense");
 
-  return sharedExpense;
+  return withVisibleTransaction(sharedExpense, userId);
 }

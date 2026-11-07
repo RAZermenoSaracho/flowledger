@@ -75,6 +75,19 @@ describe("SharedExpenseFormCard", () => {
     expect(screen.getByText("$100.00")).toBeInTheDocument();
   });
 
+  it("asks for three characters before searching", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+    expect(screen.getByRole("button", { name: "Save split" })).toBeDisabled();
+
+        await user.type(screen.getByLabelText("Find app user"), "sa");
+
+    expect(screen.getByText("Type at least 3 characters to search.")).toBeInTheDocument();
+  });
+
   it("adds a manual participant, enabling submit once at least one exists", async () => {
     mockBaseline();
     const user = userEvent.setup();

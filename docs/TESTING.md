@@ -113,6 +113,8 @@ npm run test:coverage -w apps/api   # coverage for one workspace — writes apps
 
 `apps/api` integration/e2e tests (anything under `src/tests/integration/` or `src/tests/e2e/`) require Docker running locally (testcontainers pulls and starts a real `postgres` image per suite run). Unit tests (`services/tests/`, `utils/tests/`, `controllers/tests/`) never touch Docker or a real database — they run everywhere `npm test` runs, including CI without a database service.
 
+New `apps/api` mounts that handle user data must add rows to `apps/api/src/tests/integration/financialIsolation.integration.test.ts`: an anonymous 401 row, plus cross-user read/update/delete rows for each record family the mount exposes.
+
 ---
 
 ## Running Docker-backed API tests on macOS (Vagrant VM)

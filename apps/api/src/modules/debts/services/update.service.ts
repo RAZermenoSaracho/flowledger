@@ -43,15 +43,19 @@ export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
 export async function settleDebtDirectly(userId: string, debtId: string) {
   const result = await prisma.$transaction(async (tx) => {
     const debt = await tx.sharedExpenseParticipant.findFirst({
-      where: { id: debtId },
+      where: {
+        id: debtId,
+        OR: [
+          { sharedExpense: { ownerUserId: userId, transaction: { type: "expense" } } },
+          { userId, sharedExpense: { transaction: { type: "income" } } }
+        ]
+      },
       include: debtInclude
     });
     if (!debt) throw notFound("Debt");
 
     const direction = getDebtDirection(debt);
-    if (!direction || direction.creditorUserId !== userId) {
-      throw notFound("Debt");
-    }
+    if (!direction) throw notFound("Debt");
 
     const outstandingAmount = debtOutstanding(debt);
     if (outstandingAmount <= 0) {
