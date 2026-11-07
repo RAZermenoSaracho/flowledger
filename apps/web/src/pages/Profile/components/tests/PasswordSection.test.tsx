@@ -10,7 +10,7 @@ import { PasswordSection } from "../PasswordSection";
 describe("PasswordSection", () => {
   it("opens the dialog, confirms the change, closes it and returns focus to the trigger", async () => {
     server.use(
-      http.patch(`${API_URL}/users/me/password`, () => HttpResponse.json({ user: baseUser }))
+      http.patch(`${API_URL}/auth/password`, () => HttpResponse.json({ user: baseUser }))
     );
     const user = userEvent.setup();
     renderWithProviders(<PasswordSection />);

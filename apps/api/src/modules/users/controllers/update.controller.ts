@@ -5,6 +5,7 @@ import type {
   UpdateUserSidebarSideInput
 } from "@flowledger/shared";
 import type { Request, Response } from "express";
+import { readRefreshTokenCookie } from "../../auth/utils/refreshTokenCookie.js";
 import { HttpError } from "../../../utils/httpError.js";
 import { readMultipartParts } from "../../../utils/multipart.js";
 import { publicUser } from "../../../utils/serialize.js";
@@ -41,10 +42,10 @@ export async function postAvatar(req: Request, res: Response) {
   res.json({ user: publicUser(user) });
 }
 
-/** Changes the authenticated user's password after verifying their current one. */
+/** Changes the authenticated user's password after verifying their current one, keeping only this device's session. Mounted on `/auth` because the refresh cookie is only sent there. */
 export async function patchPassword(req: Request, res: Response) {
   const input = req.body as UpdateUserPasswordInput;
-  await updatePassword(req.user!.id, input);
+  await updatePassword(req.user!.id, input, readRefreshTokenCookie(req.headers.cookie));
   res.status(204).send();
 }
 

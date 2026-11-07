@@ -54,7 +54,7 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |
 
-`ProtectedRoute` checks `getToken()` (from `services/auth.client.ts`) and redirects to `/login?redirect=<path>` if no token is present.
+`ProtectedRoute` reads `useAuth`: it waits while `isInitializing`, shows a connection message while `isSessionUnavailable` with no user, and otherwise redirects to `/login?redirect=<path>` when there is no user. `LoginPage` sends a signed-in user straight to `redirect`.
 
 ---
 
@@ -263,9 +263,13 @@ Export named. Use existing primitives (`Button`, `Card`, `FormField`) before cre
 
 ---
 
+## App icons
+
+`public/` holds static icons at conventional root paths, and `vite.config.ts` answers missing root-level `.png`/`.ico` requests with 404 instead of the app shell, because iOS probes icon paths, declared in `index.html` and `manifest.webmanifest`, and `src/tests/appIcons.test.ts` and `appIcons.http.test.ts` guard their sizes, declarations, and HTTP responses. All show the `BrandLogo` mark. If the mark changes, re-render every PNG and `favicon.ico`: `apple-touch-icon.png` must stay opaque and full-bleed, and `icon-maskable-512.png` must stay padded for the maskable safe zone.
+
 ## Auth context
 
-`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, setUser, logout }`. On login, store the JWT via `auth.client.ts`'s `setToken(token)` and call `setUser(user)`. On logout, `clearToken()` (also from `auth.client.ts`) is handled by `logout()`. `useAuth`'s `login`/`register` delegate to `services/auth.client.ts`.
+`useAuth` (from `src/hooks/useAuth.tsx`) provides `{ user, isInitializing, isSessionUnavailable, setUser, login, register, logout }`. On login, store the JWT via `auth.client.ts`'s `setToken(token)` and call `setUser(user)`. On logout, `clearToken()` (also from `auth.client.ts`) is handled by `logout()`. `useAuth`'s `login`/`register` delegate to `services/auth.client.ts`.
 
 ---
 
@@ -322,5 +326,5 @@ Requires `VITE_API_URL` set (e.g. `http://localhost:4000`). Falls back to `http:
 | `src/hooks/useAuth.tsx` | Auth context shape and how token/user state is managed |
 | `src/layout/AppLayout.tsx` | Sidebar nav, notification bell, mobile layout — shared shell for all auth'd pages |
 | `src/types/` | Per-client global API response types (`<client>.types.ts`) — check here before adding a new response shape |
-| `src/tests/mocks/server.ts` + `src/tests/setup.ts` | msw server/handlers and Vitest global setup — read before writing a component/hook test |
+| `src/tests/mocks/server.ts` + `src/tests/domSetup.ts` | msw server/handlers and Vitest global setup — read before writing a component/hook test |
 | `docs/TESTING.md` | Test architecture, coverage thresholds, `renderWithProviders`/msw patterns |

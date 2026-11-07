@@ -8,6 +8,7 @@ import { issueRefreshToken } from "./create.service.js";
 export async function authenticateUser(input: {
   email: string;
   password: string;
+  keepLoggedIn: boolean;
 }) {
   const user = await prisma.user.findUnique({
     where: { email: input.email }
@@ -20,7 +21,7 @@ export async function authenticateUser(input: {
     throw new HttpError(401, "Invalid email or password");
   }
 
-  const refreshToken = await issueRefreshToken(user.id);
+  const refreshToken = await issueRefreshToken(user.id, input.keepLoggedIn);
   return { token: signAccessToken(user), refreshToken, user };
 }
 

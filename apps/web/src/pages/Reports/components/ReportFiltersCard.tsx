@@ -1,3 +1,5 @@
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { CurrencySelect } from "../../../components/CurrencySelect";
@@ -20,7 +22,7 @@ export const emptyReportFilters: ReportFilters = {
   categoryIds: []
 };
 
-/** Always-visible date-time range, group, and category filter controls for reports, plus currency and net/gross; stacks responsively with no collapse. */
+/** Date-time range, group, and category filter controls for reports, plus currency and net/gross. Below `lg` they collapse behind a Filters button, closed by default; from `lg` they are always visible. The controls stay mounted while collapsed, so partial input survives. */
 export function ReportFiltersCard({
   filters,
   onFiltersChange,
@@ -42,6 +44,7 @@ export function ReportFiltersCard({
   reportAmountMode: ReportAmountMode;
   onReportAmountModeChange: (mode: ReportAmountMode) => void;
 }) {
+  const [isOpenOnMobile, setIsOpenOnMobile] = useState(false);
   const setGroupIds = (groupIds: string[]) => {
     const nextCategoryIds = groupIds.length
       ? filters.categoryIds.filter((categoryId) =>
@@ -69,86 +72,108 @@ export function ReportFiltersCard({
 
   return (
     <Card>
-      <div className="grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
-        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(13.5rem,1.3fr))_repeat(2,minmax(0,1fr))]">
-          <DateTimeFilterInput
-            label="From"
-            value={filters.dateFrom}
-            onChange={(next) => onFiltersChange({ ...filters, dateFrom: next })}
-          />
-          <DateTimeFilterInput
-            label="To"
-            value={filters.dateTo}
-            defaultTime="23:59"
-            onChange={(next) => onFiltersChange({ ...filters, dateTo: next })}
-          />
-          <MultiSelectFilter
-            label="Groups"
-            options={groups.map((group) => ({
-              id: group.id,
-              label: group.name
-            }))}
-            selectedIds={filters.groupIds}
-            allLabel="All groups"
-            emptyText="No groups yet."
-            onChange={setGroupIds}
-          />
-          <MultiSelectFilter
-            label="Categories"
-            options={categoryOptions.map((category) => ({
-              id: category.id,
-              label: category.name
-            }))}
-            selectedIds={filters.categoryIds}
-            allLabel="All categories"
-            emptyText="No categories yet."
-            onChange={setCategoryIds}
-          />
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          {hasActiveFilters ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={() => onFiltersChange(emptyReportFilters)}
-            >
-              Reset filters
-            </Button>
-          ) : null}
-          <div className="min-w-44">
-            <CurrencySelect
-              label="Currency"
-              value={currency}
-              onChange={onCurrencyChange}
+      <button
+        type="button"
+        className="flex min-h-10 w-full items-center justify-between gap-2 lg:hidden"
+        aria-expanded={isOpenOnMobile}
+        aria-controls="report-filters-content"
+        onClick={() => setIsOpenOnMobile((current) => !current)}
+      >
+        <span className="text-sm font-semibold text-ink dark:text-slate-100">
+          Filters{hasActiveFilters ? " (active)" : ""}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 text-slate-500 transition dark:text-slate-400 ${
+            isOpenOnMobile ? "rotate-180" : ""
+          }`}
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        id="report-filters-content"
+        className={`${isOpenOnMobile ? "mt-4 block" : "hidden"} lg:mt-0 lg:block`}
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(13.5rem,1.3fr))_repeat(2,minmax(0,1fr))]">
+            <DateTimeFilterInput
+              label="From"
+              value={filters.dateFrom}
+              onChange={(next) => onFiltersChange({ ...filters, dateFrom: next })}
+            />
+            <DateTimeFilterInput
+              label="To"
+              value={filters.dateTo}
+              defaultTime="23:59"
+              onChange={(next) => onFiltersChange({ ...filters, dateTo: next })}
+            />
+            <MultiSelectFilter
+              label="Groups"
+              options={groups.map((group) => ({
+                id: group.id,
+                label: group.name
+              }))}
+              selectedIds={filters.groupIds}
+              allLabel="All groups"
+              emptyText="No groups yet."
+              onChange={setGroupIds}
+            />
+            <MultiSelectFilter
+              label="Categories"
+              options={categoryOptions.map((category) => ({
+                id: category.id,
+                label: category.name
+              }))}
+              selectedIds={filters.categoryIds}
+              allLabel="All categories"
+              emptyText="No categories yet."
+              onChange={setCategoryIds}
             />
           </div>
-          <div className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-            <span>Report amount</span>
-            <div
-              className="grid grid-cols-2 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-700"
-              role="group"
-              aria-label="Report amount basis"
-            >
-              {reportAmountModes.map((mode) => {
-                const isSelected = reportAmountMode === mode.value;
-                return (
-                  <button
-                    key={mode.value}
-                    type="button"
-                    className={`min-h-10 px-4 py-2 text-sm font-semibold transition ${
-                      isSelected
-                        ? "bg-pine text-white dark:bg-emerald-700"
-                        : "bg-white text-ink hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                    aria-pressed={isSelected}
-                    onClick={() => onReportAmountModeChange(mode.value)}
-                  >
-                    {mode.label}
-                  </button>
-                );
-              })}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            {hasActiveFilters ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => onFiltersChange(emptyReportFilters)}
+              >
+                Reset filters
+              </Button>
+            ) : null}
+            <div className="min-w-44">
+              <CurrencySelect
+                label="Currency"
+                value={currency}
+                onChange={onCurrencyChange}
+              />
+            </div>
+            <div className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <span>Report amount</span>
+              <div
+                className="grid grid-cols-2 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-700"
+                role="group"
+                aria-label="Report amount basis"
+              >
+                {reportAmountModes.map((mode) => {
+                  const isSelected = reportAmountMode === mode.value;
+                  return (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      className={`min-h-10 px-4 py-2 text-sm font-semibold transition ${
+                        isSelected
+                          ? "bg-pine text-white dark:bg-emerald-700"
+                          : "bg-white text-ink hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                      aria-pressed={isSelected}
+                      onClick={() => onReportAmountModeChange(mode.value)}
+                    >
+                      {mode.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

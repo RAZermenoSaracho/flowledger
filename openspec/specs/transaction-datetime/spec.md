@@ -196,14 +196,34 @@ The date filter control SHALL be one always-visible `datetime-local` input in th
 - **WHEN** a user types a date but leaves the time of the field blank, and leaves the field
 - **THEN** the filter is not applied and "Incomplete or invalid, not applied" is shown
 
-### Requirement: Reports filters are an always-visible bar
+### Requirement: Reports filters collapse on small screens
 
-The Reports page SHALL show one always-visible filter bar with From, To, Groups, Categories, Currency, and Net or Gross directly accessible at every width, with no Filters button, popover, or collapse. The controls SHALL stack responsively (one column on phones, two from `md`, a single horizontal row of four from `xl`), the date-time fields SHALL be at least 13.5 rem wide from `xl`, and the page SHALL NOT scroll horizontally from 360 px to 1920 px. The bar SHALL NOT change what the filters send.
+Below `lg`, the Reports page SHALL collapse its filters behind a Filters button, closed by default, that expands and collapses From, To, Groups, Categories, Currency, and Net or Gross. From `lg`, the page SHALL show them as one always-visible bar with no Filters button. Collapsing SHALL NOT clear any selected filter or entered value. The controls SHALL stack responsively (one column on phones, two from `md`, a single horizontal row of four from `xl`).
+
+#### Scenario: Collapsed by default on a phone
+
+- **WHEN** the Reports page opens at 390 px
+- **THEN** a Filters button is visible, and the filter controls are hidden until it is pressed
 
 #### Scenario: Controls present on a phone
 
-- **WHEN** the Reports page opens at 360 px
-- **THEN** From, To, Groups, Categories, Currency, and Net or Gross are all visible without opening anything
+- **WHEN** a user presses the Filters button at 360 px
+- **THEN** From, To, Groups, Categories, Currency, and Net or Gross are all visible
+
+#### Scenario: Always visible on desktop
+
+- **WHEN** the Reports page opens at 1440 px
+- **THEN** every control is visible and there is no Filters button
+
+#### Scenario: Values survive collapsing
+
+- **WHEN** a user enters a date, collapses the filters, and expands them again
+- **THEN** the entered value and report results are unchanged
+
+#### Scenario: Active filters while collapsed
+
+- **WHEN** filters are active and the controls are collapsed
+- **THEN** the button indicates that filters are active
 
 ### Requirement: Date filter chips show local date and time
 

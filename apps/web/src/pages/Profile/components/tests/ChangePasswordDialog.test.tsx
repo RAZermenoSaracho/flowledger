@@ -32,7 +32,7 @@ describe("ChangePasswordDialog", () => {
 
   it("shows the server error inline", async () => {
     server.use(
-      http.patch(`${API_URL}/users/me/password`, () =>
+      http.patch(`${API_URL}/auth/password`, () =>
         HttpResponse.json({ message: "Current password is incorrect" }, { status: 401 })
       )
     );
@@ -43,7 +43,7 @@ describe("ChangePasswordDialog", () => {
 
   it("calls onChanged on success", async () => {
     server.use(
-      http.patch(`${API_URL}/users/me/password`, () => HttpResponse.json({ user: baseUser }))
+      http.patch(`${API_URL}/auth/password`, () => HttpResponse.json({ user: baseUser }))
     );
     const onChanged = vi.fn();
     renderWithProviders(<ChangePasswordDialog onCancel={vi.fn()} onChanged={onChanged} />);

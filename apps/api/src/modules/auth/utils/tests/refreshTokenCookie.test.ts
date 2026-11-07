@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../../../../config/env.js";
 import {
-  buildRefreshTokenCookie,
-  clearRefreshTokenCookie,
+  buildSessionCookies,
+  clearSessionCookies,
   parseCookies,
   readRefreshTokenCookie,
-  refreshTokenCookieName
+  refreshTokenCookieName,
+  sessionPresenceCookieName
 } from "../refreshTokenCookie.js";
 
 vi.mock("../../../../config/env.js", () => ({
@@ -44,65 +45,130 @@ describe("readRefreshTokenCookie", () => {
   });
 });
 
-describe("buildRefreshTokenCookie", () => {
+const future = () => new Date(Date.now() + 60_000);
+
+describe("buildSessionCookies", () => {
   beforeEach(() => {
     Object.assign(env, { NODE_ENV: "development", REFRESH_TOKEN_COOKIE_DOMAIN: undefined });
   });
 
-  it("builds an HttpOnly, SameSite=Strict, /auth-scoped cookie", () => {
-    const cookie = buildRefreshTokenCookie(
-      "token-value",
-      new Date(Date.now() + 60_000)
-    );
+  it("returns the refresh cookie (HttpOnly, SameSite=Strict, /auth) and the presence cookie", () => {
+    const cookies = buildSessionCookies({ token: "token-value", expiresAt: future(), persistent: true });
 
-    expect(cookie).toContain(`${refreshTokenCookieName}=token-value`);
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("SameSite=Strict");
-    expect(cookie).toContain("Path=/auth");
+    expect(cookies).toHaveLength(2);
+    const [refresh, presence] = cookies;
+    expect(refresh).toContain(`${refreshTokenCookieName}=token-value`);
+    expect(refresh).toContain("HttpOnly");
+    expect(refresh).toContain("SameSite=Strict");
+    expect(refresh).toContain("Path=/auth");
+    expect(presence).toContain(`${sessionPresenceCookieName}=1`);
+    expect(presence).toContain("SameSite=Lax");
+    expect(presence).toContain("Path=/");
+    expect(presence).not.toContain("Path=/auth");
   });
 
-  it("derives Max-Age from expiresAt, floored at 0 for a past expiry", () => {
-    const cookie = buildRefreshTokenCookie(
-      "token-value",
-      new Date(Date.now() - 60_000)
-    );
-    expect(cookie).toContain("Max-Age=0");
+  it("puts no token material in the presence cookie", () => {
+    const [, presence] = buildSessionCookies({ token: "secret-token-value", expiresAt: future(), persistent: true });
+
+    expect(presence).not.toContain("secret-token-value");
+    expect(presence?.startsWith(`${sessionPresenceCookieName}=1;`)).toBe(true);
+  });
+
+  it("sets Max-Age on both cookies when persistent", () => {
+    const cookies = buildSessionCookies({ token: "t", expiresAt: future(), persistent: true });
+
+    for (const cookie of cookies) {
+      expect(cookie).toMatch(/Max-Age=(59|60)(;|$)/);
+    }
+  });
+
+  it("floors Max-Age at 0 for a past expiry", () => {
+    const [refresh] = buildSessionCookies({
+      token: "t",
+      expiresAt: new Date(Date.now() - 60_000),
+      persistent: true
+    });
+    expect(refresh).toContain("Max-Age=0");
+  });
+
+  it("omits Max-Age on both cookies when not persistent", () => {
+    const cookies = buildSessionCookies({ token: "t", expiresAt: future(), persistent: false });
+
+    expect(cookies).toHaveLength(2);
+    for (const cookie of cookies) {
+      expect(cookie).not.toContain("Max-Age");
+    }
   });
 
   it("omits Domain/Secure outside production with no configured domain", () => {
-    const cookie = buildRefreshTokenCookie("t", new Date(Date.now() + 1000));
-    expect(cookie).not.toContain("Domain=");
-    expect(cookie).not.toContain("Secure");
+    for (const cookie of buildSessionCookies({ token: "t", expiresAt: future(), persistent: true })) {
+      expect(cookie).not.toContain("Domain=");
+      expect(cookie).not.toContain("Secure");
+    }
   });
 
-  it("adds Domain when REFRESH_TOKEN_COOKIE_DOMAIN is configured", () => {
+  it("adds Domain to both cookies when REFRESH_TOKEN_COOKIE_DOMAIN is configured", () => {
     Object.assign(env, { REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
-    const cookie = buildRefreshTokenCookie("t", new Date(Date.now() + 1000));
-    expect(cookie).toContain("Domain=.example.com");
+    for (const cookie of buildSessionCookies({ token: "t", expiresAt: future(), persistent: true })) {
+      expect(cookie).toContain("Domain=.example.com");
+    }
   });
 
-  it("adds Secure in production", () => {
+  it("adds Secure to both cookies in production", () => {
     Object.assign(env, { NODE_ENV: "production" });
-    const cookie = buildRefreshTokenCookie("t", new Date(Date.now() + 1000));
-    expect(cookie).toContain("Secure");
+    for (const cookie of buildSessionCookies({ token: "t", expiresAt: future(), persistent: true })) {
+      expect(cookie).toContain("Secure");
+    }
   });
 });
 
-describe("clearRefreshTokenCookie", () => {
+describe("clearSessionCookies", () => {
   beforeEach(() => {
     Object.assign(env, { NODE_ENV: "development", REFRESH_TOKEN_COOKIE_DOMAIN: undefined });
   });
 
-  it("clears the cookie with Max-Age=0", () => {
-    const cookie = clearRefreshTokenCookie();
-    expect(cookie).toContain(`${refreshTokenCookieName}=;`);
-    expect(cookie).toContain("Max-Age=0");
+  it("clears both cookies with Max-Age=0", () => {
+    const [refresh, presence] = clearSessionCookies();
+
+    expect(refresh).toContain(`${refreshTokenCookieName}=;`);
+    expect(refresh).toContain("Path=/auth");
+    expect(refresh).toContain("Max-Age=0");
+    expect(presence).toContain(`${sessionPresenceCookieName}=;`);
+    expect(presence).toContain("Path=/");
+    expect(presence).toContain("Max-Age=0");
   });
 
-  it("adds Domain/Secure the same way buildRefreshTokenCookie does", () => {
+  it("adds Domain/Secure to both cookies the same way buildSessionCookies does", () => {
     Object.assign(env, { NODE_ENV: "production", REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
-    const cookie = clearRefreshTokenCookie();
-    expect(cookie).toContain("Domain=.example.com");
-    expect(cookie).toContain("Secure");
+    for (const cookie of clearSessionCookies()) {
+      expect(cookie).toContain("Domain=.example.com");
+      expect(cookie).toContain("Secure");
+    }
+  });
+});
+
+describe("cookie names", () => {
+  async function namesFor(nodeEnv: string) {
+    vi.resetModules();
+    vi.doMock("../../../../config/env.js", () => ({
+      env: { NODE_ENV: nodeEnv, REFRESH_TOKEN_COOKIE_DOMAIN: undefined }
+    }));
+    return import("../refreshTokenCookie.js");
+  }
+
+  it("uses the unprefixed names in production", async () => {
+    const mod = await namesFor("production");
+    expect(mod.refreshTokenCookieName).toBe("flowledger_refresh_token");
+    expect(mod.sessionPresenceCookieName).toBe("flowledger_session");
+    const [refresh, presence] = mod.clearSessionCookies();
+    expect(refresh).toContain("flowledger_refresh_token=;");
+    expect(presence).toContain("flowledger_session=;");
+    expect(refresh).toContain("Secure");
+  });
+
+  it("uses the dev names outside production", async () => {
+    const mod = await namesFor("test");
+    expect(mod.refreshTokenCookieName).toBe("flowledger_dev_refresh_token");
+    expect(mod.sessionPresenceCookieName).toBe("flowledger_dev_session");
   });
 });

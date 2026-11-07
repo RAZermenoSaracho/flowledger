@@ -41,18 +41,8 @@ describe("/users routes", () => {
     expect(patchResponse.body.user.name).toBe("Updated Name");
   });
 
-  it("changes the caller's password after verifying the current one", async () => {
+  it("no longer serves PATCH /users/me/password (moved to /auth/password)", async () => {
     const { token } = await createAuthedUser(app, { password: "originalPassword" });
-
-    const wrongCurrentResponse = await request(app)
-      .patch("/users/me/password")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        currentPassword: "wrong",
-        newPassword: "brandNewPassword",
-        confirmPassword: "brandNewPassword"
-      });
-    expect(wrongCurrentResponse.status).toBe(401);
 
     const response = await request(app)
       .patch("/users/me/password")
@@ -62,7 +52,8 @@ describe("/users routes", () => {
         newPassword: "brandNewPassword",
         confirmPassword: "brandNewPassword"
       });
-    expect(response.status).toBe(204);
+
+    expect(response.status).toBe(404);
   });
 
   it("searches other users by name/email, excluding the caller", async () => {

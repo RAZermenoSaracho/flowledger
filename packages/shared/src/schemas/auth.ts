@@ -9,7 +9,8 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: z.string().trim().email().max(255),
-  password: z.string().min(1).max(128)
+  password: z.string().min(1).max(128),
+  keepLoggedIn: z.boolean().default(true)
 });
 
 export const googleOAuthStartQuerySchema = z.object({
@@ -21,7 +22,8 @@ export const googleOAuthStartQuerySchema = z.object({
       (value) => value.startsWith("/") && !value.startsWith("//") && !value.includes("\\"),
       "Redirect must be an app path"
     )
-    .default("/")
+    .default("/"),
+  keepLoggedIn: z.enum(["true", "false"]).optional()
 });
 
 export const googleOAuthCallbackQuerySchema = z.object({

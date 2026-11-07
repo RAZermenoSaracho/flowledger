@@ -26,13 +26,13 @@ export function uploadAvatar(file: File) {
   });
 }
 
-/** Changes the user's password. */
+/** Changes the user's password, ending their sessions on other devices. */
 export function updatePassword(body: {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
 }) {
-  return apiRequest<{ user: User }>("/users/me/password", {
+  return apiRequest<void>("/auth/password", {
     method: "PATCH",
     body
   });

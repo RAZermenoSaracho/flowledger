@@ -6,19 +6,19 @@ vi.mock("../../services/delete.service.js", () => ({
 }));
 
 vi.mock("../../utils/refreshTokenCookie.js", () => ({
-  clearRefreshTokenCookie: vi.fn(),
+  clearSessionCookies: vi.fn(),
   readRefreshTokenCookie: vi.fn()
 }));
 
 const { revokeRefreshToken } = await import("../../services/delete.service.js");
-const { clearRefreshTokenCookie, readRefreshTokenCookie } = await import(
+const { clearSessionCookies, readRefreshTokenCookie } = await import(
   "../../utils/refreshTokenCookie.js"
 );
 const { logout } = await import("../delete.controller.js");
 
 describe("logout", () => {
-  it("revokes the refresh token when a cookie is present, clears the cookie, and responds 204", async () => {
-    vi.mocked(clearRefreshTokenCookie).mockReturnValue("cleared");
+  it("revokes the refresh token when a cookie is present, clears both session cookies, and responds 204", async () => {
+    vi.mocked(clearSessionCookies).mockReturnValue(["cleared-refresh", "cleared-presence"]);
     vi.mocked(readRefreshTokenCookie).mockReturnValue("plaintext-token");
     vi.mocked(revokeRefreshToken).mockResolvedValue(undefined);
     const res = mockResponse();
@@ -26,7 +26,10 @@ describe("logout", () => {
     await logout(mockRequest({ headers: { cookie: "x=1" } } as never), res);
 
     expect(revokeRefreshToken).toHaveBeenCalledWith("plaintext-token");
-    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "cleared");
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", [
+      "cleared-refresh",
+      "cleared-presence"
+    ]);
     expect(res.status).toHaveBeenCalledWith(204);
   });
 
