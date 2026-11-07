@@ -234,7 +234,7 @@ Direct editing does not mean persisting each field on change: edits accumulate i
 
 **Dependencies:** ST-005. Sequence after ST-003.
 
-**Delivery:** Batch B-004, implemented after ST-005 and ST-006. The prefilled-draft capability ships here, and ST-014 (B-007) consumes it.
+**Delivery:** Batch B-004, implemented after ST-005 and ST-006. The prefilled-draft capability ships here, and ST-014 (B-008) consumes it.
 
 **Relevant existing architecture:** `/transactions/:id` is read-only with an Edit button, and `/transactions/:id/edit` is a separate form linked from `TransactionsPage.tsx` and `TransactionDetailPage.tsx`. `TransactionEditPage.tsx` (362 lines) re-implements fields that the create form shares through `TransactionCoreFields`, so the two can drift. Coupled fields: choosing an account changes the currency; choosing transfer clears category, group, and sharing and requires a different destination; changing group resets the category and forces sharing. These rules are repeated in inline handlers today. Pure functions owned by the Transactions page could serve both create and edit while the foundation stays free of them. Creation currently happens only inline on the list page, and no prefill mechanism exists.
 
@@ -303,7 +303,7 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 **Progressive enhancement:**
 - ST-023 corrects cross-currency balances and removes the related disclosure once affected test data follows the pre-production data policy. Exchange-rate movement can still change net worth, because it is a current valuation, but never an account's native balance.
 - ST-014 decides how declared card payments affect net worth.
-- ST-015 adds holdings to this same calculation (B-008) and removes the `investment` disclosure for accounts with holdings. It must not introduce a second net-worth calculation.
+- ST-015 adds holdings to this same calculation (B-009) and removes the `investment` disclosure for accounts with holdings. It must not introduce a second net-worth calculation.
 - Investment returns stay deferred on ST-015. Emergency fund coverage and fixed vs variable expenses wait for a confirmed need for the classification they share.
 
 **Open questions:**
@@ -444,7 +444,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Dependencies:** ST-013, ST-007 for prefilled transaction drafts, and ST-023, since a card payment can cross currencies.
 
-**Delivery:** Batch B-007, together with ST-013, in one PR. Statements and status, payments and their accounting, and reminders are built in that order inside it. The accounting mechanism is settled before the batch starts, because it shapes statement storage.
+**Delivery:** Batch B-008, together with ST-013, in one PR. Statements and status, payments and their accounting, and reminders are built in that order inside it. The accounting mechanism is settled before the batch starts, because it shapes statement storage.
 
 **Relevant existing architecture:** No statement, billing, or due-date concept exists. Transfers from checking to a card are the only existing path correct for both accounts, and reports exclude transfers from income and expense. `Transaction.accountId` is nullable in the schema, but the API requires both sides of a transfer. `ProviderImportedTransaction.transactionId` and `SharedExpense.transactionId` show a nullable unique link pattern. Notifications are in-app only (`Notification` with a `NotificationType` enum, so a new type needs a migration); there is no email or push, and per-statement deduplication would be new. The only background job is `SyncfyAutoSyncScheduler`, a `setInterval` in the API process with an in-memory overlap guard, so it is not safe across multiple instances.
 
@@ -489,7 +489,7 @@ The modal offers clear partial and full options, an amount input when appropriat
 
 **Dependencies:** ST-006, ST-008 for net-worth integration, and ST-023 so crypto quantities use its exact precision.
 
-**Delivery:** Batch B-008, together with ST-016, in one PR. Holdings and manual valuations come first, then aggregate value and net-worth integration.
+**Delivery:** Batch B-009, together with ST-016, in one PR. Holdings and manual valuations come first, then aggregate value and net-worth integration.
 
 **Future metric:** Investment returns (ST-008) become possible only with holdings plus contributions, withdrawals, cost basis, and valuation history. This intent doesn't add those, and an account's current balance compared with its initial balance is not a return.
 
@@ -751,18 +751,20 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-004 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-003 | XL | Planned |
 | B-005 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Planned |
-| B-007 | ST-013, ST-014 | Credit-card limit, available credit, statements, payments with their accounting, and reminders | B-004, B-006 | XL | Planned |
-| B-008 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-005, B-006 | L | Planned |
-| B-009 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-008 | L | Planned |
-| B-010 | ST-017 | Stock and ETF market data | B-009 | M | Planned |
-| B-011 | ST-010, ST-011 | Notification regex rules and the ingestion endpoint | B-004 | L | Planned |
-| B-012 | ST-018 | Binance read-only account sync, with secure credential storage | B-008 | L | Planned |
-| B-013 | ST-019 | On-chain wallet sync | B-008 | M | Planned |
-| B-014 | ST-020 | User-configured external sync | B-008, B-012 | L | Planned |
+| B-007 | ST-010, ST-011 | Notification regex rules and the ingestion endpoint | B-004 | L | Planned |
+| B-008 | ST-013, ST-014 | Credit-card limit, available credit, statements, payments with their accounting, and reminders | B-004, B-006 | XL | Planned |
+| B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-005, B-006 | L | Planned |
+| B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
+| B-011 | ST-017 | Stock and ETF market data | B-010 | M | Planned |
+| B-012 | ST-018 | Binance read-only account sync, with secure credential storage | B-009 | L | Planned |
+| B-013 | ST-019 | On-chain wallet sync | B-009 | M | Planned |
+| B-014 | ST-020 | User-configured external sync | B-009, B-012 | L | Planned |
 
-Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-007 are the two XL batches. Dependencies list only real technical prerequisites; the order above still applies to every batch. B-005 is sequenced after B-004 and B-011 after B-003 without a technical dependency, as explained in their details.
+Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-008 are the two XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-005 is sequenced after B-004 without a technical dependency, as explained in its details. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
 **Where to start:** B-001 comes first. It fixes a confirmed problem that affects every user away from UTC, and merging it unlocks B-006.
+
+**Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
 **Execution rule:** Batches run strictly one at a time, and each receives explicit approval before implementation begins.
 
@@ -772,12 +774,12 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 | Candidate grouping | Decision | Reason |
 |---|---|---|
-| ST-010 + ST-011 | Merged (B-011) | The endpoint is useless without rules, both share the iPhone feasibility gate, and the pair is one inbound-notification feature |
-| ST-013 + ST-014 | Merged (B-007) | One credit-card feature; the limit and the statement view live on the same account section, and ST-014's three former parts are one reviewable flow |
-| ST-015 + ST-016 | Merged (B-008) | Manual crypto portfolios are ST-015's first complete use, and ST-016 prices exactly those holdings with no new provider |
-| ST-008 with ST-015 | Kept separate (B-005, B-008) | ST-023 removes ST-008's temporary cross-currency disclosure, so ST-008 must ship before ST-023, while ST-015 needs ST-023 |
-| ST-021 + ST-022 | Merged (B-009) | Both create the instrument record that ST-015 left open and a form view over it, so one model decision covers both |
-| ST-017 | Kept separate (B-010) | A provider and licensing no-go must not block the catalog, which works without it |
+| ST-010 + ST-011 | Merged (B-007) | The endpoint is useless without rules, both share the iPhone feasibility gate, and the pair is one inbound-notification feature |
+| ST-013 + ST-014 | Merged (B-008) | One credit-card feature; the limit and the statement view live on the same account section, and ST-014's three former parts are one reviewable flow |
+| ST-015 + ST-016 | Merged (B-009) | Manual crypto portfolios are ST-015's first complete use, and ST-016 prices exactly those holdings with no new provider |
+| ST-008 with ST-015 | Kept separate (B-005, B-009) | ST-023 removes ST-008's temporary cross-currency disclosure, so ST-008 must ship before ST-023, while ST-015 needs ST-023 |
+| ST-021 + ST-022 | Merged (B-010) | Both create the instrument record that ST-015 left open and a form view over it, so one model decision covers both |
+| ST-017 | Kept separate (B-011) | A provider and licensing no-go must not block the catalog, which works without it |
 | ST-018 + ST-019 | Kept separate (B-012, B-013) | ST-018 stores secrets and has a host-reachability check; ST-019 has no secrets and is kept distinct from exchange integrations, so neither blocks the other |
 | ST-020 | Kept separate (B-014) | Conditional go/no-go and first user-controlled outbound request (SSRF) |
 | ST-023 | Kept separate (B-006) | Financial correctness with a destructive-reset approval; bundling it would hide it in a larger review |
@@ -787,8 +789,8 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 **Large batches kept whole:**
 - **B-004:** ST-005, ST-006, ST-007, and ST-024 stay four independent intents, each with its own scope and criteria, but by deliberate product-owner decision they ship as one larger PR that is **not to be split** into phases, parts, or optional follow-ups. Implementation order within the PR: ST-005 first as the shared foundation (with Profile as proof of no UX change), then ST-006, ST-007, and ST-024.
 - **B-006:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest L batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
-- **B-007:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant, so ST-014 is not split. The batch is XL because it holds ST-013 plus the statements, payments, and reminders of ST-014 in one PR. Its proposal should confirm the fit and may order the work internally as limit, statements, payments, then reminders. Reviewers should treat the payment accounting as the focus.
-- **B-008:** The main double-counting risk (holdings against derived balances) is reviewed inside this PR through the net-worth tests, instead of a separate PR.
+- **B-008:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant, so ST-014 is not split. The batch is XL because it holds ST-013 plus the statements, payments, and reminders of ST-014 in one PR. Its proposal should confirm the fit and may order the work internally as limit, statements, payments, then reminders. Reviewers should treat the payment accounting as the focus.
+- **B-009:** The main double-counting risk (holdings against derived balances) is reviewed inside this PR through the net-worth tests, instead of a separate PR.
 - **B-012:** ST-018 is not split. Encrypted credential storage is the first commit-level step and needs a security review of encryption and key management before implementation starts, because it is FlowLedger's first readable per-user secret and B-014 reuses it.
 - **B-014:** It may be dropped at its go/no-go check. If it goes ahead, discovery should re-evaluate splitting it.
 
@@ -796,12 +798,12 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 | Batch | Check before starting |
 |---|---|
-| B-011 | Whether iPhone automations can read bank notifications. Test on real devices. If this fails, reconsider the batch. |
-| B-008 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
-| B-010 | Provider choice, rate limits, and display and redistribution licensing |
+| B-007 | Real-device verification of which notification paths work on iPhone and Android (iPhone automations may not be able to read bank push notifications), and a recorded supported-path decision before implementation. If no path works for the user's banks, reconsider the batch. |
+| B-009 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
+| B-011 | Provider choice, rate limits, and display and redistribution licensing |
 | B-012 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it. Security review of encryption and key management. |
 | B-013 | RPC or indexer provider, and whether a fixed token list is enough |
-| B-014 | Whether the need remains after B-008 to B-013 (go/no-go); this is the first user-controlled outbound request |
+| B-014 | Whether the need remains after B-009 to B-013 (go/no-go); this is the first user-controlled outbound request |
 
 ### Batch details
 
@@ -846,56 +848,56 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Testing:** Balance calculation across currency combinations, rate changes leaving balances and history untouched, net-only versus explicit-fee records, an 18-decimal round trip, fiat behaving as before, correction rows, every write path, and no change for same-currency records.
 - **Done when:** Native balances are exact and correct, each cross-currency record has an auditable history, and every financial correction records who changed what and when.
 
-**B-007: ST-013, ST-014.**
+**B-007: ST-010, ST-011.**
+- **Deliverable:** Rule configuration on the shared Form View, a sample-text test, and safe regex evaluation (ST-010); the ingest endpoint, a restricted credential, and the review flow (ST-011).
+- **Implementation order:** ST-010, then ST-011.
+- **Prerequisites:** B-004. It follows B-003 so the retention limit's treatment of ingested rows can be settled. It is sequenced after B-006 by product priority, with no technical dependency on B-005 or B-006. **Real-device feasibility verification is required first:** test on real iOS and Android devices which notification paths can reach FlowLedger, and record a supported-path decision before implementation. Do not assume unrestricted iPhone access to bank push notifications; research found no Shortcuts trigger that reads another app's notifications (see ST-010), and iPhone support may be limited to SMS, Mail, or Wallet-tap triggers. Android depends on user-granted notification access and Android 15 restrictions.
+- **Testing:** Activation rules, pathological patterns, oversized input, and user isolation. Duplicates, limits, cross-user isolation, and no notification text or credentials in logs.
+- **Done when:** A user can test and activate a rule, no pattern can stall the API, and an automation can send text and get a reviewable record. On the supported path decided in the prerequisites, this gives an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions.
+
+**B-008: ST-013, ST-014.**
 - **Deliverable:** The credit limit, derived available credit, and the debit-card inference fix (ST-013); statements with dates, amount, and status; the partial and full payment flow, the modal, optional transaction creation through a draft, the chosen accounting mechanism, and outstanding and overdue highlighting; and in-app reminders delivered once per statement (ST-014).
 - **Implementation order:** ST-013, then ST-014 (statements, then payments, then reminders). Outstanding and overdue highlighting ships with payments so it raises no false alarms, and a fully paid statement gets no reminder.
 - **Prerequisites:** B-004 (account view, and prefilled transaction drafts) and B-006. The accounting mechanism and statement storage are decided first.
 - **Testing:** Over-limit, overpaid, and no-limit cards, plus type inference. Cycle boundaries, short months, and a new cycle starting unpaid. The $30,000/$10,000/$2,000/$12,000/$6,000 scenario, multiple partial payments, later matching, linked edits and deletes, and net worth. Reminder restarts, repeated scheduler runs, and paid statements.
 - **Done when:** Limit, outstanding balance, and available credit show on the account view, every balance change from a payment traces to one record and never applies twice, and all ST-014 criteria are met.
 
-**B-008: ST-015, ST-016.**
+**B-009: ST-015, ST-016.**
 - **Deliverable:** Holdings and manual valuations on the account view, with manual crypto portfolios as the first use, aggregate account value, and holdings in the existing net-worth calculation (ST-015); market values on crypto holdings, with manual overrides taking priority (ST-016).
 - **Implementation order:** ST-015 (holdings, then aggregate value and net worth), then ST-016.
 - **Prerequisites:** B-004, B-005, and B-006. The instrument reference and the relationship between holdings and balance are decided first. The USDT-as-USD accuracy check.
 - **Testing:** Multiple holdings, the same instrument across accounts, stale values, ownership, no double counting in net worth, removal of the `investment` disclosure for accounts with holdings, override priority, unsupported assets, and unavailable prices never showing zero.
 - **Done when:** Users can maintain positions, there is one net-worth calculation and it includes holdings, and a supported crypto holding shows a timestamped market value.
 
-**B-009: ST-021, ST-022.**
+**B-010: ST-021, ST-022.**
 - **Deliverable:** One securities model, search-select-create when adding a holding, and a security form view (ST-021); custom asset records in a form view, holdable in eligible accounts (ST-022).
-- **Implementation order:** ST-021, then ST-022, reusing the instrument record decided in B-008.
-- **Prerequisites:** B-008. The ownership model for securities is decided first.
+- **Implementation order:** ST-021, then ST-022, reusing the instrument record decided in B-009.
+- **Prerequisites:** B-009. The ownership model for securities is decided first.
 - **Testing:** Two positions in one security, the same ticker on different exchanges, user isolation, manual valuation, stale marking, and net-worth inclusion.
 - **Done when:** Securities work fully without a market-data provider, and a custom asset counts toward account value and net worth.
 
-**B-010: ST-017.**
+**B-011: ST-017.**
 - **Deliverable:** One provider's optional prices for catalog securities.
-- **Prerequisites:** B-009 and the provider and licensing check.
+- **Prerequisites:** B-010 and the provider and licensing check.
 - **Testing:** Provider failure, rate limits, delayed labels, and override priority.
 - **Done when:** Supported holdings show sourced prices, and failures leave the last value visible as stale.
-
-**B-011: ST-010, ST-011.**
-- **Deliverable:** Rule configuration on the shared Form View, a sample-text test, and safe regex evaluation (ST-010); the ingest endpoint, a restricted credential, and the review flow (ST-011).
-- **Implementation order:** ST-010, then ST-011.
-- **Prerequisites:** B-004 and the device feasibility check. It follows B-003 so the retention limit's treatment of ingested rows can be settled.
-- **Testing:** Activation rules, pathological patterns, oversized input, and user isolation. Duplicates, limits, cross-user isolation, and no notification text or credentials in logs.
-- **Done when:** A user can test and activate a rule, no pattern can stall the API, and an automation can send text and get a reviewable record.
 
 **B-012: ST-018.**
 - **Deliverable:** Encrypted per-user credentials, plus connect, read-only verification, and revoke; then quantity sync into holdings through `FinancialProviderAdapter`, with sync status.
 - **Implementation order:** Credential storage first, then sync.
-- **Prerequisites:** B-008, the host reachability check, and a security review of encryption and key management.
+- **Prerequisites:** B-009, the host reachability check, and a security review of encryption and key management.
 - **Testing:** Secrets absent from responses and logs, rejected trading keys, removal on disconnect, refresh, failures keeping the last quantities, and manual overrides.
 - **Done when:** A user can connect and revoke a verified read-only key, and all ST-018 criteria are met.
 
 **B-013: ST-019.**
 - **Deliverable:** Public-address balances for a limited set of chains, read into holdings.
-- **Prerequisites:** B-008 and the provider and chain decisions.
+- **Prerequisites:** B-009 and the provider and chain decisions.
 - **Testing:** No key or signature requests, unsupported assets, and failed syncs.
 - **Done when:** A pasted public address produces holdings that refresh by sync.
 
 **B-014: ST-020.**
 - **Deliverable:** Configurable outbound sources with SSRF protection, if the go/no-go check confirms the need.
-- **Prerequisites:** B-008, B-012, and the go/no-go check.
+- **Prerequisites:** B-009, B-012, and the go/no-go check.
 - **Testing:** Blocked private and metadata addresses, DNS rebinding, redirects, timeouts, and size limits.
 - **Done when:** A user can configure and test a source, with every request protected.
 
