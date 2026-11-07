@@ -37,9 +37,24 @@ body {
 }
 
 .dark {
-  background: #020617;
+  background: theme("colors.slate.950");
 }
 
 .dark body {
-  color: #e2e8f0;
+  color: theme("colors.slate.200");
+}
+
+/* Recharts sets these colors inline, and series colors are unreadable on charcoal. */
+.dark .recharts-default-tooltip {
+  background: theme("colors.slate.800") !important;
+  border-color: theme("colors.slate.700") !important;
+}
+
+.dark .recharts-tooltip-label,
+.dark .recharts-tooltip-item {
+  color: theme("colors.slate.100") !important;
+}
+
+.dark .recharts-cartesian-axis-tick-value {
+  fill: theme("colors.slate.400");
 }
