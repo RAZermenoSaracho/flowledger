@@ -19,16 +19,12 @@ export async function postWebhook(req: Request, res: Response) {
     body: req.body
   });
 
-  if (result.kind === "generic") {
-    res.status(200).json({
-      success: true,
-      acceptedEvents: 1,
-      result: result.result
-    });
+  if (result.kind === "invalid_signature") {
+    res.status(401).json({ success: false, acceptedEvents: 0 });
     return;
   }
 
-  if (result.kind === "invalid_signature" || result.kind === "invalid_payload") {
+  if (result.kind === "invalid_payload") {
     res.status(200).json({
       success: true,
       acceptedEvents: 0

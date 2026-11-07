@@ -104,11 +104,15 @@ Request logs SHALL omit query strings. Error responses from the API and gateway 
 
 ### Requirement: Configuration mistakes fail at startup
 
-The API SHALL refuse to start when its web origin uses HTTPS but it isn't in production mode, or when `JWT_SECRET` is shorter than 32 characters in production.
+The API SHALL refuse to start when `JWT_SECRET` is shorter than 32 characters in production. Session cookies SHALL be `Secure` whenever the web origin uses HTTPS, whatever `NODE_ENV` is, because staging deliberately runs HTTPS outside production mode.
 
-#### Scenario: Production origin without production mode
+#### Scenario: Short production secret
+- **WHEN** `NODE_ENV` is `production` and `JWT_SECRET` is shorter than 32 characters
+- **THEN** startup fails with a message naming the variable and no value
+
+#### Scenario: HTTPS staging
 - **WHEN** `WEB_APP_URL` is HTTPS and `NODE_ENV` isn't `production`
-- **THEN** startup fails with a clear message
+- **THEN** the API starts, and its cookies are `Secure`
 
 ### Requirement: List reads are bounded
 

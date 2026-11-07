@@ -510,7 +510,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Scope:** `zod` (3.x, memory use on oversized collections; the fix is a major upgrade), `@syncfy/authentication-widget` (no fix available, and it installs testing and Vue dependencies in production).
 
-**Description:** `npm audit --omit=dev` reported 29 high advisories, most through the Syncfy widget. Reachability wasn't verified per advisory. Request bodies are limited to 1 MB, which bounds the `zod` issue.
+**Description:** `npm audit --omit=dev` reported 29 high advisories before updates and 11 after (16 in total). What remains: `zod`; `prisma` through `@prisma/config` and `deepmerge-ts`, where 6.19.3 is already the newest 6.x; and `firebase`, `@grpc/grpc-js`, `cypress`, and `extract-zip`, all under the Syncfy widget. Reachability wasn't verified per advisory. Request bodies are limited to 1 MB, which bounds the `zod` issue. `prisma`'s path is a build-time CLI, not an API request path.
 
 **Suggested fix:** Plan the `zod` 4 migration separately, and ask Syncfy for a slimmer widget package or isolate its tree.
 
@@ -537,3 +537,27 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Old avatar files aren't deleted, `/uploads` is public, and images aren't re-encoded, so EXIF data such as location can remain.
 
 **Suggested fix:** Delete the previous file on replacement, and strip metadata if an image library is added for other reasons.
+
+---
+
+## [OPEN] #043 — `package-lock.json` is gitignored, so installs can't be pinned
+
+**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07.
+
+**Scope:** root `.gitignore`, `~/scripts/deploy-flowledger-prod.sh`.
+
+**Description:** The lockfile isn't tracked, so production resolves versions from its own untracked copy and `npm ci` isn't possible. Security updates therefore have to raise minimums in `package.json`, or use root `overrides` for transitive packages, to reach production.
+
+**Suggested fix:** Track the lockfile and switch the deploy script to `npm ci`, together. Remove production's untracked `package-lock.json` right before that merge: `git pull` in the deploy script stops if a tracked file would overwrite an untracked one.
+
+---
+
+## [OPEN] #044 — Large result sets are cut off at fixed limits
+
+**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07.
+
+**Scope:** `transactions/utils/boundedPagination.ts` (10,000 per page), `reports/services/read.service.ts` (100,000 rows for cashflow).
+
+**Description:** The web Transactions page loads its whole result in one request and has no page controls, so a user past 10,000 matching transactions sees only that many. Past 100,000, the cashflow report covers only the oldest rows.
+
+**Suggested fix:** Add page controls to the Transactions page and aggregate the cashflow report in SQL if either limit is approached.

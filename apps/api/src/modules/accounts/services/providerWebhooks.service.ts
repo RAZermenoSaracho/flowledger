@@ -282,7 +282,7 @@ function processRecordedEvent(input: {
     .catch(() => undefined);
 }
 
-/** Routes an inbound webhook by provider: non-Syncfy providers are recorded and forwarded without signature checks, while Syncfy payloads go through HMAC verification and per-event schema validation before being recorded and dispatched to the adapter. */
+/** Routes an inbound webhook by provider. Syncfy payloads go through HMAC verification and per-event schema validation before being recorded and dispatched to the adapter. Anything unverified is rejected and not stored, including every other provider until it has a verifier. */
 export async function handleProviderWebhook(input: {
   providerParam: string;
   headers: Record<string, string | string[] | undefined>;
@@ -295,28 +295,10 @@ export async function handleProviderWebhook(input: {
   const rawBodyText = rawBodyString(input.rawBody);
 
   if (providerKey !== "syncfy") {
-    const eventId = `generic:${randomUUID()}`;
-    const recordedEvent = await prisma.providerWebhookEvent.create({
-      data: {
-        provider: input.providerParam,
-        providerEventId: eventId,
-        eventName: "webhook",
-        rawPayload: toJsonValue(input.body),
-        rawHeaders,
-        rawBody: rawBodyText,
-        status: "received"
-      }
+    console.warn("[PROVIDER WEBHOOK] Rejected: provider has no signature verifier", {
+      provider: input.providerParam
     });
-
-    const result = provider.handleWebhook
-      ? await provider.handleWebhook({
-          eventId: recordedEvent.id,
-          payload: input.body,
-          headers: input.headers
-        })
-      : { status: "ignored" as const };
-
-    return { kind: "generic", result };
+    return { kind: "invalid_signature" };
   }
 
   const signatureHeader = findSyncfySignatureHeader(input.headers);
@@ -341,21 +323,7 @@ export async function handleProviderWebhook(input: {
     )
   });
 
-  if (signatureVerification === "invalid") {
-    await recordInvalidWebhook({
-      provider: input.providerParam,
-      rawBody: {
-        redacted: true,
-        reason: "invalid_signature",
-        bodyBytes: input.rawBody?.length ?? 0,
-        parsedJson: input.body !== undefined
-      },
-      rawHeaders,
-      rawBodyText: "",
-      eventName: "invalid_signature",
-      errorMessage: "Syncfy webhook request-signature validation failed."
-    }).catch(() => undefined);
-
+  if (signatureVerification !== "valid") {
     console.warn("[PROVIDER WEBHOOK] Syncfy webhook rejected", {
       reason: "invalid_signature"
     });

@@ -7,6 +7,7 @@ import {
   parseCookies,
   readRefreshTokenCookie,
   refreshTokenCookieName,
+  secureAttribute,
   sessionPresenceCookieName
 } from "../refreshTokenCookie.js";
 
@@ -168,6 +169,24 @@ describe("clearSessionCookies", () => {
       expect(cookie).toContain("Max-Age=0");
       expect(cookie).toContain("Secure");
     }
+  });
+});
+
+describe("secureAttribute", () => {
+  beforeEach(() => {
+    Object.assign(env, { NODE_ENV: "development", WEB_APP_URL: "http://localhost:5173" });
+  });
+
+  it("is off for a local HTTP deployment", () => {
+    expect(secureAttribute()).toEqual([]);
+  });
+
+  it("is on for HTTPS outside production, and in production", () => {
+    Object.assign(env, { WEB_APP_URL: "https://staging.example.com" });
+    expect(secureAttribute()).toEqual(["Secure"]);
+
+    Object.assign(env, { NODE_ENV: "production", WEB_APP_URL: "http://localhost:5173" });
+    expect(secureAttribute()).toEqual(["Secure"]);
   });
 });
 

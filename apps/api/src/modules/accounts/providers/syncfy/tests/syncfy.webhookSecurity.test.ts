@@ -49,14 +49,14 @@ const productionShapeBase64Signature = createHmac("sha256", productionKeyBuffer)
   .digest("base64");
 
 describe("verifySyncfyWebhookSignature — no key configured", () => {
-  it("returns 'skipped' when neither signature nor key is present", () => {
+  it("returns 'invalid' when neither signature nor key is present", () => {
     expect(
       verifySyncfyWebhookSignature({
         rawBody,
         signature: undefined,
         signatureKey: undefined
       })
-    ).toBe("skipped");
+    ).toBe("invalid");
   });
 });
 
@@ -127,7 +127,7 @@ describe("verifySyncfyWebhookSignature — plain string key", () => {
     ).toBe("invalid");
   });
 
-  it("returns 'invalid' (not 'skipped') when a key is configured but no signature is sent", () => {
+  it("returns 'invalid' when a key is configured but no signature is sent", () => {
     expect(
       verifySyncfyWebhookSignature({ rawBody, signature: undefined, signatureKey })
     ).toBe("invalid");

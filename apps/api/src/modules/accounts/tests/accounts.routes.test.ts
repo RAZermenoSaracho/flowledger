@@ -90,12 +90,12 @@ describe("/providers routes", () => {
 });
 
 describe("/providers/webhooks routes", () => {
-  it("does not require authentication and always responds 200", async () => {
+  it("needs no access token but rejects an unsigned event with a 401", async () => {
     const response = await request(app)
       .post("/providers/webhooks/syncfy")
       .send({ rid: "rid-1", events: [] });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(401);
   });
 
   it("responds 400 for an unregistered provider on the health check", async () => {

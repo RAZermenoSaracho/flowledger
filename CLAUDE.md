@@ -52,16 +52,16 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | ≥16-char secret for signing tokens |
+| `JWT_SECRET` | Secret for signing tokens: ≥16 chars, ≥32 in production |
 | `JWT_EXPIRES_IN` | Access token lifetime (default `15m`) |
 | `REFRESH_TOKEN_EXPIRES_IN_DAYS` | Persistent session lifetime (default `30`) |
-| `REFRESH_TOKEN_COOKIE_DOMAIN` | Parent domain for session cookies (optional) |
+| `REFRESH_TOKEN_COOKIE_DOMAIN` | Parent domain for the session presence cookie (optional); the refresh cookie is host-only |
 | `API_PORT` | API listen port (default `4000`) |
 | `WEB_APP_URL` | Frontend origin (e.g. `http://localhost:5173`) |
 | `VITE_API_URL` | API base URL consumed by the web app |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL` | Google OAuth |
 | `SYNCFY_API_KEY` | Syncfy API key (optional; disables Syncfy if absent) |
-| `SYNCFY_WEBHOOK_SIGNATURE_KEY` | HMAC key for webhook signature verification |
+| `SYNCFY_WEBHOOK_SIGNATURE_KEY` | HMAC key for webhook signature verification; required when `SYNCFY_API_KEY` is set |
 | `SYNCFY_AUTO_SYNC_ENABLED` | Enable background auto-sync scheduler |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | Scheduler interval (default `60`) |
 

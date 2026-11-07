@@ -23,25 +23,7 @@ describe("postWebhook", () => {
     expect(handleProviderWebhook).not.toHaveBeenCalled();
   });
 
-  it("always replies 200 for a generic-provider result", async () => {
-    vi.mocked(handleProviderWebhook).mockResolvedValue({
-      kind: "generic",
-      result: { status: "ok" }
-    } as never);
-    const res = mockResponse();
-
-    await postWebhook(
-      mockRequest({ params: { provider: "other" }, headers: {}, body: {} } as never),
-      res
-    );
-
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: true, acceptedEvents: 1 })
-    );
-  });
-
-  it("still replies 200 (acceptedEvents: 0) for an invalid signature", async () => {
+  it("replies 401 with no accepted events for an invalid signature", async () => {
     vi.mocked(handleProviderWebhook).mockResolvedValue({
       kind: "invalid_signature"
     } as never);
@@ -52,8 +34,8 @@ describe("postWebhook", () => {
       res
     );
 
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ success: true, acceptedEvents: 0 });
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ success: false, acceptedEvents: 0 });
   });
 
   it("replies 200 with the processed summary for a valid syncfy payload", async () => {

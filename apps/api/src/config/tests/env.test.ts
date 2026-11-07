@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // env.ts loads the workspace .env on import; a developer's real .env must not leak into these cases.
 vi.mock("dotenv", () => ({ default: { config: vi.fn() } }));
@@ -56,5 +56,54 @@ describe("env SYNCFY_AUTO_SYNC_ENABLED", () => {
 
   it("fails startup on an unrecognised value", async () => {
     await expect(loadEnv({ SYNCFY_AUTO_SYNC_ENABLED: "yes" })).rejects.toThrow(/SYNCFY_AUTO_SYNC_ENABLED/);
+  });
+});
+
+describe("env startup checks", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    for (const key of ["SYNCFY_API_KEY", "SYNCFY_WEBHOOK_SIGNATURE_KEY"]) {
+      delete process.env[key];
+    }
+    process.env.NODE_ENV = "test";
+  });
+
+  beforeEach(() => {
+    delete process.env.SYNCFY_AUTO_SYNC_ENABLED;
+  });
+
+  it("fails naming the variable, with no value, when the Syncfy key has no signing key", async () => {
+    const attempt = loadEnv({
+      SYNCFY_API_KEY: "secret-api-key",
+      SYNCFY_WEBHOOK_SIGNATURE_KEY: undefined
+    });
+
+    await expect(attempt).rejects.toThrow(/SYNCFY_WEBHOOK_SIGNATURE_KEY/);
+    const message = await attempt.catch((error: Error) => error.message);
+    expect(message).not.toContain("secret-api-key");
+  });
+
+  it("accepts the Syncfy key with a signing key", async () => {
+    const env = await loadEnv({
+      SYNCFY_API_KEY: "key",
+      SYNCFY_WEBHOOK_SIGNATURE_KEY: "signing-key"
+    });
+
+    expect(env.SYNCFY_WEBHOOK_SIGNATURE_KEY).toBe("signing-key");
+  });
+
+  it("fails on a short JWT_SECRET in production only", async () => {
+    await expect(loadEnv({ NODE_ENV: "production", JWT_SECRET: "a".repeat(31) })).rejects.toThrow(
+      /JWT_SECRET/
+    );
+
+    const env = await loadEnv({ NODE_ENV: "production", JWT_SECRET: "a".repeat(32) });
+    expect(env.NODE_ENV).toBe("production");
+  });
+
+  it("starts over HTTPS outside production", async () => {
+    const env = await loadEnv({ NODE_ENV: "development", WEB_APP_URL: "https://staging.example.com" });
+
+    expect(env.WEB_APP_URL).toBe("https://staging.example.com");
   });
 });

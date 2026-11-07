@@ -39,6 +39,7 @@ import {
   getWebhookHealth,
   postWebhook
 } from "./controllers/providerWebhooks.controller.js";
+import { clientIpKey, createRateLimiter } from "../../utils/rateLimit.js";
 
 /** Routes for the authenticated user's own `Account` records (CRUD, archive/restore). */
 export const accountsRouter = Router();
@@ -46,6 +47,16 @@ export const accountsRouter = Router();
 export const providersRouter = Router();
 /** Inbound provider webhook routes (`/providers/webhooks/*`). */
 export const providerWebhooksRouter = Router();
+
+providerWebhooksRouter.use(
+  createRateLimiter({
+    windowMs: 60 * 1000,
+    limit: 300,
+    keyGenerator: clientIpKey,
+    message: "Too many webhook requests",
+    skipInTests: true
+  })
+);
 
 const providerCredentialParamsSchema = z.object({
   providerCredentialId: z.string().min(1)

@@ -33,8 +33,9 @@ export function readRefreshTokenCookie(cookieHeader: string | undefined) {
   return parseCookies(cookieHeader).get(refreshTokenCookieName);
 }
 
-function secureAttribute() {
-  return env.NODE_ENV === "production" ? ["Secure"] : [];
+/** `Secure` in production and on any deployment served over HTTPS, so staging doesn't depend on `NODE_ENV` for it. */
+export function secureAttribute() {
+  return env.NODE_ENV === "production" || env.WEB_APP_URL?.startsWith("https://") ? ["Secure"] : [];
 }
 
 function domainAttribute() {

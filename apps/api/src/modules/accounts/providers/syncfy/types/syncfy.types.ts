@@ -3,8 +3,8 @@ import type { summarizeSyncfyEndpoints } from "../utils/syncfyEndpoints.js";
 /** Generic alias for an untyped JSON object, used throughout this module for Syncfy payloads before they're normalized. */
 export type JsonRecord = Record<string, unknown>;
 
-/** Outcome of verifying a Syncfy webhook's HMAC signature: `"skipped"` when no signing key is configured. */
-export type SyncfySignatureVerification = "valid" | "invalid" | "skipped";
+/** Outcome of verifying a Syncfy webhook's HMAC signature. */
+export type SyncfySignatureVerification = "valid" | "invalid";
 
 /** Diagnostic breakdown of a Syncfy webhook signature check, logged (never thrown) to aid debugging signature mismatches without exposing the secret. */
 export type SyncfyWebhookSignatureDiagnostics = {

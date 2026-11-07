@@ -40,7 +40,7 @@ Built/read by `apps/api/src/modules/auth/utils/refreshTokenCookie.ts`.
 - `Path=/auth` — only sent on `/auth/*` requests (refresh, logout), not on every API call
 - `Max-Age` derived from the refresh token's `expiresAt` for a persistent session; omitted for a browser session
 - No `Domain` attribute — host-only, so only the API host receives it. Each session response also expires any older copy scoped to `REFRESH_TOKEN_COOKIE_DOMAIN`
-- `Secure` when `NODE_ENV=production`
+- `Secure` in production and on any deployment whose `WEB_APP_URL` uses HTTPS
 
 ### Session presence cookie
 
