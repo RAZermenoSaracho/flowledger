@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { env } from "../../../../../config/env.js";
 import { prisma } from "../../../../../db/prisma.js";
 import { HttpError } from "../../../../../utils/httpError.js";
-import { signAccessToken } from "../../../utils/tokens.js";
 import { issueRefreshToken } from "../../../services/create.service.js";
 import type { GoogleLinkResult, GoogleProfile } from "../types/google.types.js";
 import {
@@ -138,7 +137,7 @@ export async function hasGoogleLink(userId: string) {
 /**
  * Verifies the OAuth state/nonce cookie pair and exchanges the auth code for a Google identity.
  *
- * In sign-in mode it enters the linked or newly created account and issues an access+refresh token pair, like a regular login. In link mode (`linkUserId` in the signed state) it links the identity to that user and issues no session, reporting problems as a `linkResult` so the caller returns to Profile.
+ * In sign-in mode it enters the linked or newly created account and issues a refresh token, like a regular login; the web app gets its access token through session restore, so none ever appears in a URL. In link mode (`linkUserId` in the signed state) it links the identity to that user and issues no session, reporting problems as a `linkResult` so the caller returns to Profile.
  */
 export async function handleGoogleCallback(input: {
   state: string;
@@ -165,7 +164,7 @@ export async function handleGoogleCallback(input: {
   const user = await findOrCreateGoogleUser(googleProfile);
   const refreshToken = await issueRefreshToken(user.id, state.keepLoggedIn);
 
-  return { token: signAccessToken(user), refreshToken, redirect: state.redirect };
+  return { refreshToken, redirect: state.redirect };
 }
 
 async function fetchGoogleProfile(code: string) {

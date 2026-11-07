@@ -7,21 +7,45 @@ vi.mock("../../services/update.service.js", () => ({
 
 vi.mock("../../utils/refreshTokenCookie.js", () => ({
   buildSessionCookies: vi.fn(),
+  clearPresenceCookie: vi.fn(() => "presence=; Max-Age=0"),
   readRefreshTokenCookie: vi.fn()
 }));
 
 const { rotateRefreshToken } = await import("../../services/update.service.js");
 const { buildSessionCookies, readRefreshTokenCookie } = await import("../../utils/refreshTokenCookie.js");
 const { refresh } = await import("../update.controller.js");
+const { HttpError } = await import("../../../../utils/httpError.js");
 
 describe("refresh", () => {
   it("throws a 401 when there's no refresh token cookie", async () => {
     vi.mocked(readRefreshTokenCookie).mockReturnValue(undefined);
 
-    await expect(
-      refresh(mockRequest({ headers: {} } as never), mockResponse())
-    ).rejects.toThrow("No refresh token");
+    const res = mockResponse();
+
+    await expect(refresh(mockRequest({ headers: {} } as never), res)).rejects.toThrow(
+      "No refresh token"
+    );
     expect(rotateRefreshToken).not.toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "presence=; Max-Age=0");
+  });
+
+  it("expires only the presence cookie when the token is rejected", async () => {
+    vi.mocked(readRefreshTokenCookie).mockReturnValue("old-plaintext");
+    vi.mocked(rotateRefreshToken).mockRejectedValue(new HttpError(401, "Invalid"));
+    const res = mockResponse();
+
+    await expect(refresh(mockRequest({ headers: {} } as never), res)).rejects.toThrow("Invalid");
+    expect(res.setHeader).toHaveBeenCalledTimes(1);
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "presence=; Max-Age=0");
+  });
+
+  it("leaves cookies alone on a temporary failure", async () => {
+    vi.mocked(readRefreshTokenCookie).mockReturnValue("old-plaintext");
+    vi.mocked(rotateRefreshToken).mockRejectedValue(new Error("db down"));
+    const res = mockResponse();
+
+    await expect(refresh(mockRequest({ headers: {} } as never), res)).rejects.toThrow("db down");
+    expect(res.setHeader).not.toHaveBeenCalled();
   });
 
   it("rotates the token, sets the new cookie, and responds with a fresh token", async () => {

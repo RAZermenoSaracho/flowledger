@@ -44,6 +44,8 @@ Built/read by `apps/api/src/modules/auth/utils/refreshTokenCookie.ts`.
 
 ### Session presence cookie
 
+A rejected refresh (401) expires only the presence cookie, never the refresh cookie, because another tab's rotation may have just set a valid one. The next successful refresh sets it again.
+
 `Path=/auth` means browsers never send the refresh cookie on `/`, so the `flowledger_landing` gateway cannot use it to choose between the landing page and the app. The API therefore also sets `flowledger_session=1` (`flowledger_dev_session` outside production): `HttpOnly`, `SameSite=Lax` so a link from another site still reaches the app, `Path=/`, same `Domain`, `Secure`, and lifetime as the refresh cookie. It holds no credential and only says a session probably exists; the app still validates it through `/auth/refresh`.
 
 ## Session modes
@@ -116,11 +118,11 @@ GET /auth/google/callback?code=<code>&state=<state>
 7. `findOrCreateGoogleUser`: look up `UserAuthAccount` by `(provider="google", providerAccountId)` → enter that user if linked; otherwise refuse with 409 if any account has the email in any letter case; otherwise create User + UserAuthAccount. Email never links an identity
 8. Issue an access+refresh token pair exactly like a regular login (`handleGoogleCallback` in `providers/google/services/create.service.ts`)
 9. Clear the nonce cookie, set the refresh token cookie
-10. Redirect to `<WEB_APP_URL>/auth/oauth/callback#token=<accessToken>&redirect=<destination>` — only the access token travels through the URL fragment; the refresh token was already set as a cookie on this same response
+10. Redirect to `<WEB_APP_URL>/auth/oauth/callback#redirect=<destination>`. No token appears in the URL
 
 ### Step 3 — Frontend completes login
 
-`OAuthCallbackPage` reads `token` and `redirect` from the URL hash fragment, stores the access token in `tokenStore` via `setToken`, calls `GET /auth/me` to fetch the user, and navigates to the redirect destination. The refresh cookie is already present from step 2, so subsequent silent refreshes work the same as for email/password logins.
+`OAuthCallbackPage` reads `redirect` from the URL hash fragment and removes the fragment. The redirect carries no token: `AuthProvider`'s normal session restore calls `/auth/refresh` with the cookie the callback just set, and the page then navigates once to the destination. A 401 shows a sign-in error with a link to login; a network error or 5xx shows a connection message and keeps retrying.
 
 ---
 

@@ -70,9 +70,8 @@ describe("googleOAuthStart", () => {
 });
 
 describe("googleOAuthCallback", () => {
-  it("redirects to the web app with a token fragment on success", async () => {
+  it("redirects with the destination, session cookies, and no token in the URL", async () => {
     vi.mocked(handleGoogleCallback).mockResolvedValue({
-      token: "access-token",
       refreshToken: { token: "refresh-token", expiresAt: new Date(), persistent: false },
       redirect: "/dashboard"
     });
@@ -94,9 +93,9 @@ describe("googleOAuthCallback", () => {
       "refresh=x",
       "presence=1"
     ]);
-    expect(res.redirect).toHaveBeenCalledWith(
-      expect.stringContaining("/auth/oauth/callback")
-    );
+    const location = vi.mocked(res.redirect).mock.calls[0]?.[0] as unknown as string;
+    expect(location).toBe("http://localhost:5173/auth/oauth/callback#redirect=%2Fdashboard");
+    expect(location).not.toContain("token");
   });
 
   it("redirects to the login page with an error on failure, without throwing", async () => {

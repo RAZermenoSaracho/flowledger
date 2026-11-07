@@ -111,3 +111,16 @@ export function buildSessionCookies(refreshToken: {
 export function clearSessionCookies() {
   return buildCookies("", "", ["Max-Age=0"]);
 }
+
+/** Builds the `Set-Cookie` value that expires only the presence cookie, leaving the refresh cookie alone. */
+export function clearPresenceCookie() {
+  return [
+    `${sessionPresenceCookieName}=`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    "Max-Age=0",
+    ...domainAttribute(),
+    ...secureAttribute()
+  ].join("; ");
+}

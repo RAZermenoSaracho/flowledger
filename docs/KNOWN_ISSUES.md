@@ -266,7 +266,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #022 — Web user search is looser than the API-credential search
+## [RESOLVED] #022 — Web user search is looser than the API-credential search
+
+**Resolved:** Web user search now requires three characters and returns at most 10 results (`enforce-financial-data-isolation`).
 
 **Found in:** `expand-group-api-crud`.
 
@@ -404,7 +406,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #032 — Landing gateway still ignores the session presence cookie
+## [RESOLVED] #032 — Landing gateway still ignores the session presence cookie
+
+**Resolved:** The gateway change is on a landing-repository branch and takes effect when the gateway is deployed (`route-authenticated-root-and-remove-oauth-url-token`).
 
 **Found in:** B-002 discovery.
 

@@ -44,7 +44,7 @@ export async function googleLinkStatus(req: Request, res: Response) {
   res.json({ connected: await hasGoogleLink(req.user!.id) });
 }
 
-/** Handles Google's OAuth redirect: completes login and forwards the caller to the web app with a token, returns a link flow to Profile with its result and no session, or sends a failure to the login page with an error. */
+/** Handles Google's OAuth redirect: completes login and forwards the caller to the web app with session cookies and no token, returns a link flow to Profile with its result and no session, or sends a failure to the login page with an error. */
 export async function googleOAuthCallback(req: Request, res: Response) {
   try {
     const query = req.query as unknown as GoogleOAuthCallbackQuery;
@@ -64,9 +64,9 @@ export async function googleOAuthCallback(req: Request, res: Response) {
       return;
     }
 
-    const { token, refreshToken, redirect } = result;
+    const { refreshToken, redirect } = result;
     const redirectUrl = new URL("/auth/oauth/callback", env.WEB_APP_URL);
-    const fragment = new URLSearchParams({ token, redirect });
+    const fragment = new URLSearchParams({ redirect });
     redirectUrl.hash = fragment.toString();
 
     res.setHeader("Set-Cookie", [

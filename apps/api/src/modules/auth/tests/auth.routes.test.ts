@@ -311,6 +311,20 @@ describe("/auth routes", () => {
     });
   });
 
+  describe("rejected refresh", () => {
+    it.each([
+      ["no cookie", undefined],
+      ["an unknown token", `${refreshTokenCookieName}=not-a-real-token`]
+    ])("expires only the presence cookie with %s", async (_label, cookie) => {
+      const call = request(app).post("/auth/refresh");
+      const response = await (cookie ? call.set("Cookie", cookie) : call);
+
+      expect(response.status).toBe(401);
+      expect(findSetCookie(response, sessionPresenceCookieName)).toContain("Max-Age=0");
+      expect(findSetCookie(response, refreshTokenCookieName)).toBeUndefined();
+    });
+  });
+
   describe("tokens issued for other purposes", () => {
     it.each(["/notifications", "/transactions"])(
       "returns 401 and no records from GET %s for a Google state token",

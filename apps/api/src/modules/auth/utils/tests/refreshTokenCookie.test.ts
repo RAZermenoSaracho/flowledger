@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../../../../config/env.js";
 import {
   buildSessionCookies,
+  clearPresenceCookie,
   clearSessionCookies,
   parseCookies,
   readRefreshTokenCookie,
@@ -167,6 +168,18 @@ describe("clearSessionCookies", () => {
       expect(cookie).toContain("Max-Age=0");
       expect(cookie).toContain("Secure");
     }
+  });
+});
+
+describe("clearPresenceCookie", () => {
+  it("expires the presence cookie with its domain and never names the refresh cookie", () => {
+    Object.assign(env, { NODE_ENV: "production", REFRESH_TOKEN_COOKIE_DOMAIN: ".example.com" });
+    const cookie = clearPresenceCookie();
+
+    expect(cookie).toContain(`${sessionPresenceCookieName}=;`);
+    expect(cookie).toContain("Max-Age=0");
+    expect(cookie).toContain("Domain=.example.com");
+    expect(cookie).not.toContain(refreshTokenCookieName);
   });
 });
 
