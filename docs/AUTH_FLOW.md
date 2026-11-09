@@ -166,7 +166,7 @@ Access JWTs on other devices stay valid until they expire, up to `JWT_EXPIRES_IN
 
 ### `tokenStore` (`apps/web/src/services/api.client.ts`)
 
-In-memory getter/setter/clearer for the access token only. Not persisted, by design — see "Token model" above.
+In-memory getter/setter/clearer for the access token only. Not persisted, by design — see "Token model" above. Versions before 2026-08-10 kept the token in `localStorage["flowledger.token"]`; `AuthProvider` deletes that entry on every load (`clearLegacyStoredToken` in `auth.client.ts`).
 
 ### `AuthProvider` (`apps/web/src/hooks/useAuth.tsx`)
 

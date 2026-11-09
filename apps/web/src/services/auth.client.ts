@@ -75,6 +75,21 @@ export function clearToken() {
   tokenStore.clear();
 }
 
+const LEGACY_TOKEN_KEY = "flowledger.token";
+
+/**
+ * Deletes the access token that versions before the in-memory token store kept in `localStorage`.
+ * Nothing reads it, but it stays readable by any script on the origin until removed. Never throws:
+ * `localStorage` access raises when site data is blocked.
+ */
+export function clearLegacyStoredToken() {
+  try {
+    window.localStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    return;
+  }
+}
+
 /** Registers a callback invoked when a mid-session silent token refresh fails — see `registerSessionExpiredHandler` in `api.client.ts` for exactly when this fires. */
 export function onSessionExpired(handler: () => void) {
   registerSessionExpiredHandler(handler);

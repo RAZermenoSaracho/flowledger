@@ -77,6 +77,51 @@ describe("useAuth", () => {
     );
   });
 
+  it("removes a legacy stored token on mount and still restores the session", async () => {
+    localStorage.setItem("flowledger.token", "legacy");
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "refreshed-token", user: testUser })
+      )
+    );
+
+    renderWithProviders(<Consumer />, { withAuth: true });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    expect(localStorage.getItem("flowledger.token")).toBeNull();
+  });
+
+  it("never writes the access token to browser storage on restore or login", async () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "refreshed-token", user: testUser })
+      ),
+      http.post(`${API_URL}/auth/login`, () =>
+        HttpResponse.json({ token: "login-token", user: testUser })
+      )
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(<Consumer />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("user-email")).toHaveTextContent("jane@example.com")
+    );
+    await user.click(screen.getByRole("button", { name: "Login" }));
+    await waitFor(() => expect(getToken()).toBe("login-token"));
+
+    const stored = [localStorage, sessionStorage]
+      .flatMap((storage) =>
+        Array.from({ length: storage.length }, (_, i) => storage.getItem(storage.key(i)!))
+      )
+      .join("|");
+    expect(stored).not.toContain("refreshed-token");
+    expect(stored).not.toContain("login-token");
+  });
+
   it("login sets the user from the login response", async () => {
     server.use(
       http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
