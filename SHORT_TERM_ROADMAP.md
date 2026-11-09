@@ -63,6 +63,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-028 | Authenticated root routing and tokenless Google callback | Medium | ST-025 | Complete | None |
 | ST-029 | API and deployment hardening | Medium | ST-025 | Complete; owner settings open (KNOWN_ISSUES #046) | None |
 | ST-030 | Remove the legacy stored access token | Low | None | Complete | None |
+| ST-031 | Enforce the application Content Security Policy | Medium | None | In review (staging validated; production pending owner approval) | None |
 
 ST-012 (debit support) is retired and has no active row; see its note under the intent details. IDs are stable and are not reused or renumbered, so numeric order is not execution order.
 
@@ -745,7 +746,7 @@ So the missing data is the applied account amount when currencies differ, the de
 - Does the overview show a summary on each card, and what does it do with archived Groups?
 - Does `?groupId=` redirect to the new detail route, or stay supported as is?
 
-### Security hardening initiative (ST-025 to ST-030)
+### Security hardening initiative (ST-025 to ST-031)
 
 **Objective:** Fix verified weaknesses in authentication, identity, data isolation, entry routing, and deployment before product work resumes at B-003. Findings came from a read-only audit of production `main` (`9d57822`) and `flowledger_landing` (`efdfc72`) on 2026-11-07. Each intent's evidence, design, and acceptance criteria live in its OpenSpec change.
 
@@ -757,6 +758,7 @@ So the missing data is the applied account amount when currencies differ, the de
 | ST-028 | `route-authenticated-root-and-remove-oauth-url-token` | S-004 |
 | ST-029 | `harden-api-and-deployment-config` | S-005 |
 | ST-030 | `remove-legacy-access-token-storage` | S-006 |
+| ST-031 | `enforce-app-content-security-policy` | S-007 |
 
 **Acceptance criteria:** Every requirement and scenario in the change's specs is met, tests pass, and the change's deployment verification is recorded.
 
@@ -780,6 +782,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | S-004 | ST-028 | Show signed-in users their dashboard at `/` and remove the access token from the Google callback | S-001 | S | Complete |
 | S-005 | ST-029 | Edge HTTPS, security headers, loopback binding, fail-closed webhooks, safe logs, and dependency updates | S-001 | M | Complete |
 | S-006 | ST-030 | Delete the pre-August `flowledger.token` localStorage entry on load; the access token stays in memory only | None | S | Complete |
+| S-007 | ST-031 | Enforce a script-restricting CSP on application pages; no auth changes | None | S | In review |
 | B-003 | ST-003, ST-009 | Convert an existing transaction to shared, and bulk delete with retention for imported transactions | S-001 to S-005 (sequencing only) | M | Planned |
 | B-004 | ST-005, ST-006, ST-007, ST-024 | Shared Form View with Profile, then Account, Transaction (with prefilled drafts), and Group views with card overview, all in one PR | B-003 | XL | Planned |
 | B-005 | ST-008 | Net worth and savings rate on Profile | None | M | Planned |

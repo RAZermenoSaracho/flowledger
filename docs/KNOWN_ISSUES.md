@@ -589,11 +589,12 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 - The gateway sends `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or preload.
 
 Still open:
-- The CSP walkthrough. The CSP stays report-only until it's done.
+- The CSP. Application pages enforce a script-restricting CSP once `enforce-app-content-security-policy` reaches production. Before that, the owner must test a real Syncfy bank connection. The landing pages stay report-only.
+- MCP consent has no step-up re-authentication. An XSS, which isn't confirmed but would be the precondition, could approve a grant for an attacker-hosted client. Any new grant appears in Connected apps, where it can be revoked.
 - The access-log review for past F-01 and F-34 use, which logs can't fully rule out.
 - An installed Home Screen app sign-in check.
 - One production account has both a password and a Google link. It predates the linking fix and may merit a look.
 - `api-flowledger-dev.razs.dev` stays outside Access. The claude.ai MCP connector calls it server to server, and the dev SPA makes cross-origin requests to it, so it relies on the API's own JWT/OAuth auth.
 - Once a PR check workflow exists, add it as a required check on `main`.
 
-**Suggested fix:** Run the CSP walkthrough and switch the CSP to enforcing. Review the access logs. Add a PR check workflow, then require it.
+**Suggested fix:** Ship the application CSP after the Syncfy test. Review the access logs. Add a PR check workflow, then require it.
