@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
     }
 
+    authClient.clearLegacyStoredToken();
     restoreSession();
 
     return () => {
