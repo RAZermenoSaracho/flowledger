@@ -1,8 +1,9 @@
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../tests/mocks/server";
 import { tokenStore } from "../api.client";
 import {
+  clearLegacyStoredToken,
   getGoogleLinkStatus,
   googleOAuthUrl,
   login,
@@ -86,5 +87,30 @@ describe("Google link", () => {
   it("reads the connected status", async () => {
     server.use(http.get(`${API}/auth/google/link`, () => HttpResponse.json({ connected: true })));
     expect(await getGoogleLinkStatus()).toEqual({ connected: true });
+  });
+});
+
+describe("clearLegacyStoredToken", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("removes the legacy stored token and leaves other keys", () => {
+    localStorage.setItem("flowledger.token", "legacy");
+    localStorage.setItem("flowledger.theme", "dark");
+
+    clearLegacyStoredToken();
+
+    expect(localStorage.getItem("flowledger.token")).toBeNull();
+    expect(localStorage.getItem("flowledger.theme")).toBe("dark");
+  });
+
+  it("doesn't throw when storage access is blocked", () => {
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+
+    expect(() => clearLegacyStoredToken()).not.toThrow();
   });
 });

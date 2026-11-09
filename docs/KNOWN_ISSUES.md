@@ -578,6 +578,22 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Found in:** Closing the security initiative, 2026-11-07.
 
-**Description:** Archived with these still open: real Google sign-in on desktop, mobile, and an installed Home Screen app; Cloudflare Always Use HTTPS and TLS 1.2; `chmod 600` on production `.env` files and moving the `.env.backup.*` copies; branch protection on `main`; Cloudflare Access on the dev hostnames; `npm ci` in the landing deploy script; the CSP walkthrough, then enforcing it and raising HSTS to a year; and the access-log review for past F-01 and F-34 use, which logs can't fully rule out. Production has one account with both a password and a Google link, which predates the linking fix and may merit a look.
+**Description:** Done on 2026-11-09:
+- Google sign-in has been tested on desktop and mobile.
+- Cloudflare redirects HTTP to HTTPS (308) for `flowledger.razs.dev` and `api-flowledger.razs.dev`.
+- Minimum TLS is 1.2 zone-wide. Setting it per host needs Advanced Certificate Manager.
+- The production `.env` and `.env.backup.*` files are `600`.
+- `main` is protected against force pushes and deletion. Admins aren't enforced and no status check is required, since the only workflow is the deploy that runs after a push.
+- Cloudflare Access (Google, owner only) covers `flowledger-dev.razs.dev`.
+- The landing deploy uses `npm ci`.
+- The gateway sends `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or preload.
 
-**Suggested fix:** Work through the archived `tasks.md` files in `openspec/changes/archive/`, where each item has its verification step.
+Still open:
+- The CSP walkthrough. The CSP stays report-only until it's done.
+- The access-log review for past F-01 and F-34 use, which logs can't fully rule out.
+- An installed Home Screen app sign-in check.
+- One production account has both a password and a Google link. It predates the linking fix and may merit a look.
+- `api-flowledger-dev.razs.dev` stays outside Access. The claude.ai MCP connector calls it server to server, and the dev SPA makes cross-origin requests to it, so it relies on the API's own JWT/OAuth auth.
+- Once a PR check workflow exists, add it as a required check on `main`.
+
+**Suggested fix:** Run the CSP walkthrough and switch the CSP to enforcing. Review the access logs. Add a PR check workflow, then require it.
