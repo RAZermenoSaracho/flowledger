@@ -7,7 +7,7 @@ An account can only be edited through an inline form inside its expanding list r
 ## What Changes
 
 - **Depends on ST-005** (`st005-reusable-editable-form-view`): consumes its `useFormDraft`, `FormView` and `EditableField` by name. This change adds no shared infrastructure.
-- New web route `/accounts/:id`: an Account Form View with directly editable name, type, identifier, currency and initial balance, saved as one batch.
+- New web route `/accounts/:id`: an Account Form View with directly editable (no Edit button; ST-005 compact header Save/Discard) name, type, identifier, currency and initial balance, saved as one batch.
 - Account rows link to the view. The inline row edit form and row expansion are removed; `useAccountEditForm` is replaced by a thin `useFormDraft` adapter.
 - Sync status/panel, archive/restore and delete are available in the view.
 - Human-readable account type labels; `checking` is labeled to cover debit and everyday bank accounts.

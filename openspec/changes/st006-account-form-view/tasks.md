@@ -13,7 +13,7 @@
 ## 3. View
 
 - [ ] 3.1 Add `AccountTypeSections.tsx` (type-to-section map, empty today) with TSDoc. Verify: `components/tests/AccountTypeSections.test.tsx` shows a registered test section only for its type.
-- [ ] 3.2 Add `pages/Accounts/AccountDetailPage.tsx`: lookup by id (archived included), not-found state, `FormView` with the five fields, `AccountSyncPanel`, archive/restore/delete (confirm, return to list). Verify: `tests/AccountDetailPage.test.tsx` covers render, direct edit and save, cancel, not-found for unknown/foreign id, synced panel, archive, delete.
+- [ ] 3.2 Add `pages/Accounts/AccountDetailPage.tsx`: lookup by id (archived included), not-found state, `FormView` with the five directly editable fields (no Edit button; ST-005 compact header Save/Discard), `AccountSyncPanel`, archive/restore/delete (confirm, return to list). Verify: `tests/AccountDetailPage.test.tsx` covers render, direct edit and save, discard, not-found for unknown/foreign id, synced panel, archive, delete.
 - [ ] 3.3 Register the route in `main.tsx`. Verify: route renders under the authenticated layout (covered by 3.2 test via router).
 
 ## 4. List cleanup
@@ -23,5 +23,5 @@
 ## 5. Verification
 
 - [ ] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass.
-- [ ] 5.2 Browser check at 375px and desktop: open, edit, save, cancel, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom.
+- [ ] 5.2 Browser check at 375px and desktop: open, edit, save, discard, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom.
 - [ ] 5.3 Update `docs/KNOWN_ISSUES.md` only if this change surfaces or closes an item.

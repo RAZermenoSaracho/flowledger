@@ -4,20 +4,24 @@
 
 ### Requirement: Transaction fields edit directly
 
-The transaction view at `/transactions/:id` SHALL let the user edit its fields in place on the shared Form View foundation, with no Edit button and no separate edit mode. Changes SHALL be saved together as one batch, and Save and Cancel SHALL appear only while the draft differs from the stored transaction.
+The transaction view at `/transactions/:id` SHALL let the user edit its fields in place on the shared Form View foundation, with no Edit button and no separate edit mode. Changes SHALL be saved together as one batch through the compact Save and Discard controls in the header actions, which are enabled only while the draft differs from the stored transaction.
 
 #### Scenario: Edit without entering a mode
 - **WHEN** a user opens a transaction and changes its description
 - **THEN** the field is editable immediately and no Edit button exists
-- **AND** Save and Cancel appear
+- **AND** the header Save and Discard controls become enabled
 
 #### Scenario: Batch save
 - **WHEN** the user changes the description and the category and saves
 - **THEN** one update request carries both fields
 
-#### Scenario: Cancel
-- **WHEN** the user changes a field and cancels
-- **THEN** the stored values are shown and Save and Cancel disappear
+#### Scenario: Discard
+- **WHEN** the user changes a field and discards
+- **THEN** the stored values are shown and Save and Discard are disabled again
+
+#### Scenario: Compact controls
+- **WHEN** the view renders on any width
+- **THEN** Save and Discard are small buttons in the header row, not a sticky bottom bar
 
 #### Scenario: Another user's transaction
 - **WHEN** a user opens `/transactions/:id` for a transaction owned by someone else
@@ -38,6 +42,10 @@ The view SHALL enforce every validation and business rule enforced by the curren
 #### Scenario: Server rule failure
 - **WHEN** the server rejects a save with an error naming a field
 - **THEN** the draft is kept and the error shows on that field
+
+#### Scenario: Partial or network failure
+- **WHEN** a save fails with a 400, 409 or network error
+- **THEN** the draft is kept, the stored transaction is unchanged on the server, and Save can be retried
 
 ### Requirement: Coupled fields follow domain rules
 
@@ -71,6 +79,22 @@ Saving a transaction SHALL send `date` only when the user changed the date and t
 - **WHEN** the user at UTC-6 changes the field to June 2, 2026, 3:33 PM and saves
 - **THEN** the request sends `2026-06-02T21:33:15.979Z`
 
+### Requirement: View is organized in Details, Sharing and Related tabs
+
+The view SHALL render tabs Details, Sharing and Related through the shared Form View. Switching tabs SHALL NOT discard or prompt on the draft. The Related tab SHALL list only real relationships (settlement transactions linked via `TransactionRelation`, and the originating imported provider record) as read-only lists, and SHALL be hidden when there are none. Extending the Sharing tab for existing transactions belongs to the `transaction-sharing-conversion` capability.
+
+#### Scenario: Tab switch keeps the draft
+- **WHEN** the user edits the description, opens Sharing, then returns to Details
+- **THEN** the edit is still present and unsaved
+
+#### Scenario: Related lists
+- **WHEN** a transaction has two settlement transactions and an imported source record
+- **THEN** the Related tab lists them read-only
+
+#### Scenario: Related hidden when empty
+- **WHEN** a transaction has no related records
+- **THEN** no Related tab is shown
+
 ### Requirement: Legacy edit links redirect
 
 A request for `/transactions/:id/edit` SHALL redirect to `/transactions/:id`.
@@ -88,7 +112,7 @@ A request for `/transactions/:id/edit` SHALL redirect to `/transactions/:id`.
 - **THEN** the draft shows those values and no transaction exists yet
 
 #### Scenario: Leave without saving
-- **WHEN** the user cancels or navigates away from a prefilled draft
+- **WHEN** the user discards or navigates away from a prefilled draft
 - **THEN** no transaction is created
 
 #### Scenario: Save creates one transaction
@@ -105,15 +129,31 @@ A request for `/transactions/:id/edit` SHALL redirect to `/transactions/:id`.
 
 ### Requirement: New drafts keep create-time sharing
 
-`/transactions/new` SHALL keep today's create-time sharing: the existing `SharedParticipantsFields` controls and equal-group-split logic, with draft fields `isShared`, `sharedTitle` and `participants`. Saving a shared draft SHALL send the nested `sharedExpense` payload in `POST /transactions`. No new endpoint SHALL be introduced.
+The Sharing tab of `/transactions/new` SHALL offer a shared toggle, a title and a participants list (`RelatedList` in draft mode) with editable shares, remove, an equal-split helper and a footer showing allocated, owner share and unallocated amounts. Saving a shared draft SHALL send the nested `sharedExpense` in a single `POST /transactions`. No new endpoint SHALL be introduced.
 
 #### Scenario: Create a shared transaction
 - **WHEN** a user enables sharing on a new draft, adds a participant and saves
 - **THEN** one `POST /transactions` carries the `sharedExpense` payload and the transaction is created shared
 
+#### Scenario: Edit participant shares directly
+- **WHEN** the user changes a participant's share cell on a new draft
+- **THEN** the footer totals update immediately and nothing is sent until Save
+
+#### Scenario: Create failure keeps the draft
+- **WHEN** the create request fails
+- **THEN** no transaction or shared expense exists, the draft is kept and Save can be retried
+
+### Requirement: Update accepts an optional sharedExpense
+
+`updateTransactionSchema` SHALL accept an optional `sharedExpense`: `{ enabled: false }` or `{ enabled: true, title?, participants: [{ id?, userId? | manualName?, share }] }`. `PUT /transactions/:id` SHALL remain a single request whose effects are all-or-nothing. Existing-transaction behavior for this field is defined by `transaction-sharing-conversion`.
+
+#### Scenario: Schema accepts the field
+- **WHEN** a body with a valid `sharedExpense` is validated
+- **THEN** it passes, and an invalid shape (negative share, missing participants when enabled) fails
+
 ### Requirement: View works at mobile width
 
-The transaction view and new-draft view SHALL be fully usable at mobile width, with fields, errors and the Save/Cancel bar reachable without horizontal scrolling.
+The transaction view and new-draft view SHALL be fully usable at mobile width, with stacked field rows, stacked participant rows, and the header Save/Discard actions reachable without horizontal scrolling.
 
 #### Scenario: Mobile edit and save
 - **WHEN** a user edits and saves a transaction at 375px width
@@ -121,11 +161,11 @@ The transaction view and new-draft view SHALL be fully usable at mobile width, w
 
 ### Requirement: Amount cannot drop below existing shares
 
-`updateTransaction` SHALL reject an amount lower than the sum of the transaction's existing participant shares, on the web API, `/v1`, and MCP.
+`updateTransaction` SHALL reject an amount lower than the sum of the transaction's existing participant shares with a 400 naming the `amount` field, on the web API, `/v1`, and MCP. The view SHALL show it on the amount field.
 
 #### Scenario: Amount below shares
 - **WHEN** a transaction shared with participant shares totalling 60 is updated to amount 50
-- **THEN** the request is rejected with a validation error and the stored amount and shares are unchanged
+- **THEN** the request is rejected with a 400 on `amount`, the stored amount and shares are unchanged, and the view shows the error on the amount field with the draft kept
 
 #### Scenario: Amount at or above shares
 - **WHEN** the same transaction is updated to amount 60

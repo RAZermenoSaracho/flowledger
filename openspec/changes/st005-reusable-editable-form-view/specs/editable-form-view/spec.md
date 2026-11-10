@@ -66,49 +66,111 @@ When `initial` changes, the draft SHALL rebase onto it only if the draft is not 
 - **THEN** the user's edited values are kept
 
 ### Requirement: Form View composition
-`FormView` SHALL be composition only, taking a `form` (the hook result), `header`, optional `tabs`, and `children` sections. It SHALL contain no reference to any specific model. The Save/Cancel bar SHALL appear only while the draft is dirty. It SHALL stack its buttons at mobile width and stick to the bottom of the view. It SHALL display `isSaving` and `saveError`. It SHALL accept an optional `onSave` that replaces the Save button's default `form.save`, for callers that must gather input first. Sections that are read-only or run immediate actions SHALL be plain children and SHALL NOT touch the draft.
+`FormView` SHALL be composition only, taking `title`, optional `subtitle`, `headerExtra`, `tabs`, `children`, `draft` (the hook result), optional `onSave` and optional `onBack`. It SHALL contain no reference to any specific model. There SHALL be no Edit button and no edit mode. Sections that are read-only or run immediate actions SHALL be plain children and SHALL NOT touch the draft.
 
-#### Scenario: Clean draft
-- **WHEN** nothing has changed
-- **THEN** no Save/Cancel bar is shown
-
-#### Scenario: Dirty draft at mobile width
-- **WHEN** a field is changed at 375 CSS pixels
-- **THEN** a bar with stacked Save and Cancel buttons is visible at the bottom of the view
-
-#### Scenario: Saving and error states
-- **WHEN** a save is in progress or has failed
-- **THEN** the view shows a saving indicator, or the persistence error, in a consistent place
+#### Scenario: No edit mode
+- **WHEN** a Form View renders
+- **THEN** no Edit button or mode toggle exists and every editable field is already an input
 
 #### Scenario: Immediate-action section
 - **WHEN** a child section runs its own mutation
-- **THEN** the draft and Save/Cancel bar are unaffected
+- **THEN** the draft and header actions are unaffected
+
+### Requirement: Header actions
+`FormView` SHALL render compact Save and Discard buttons in its header row at all times, without any bottom bar. While the draft is clean both SHALL be disabled, with an accessible name or title that explains why (for example "No changes to save"). While dirty, Discard SHALL be enabled and Save SHALL be enabled unless `draft.isSaving` or `draft.fieldErrors` is non-empty, in which case it is disabled with its reason. While saving, Save SHALL show a busy state (`aria-busy`). Buttons SHALL be at least 40px high and never full-width. At 375 CSS pixels they SHALL stay in the header row, wrapping below the title only if needed. `draft.saveError` SHALL show inline under the header. Ctrl/Cmd+S SHALL save when dirty and enabled, and prevent the browser default. `onSave` SHALL replace Save's default `draft.save`.
+
+#### Scenario: Clean draft
+- **WHEN** nothing has changed
+- **THEN** Save and Discard are rendered, disabled, and expose the reason
+
+#### Scenario: Dirty draft
+- **WHEN** a field changes
+- **THEN** Save and Discard become enabled and the dirty marker shows on that field
+
+#### Scenario: Busy
+- **WHEN** a save is in progress
+- **THEN** Save shows a busy state and is disabled
+
+#### Scenario: Invalid draft
+- **WHEN** the draft has validation errors
+- **THEN** Save is disabled and its reason names the validation problem
+
+#### Scenario: Targets and layout
+- **WHEN** the view renders at 375 CSS pixels
+- **THEN** both buttons are at least 40px high, not full-width, and in the header row with no horizontal overflow
+
+#### Scenario: Save shortcut
+- **WHEN** the draft is dirty and the user presses Ctrl+S or Cmd+S
+- **THEN** save runs once and the browser's save dialog does not open; when clean nothing runs
+
+#### Scenario: Inline save error
+- **WHEN** a save fails
+- **THEN** `saveError` shows under the header, the draft is kept and Save can be retried
+
+#### Scenario: Custom save
+- **WHEN** `onSave` is given
+- **THEN** Save and Ctrl/Cmd+S call it instead of `draft.save`
 
 ### Requirement: Tabs
-When `tabs` is given, `FormView` SHALL render the tab list with the existing accessible tablist semantics, driven by the URL. Switching tabs SHALL keep the draft, because the page owns the hook and stays mounted. Switching tabs SHALL NOT prompt.
+When `tabs` (`{ id, label, badge?, content }[]`) is given, `FormView` SHALL render the tab list with accessible tablist semantics, driven by the URL. Switching tabs SHALL keep the draft, because the page owns the hook and stays mounted. Switching tabs SHALL NOT prompt.
 
 #### Scenario: Switch tab with edits
 - **WHEN** a user edits a field, switches tab, and returns
 - **THEN** the edit is still in the draft
 
-### Requirement: Editable field activation
-`EditableField` SHALL show a `display` value until activated by click, tap, Enter or Space, then render its input. It SHALL focus the first of `input, select, textarea, [data-autofocus]` inside it. Escape SHALL call `onRevert` and leave edit mode. Focus leaving the field SHALL leave edit mode and keep the draft. A field with `readOnly` SHALL stay non-editable and non-activatable. A field with `error` SHALL stay open and show the error next to the input.
+#### Scenario: Tab semantics
+- **WHEN** tabs render
+- **THEN** they expose `tablist`, `tab` and `tabpanel` roles with `aria-selected`, and a badge when given
 
-#### Scenario: Keyboard activation
-- **WHEN** a focused field receives Enter or Space
-- **THEN** the input appears and is focused
+### Requirement: Editable field
+`EditableField` SHALL take `label`, optional `hideLabel`, `error`, `readOnly`, `display` and `onRevert`, and the control as `children`. It SHALL always render its control; there is no click-to-activate and no display/edit toggle. At rest it SHALL be styled quietly (no heavy border), with a visible hover and focus ring and a distinct dirty marker while the field is dirty. Escape inside the control SHALL call `onRevert` when the field is dirty. Blur SHALL do nothing and the draft SHALL stay. A `readOnly` field SHALL render `display` (or its value) as plain text, styled distinctly, with no input. A field with `error` SHALL show it next to the control.
+
+#### Scenario: Always an input
+- **WHEN** an editable field renders
+- **THEN** its control is present and focusable without any click
 
 #### Scenario: Escape reverts
-- **WHEN** a user presses Escape while editing
-- **THEN** the field's draft value reverts and the display returns
+- **WHEN** a user changes a field and presses Escape in it
+- **THEN** only that field's value reverts and the dirty marker clears
 
-#### Scenario: Read-only field
+#### Scenario: Blur keeps draft
+- **WHEN** a user changes a field and moves focus away
+- **THEN** the value and dirty state are kept
+
+#### Scenario: Read-only variant
 - **WHEN** a field is `readOnly`
-- **THEN** click, tap, Enter and Space do not open an input
+- **THEN** plain text is shown with no input and distinct styling
 
 #### Scenario: Field types
-- **WHEN** a consumer renders a text input, a native select, a textarea or a custom control as the field's child
-- **THEN** each is focused on activation and works with the draft
+- **WHEN** a consumer renders a text input, a native select, a textarea or a custom control as the child
+- **THEN** each works with the draft and the same label, error and dirty styling
+
+### Requirement: Related list
+`RelatedList<Row>` SHALL take `title`, `rows`, `rowKey`, `columns` (`{ key, header, cell(row), align? }[]`), optional `isLoading`, `error`, `emptyText`, `onAdd` with `addLabel`, `onRemove(row)` with `canRemove(row)`, and `footer`. It SHALL render a `<table>` at `sm` and above and stacked label/value rows below `sm`. Cells SHALL be render props, so an `EditableField` may sit inside a cell. Whether rows belong to the draft (the caller uses `update(fn)`) or to immediate mutations SHALL be the caller's choice, and the component SHALL hold no domain logic. New rows SHALL carry a client `tempId` until saved, and row errors SHALL use dotted `fieldErrors` keys such as `participants.2.share`. Escape in a cell SHALL revert only that cell.
+
+#### Scenario: Responsive layout
+- **WHEN** the list renders at `sm` and above, and below `sm`
+- **THEN** it is a table, then stacked label/value rows, with every column's content in both
+
+#### Scenario: States
+- **WHEN** `isLoading`, `error` or an empty `rows` is set
+- **THEN** a loading, error or `emptyText` block shows instead of rows, and `footer` is not shown for loading or error
+
+#### Scenario: Add and remove
+- **WHEN** `onAdd` is given, or `onRemove` with `canRemove(row)` true
+- **THEN** an add button with `addLabel` shows and a remove control shows only on removable rows; each calls its callback
+
+#### Scenario: Editable cell
+- **WHEN** a column's `cell` renders an `EditableField`
+- **THEN** editing it works with the caller's draft and Escape reverts only that cell
+
+#### Scenario: Row errors
+- **WHEN** `fieldErrors` holds `participants.2.share`
+- **THEN** the caller can show it in that row's cell, and rows are keyed by `rowKey` (including a `tempId` before save)
+
+#### Scenario: Footer
+- **WHEN** `footer` is given and rows are shown
+- **THEN** it renders after the rows
 
 ### Requirement: Field-level error accessibility
 A field error SHALL render with `role="alert"` and be linked to the input by `aria-describedby`.
@@ -118,11 +180,15 @@ A field error SHALL render with `role="alert"` and be linked to the input by `ar
 - **THEN** the message is announced and referenced by the input
 
 ### Requirement: Unsaved-change protection
-While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's own Cancel and Back controls SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty and discard it only when confirmed. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
+While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's own Discard and Back controls SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty and discard it only when confirmed. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
 
 #### Scenario: Close tab with edits
 - **WHEN** a user closes or reloads the page with a dirty draft
 - **THEN** the browser's unsaved-changes prompt appears
+
+#### Scenario: Discard with edits
+- **WHEN** a user activates Discard with a dirty draft
+- **THEN** a confirm dialog appears, and the draft is discarded only if confirmed
 
 #### Scenario: Back with edits
 - **WHEN** a user activates the view's Back control with a dirty draft
@@ -140,8 +206,15 @@ Inputs inside the Form View SHALL use at least 16px text at mobile width (`text-
 - **THEN** its font size is at least 16px
 
 ### Requirement: Shared code is model-free
-The hook, `FormView` and `EditableField` SHALL NOT import from any page module or reference any model by name or type, and SHALL NOT branch on a model.
+The hook, `FormView`, `EditableField` and `RelatedList` SHALL NOT import from any page module or reference any model by name or type, and SHALL NOT branch on a model.
 
 #### Scenario: Static check
 - **WHEN** the shared files are searched for model names and page imports
 - **THEN** there are none
+
+### Requirement: No domain logic
+ST-005 SHALL contain no participant, member, holding or other domain logic. Those are consumers of `RelatedList` and `useFormDraft`.
+
+#### Scenario: Consumer owns rows
+- **WHEN** a consumer renders rows
+- **THEN** its own reducers, validation and mutations decide the rows, and the shared code only renders them

@@ -230,7 +230,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #019 — Shared expenses on non-group transactions accept any user id as participant
+## [BY DESIGN] #019 — Shared expenses on non-group transactions accept any user id as participant
 
 **Found in:** `expand-group-api-crud`.
 
@@ -239,6 +239,8 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Any existing user id can be made a participant and is notified. `/v1` and MCP refuse non-group transactions (400); the web path is unchanged.
 
 **Suggested fix:** Require a shared relationship (group, contact) in the service so the web path is covered too.
+
+**Status update:** Reclassified as intentional, supported behavior. Universal invitations are a product decision, protected by participant consent, user blocking and public-identity privacy in B-004 ST-003; `/v1` and MCP will follow the same rule. No fix is planned. (`[BY DESIGN]` is used here because the entry is neither open nor a fix.)
 
 ---
 
@@ -477,6 +479,8 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** A group admin can add any user id, and that exposes member names and emails within the group. Related to #019.
 
 **Suggested fix:** TBD. Needs a product decision on an invite-and-accept step, ideally decided together with #019.
+
+**Update:** The email exposure is addressed by B-004 ST-003's public identity; group-add consent stays open.
 
 ---
 

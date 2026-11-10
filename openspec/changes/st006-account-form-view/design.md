@@ -17,7 +17,7 @@ See proposal.md. The accounts list page loads accounts per user via `["accounts"
 4. **Route `/accounts/:id`** added in `main.tsx` and `constants/routes.ts` (additive). List rows become links; the inline form and row expansion are removed, and `AccountListItem` keeps summary info (name, label, currency, badges). Alternative: keep inline edit alongside -- rejected, it duplicates the lifecycle.
 5. **Type labels** in `accountDisplay.ts`: `getAccountTypeLabel(type)` over a record keyed by `AccountType` (exhaustive at compile time). `checking` reads "Checking / debit". Used by list, view and the type select.
 6. **Type sections:** `AccountTypeSections` (account domain) maps `AccountType` to an optional section component; all entries are empty today. A future type adds one entry; it renders inside `FormView` children and receives the draft helpers, so no shared file changes.
-7. **Mobile:** relies on ST-005 `EditableField` sizing; the view adds a stacking layout for the header actions.
+7. **Editing and mobile:** fields are always-editable `EditableField`s (no Edit button) and Save/Discard are ST-005's compact `FormView` header actions; the view adds no layout of its own and no bottom bar. Sizing at 375px relies on ST-005.
 
 ## Risks / Trade-offs
 

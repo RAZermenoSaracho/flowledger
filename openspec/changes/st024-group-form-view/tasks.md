@@ -1,6 +1,6 @@
 # Tasks
 
-Prerequisite: ST-005 (`st005-reusable-editable-form-view`) is implemented. Every new or changed `controllers/`, `services/`, `utils/`, `hooks/` and `components/` file gets a matching `tests/` file (docs/TESTING.md), and every export gets TSDoc.
+Prerequisites: ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-convert-transaction-to-shared`: public identity serialization, username search, non-member participant rule) are implemented; this change adds no server work. Every new or changed `controllers/`, `services/`, `utils/`, `hooks/` and `components/` file gets a matching `tests/` file (docs/TESTING.md), and every export gets TSDoc.
 
 ## 1. Routes and legacy links
 
@@ -17,7 +17,7 @@ Prerequisite: ST-005 (`st005-reusable-editable-form-view`) is implemented. Every
 
 - [ ] 3.1 Add `GroupDetailPage.tsx`: loads `GET /groups/:id`, shows a not-found state (with link to overview) for non-member, unknown or malformed ids, and a back control to `/groups`. Verify: `GroupDetailPage.test.tsx` covers member, non-member and unknown id.
 - [ ] 3.2 Replace the hand-written edit state in `useGroupManagement.ts` with a `useFormDraft` adapter for `name` and `description` (required name, shared update schema, existing `PUT /groups/:id`), rendered in `FormView` with `EditableField`, read-only unless admin and not archived. Keep archive, restore, delete and add-member as immediate actions that return to `/groups` after archive and delete. Verify: `hooks/tests/useGroupManagement.test.ts` covers validation, save, read-only for non-admin and archived, and a dirty draft surviving a member-add refetch.
-- [ ] 3.3 Mount `GroupMembersSection`, `GroupCategoriesSection`, `GroupSummarySection` and `GroupTransactionsSection` as `FormView` children, unchanged in behavior. Update `GroupHeader.tsx` accordingly. Verify: existing section tests stay green; `GroupDetailPage.test.tsx` asserts they render.
+- [ ] 3.3 Rebuild `GroupMembersSection` and `GroupCategoriesSection` on ST-005 `RelatedList` in immediate mode (mutations do not touch the draft); members render the public label from ST-003's serialization (no email) and member-add uses ST-003's username search. Mount them with `GroupSummarySection` and `GroupTransactionsSection` as `FormView` children, unchanged in behavior. Update `GroupHeader.tsx` accordingly. Verify: section tests updated for `RelatedList` (public labels, no email, username search, mobile stacked rows); a dirty draft survives a row mutation; `GroupDetailPage.test.tsx` asserts they render.
 
 ## 4. Layout and docs
 
@@ -28,5 +28,5 @@ Prerequisite: ST-005 (`st005-reusable-editable-form-view`) is implemented. Every
 ## 5. Final verification
 
 - [ ] 5.1 Web `npm run typecheck`, `npm run lint` and `npm run test` pass; new files have TSDoc and matching tests; no Group-specific form lifecycle remains.
-- [ ] 5.2 Browser walkthrough as an admin, a non-admin member and a non-member: overview, open, back (control and browser), edit and save, create, archive, legacy `?groupId=` link. Verify: non-member sees not-found, non-admin sees read-only fields.
+- [ ] 5.2 Browser walkthrough as an admin, a non-admin member and a non-member: overview, open, back (control and browser), edit and save, create, archive, legacy `?groupId=` link. Verify: non-member sees not-found, non-admin sees read-only fields, a non-member shared-expense participant gets not-found, fields are directly editable with compact header Save/Discard at 375px and desktop.
 - [ ] 5.3 `openspec validate st024-group-form-view --strict` passes.

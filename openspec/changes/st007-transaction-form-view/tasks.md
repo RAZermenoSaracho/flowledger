@@ -1,30 +1,34 @@
 # Tasks
 
-## 1. Server
+Tests follow `docs/TESTING.md`: `tests/` folder beside each source file, same base name.
 
-- [ ] 1.1 In `apps/api/src/modules/transactions/services/update.service.ts`, reject an amount below the sum of existing participant shares, with TSDoc. Verify: `services/tests/update.service.test.ts` covers below, equal and unshared cases and passes.
-- [ ] 1.2 Add a test that another user's transaction id still yields not-found on update. Verify: same test file passes.
+## 1. Server and shared schema
+
+- [ ] 1.1 In `packages/shared/src/schemas/`, add the optional `sharedExpense` shape to `updateTransactionSchema` (TSDoc, no semantics). Verify: `schemas/tests/` cases for valid and invalid shapes pass.
+- [ ] 1.2 In `apps/api/src/modules/transactions/services/update.service.ts`, reject (400 on `amount`) an amount below the sum of existing participant shares, with TSDoc. Verify: `services/tests/update.service.test.ts` covers below, equal and unshared cases.
+- [ ] 1.3 Add a test that another user's transaction id yields not-found on update. Verify: same test file passes.
 
 ## 2. Domain utils
 
-- [ ] 2.1 Add coupled-field reducers (account to currency, transfer clears category/group/sharing, group resets category) in `apps/web/src/pages/Transactions/utils/`, with the transaction draft type in `types/`. Verify: `utils/tests/` unit tests for each rule pass.
-- [ ] 2.1b Define `isShared`, `sharedTitle` and `participants` in the transaction draft type, and have the save function send the nested `sharedExpense` in `POST /transactions` on create. Verify: unit tests cover a shared create payload and an unshared create without it.
-- [ ] 2.2 Add the `validate` function (shared Zod schema plus transfer destination rule). Verify: unit tests cover invalid amount and transfer without or equal destination.
-- [ ] 2.3 Add the query-param prefill parser with whitelist. Verify: unit tests cover valid, unknown and invalid params.
-- [ ] 2.4 Add the single save function: create or update, changed keys only, `date` via `transactionDateRequestValue` only when changed. Verify: unit tests cover untouched date, changed date, create, and server field-error mapping.
+- [ ] 2.1 Add coupled-field reducers (account to currency, transfer clears category/group/sharing, group resets category) in `apps/web/src/pages/Transactions/utils/`, and the draft type (incl. `isShared`, `sharedTitle`, `participants`) in `types/`. Verify: `utils/tests/` unit test per rule.
+- [ ] 2.2 Add `validate` (shared Zod schema plus transfer destination rule). Verify: unit tests for invalid amount and transfer without or equal destination.
+- [ ] 2.3 Add the whitelisted query-param prefill parser. Verify: unit tests for valid, unknown and invalid params.
+- [ ] 2.4 Add the save function: one `POST` (nested `sharedExpense` when shared) or one `PUT` (changed keys, `date` via `transactionDateRequestValue` only when changed), mapping server field errors (incl. `amount`) to the draft. Verify: unit tests for untouched date, changed date, shared create, unshared create, field-error mapping, failure leaves draft.
 
 ## 3. View and routes
 
-- [ ] 3.1 Rebuild `TransactionDetailPage` as the Form View using ST-005's `useFormDraft` / `FormView` / `EditableField`, with not-found state and `SharedParticipantsFields` for create-time sharing on `/transactions/new`. Verify: `tests/TransactionDetailPage.test.tsx` covers direct edit, batch save, cancel, not-found.
-- [ ] 3.2 Add `/transactions/new` and the `/transactions/:id/edit` redirect in `main.tsx` and routes constants. Verify: route tests cover prefill, nothing created until save, redirect, and landing on the new transaction after save.
-- [ ] 3.3 Point the list page's add control and row edit actions at the new routes; delete `TransactionFormCard`, `TransactionEditPage` and their tests, carrying their scenarios (date preservation, DST, transfer, couplings) into the view tests. Verify: `TransactionsPage.test.tsx` passes; no references remain (`grep`).
-- [ ] 3.4 Mobile layout pass (stacked fields, sticky Save bar, 16px inputs). Verify: view test at narrow width plus a headless-browser check at 375px.
+- [ ] 3.1 Rebuild `TransactionDetailPage` on ST-005's `FormView` (header Save/Discard, `tabs`), `EditableField`, `useFormDraft`, with Details tab and not-found state. Verify: `tests/TransactionDetailPage.test.tsx` covers direct edit without an Edit button, batch save, discard, not-found.
+- [ ] 3.2 Add the Sharing tab for new drafts using `RelatedList` in draft mode (editable share cell, remove, equal split, totals footer). Verify: component test covers share edit, totals, shared create payload, create failure keeps draft.
+- [ ] 3.3 Add the Related tab (`RelatedList`s for settlement transactions and imported source; hidden when empty). Verify: component test covers populated and hidden cases.
+- [ ] 3.4 Add `/transactions/new` and the `/transactions/:id/edit` redirect in `main.tsx` and routes constants. Verify: route tests cover prefill, nothing created until save, redirect, landing on the new transaction.
+- [ ] 3.5 Point the list add control and row edit actions at the new routes; delete `TransactionFormCard`, `TransactionEditPage` and their tests, carrying their scenarios (date preservation, DST, transfer, couplings) into view tests. Verify: `TransactionsPage.test.tsx` passes; `grep` finds no references.
+- [ ] 3.6 Mobile pass (stacked field and participant rows, header actions, 16px inputs). Verify: view test at narrow width plus headless check at 375px.
 
 ## 4. Docs
 
-- [ ] 4.1 Mark `docs/KNOWN_ISSUES.md` #017 resolved. Note #019 is unchanged (owned by ST-003's note). Verify: file diff shows only these items.
+- [ ] 4.1 Mark `docs/KNOWN_ISSUES.md` #017 resolved. Verify: diff shows only that item.
 
 ## 5. Verification
 
-- [ ] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; all new exports have TSDoc. Verify: commands exit 0.
+- [ ] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; new exports have TSDoc. Verify: exit 0.
 - [ ] 5.2 `openspec validate st007-transaction-form-view --strict` passes.

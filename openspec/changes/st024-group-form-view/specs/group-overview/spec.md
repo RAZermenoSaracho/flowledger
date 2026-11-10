@@ -38,25 +38,65 @@ Clicking a Group card SHALL navigate to `/groups/:id`, the Group detail view. Th
 
 The Group detail view SHALL be composed from the shared Form View introduced by `st005-reusable-editable-form-view` (`useFormDraft`, `FormView`, `EditableField`) with draft fields `name` and `description`, and SHALL NOT contain a Group-specific copy of the form lifecycle. Name SHALL be required.
 
+#### Scenario: Direct editing without an Edit button
+- **WHEN** a Group admin opens a non-archived Group
+- **THEN** name and description are live controls with no Edit button or edit mode
+
+#### Scenario: Compact controls at desktop width
+- **WHEN** the detail view is shown at desktop width
+- **THEN** compact Save/Discard sit top-right in the header, disabled while the draft is clean
+
+#### Scenario: Compact controls at mobile width
+- **WHEN** the detail view is shown at 375px width
+- **THEN** compact Save/Discard stay in the header row (wrapping below the title only if needed), with no sticky bottom bar and no horizontal scrolling
+
 #### Scenario: Editing with the shared lifecycle
 - **WHEN** a Group admin changes the name and saves
-- **THEN** the change is saved through the shared Save/Cancel lifecycle and the updated name is shown
+- **THEN** the change is saved through the shared Save/Discard lifecycle and the updated name is shown
 
 #### Scenario: Empty name
 - **WHEN** a Group admin clears the name
 - **THEN** a validation error is shown next to the field and Save is blocked
 
 #### Scenario: Immediate actions do not dirty the draft
-- **WHEN** a member is added, a category is changed, or the Group is archived or restored while the name is unedited
+- **WHEN** a member is added or removed in the members `RelatedList`, a category is changed in the categories `RelatedList` (both immediate mode), or the Group is archived or restored, while the name is unedited
 - **THEN** the form is not dirty and shows the refreshed data
 
 #### Scenario: Draft survives a refetch
 - **WHEN** a Group admin has an unsaved name change and adds a member
 - **THEN** the unsaved name change is kept
 
+#### Scenario: Immediate related lists keep a dirty draft
+- **WHEN** a Group admin has an unsaved description change and edits a category row
+- **THEN** the category change is saved on its own and the description edit is kept
+
 #### Scenario: Leaving after delete or archive
 - **WHEN** the user deletes the Group, or archives it
 - **THEN** the overview is shown
+
+### Requirement: Members and categories are immediate RelatedLists
+
+The members and categories sections SHALL be ST-005 `RelatedList` components in immediate mode: each add, remove or edit is saved on its own and never becomes part of the draft. The sections SHALL stack as label/value rows below `sm`. Members SHALL be shown by public identity (`@username`, or `Name (@username)` when the user shares their name) and SHALL NOT show or fall back to an email. Member-add SHALL search by username. Public identity serialization and username search are provided by `st003-convert-transaction-to-shared`, which lands before this change; ST-024 adds no server work for them.
+
+#### Scenario: Member shown by public identity
+- **WHEN** the members list is shown
+- **THEN** each member appears as `@username` or `Name (@username)` and no email is visible
+
+#### Scenario: Add member by username
+- **WHEN** a Group admin types at least 3 characters of a username in member-add
+- **THEN** matching users are offered by username and selecting one adds them immediately
+
+#### Scenario: Related lists at mobile width
+- **WHEN** the detail view is shown at 375px width
+- **THEN** members and categories render as stacked rows without horizontal scrolling
+
+### Requirement: Group data is not exposed to non-member participants
+
+This change SHALL NOT widen access to Group data. A user who participates in a shared expense on a Group's transaction without being a Group member SHALL NOT be able to open the Group detail view or see its members, categories, summary or transactions.
+
+#### Scenario: Non-member shared-expense participant
+- **WHEN** a non-member participant of a shared expense opens `/groups/:id` for that Group
+- **THEN** the not-found state is shown and no Group data is displayed
 
 ### Requirement: Access and editing follow Group roles
 

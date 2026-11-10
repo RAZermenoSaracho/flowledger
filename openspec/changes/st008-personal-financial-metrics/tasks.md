@@ -1,14 +1,14 @@
 # Tasks
 
-Implement after ST-005 (`st005-reusable-editable-form-view`), as the last intent of the B-004 PR.
+Implement after ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-convert-transaction-to-shared`, whose consent capability defines `accepted`/`proposed`/`rejected` shares), as the last intent of the B-004 PR.
 
 ## 1. Shared contract
 
-- [ ] 1.1 Add `financialOverviewQuerySchema` and the response schema/types (net worth components, `excluded`, `partial`, savings-rate status, disclosure codes) to `packages/shared/src/schemas/reports.ts`, with TSDoc. Verify: `packages/shared/src/schemas/tests/reports.test.ts` covers valid and invalid `timeZone` and the response shape; shared tests pass.
+- [ ] 1.1 Add `financialOverviewQuerySchema` and the response schema/types (net worth components, `excluded`, `partial`, savings-rate status, disclosure codes, `awaitingAcceptance` count) to `packages/shared/src/schemas/reports.ts`, with TSDoc. Verify: `packages/shared/src/schemas/tests/reports.test.ts` covers valid and invalid `timeZone` and the response shape; shared tests pass.
 
 ## 2. API service
 
-- [ ] 2.1 Create `reports/services/financialOverview.service.ts` with the net worth calculation (non-archived accounts, debts, per-item `Promise.allSettled`, scoped by `userId`). Verify: `reports/services/tests/financialOverview.service.test.ts` (mocked Prisma) covers components, card debt and overpaid card, same-currency transfer neutrality, settlement neutrality, archived exclusion, missing rate (named, partial) and user isolation (`where` includes `userId`).
+- [ ] 2.1 Create `reports/services/financialOverview.service.ts` with the net worth calculation (non-archived accounts, debts, per-item `Promise.allSettled`, scoped by `userId`). Verify: `reports/services/tests/financialOverview.service.test.ts` (mocked Prisma) covers components, card debt and overpaid card, same-currency transfer neutrality, settlement neutrality, archived exclusion, missing rate (named, partial) user isolation (`where` includes `userId`), and consent: only `accepted` shares count in receivables/payables, `proposed` and `rejected` are excluded, and `awaitingAcceptance` counts the `proposed` ones.
 - [ ] 2.2 Add the savings rate: previous complete month in the given time zone, `calculateMonthlyCashflow`, statuses `ok`, `no_data`, `unavailable_income`, `unavailable_rate`; metrics isolated. Verify: same test file covers month selection across a time-zone boundary, a negative rate, zero and negative income, no data, transfers excluded, a missing rate that leaves net worth intact.
 - [ ] 2.3 Add disclosure codes. Verify: same test file asserts each disclosure appears only when it applies (archived balance, past-month currency, cross-currency, investment, synced, none).
 

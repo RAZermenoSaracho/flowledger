@@ -18,7 +18,11 @@ Clicking an account SHALL open that account's own view at a linkable URL (`/acco
 
 ### Requirement: Direct editing through the shared Form View
 
-The account view SHALL let the user edit name, type, identifier, currency and initial balance directly, validated with the shared account schema, and saved together as one batch through the shared Form View lifecycle. The account domain SHALL NOT keep its own copy of that lifecycle (draft, dirty state, Save/Cancel, saving and error handling).
+The account view SHALL let the user edit name, type, identifier, currency and initial balance directly, validated with the shared account schema, and saved together as one batch through the shared Form View lifecycle. The account domain SHALL NOT keep its own copy of that lifecycle (draft, dirty state, Save/Discard, saving and error handling).
+
+#### Scenario: Edit without an Edit button
+- **WHEN** an account view is opened
+- **THEN** every editable field is a live control with no Edit button or edit mode, and typing changes the draft directly
 
 #### Scenario: Edit and save
 - **WHEN** the user changes one or more fields and presses Save
@@ -28,8 +32,8 @@ The account view SHALL let the user edit name, type, identifier, currency and in
 - **WHEN** a field value is invalid (for example an empty name)
 - **THEN** the error is shown next to the field and Save is blocked
 
-#### Scenario: Cancel
-- **WHEN** the user cancels with unsaved changes
+#### Scenario: Discard
+- **WHEN** the user presses Discard with unsaved changes
 - **THEN** the draft reverts to the saved values
 
 #### Scenario: Save rejected by the server
@@ -58,7 +62,11 @@ The account view SHALL be usable at mobile width: fields and actions are reachab
 
 #### Scenario: Narrow viewport
 - **WHEN** the view is shown at 375px width
-- **THEN** all fields, Save/Cancel and actions are usable without horizontal scrolling
+- **THEN** all fields and actions are usable without horizontal scrolling, and the compact Save/Discard stay in the header row (wrapping below the title only if needed) with no sticky bottom bar
+
+#### Scenario: Desktop width
+- **WHEN** the view is shown at desktop width
+- **THEN** compact Save/Discard sit top-right in the header, disabled while the draft is clean
 
 ### Requirement: Type-specific fields and sections
 

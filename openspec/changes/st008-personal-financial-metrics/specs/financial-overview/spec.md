@@ -22,7 +22,7 @@ The API SHALL expose `GET /reports/financial-overview` that requires authenticat
 - **THEN** the net worth is still returned
 
 ### Requirement: Estimated net worth
-Net worth SHALL equal the balances of active accounts, plus what people owe the user, minus what the user owes people, converted to the preferred currency, and SHALL be returned with its three components. It SHALL be labeled as an estimate based on recorded balances. Archived accounts SHALL be excluded. Credit-card debt SHALL reduce it and an overpaid card SHALL increase it.
+Net worth SHALL equal the balances of active accounts, plus what people owe the user, minus what the user owes people, converted to the preferred currency, and SHALL be returned with its three components. It SHALL be labeled as an estimate based on recorded balances. Receivables and payables SHALL count only shared-expense shares in the `accepted` state (defined by `st003-convert-transaction-to-shared`); `proposed` and `rejected` shares SHALL be excluded, and the number of `proposed` shares SHALL be disclosed as "N awaiting acceptance (not counted)". Archived accounts SHALL be excluded. Credit-card debt SHALL reduce it and an overpaid card SHALL increase it.
 
 #### Scenario: Components and total
 - **WHEN** the user has a 1000 account, 200 owed to them and 50 owed by them
@@ -39,6 +39,14 @@ Net worth SHALL equal the balances of active accounts, plus what people owe the 
 #### Scenario: Debt settlement
 - **WHEN** a debt is settled
 - **THEN** net worth is unchanged apart from exchange-rate differences
+
+#### Scenario: Only accepted shares count
+- **WHEN** the user has an `accepted` share owed to them of 200, a `proposed` share of 100 and a `rejected` share of 50
+- **THEN** only the 200 enters receivables, and the same rule applies to what the user owes
+
+#### Scenario: Awaiting acceptance disclosed
+- **WHEN** one or more shares are `proposed`
+- **THEN** net worth shows "N awaiting acceptance (not counted)" with N the number of proposed shares, and nothing is shown when N is zero
 
 #### Scenario: Archived account
 - **WHEN** an archived account exists
