@@ -12,7 +12,12 @@
   - Record zero CSP violations.
   - Confirm that an injected inline script and an inline handler are blocked.
   - Result (2026-11-09): zero violations across register, logout, login, reload and ten app routes. An inline script, an inline handler, a remote script and `eval` in a same-origin script were all blocked. No auth values in web storage, and no cookies visible to `document.cookie`.
-- [ ] 2.3 Manual (owner, before production): open Accounts → add account, and connect or resync a bank through the Syncfy widget; the OAuth callback after Google sign-in, Google sign-in, MCP consent, and the installed PWA on iOS, with no blocked-resource errors.
+- [x] 2.3 Production check after deploy, in a headless browser, signed out:
+  - Confirm the enforced header on app routes, and that the landing root stays report-only.
+  - Load `/login`, `/register`, `/dashboard` and `/oauth/authorize` and record CSP violations.
+  - Check the API health, refresh, Google start and MCP endpoints.
+  - Result (2026-11-09): the first pass found the Cloudflare Web Analytics beacon blocked, which #37 allowed. After that: zero enforced violations, no page errors, the beacon loads, and the endpoints respond as expected.
+  - Owner checks that need personal credentials are tracked in `docs/KNOWN_ISSUES.md` #046: a Syncfy bank connection or resync, signed-in Google, MCP consent, and the iOS PWA.
 
 ## 3. Docs
 
