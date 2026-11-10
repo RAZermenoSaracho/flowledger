@@ -36,7 +36,7 @@ What the 2026-11-09 investigation found:
 
 - **Set the policy in `vite.config.ts` `preview.headers`.** Production serves the app with `vite preview` behind the gateway. The gateway's report-only header still covers the landing pages. Alternatively the gateway could enforce it, but it doesn't know each environment's API origin, and the app should own its policy. The dev server gets no CSP, because HMR needs inline scripts and WebSockets.
 - **Directives:**
-  - `script-src 'self' https://www.paybook.com https://www.googletagmanager.com`, with no `'unsafe-inline'` and no `'unsafe-eval'`. The widget's `eval` exists only in a Node `vm` shim that browsers don't call.
+  - `script-src 'self' https://www.paybook.com https://www.googletagmanager.com https://static.cloudflareinsights.com`, with no `'unsafe-inline'` and no `'unsafe-eval'`. The widget's `eval` exists only in a Node `vm` shim that browsers don't call. The last host serves the Cloudflare Web Analytics beacon, which the Cloudflare edge injects into production pages.
   - `style-src 'self' 'unsafe-inline'`. Vue, Element Plus and React inject style attributes.
   - `connect-src 'self' <API origin> https: wss:`. The widget's socket host comes from the Syncfy API at runtime, and `connect-src` doesn't stop exfiltration anyway (navigation and images do).
   - `img-src 'self' <API origin> https: data: blob:`. This covers bank logos from `s.paybook.com`.

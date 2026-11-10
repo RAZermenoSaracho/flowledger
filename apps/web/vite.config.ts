@@ -38,14 +38,15 @@ function missingIconsReturn404(): Plugin {
 
 /**
  * Enforced CSP for the built app. Scripts are first-party except the two hosts the Syncfy widget
- * injects scripts from, with no inline script or eval. Requests and images stay broad: the
+ * injects scripts from and the Cloudflare Web Analytics beacon the edge injects, with no inline
+ * script or eval. Requests and images stay broad: the
  * widget's socket host comes from the Syncfy API at runtime, and neither directive controls script
  * execution.
  */
 function appContentSecurityPolicy(apiOrigin: string) {
   return [
     "default-src 'self'",
-    "script-src 'self' https://www.paybook.com https://www.googletagmanager.com",
+    "script-src 'self' https://www.paybook.com https://www.googletagmanager.com https://static.cloudflareinsights.com",
     "style-src 'self' 'unsafe-inline'",
     `connect-src 'self' ${apiOrigin} https: wss:`,
     `img-src 'self' ${apiOrigin} https: data: blob:`,
