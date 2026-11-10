@@ -46,7 +46,8 @@ describe("application CSP from the preview server", () => {
     expect(csp.get("script-src")).toEqual([
       "'self'",
       "https://www.paybook.com",
-      "https://www.googletagmanager.com"
+      "https://www.googletagmanager.com",
+      "https://static.cloudflareinsights.com"
     ]);
     expect(policy).not.toMatch(/script-src[^;]*'unsafe-(inline|eval)'/);
     expect(csp.get("object-src")).toEqual(["'none'"]);
