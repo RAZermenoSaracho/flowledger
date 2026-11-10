@@ -8,7 +8,7 @@
 ## 2. Verification
 
 - [x] 2.1 Web typecheck, lint, and the `useAuth` and api client tests pass.
-- [ ] 2.2 After deploy, production smoke test in a headless browser: seed the legacy key, load the app, and confirm the key is gone. Also confirm that `/auth/refresh` without a cookie returns 401 and the API health check returns 200.
+- [x] 2.2 After deploy, production smoke test in a headless browser: seed the legacy key, load the app, and confirm the key is gone. Also confirm that `/auth/refresh` without a cookie returns 401 and the API health check returns 200.
 
 ## 3. Docs
 
