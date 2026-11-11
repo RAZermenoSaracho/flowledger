@@ -10,25 +10,25 @@ Tests follow `docs/TESTING.md`: `tests/` folder beside each source file, same ba
 
 ## 2. Domain utils
 
-- [ ] 2.1 Add coupled-field reducers (account to currency, transfer clears category/group/sharing, group resets category) in `apps/web/src/pages/Transactions/utils/`, and the draft type (incl. `isShared`, `sharedTitle`, `participants`) in `types/`. Verify: `utils/tests/` unit test per rule.
-- [ ] 2.2 Add `validate` (shared Zod schema plus transfer destination rule). Verify: unit tests for invalid amount and transfer without or equal destination.
-- [ ] 2.3 Add the whitelisted query-param prefill parser. Verify: unit tests for valid, unknown and invalid params.
-- [ ] 2.4 Add the save function: one `POST` (nested `sharedExpense` when shared) or one `PUT` (changed keys, `date` via `transactionDateRequestValue` only when changed), mapping server field errors (incl. `amount`) to the draft. Verify: unit tests for untouched date, changed date, shared create, unshared create, field-error mapping, failure leaves draft.
+- [x] 2.1 Add coupled-field reducers (account to currency, transfer clears category/group/sharing, group resets category) in `apps/web/src/pages/Transactions/utils/`, and the draft type (incl. `isShared`, `sharedTitle`, `participants`) in `types/`. Verify: `utils/tests/` unit test per rule.
+- [x] 2.2 Add `validate` (shared Zod schema plus transfer destination rule). Verify: unit tests for invalid amount and transfer without or equal destination.
+- [x] 2.3 Add the whitelisted query-param prefill parser. Verify: unit tests for valid, unknown and invalid params.
+- [x] 2.4 Add the save function: one `POST` (nested `sharedExpense` when shared) or one `PUT` (changed keys, `date` via `transactionDateRequestValue` only when changed), mapping server field errors (incl. `amount`) to the draft. Verify: unit tests for untouched date, changed date, shared create, unshared create, field-error mapping, failure leaves draft.
 
 ## 3. View and routes
 
-- [ ] 3.1 Rebuild `TransactionDetailPage` on ST-005's `FormView` (header Save/Discard, `tabs`), `EditableField`, `useFormDraft`, with Details tab and not-found state. Verify: `tests/TransactionDetailPage.test.tsx` covers direct edit without an Edit button, batch save, discard, not-found.
-- [ ] 3.2 Add the Sharing tab for new drafts using `RelatedList` in draft mode (editable share cell, remove, equal split, totals footer). Verify: component test covers share edit, totals, shared create payload, create failure keeps draft.
-- [ ] 3.3 Add the Related tab (`RelatedList`s for settlement transactions and imported source; hidden when empty). Verify: component test covers populated and hidden cases.
-- [ ] 3.4 Add `/transactions/new` and the `/transactions/:id/edit` redirect in `main.tsx` and routes constants. Verify: route tests cover prefill, nothing created until save, redirect, landing on the new transaction.
-- [ ] 3.5 Point the list add control and row edit actions at the new routes; delete `TransactionFormCard`, `TransactionEditPage` and their tests, carrying their scenarios (date preservation, DST, transfer, couplings) into view tests. Verify: `TransactionsPage.test.tsx` passes; `grep` finds no references.
-- [ ] 3.6 Mobile pass (stacked field and participant rows, header actions, 16px inputs). Verify: view test at narrow width plus headless check at 375px.
+- [x] 3.1 Rebuild `TransactionDetailPage` on ST-005's `FormView` (header Save/Discard, `tabs`), `EditableField`, `useFormDraft`, with Details tab and not-found state. Verify: `tests/TransactionDetailPage.test.tsx` covers direct edit without an Edit button, batch save, discard, not-found.
+- [x] 3.2 Add the Sharing tab for new drafts using `RelatedList` in draft mode (editable share cell, remove, equal split, totals footer). Verify: component test covers share edit, totals, shared create payload, create failure keeps draft.
+- [x] 3.3 Add the Related tab (`RelatedList`s for settlement transactions and imported source; hidden when empty). Verify: component test covers populated and hidden cases.
+- [x] 3.4 Add `/transactions/new` and the `/transactions/:id/edit` redirect in `main.tsx` and routes constants. Verify: route tests cover prefill, nothing created until save, redirect, landing on the new transaction.
+- [x] 3.5 Point the list add control and row edit actions at the new routes; delete `TransactionFormCard`, `TransactionEditPage` and their tests, carrying their scenarios (date preservation, DST, transfer, couplings) into view tests. Verify: `TransactionsPage.test.tsx` passes; `grep` finds no references.
+- [x] 3.6 Mobile pass (stacked field and participant rows, header actions, 16px inputs). Verify: view test at narrow width plus headless check at 375px.
 
 ## 4. Docs
 
-- [ ] 4.1 Mark `docs/KNOWN_ISSUES.md` #017 resolved. Verify: diff shows only that item.
+- [x] 4.1 Mark `docs/KNOWN_ISSUES.md` #017 resolved. Verify: diff shows only that item.
 
 ## 5. Verification
 
-- [ ] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; new exports have TSDoc. Verify: exit 0.
+- [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; new exports have TSDoc. Verify: exit 0.
 - [ ] 5.2 `openspec validate st007-transaction-form-view --strict` passes.

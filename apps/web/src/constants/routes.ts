@@ -6,6 +6,8 @@ export const routes = {
   oauthCallback: "/auth/oauth/callback",
   oauthAuthorize: "/oauth/authorize",
   transactions: "/transactions",
+  newTransaction: "/transactions/new",
+  transaction: (id: string) => `/transactions/${id}`,
   accounts: "/accounts",
   account: (id: string) => `/accounts/${id}`,
   categories: "/categories",

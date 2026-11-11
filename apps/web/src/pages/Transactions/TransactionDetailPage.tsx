@@ -1,22 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { FormView } from "../../components/FormView";
+import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
+import { listAccounts } from "../../services/accounts.client";
+import { listCategories } from "../../services/categories.client";
+import { listGroups } from "../../services/groups.client";
 import {
   deleteTransaction as deleteTransactionRequest,
   getTransaction
 } from "../../services/transactions.client";
-import { formatMoney } from "../../utils/currency";
-import { formatTransactionDate } from "../../utils/dateTime";
-import { formatEnumLabel } from "../../utils/enumLabels";
 import type { Transaction } from "../../types/transactions.types";
-
-function splitDirectionLabel(type: Transaction["type"]) {
-  if (type === "income") return "You owe participants";
-  if (type === "expense") return "Participants owe you";
-  return "No debt direction";
-}
+import { formatMoney } from "../../utils/currency";
+import { formatTransactionDate, transactionDateNowInputValue } from "../../utils/dateTime";
+import { TransactionDetailsFields } from "./components/TransactionDetailsFields";
+import { hasRelatedRecords, TransactionRelatedTab } from "./components/TransactionRelatedTab";
+import { TransactionSharingTab } from "./components/TransactionSharingTab";
+import { useTransactionForm } from "./hooks/useTransactionForm";
+import { draftFromTransaction, newTransactionDraft } from "./utils/transactionDraft";
+import { parseTransactionPrefill } from "./utils/transactionPrefill";
+import { selectAccount } from "./utils/transactionDraftReducers";
 
 function needsClassification(transaction: Transaction) {
   if (transaction.type === "transfer") {
@@ -26,193 +32,170 @@ function needsClassification(transaction: Transaction) {
   return !transaction.accountId || !transaction.categoryId;
 }
 
-function transferDirection(transaction: Transaction) {
-  return `${transaction.account?.name ?? "No from account"} -> ${
-    transaction.transferToAccount?.name ?? "No to account"
-  }`;
-}
-
-/** Read-only detail view of a single transaction, including shared-expense/debt classification hints. */
+/**
+ * Transaction Form View. At `/transactions/:id` it edits a stored transaction in place; at
+ * `/transactions/new` it edits an unsaved draft (optionally prefilled from query params) that
+ * creates nothing until Save. A missing or foreign id shows the not-found state.
+ */
 export function TransactionDetailPage() {
-  const auth = useAuth();
   const { id } = useParams();
+  const isNew = !id;
+  const auth = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const [openedAt] = useState(transactionDateNowInputValue);
+
   const transactionQuery = useQuery({
     queryKey: ["transaction", id],
-    enabled: Boolean(id),
+    enabled: !isNew,
     queryFn: async () => (await getTransaction(id!)).transaction
   });
+  const accountsQuery = useQuery({
+    queryKey: ["accounts"],
+    queryFn: async () => (await listAccounts()).accounts
+  });
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => (await listCategories()).categories
+  });
+  const groupsQuery = useQuery({
+    queryKey: ["groups"],
+    queryFn: async () => (await listGroups()).groups
+  });
   const deleteTransaction = useMutation({
-    mutationFn: (transactionId: string) =>
-      deleteTransactionRequest(transactionId),
+    mutationFn: (transactionId: string) => deleteTransactionRequest(transactionId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      await queryClient.invalidateQueries({ queryKey: ["groups"] });
-      await queryClient.invalidateQueries({ queryKey: ["summary"] });
-      await queryClient.invalidateQueries({ queryKey: ["cashflow"] });
-      await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
-      await queryClient.invalidateQueries({ queryKey: ["debts"] });
-      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      navigate("/transactions");
+      for (const key of [
+        "transactions",
+        "accounts",
+        "groups",
+        "summary",
+        "cashflow",
+        "shared-expenses",
+        "debts",
+        "notifications"
+      ]) {
+        await queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      navigate(routes.transactions);
     }
   });
 
-  const transaction = transactionQuery.data;
+  const transaction = transactionQuery.data ?? null;
+  const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const accountsReady = !accountsQuery.isLoading;
+  const defaultCurrency = auth.user?.preferredCurrency || "USD";
+  const prefillKey = useMemo(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("tab");
+    return params.toString();
+  }, [searchParams]);
 
-  if (!transaction) {
+  const initial = useMemo(() => {
+    if (transaction) return draftFromTransaction(transaction);
+    if (!isNew || !accountsReady || auth.isInitializing) return null;
+    const prefill = parseTransactionPrefill(new URLSearchParams(prefillKey));
+    const draft = newTransactionDraft(defaultCurrency, openedAt, prefill);
+    return prefill.accountId && !prefill.executionCurrency
+      ? selectAccount(draft, prefill.accountId, accounts)
+      : draft;
+  }, [transaction, isNew, accountsReady, auth.isInitializing, prefillKey, defaultCurrency, openedAt, accounts]);
+
+  const draft = useTransactionForm({ initial, original: transaction });
+
+  if (!isNew && transactionQuery.isError) {
+    return (
+      <Card>
+        <h1 className="text-xl font-semibold">Transaction not found</h1>
+        <Link to={routes.transactions} className="text-pine underline">
+          Back to transactions
+        </Link>
+      </Card>
+    );
+  }
+  if (!initial) {
     return <Card>Loading transaction...</Card>;
   }
 
-  const isPendingClassification = needsClassification(transaction);
+  const selectedGroup = (groupsQuery.data ?? []).find((group) => group.id === draft.values.groupId);
+  const tabs = [
+    {
+      id: "details",
+      label: "Details",
+      content: (
+        <TransactionDetailsFields
+          draft={draft}
+          isNew={isNew}
+          transaction={transaction}
+          accounts={accounts}
+          categories={categoriesQuery.data ?? []}
+          groups={groupsQuery.data ?? []}
+          currentUserId={auth.user?.id}
+          preferredCurrency={auth.user?.preferredCurrency}
+        />
+      )
+    },
+    {
+      id: "sharing",
+      label: "Sharing",
+      content: (
+        <TransactionSharingTab
+          draft={draft}
+          transaction={transaction}
+          group={selectedGroup}
+          currentUserId={auth.user?.id}
+        />
+      )
+    },
+    ...(transaction && hasRelatedRecords(transaction)
+      ? [{ id: "related", label: "Related", content: <TransactionRelatedTab transaction={transaction} /> }]
+      : [])
+  ];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            className="text-sm font-semibold text-pine dark:text-emerald-300"
-            to="/transactions"
-          >
-            Back to transactions
-          </Link>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => navigate(`/transactions/${transaction.id}/edit`)}
-            >
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              disabled={deleteTransaction.isPending}
-              onClick={() => {
-                const sharedCleanup = transaction.sharedExpense
-                  ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
-                  : "";
-                const confirmed = window.confirm(
-                  `Delete "${transaction.name}" permanently?${sharedCleanup}`
-                );
-                if (confirmed)
-                  void deleteTransaction.mutateAsync(transaction.id);
-              }}
-            >
-              Delete
-            </Button>
-          </div>
-        </div>
-        <h2 className="mt-4 text-2xl font-bold">{transaction.name}</h2>
-        {isPendingClassification ? (
-          <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-            {transaction.type === "transfer"
-              ? "Pending classification: add from and to accounts."
-              : "Pending classification: add a category and account."}
-          </p>
-        ) : null}
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <Detail
-            label="Amount"
-            value={formatMoney(
-              transaction.amount,
-              transaction.executionCurrency
-            )}
-          />
-          {auth.user?.preferredCurrency &&
-          auth.user.preferredCurrency !== transaction.executionCurrency ? (
-            <Detail
-              label="Amount in your currency"
-              value={formatMoney(
-                transaction.amountInPreferredCurrency,
-                auth.user.preferredCurrency
-              )}
-            />
-          ) : null}
-          <Detail label="Type" value={formatEnumLabel(transaction.type)} />
-          <Detail
-            label="Date"
-            value={formatTransactionDate(transaction)}
-          />
-          <Detail
-            label={transaction.type === "transfer" ? "From account" : "Account"}
-            value={
-              transaction.type === "transfer"
-                ? (transaction.account?.name ?? "No from account")
-                : (transaction.account?.name ?? "No account")
-            }
-          />
-          {transaction.type === "transfer" ? (
+    <Card>
+      <FormView
+        title={transaction ? transaction.name : "New transaction"}
+        subtitle={
+          transaction
+            ? `${formatMoney(transaction.amount, transaction.executionCurrency)} · ${formatTransactionDate(transaction)}`
+            : undefined
+        }
+        draft={draft}
+        tabs={tabs}
+        onBack={() => navigate(routes.transactions)}
+        headerExtra={
+          transaction ? (
             <>
-              <Detail
-                label="To account"
-                value={transaction.transferToAccount?.name ?? "No to account"}
-              />
-              <Detail
-                label="Direction"
-                value={transferDirection(transaction)}
-              />
-            </>
-          ) : (
-            <>
-              <Detail
-                label="Category"
-                value={transaction.category?.name ?? "Uncategorized"}
-              />
-              <Detail
-                label="Group"
-                value={transaction.group?.name ?? "No group"}
-              />
-              <Detail
-                label="Group category"
-                value={transaction.category?.name ?? "No group category"}
-              />
-            </>
-          )}
-          <Detail label="Notes" value={transaction.notes ?? "No notes"} />
-        </dl>
-      </Card>
-      <Card>
-        <h3 className="text-lg font-semibold">Shared expense</h3>
-        {transaction.sharedExpense ? (
-          <div className="mt-4 grid gap-3">
-            <p className="font-semibold">{transaction.sharedExpense.title}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {transaction.sharedExpense.status} ·{" "}
-              {splitDirectionLabel(transaction.type)}
-            </p>
-            {transaction.sharedExpense.participants.map((participant) => (
-              <div
-                key={participant.id}
-                className="rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
-              >
-                <p className="font-medium">{participant.participantName}</p>
-                <p>
-                  {formatMoney(participant.paidAmount, participant.currency)}{" "}
-                  settled of{" "}
-                  {formatMoney(participant.shareAmount, participant.currency)}
+              {needsClassification(transaction) ? (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                  {transaction.type === "transfer"
+                    ? "Pending classification: add from and to accounts."
+                    : "Pending classification: add a category and account."}
                 </p>
+              ) : null}
+              <div>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={deleteTransaction.isPending}
+                  onClick={() => {
+                    const sharedCleanup = transaction.sharedExpense
+                      ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
+                      : "";
+                    if (window.confirm(`Delete "${transaction.name}" permanently?${sharedCleanup}`)) {
+                      void deleteTransaction.mutateAsync(transaction.id);
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-            No shared expense is attached.
-          </p>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-sm font-medium text-slate-500 dark:text-slate-400">
-        {label}
-      </dt>
-      <dd className="mt-1 font-semibold">{value}</dd>
-    </div>
+            </>
+          ) : null
+        }
+      />
+    </Card>
   );
 }

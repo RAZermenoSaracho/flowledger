@@ -1,11 +1,28 @@
 import type { Category } from "../../../types/categories.types";
-import type { ProviderImportedTransaction } from "../../../types/transactions.types";
+import type { ProviderImportedTransaction, Transaction } from "../../../types/transactions.types";
 
 /** Which of the Transactions page's two tabs is active. */
 export type TransactionsTab = "transactions" | "imported";
 
-/** Draft state for the create-transaction form, before it's parsed/validated into a request body. */
-export type TransactionFormState = {
+/**
+ * One participant row of a transaction draft's split. `draftId` is the stable client key (an
+ * existing participant's server id, or a generated id for a new row); `shareAmount` is the raw input string.
+ */
+export type ParticipantDraft = {
+  draftId: string;
+  userId?: string | null;
+  participantName: string;
+  email?: string;
+  source: "app" | "manual";
+  shareAmount: string;
+};
+
+/**
+ * Draft state of the Transaction Form View, for new and existing transactions alike. Money and
+ * date fields are raw input strings (`date` is a `datetime-local` value); empty strings mean "none".
+ * `isShared`, `sharedTitle` and `participants` are editable only on new drafts.
+ */
+export type TransactionDraft = {
   name: string;
   amount: string;
   executionCurrency: string;
@@ -18,30 +35,14 @@ export type TransactionFormState = {
   notes: string;
   isShared: boolean;
   sharedTitle: string;
+  participants: ParticipantDraft[];
 };
 
-/** Draft state for one shared-expense participant being added to a transaction's split, before save. */
-export type ParticipantDraft = {
-  draftId: string;
-  userId?: string | null;
-  participantName: string;
-  email?: string;
-  source: "app" | "manual";
-  shareAmount: string;
-};
-
-/** Draft state for the edit-transaction form, before it's parsed/validated into a request body. */
-export type TransactionEditForm = {
-  name: string;
-  amount: string;
-  executionCurrency: string;
-  type: "income" | "expense" | "transfer";
-  date: string;
-  accountId: string;
-  transferToAccountId: string;
-  categoryId: string;
-  groupId: string;
-  notes: string;
+/** A settlement transaction linked to the viewed one through `TransactionRelation`. */
+export type RelatedSettlementRow = {
+  id: string;
+  relationType: string;
+  transaction: Pick<Transaction, "id" | "name" | "amount" | "executionCurrency" | "date">;
 };
 
 /** Props for one row in the Imported Transactions review list. */

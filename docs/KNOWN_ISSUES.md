@@ -206,7 +206,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #017 — Changing a transaction amount does not rescale participant shares
+## [RESOLVED] #017 — Changing a transaction amount does not rescale participant shares
+
+**Resolved:** `updateTransaction` rejects with a 400 on `amount` an amount below the sum of existing participant shares, on the web API, `/v1` and MCP; the transaction view shows it on the amount field (`st007-transaction-form-view`).
 
 **Found in:** `expand-group-api-crud`.
 

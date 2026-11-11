@@ -45,8 +45,9 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/auth/oauth/callback` | `OAuthCallbackPage` | No |
 | `/` (index) | `DashboardPage` | Yes |
 | `/transactions` | `TransactionsPage` | Yes |
-| `/transactions/:id` | `TransactionDetailPage` | Yes |
-| `/transactions/:id/edit` | `TransactionEditPage` | Yes |
+| `/transactions/new` | `TransactionDetailPage` (unsaved draft, optional prefill query params) | Yes |
+| `/transactions/:id` | `TransactionDetailPage` (editable Form View) | Yes |
+| `/transactions/:id/edit` | redirects to `/transactions/:id` | Yes |
 | `/accounts` | `AccountsPage` | Yes |
 | `/categories` | `CategoriesPage` | Yes |
 | `/groups` | `GroupsPage` | Yes |
@@ -200,8 +201,7 @@ Every page lives in its own folder under `src/pages/`, named for the module (`Pa
 pages/<Name>/
   <Name>Page.tsx          the page component, exported as a named export (PascalCase)
   <OtherPage>.tsx          additional top-level pages that belong to the same module
-                            (e.g. Transactions/ also holds TransactionDetailPage.tsx
-                            and TransactionEditPage.tsx)
+                            (e.g. Transactions/ also holds TransactionDetailPage.tsx)
   components/              UI pieces extracted from this page that are specific to it —
                             not reused by any other page module
   hooks/                   stateful logic (state + mutations + queries) extracted from

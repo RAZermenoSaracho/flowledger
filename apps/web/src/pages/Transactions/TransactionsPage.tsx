@@ -11,7 +11,6 @@ import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import { providerAccountLabel } from "./components/ImportedTransactionCard";
 import { ImportedTransactionsFiltersCard } from "./components/ImportedTransactionsFiltersCard";
 import { ImportedTransactionsPanel } from "./components/ImportedTransactionsPanel";
-import { TransactionFormCard } from "./components/TransactionFormCard";
 import { TransactionList } from "./components/TransactionList";
 import { useImportedTransactionsWorkflow } from "./hooks/useImportedTransactionsWorkflow";
 import {
@@ -20,7 +19,7 @@ import {
   TRANSACTION_GROUPABLE_FIELDS,
   TRANSACTION_SORTABLE_FIELDS
 } from "./utils/transactionSearchFields";
-import { useAuth } from "../../hooks/useAuth";
+import { routes } from "../../constants/routes";
 import { listAccounts } from "../../services/accounts.client";
 import * as categoriesClient from "../../services/categories.client";
 import { listGroups } from "../../services/groups.client";
@@ -43,7 +42,6 @@ function isTransactionsTab(value: string | null): value is TransactionsTab {
 
 /** Transactions list page with a personal-transactions tab and an imported-transactions review tab. */
 export function TransactionsPage() {
-  const auth = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -57,7 +55,6 @@ export function TransactionsPage() {
   const activeTab: TransactionsTab = isTransactionsTab(requestedTab)
     ? requestedTab
     : "transactions";
-  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const imported = useImportedTransactionsWorkflow({ searchParams });
   // Bumped to force the imported tab's <SearchBar> to remount (re-reading
   // its `initialDomain` fresh) when the URL's `status` param changes while
@@ -261,15 +258,6 @@ export function TransactionsPage() {
 
       {activeTab === "transactions" ? (
         <>
-          <TransactionFormCard
-            isOpen={isTransactionFormOpen}
-            onClose={() => setIsTransactionFormOpen(false)}
-            accounts={accountsQuery.data ?? []}
-            groups={groupsQuery.data ?? []}
-            personalCategories={categoriesQuery.data ?? []}
-            defaultCurrency={auth.user?.preferredCurrency || "USD"}
-            onCreated={async () => {}}
-          />
           <div className="grid gap-4">
             <Card>
               <PageHeader
@@ -277,7 +265,7 @@ export function TransactionsPage() {
                 action={
                   <AddRecordButton
                     label="transaction"
-                    onClick={() => setIsTransactionFormOpen(true)}
+                    onClick={() => navigate(routes.newTransaction)}
                   />
                 }
               >
@@ -297,7 +285,7 @@ export function TransactionsPage() {
               totalCount={visibleTransactions.length}
               isDeleting={deleteTransaction.isPending}
               onEdit={(transaction) =>
-                navigate(`/transactions/${transaction.id}/edit`)
+                navigate(routes.transaction(transaction.id))
               }
               onDelete={(transaction) =>
                 void confirmDeleteTransaction(transaction)

@@ -23,7 +23,7 @@ import { ProfilePage } from "./pages/Profile/ProfilePage";
 import { RegisterPage } from "./pages/Register/RegisterPage";
 import { ReportsPage } from "./pages/Reports/ReportsPage";
 import { TransactionDetailPage } from "./pages/Transactions/TransactionDetailPage";
-import { TransactionEditPage } from "./pages/Transactions/TransactionEditPage";
+import { TransactionEditRedirect } from "./pages/Transactions/components/TransactionEditRedirect";
 import { TransactionsPage } from "./pages/Transactions/TransactionsPage";
 
 const queryClient = new QueryClient();
@@ -59,12 +59,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route index element={<DashboardPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
                 <Route
+                  path={routes.newTransaction}
+                  element={<TransactionDetailPage />}
+                />
+                <Route
                   path="/transactions/:id"
                   element={<TransactionDetailPage />}
                 />
                 <Route
                   path="/transactions/:id/edit"
-                  element={<TransactionEditPage />}
+                  element={<TransactionEditRedirect />}
                 />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />

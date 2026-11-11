@@ -30,6 +30,24 @@ export type Transaction = {
   sharedExpense?: SharedExpense | null;
   /** Set when imported from a provider; `transactionDate` is the provider's original value. */
   providerImportedTransaction?: { transactionDate: string } | null;
+  /** Links from this transaction to related ones (settlement payments). */
+  relations?: TransactionRelationLink[];
+  /** Links from other transactions to this one. */
+  relatedBy?: TransactionRelationBackLink[];
+};
+
+/** Outgoing `TransactionRelation` row on a transaction, with the related transaction. */
+export type TransactionRelationLink = {
+  id: string;
+  relationType: string;
+  relatedTransaction: Transaction;
+};
+
+/** Incoming `TransactionRelation` row on a transaction, with the transaction that points at it. */
+export type TransactionRelationBackLink = {
+  id: string;
+  relationType: string;
+  transaction: Transaction;
 };
 
 /** Review status of a provider-imported transaction. */
