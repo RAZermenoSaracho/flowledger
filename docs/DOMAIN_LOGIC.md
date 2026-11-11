@@ -259,6 +259,14 @@ Groups by `YYYY-MM` in `filters.timeZone` (default UTC; see "Date and time"). Fo
 
 The route layer then adds `reportIncome`/`reportExpenses` per row, selected by `filters.amountMode` the same way as the summary report. Transfers are excluded from cashflow. Category filters apply to both `categoryId` and `expenseOffsetCategoryId`.
 
+### Financial overview
+
+`GET /reports/financial-overview?timeZone=` (`reports/services/financialOverview.service.ts`), shown in the Profile General tab. Both metrics are in the user's `preferredCurrency` (USD fallback) and are computed independently: a failure in one returns `{ status: "error" }` for it while the other is still returned.
+
+- **Net worth (estimate)** = balances of non-archived accounts + outstanding amounts owed to me − outstanding amounts I owe. Only **accepted** shares count (`isCountedShare()`); proposed shares are reported as `awaitingAcceptance` (a count) and are never added. Items whose exchange rate is unavailable are left out and listed in `excluded`, with `partial: true`.
+- **Savings rate** = (net income − net expenses) / net income × 100 for the previous complete calendar month in `timeZone`, using the monthly-cashflow net figures. Statuses: `ok`, `no_data` (no income/expense rows that month), `unavailable_income` (net income ≤ 0) and `unavailable_rate` (a conversion failed).
+- `disclosures` explain the estimate: `archived_balance_excluded`, `rates_missing`, `past_month_current_rates` (past months converted at current rates), `cross_currency_effects`, `investment_recorded_balance` (investments use recorded, not market, value) and `synced_balances`.
+
 ---
 
 ## Notifications

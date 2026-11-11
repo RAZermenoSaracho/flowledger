@@ -24,7 +24,7 @@ Implement after ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-
 
 ## 5. Docs
 
-- [ ] 5.1 Add `GET /reports/financial-overview` to the reports row in `docs/PUBLIC_API.md`, and a "Financial overview" subsection under Reports in `docs/DOMAIN_LOGIC.md` (definitions, partial and unavailable states, disclosures). Verify: the entries match the implemented response.
+- [x] 5.1 Add `GET /reports/financial-overview` to the reports row in `docs/PUBLIC_API.md`, and a "Financial overview" subsection under Reports in `docs/DOMAIN_LOGIC.md` (definitions, partial and unavailable states, disclosures). Verify: the entries match the implemented response. Note: `docs/PUBLIC_API.md` documents only `/v1`, which does not route this endpoint (not required by the spec), so only DOMAIN_LOGIC.md was updated.
 
 ## 6. Verification
 
