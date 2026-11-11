@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { publicUserSelect } from "../../../users/utils/publicUser.js";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import {
   assertOwnedGroupTransaction,
@@ -54,6 +55,20 @@ describe("assertOwnedGroupTransaction", () => {
 });
 
 describe("normalizeSharedExpenseParticipants", () => {
+  beforeEach(() => {
+    prismaMock.userBlock.findMany.mockResolvedValue([]);
+  });
+
+  it("rejects an invitee blocked in either direction with the generic message", async () => {
+    prismaMock.userBlock.findMany.mockResolvedValue([{ blockerId: "user-2", blockedId: "owner-1" }] as never);
+
+    await expect(
+      normalizeSharedExpenseParticipants("owner-1", [
+        { userId: "user-2", participantName: "Friend", shareAmount: 50 }
+      ] as never)
+    ).rejects.toMatchObject({ statusCode: 400, message: "This user can't be invited." });
+  });
+
   it("returns participants unchanged when none reference a userId", async () => {
     const participants = [{ participantName: "Cash Friend", shareAmount: 50 }];
     const result = await normalizeSharedExpenseParticipants(
@@ -103,16 +118,16 @@ describe("normalizeSharedExpenseParticipants", () => {
     ).rejects.toThrow("One or more participants do not exist");
   });
 
-  it("fills in each registered participant's current display name", async () => {
+  it("stores a username snapshot, never the name, for each registered participant", async () => {
     prismaMock.user.findMany.mockResolvedValue([
-      { id: "user-2", name: "Current Name" }
+      { id: "user-2", username: "current" }
     ] as never);
 
     const result = await normalizeSharedExpenseParticipants("owner-1", [
       { userId: "user-2", participantName: "Stale Name", shareAmount: 50 }
     ] as never);
 
-    expect(result[0]).toMatchObject({ participantName: "Current Name" });
+    expect(result[0]).toMatchObject({ participantName: "@current" });
   });
 });
 
@@ -151,7 +166,7 @@ describe("listSharedExpenses", () => {
     ).rejects.toThrow("Invalid shared-expenses query: not valid JSON");
   });
 
-  it("includes the owner's id/name alongside the transaction and participants", async () => {
+  it("includes the public owner and participant users alongside the transaction", async () => {
     prismaMock.sharedExpense.findMany.mockResolvedValue([{ id: "se-1" }] as never);
     prismaMock.sharedExpense.count.mockResolvedValue(1);
 
@@ -161,8 +176,8 @@ describe("listSharedExpenses", () => {
       expect.objectContaining({
         include: {
           transaction: true,
-          participants: true,
-          owner: { select: { id: true, name: true } }
+          participants: { include: { user: { select: publicUserSelect } } },
+          owner: { select: publicUserSelect }
         }
       })
     );
@@ -186,7 +201,7 @@ describe("getSharedExpenseById", () => {
     });
   });
 
-  it("includes the owner's id/name alongside the transaction and participants", async () => {
+  it("includes the public owner and participant users alongside the transaction", async () => {
     prismaMock.sharedExpense.findFirst.mockResolvedValue({ id: "se-1" } as never);
 
     await getSharedExpenseById("user-1", "se-1");
@@ -195,8 +210,8 @@ describe("getSharedExpenseById", () => {
       expect.objectContaining({
         include: {
           transaction: true,
-          participants: true,
-          owner: { select: { id: true, name: true } }
+          participants: { include: { user: { select: publicUserSelect } } },
+          owner: { select: publicUserSelect }
         }
       })
     );

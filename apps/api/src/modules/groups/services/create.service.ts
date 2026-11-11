@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
+import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 import { groupInclude } from "../utils/groupInclude.js";
 import { getGroupAdmin } from "./read.service.js";
 
@@ -32,7 +33,7 @@ export async function createGroup(
   userId: string,
   input: { name: string; description?: string | null }
 ) {
-  return prisma.group.create({
+  return publicizeUsers(await prisma.group.create({
     data: {
       name: input.name,
       description: input.description ?? null,
@@ -45,7 +46,7 @@ export async function createGroup(
       }
     },
     include: groupInclude(userId)
-  });
+  }));
 }
 
 /** Adds a member to a group; requires `userId` to be a group admin and the group to be active. */
@@ -100,7 +101,7 @@ export async function addGroupMember(
         userId: memberUserId,
         role: "member"
       },
-      include: { user: { select: { id: true, name: true, email: true } } }
+      include: { user: { select: publicUserSelect } }
     });
 
     await grantGroupCategoriesToUser(tx, groupId, memberUserId);
@@ -108,6 +109,7 @@ export async function addGroupMember(
     await createNotifications(tx, [
       {
         userId: memberUserId,
+        senderUserId: userId,
         type: "group_member_added",
         title: "Added to group",
         message: `You were added to ${group.name}.`,
@@ -115,7 +117,7 @@ export async function addGroupMember(
       }
     ]);
 
-    return createdMember;
+    return publicizeUsers(createdMember);
   });
 }
 

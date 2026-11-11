@@ -1,3 +1,12 @@
+import { publicUserLabel } from "../../users/utils/publicUser.js";
+
+/** A user as shown to another user; `displayName` is absent or null unless the user opted into showing their name. */
+type PublicUserLike = { id: string; username: string; displayName?: string | null };
+
+function userLabel(user: PublicUserLike) {
+  return publicUserLabel({ username: user.username, displayName: user.displayName ?? null });
+}
+
 type BalanceDebt = {
   id: string;
   userId: string | null;
@@ -6,16 +15,16 @@ type BalanceDebt = {
   creditorUserId?: string | null;
   outstandingAmount: number;
   outstandingAmountInPreferredCurrency: number;
-  user: { id: string; name: string; email: string } | null;
+  user: PublicUserLike | null;
   sharedExpense: {
     ownerUserId: string;
-    owner: { id: string; name: string; email: string };
+    owner: PublicUserLike;
   };
 };
 
 type PersonBalance = {
   key: string;
-  person: { id: string; name: string; email: string } | null;
+  person: PublicUserLike | null;
   fallbackName: string;
   theyOweMe: BalanceDebt[];
   iOweThem: BalanceDebt[];
@@ -25,12 +34,12 @@ type PersonBalance = {
 };
 
 function participantName(debt: BalanceDebt) {
-  return debt.user?.name ?? debt.participantName;
+  return debt.user ? userLabel(debt.user) : debt.participantName;
 }
 
 function partyName(debt: BalanceDebt, userId: string | null | undefined) {
   if (!userId) return undefined;
-  if (userId === debt.sharedExpense.ownerUserId) return debt.sharedExpense.owner.name;
+  if (userId === debt.sharedExpense.ownerUserId) return userLabel(debt.sharedExpense.owner);
   if (userId === debt.userId) return participantName(debt);
   if (!debt.userId && (userId === debt.debtorUserId || userId === debt.creditorUserId)) {
     return participantName(debt);

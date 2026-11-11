@@ -1,6 +1,6 @@
 import type { UpdateTransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
-import { HttpError, notFound } from "../../../utils/httpError.js";
+import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import { roundMoney } from "../../currencies/utils/roundMoney.js";
 import {
   assertExpenseOffsetAllowed,
@@ -22,8 +22,9 @@ import {
 } from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
-/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and syncing any linked shared expense. */
-export async function updateTransaction(userId: string, id: string, body: UpdateTransactionInput) {
+/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and syncing any linked shared expense. Throws a 400 addressed to `amount` when the new amount is below the sum of existing participant shares. The `sharedExpense` key is not applied here. */
+export async function updateTransaction(userId: string, id: string, input: UpdateTransactionInput) {
+  const { sharedExpense: _sharedExpense, ...body } = input;
   const existing = await prisma.transaction.findFirst({
     where: { id, userId },
     include: {
@@ -37,6 +38,21 @@ export async function updateTransaction(userId: string, id: string, body: Update
     }
   });
   if (!existing) throw notFound("Transaction");
+
+  if (body.amount !== undefined && existing.sharedExpense) {
+    const sharesInCents = existing.sharedExpense.participants.reduce(
+      (sum, participant) => sum + Math.round(participant.shareAmount.toNumber() * 100),
+      0
+    );
+    if (Math.round(body.amount * 100) < sharesInCents) {
+      throw badRequest("Amount cannot be below the sum of participant shares", {
+        issues: {
+          formErrors: [],
+          fieldErrors: { amount: ["Amount cannot be below the sum of participant shares"] }
+        }
+      });
+    }
+  }
 
   const relationInput = {
     accountId:

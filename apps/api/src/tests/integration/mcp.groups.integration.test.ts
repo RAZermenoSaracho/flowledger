@@ -233,16 +233,20 @@ describe("MCP group tools", () => {
 
   it("searches users with caps, adds members and creates group categories as admin only, matching REST", async () => {
     const { user: target } = await createAuthedUser(app, { name: "Mcp Findable" });
-    for (let i = 0; i < 11; i++) await createAuthedUser(app, { name: `Mcpcap ${i}` });
+    await prisma.user.update({ where: { id: target.id }, data: { username: "mcp_findable" } });
+    for (let i = 0; i < 11; i++) {
+      const { user } = await createAuthedUser(app, { name: `Mcpcap ${i}` });
+      await prisma.user.update({ where: { id: user.id }, data: { username: `mcpcap_${i}` } });
+    }
     const g = (await call(a.write, "create_group", { name: "McpAdds" })).structuredContent!.group.id as string;
     await request(app).post(`/groups/${g}/members`).set(bearer(a.jwt)).send({ userId: b.userId }).expect(201);
 
     expect((await call(a.read, "search_users", { q: "mc" })).isError).toBe(true);
     expect((await call(a.read, "search_users", { q: "mcpcap", limit: 11 })).isError).toBe(true);
-    const found = await call(a.read, "search_users", { q: "Mcp Find" });
-    expect(found.structuredContent).toEqual({ users: [{ id: target.id, name: "Mcp Findable", email: target.email }] });
+    const found = await call(a.read, "search_users", { q: "Mcp_Find" });
+    expect(found.structuredContent).toEqual({ users: [{ id: target.id, username: "mcp_findable", displayName: null }] });
     expect((await call(a.read, "search_users", { q: "mcpcap" })).structuredContent!.users).toHaveLength(10);
-    const viaRest = (await request(app).get("/v1/users/search?q=Mcp%20Find").set(bearer(a.readKey))).body;
+    const viaRest = (await request(app).get("/v1/users/search?q=Mcp_Find").set(bearer(a.readKey))).body;
     expect(found.structuredContent).toEqual(viaRest);
 
     const before = await counts();

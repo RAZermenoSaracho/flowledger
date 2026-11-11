@@ -5,6 +5,7 @@ import { balanceDebt } from "../utils/debtCalculations.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import { isDebtRelevantToUser } from "../utils/debtDirection.js";
 import { buildPersonBalances } from "../utils/personBalances.js";
+import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 
 async function withPreferredCurrencyOutstandingAmounts<
   TDebt extends { currency: string; outstandingAmount: number }
@@ -35,49 +36,49 @@ export async function listDebts(userId: string) {
     where: { id: userId },
     select: { preferredCurrency: true }
   });
-  const debts = await prisma.sharedExpenseParticipant.findMany({
+  const debts = publicizeUsers(await prisma.sharedExpenseParticipant.findMany({
     where: {
       OR: [{ userId }, { sharedExpense: { ownerUserId: userId } }]
     },
     include: debtInclude,
     orderBy: { createdAt: "desc" }
-  });
-  const pendingSettlementRequests = await prisma.settlementRequest.findMany({
+  }));
+  const pendingSettlementRequests = publicizeUsers(await prisma.settlementRequest.findMany({
     where: {
       status: "pending",
       OR: [{ debtorUserId: userId }, { creditorUserId: userId }]
     },
     include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       sharedExpenseParticipant: {
         include: {
           sharedExpense: {
             include: {
-              owner: { select: { id: true, name: true, email: true } },
+              owner: { select: publicUserSelect },
               transaction: { select: publicTransactionSelect }
             }
           },
-          user: { select: { id: true, name: true, email: true } }
+          user: { select: publicUserSelect }
         }
       }
     },
     orderBy: { createdAt: "desc" }
-  });
-  const approvedSettlementRequests = await prisma.settlementRequest.findMany({
+  }));
+  const approvedSettlementRequests = publicizeUsers(await prisma.settlementRequest.findMany({
     where: {
       status: "approved",
       debtorUserId: userId
     },
     include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       sharedExpenseParticipant: {
         include: debtInclude
       }
     },
     orderBy: { approvedAt: "desc" }
-  });
+  }));
 
   const withBalances = await withPreferredCurrencyOutstandingAmounts(
     debts

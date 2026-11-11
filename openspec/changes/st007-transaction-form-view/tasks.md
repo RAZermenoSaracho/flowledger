@@ -4,9 +4,9 @@ Tests follow `docs/TESTING.md`: `tests/` folder beside each source file, same ba
 
 ## 1. Server and shared schema
 
-- [ ] 1.1 In `packages/shared/src/schemas/`, add the optional `sharedExpense` shape to `updateTransactionSchema` (TSDoc, no semantics). Verify: `schemas/tests/` cases for valid and invalid shapes pass.
-- [ ] 1.2 In `apps/api/src/modules/transactions/services/update.service.ts`, reject (400 on `amount`) an amount below the sum of existing participant shares, with TSDoc. Verify: `services/tests/update.service.test.ts` covers below, equal and unshared cases.
-- [ ] 1.3 Add a test that another user's transaction id yields not-found on update. Verify: same test file passes.
+- [x] 1.1 In `packages/shared/src/schemas/`, add the optional `sharedExpense` shape to `updateTransactionSchema` (TSDoc, no semantics). Verify: `schemas/tests/` cases for valid and invalid shapes pass.
+- [x] 1.2 In `apps/api/src/modules/transactions/services/update.service.ts`, reject (400 on `amount`) an amount below the sum of existing participant shares, with TSDoc. Verify: `services/tests/update.service.test.ts` covers below, equal and unshared cases.
+- [x] 1.3 Add a test that another user's transaction id yields not-found on update. Verify: same test file passes.
 
 ## 2. Domain utils
 

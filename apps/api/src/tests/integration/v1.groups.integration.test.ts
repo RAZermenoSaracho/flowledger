@@ -329,6 +329,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       gid = g.body.group.id;
       await addMember(a, gid, b.userId);
       const { user } = await createAuthedUser(app, { name: "Zed Searchable" });
+      await prisma.user.update({ where: { id: user.id }, data: { username: "zed_searchable" } });
       target = { userId: user.id, email: user.email };
     });
 
@@ -336,16 +337,22 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       const get = (q: string, extra = "", key = a.readKey) => request(app).get(`/v1/users/search?q=${q}${extra}`).set(bearer(key));
       expect((await get("ze")).status).toBe(400);
       expect((await get("zed", "&limit=11")).status).toBe(400);
-      const hit = await get("Zed%20Search");
+      const hit = await get("Zed_Search");
       expect(hit.status).toBe(200);
-      expect(hit.body.users).toEqual([{ id: target.userId, name: "Zed Searchable", email: target.email }]);
-      expect((await get("a.com", "", a.writeKey)).status).toBe(200);
+      expect(hit.body.users).toEqual([{ id: target.userId, username: "zed_searchable", displayName: null }]);
+      expect((await get(encodeURIComponent(target.email))).body.users).toEqual([]);
+      expect((await get("Zed%20Searchable")).body.users).toEqual([]);
+      expect((await get("zed_search", "", a.writeKey)).status).toBe(200);
       // Registers 11 users (bcrypt cost 12 each), which exceeds the default 5 s timeout when suites run in parallel.
-      for (let i = 0; i < 11; i++) await createAuthedUser(app, { name: `Capuser ${i}` });
+      for (let i = 0; i < 11; i++) {
+        const { user } = await createAuthedUser(app, { name: `Capuser ${i}` });
+        await prisma.user.update({ where: { id: user.id }, data: { username: `capuser_${i}` } });
+      }
       const capped = await get("capuser");
       expect(capped.body.users).toHaveLength(10);
       expect(capped.body.users.map((u: { id: string }) => u.id)).not.toContain(a.userId);
-      const self = await get(encodeURIComponent("test-user"));
+      const own = await prisma.user.findUniqueOrThrow({ where: { id: a.userId } });
+      const self = await get(encodeURIComponent(own.username));
       expect(self.body.users.map((u: { id: string }) => u.id)).not.toContain(a.userId);
     }, 20_000);
 

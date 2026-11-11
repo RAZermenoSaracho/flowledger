@@ -99,7 +99,8 @@ export async function notifySharedExpenseParticipants(
         type: "shared_expense_added" as const,
         title: "Added to shared expense",
         message: `You were added to ${sharedExpense.title}.`,
-        metadata
+        metadata,
+        senderUserId: ownerUserId
       }
     ];
 
@@ -118,7 +119,8 @@ export async function notifySharedExpenseParticipants(
           direction.debtorUserId === participant.userId
             ? `You owe ${amount} for ${sharedExpense.title}.`
             : `You owe ${participant.participantName} ${amount} for ${sharedExpense.title}.`,
-        metadata
+        metadata,
+        senderUserId: ownerUserId
       },
       {
         userId: direction.creditorUserId,
@@ -128,7 +130,8 @@ export async function notifySharedExpenseParticipants(
           direction.creditorUserId === participant.userId
             ? `You are owed ${amount} for ${sharedExpense.title}.`
             : `${participant.participantName} owes you ${amount} for ${sharedExpense.title}.`,
-        metadata
+        metadata,
+        senderUserId: ownerUserId
       }
     ];
   });

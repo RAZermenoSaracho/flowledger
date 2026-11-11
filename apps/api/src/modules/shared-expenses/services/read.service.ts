@@ -7,7 +7,9 @@ import type {
   SharedExpenseListRecord,
   SharedExpensesQueryInput
 } from "../types/sharedExpenses.types.js";
+import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 import { withVisibleTransaction } from "../utils/transactionVisibility.js";
+import { assertNoBlockedInvitees } from "../../users/services/read.service.js";
 
 const sharedExpensesSieve = createSieve(prisma.sharedExpense);
 // Participants can list these rows, so a filter on `transaction.*` would reveal the owner's private fields.
@@ -42,7 +44,7 @@ export async function assertOwnedGroupTransaction(userId: string, transactionId:
   if (!transaction.groupId) throw badRequest("Shared expenses can only be created for group transactions");
 }
 
-/** Validates participant input (no owner, group-split participants must be app users and group members) and fills in each registered participant's current display name. */
+/** Validates participant input (no owner, no user blocked in either direction with the owner (400 "This user can't be invited."), group-split participants must be app users and group members) and fills in each registered participant's current display name. */
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
   participants: SharedExpenseInput["participants"] = [],
@@ -69,6 +71,8 @@ export async function normalizeSharedExpenseParticipants(
     return participants;
   }
 
+  await assertNoBlockedInvitees(ownerUserId, participantUserIds);
+
   if (groupId) {
     const groupMemberCount = await prisma.groupMember.count({
       where: {
@@ -87,7 +91,7 @@ export async function normalizeSharedExpenseParticipants(
 
   const users = await prisma.user.findMany({
     where: { id: { in: participantUserIds } },
-    select: { id: true, name: true }
+    select: { id: true, username: true }
   });
   const usersById = new Map(users.map((user) => [user.id, user]));
 
@@ -101,7 +105,7 @@ export async function normalizeSharedExpenseParticipants(
     const user = usersById.get(participant.userId);
     return {
       ...participant,
-      participantName: user?.name ?? participant.participantName
+      participantName: user ? `@${user.username}` : participant.participantName
     };
   });
 }
@@ -161,11 +165,11 @@ export async function listSharedExpenses(
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     include: {
       transaction: true,
-      participants: true,
-      owner: { select: { id: true, name: true } }
+      participants: { include: { user: { select: publicUserSelect } } },
+      owner: { select: publicUserSelect }
     }
   });
-  return result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId));
+  return publicizeUsers(result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId)));
 }
 
 /** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant; non-owners get the public transaction fields only. */
@@ -180,11 +184,11 @@ export async function getSharedExpenseById(userId: string, sharedExpenseId: stri
     },
     include: {
       transaction: true,
-      participants: true,
-      owner: { select: { id: true, name: true } }
+      participants: { include: { user: { select: publicUserSelect } } },
+      owner: { select: publicUserSelect }
     }
   });
   if (!sharedExpense) throw notFound("Shared expense");
 
-  return withVisibleTransaction(sharedExpense, userId);
+  return publicizeUsers(withVisibleTransaction(sharedExpense, userId));
 }

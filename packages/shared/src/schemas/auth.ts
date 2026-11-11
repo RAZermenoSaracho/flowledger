@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MOBILE_SIDEBAR_SIDES, PLAN_TYPES } from "../constants/index.js";
+import { identityVisibilitySchema, usernameSchema } from "./identity.js";
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -41,7 +42,9 @@ export const googleOAuthCallbackQuerySchema = z.object({
 export const updateUserProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(255),
-  preferredCurrency: z.string().min(1).max(10).nullable().optional()
+  preferredCurrency: z.string().min(1).max(10).nullable().optional(),
+  username: usernameSchema.optional(),
+  identityVisibility: identityVisibilitySchema.optional()
 });
 
 /** Body of `PATCH /v1/me` and the MCP `update_preferences` tool: only name and default currency (never email, password or plan); at least one field is required. */

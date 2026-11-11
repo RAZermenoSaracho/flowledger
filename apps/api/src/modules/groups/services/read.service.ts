@@ -2,6 +2,7 @@ import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import type { GroupListRecord, GroupsQueryInput } from "../types/groups.types.js";
+import { publicizeUsers } from "../../users/utils/publicUser.js";
 import { groupInclude, groupListInclude } from "../utils/groupInclude.js";
 
 const groupsSieve = createSieve(prisma.group);
@@ -111,7 +112,7 @@ export async function listGroups(userId: string, rawQuery: string | undefined) {
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     include: groupListInclude()
   });
-  return result.data;
+  return publicizeUsers(result.data);
 }
 
 /** Like `getGroupById` but answers a non-member (or missing group) with 404, for external surfaces that must not reveal group existence. */
@@ -166,7 +167,7 @@ export async function getGroupById(userId: string, groupId: string) {
   );
 
   return {
-    ...group,
+    ...publicizeUsers(group),
     summary: {
       ...summary,
       balance: summary.totalIncome - summary.totalExpenses

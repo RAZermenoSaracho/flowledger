@@ -56,3 +56,28 @@ describe("createNotifications", () => {
     expect(tx.notification.createMany).not.toHaveBeenCalled();
   });
 });
+
+describe("createNotifications blocked senders", () => {
+  it("drops notifications whose recipient has blocked the sender and keeps the rest", async () => {
+    const tx = {
+      notification: { createMany: vi.fn() },
+      userBlock: { findMany: vi.fn().mockResolvedValue([{ blockerId: "user-1", blockedId: "owner" }]) }
+    };
+
+    await createNotifications(tx as never, [
+      { userId: "user-1", type: "shared_expense_invited", title: "t", message: "m", senderUserId: "owner" },
+      { userId: "user-2", type: "shared_expense_invited", title: "t", message: "m", senderUserId: "owner" },
+      { userId: "user-1", type: "group_member_added", title: "t", message: "m" }
+    ]);
+
+    const data = tx.notification.createMany.mock.calls[0]![0].data;
+    expect(data.map((n: { userId: string }) => n.userId)).toEqual(["user-2", "user-1"]);
+    expect(data[0]).not.toHaveProperty("senderUserId");
+  });
+
+  it("does not query blocks when no notification has a sender", async () => {
+    const tx = { notification: { createMany: vi.fn() }, userBlock: { findMany: vi.fn() } };
+    await createNotifications(tx as never, [{ userId: "u", type: "group_member_added", title: "t", message: "m" }]);
+    expect(tx.userBlock.findMany).not.toHaveBeenCalled();
+  });
+});

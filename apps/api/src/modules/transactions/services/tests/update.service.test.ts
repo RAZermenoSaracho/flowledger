@@ -98,6 +98,62 @@ describe("updateTransaction", () => {
     ).rejects.toThrow("Transaction not found");
   });
 
+  it("looks the transaction up scoped to the caller so another user's id is not found", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(null);
+
+    await expect(
+      updateTransaction("other-user", "txn-1", { name: "x" })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "txn-1", userId: "other-user" } })
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  describe("amount vs participant shares", () => {
+    const shared = (...shares: number[]) =>
+      existingTransaction({
+        sharedExpense: {
+          participants: shares.map((s) => ({ shareAmount: { toNumber: () => s } }))
+        }
+      }) as never;
+
+    it("rejects an amount below the shares with a 400 on amount", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(shared(60, 30));
+
+      await expect(
+        updateTransaction("user-1", "txn-1", { amount: 89.99 })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        details: { issues: { fieldErrors: { amount: [expect.any(String)] } } }
+      });
+    });
+
+    it("allows an amount equal to the shares", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(shared(60, 30));
+      const tx = mockTx();
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        (arg as (tx: unknown) => unknown)(tx)
+      );
+
+      await updateTransaction("user-1", "txn-1", { amount: 90 });
+
+      expect(tx.transaction.update).toHaveBeenCalled();
+    });
+
+    it("does not apply to an unshared transaction", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+      const tx = mockTx();
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        (arg as (tx: unknown) => unknown)(tx)
+      );
+
+      await updateTransaction("user-1", "txn-1", { amount: 1 });
+
+      expect(tx.transaction.update).toHaveBeenCalled();
+    });
+  });
+
   it("recomputes amountInPreferredCurrency from the existing exchange rate when only amount changes", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue(
       existingTransaction() as never

@@ -72,7 +72,7 @@ export function registerGroupReadTools(server: McpServer, auth: McpAuth) {
     "search_users",
     {
       description:
-        "Find other FlowLedger users by name or email substring (at least 3 characters, at most 10 results) to get the `userId` for `add_group_member`. Returns only id, name and email; the user themself is excluded.",
+        "Find other FlowLedger users by username (exact match first, then prefix; at least 3 characters, at most 10 results) to get the `userId` for `add_group_member`. Returns only id, username and displayName; the user themself and blocked users are excluded.",
       inputSchema: searchUsersToolSchema.shape,
       annotations: READ_ONLY
     },

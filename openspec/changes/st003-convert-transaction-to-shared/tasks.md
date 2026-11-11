@@ -4,21 +4,21 @@ Prerequisites: `st005-reusable-editable-form-view` and `st007-transaction-form-v
 
 ## 1. Migration and shared schemas
 
-- [ ] 1.1 Edit `database/prisma/schema.prisma`: `User.username` (nullable then unique), `IdentityVisibility`, `UserBlock`, `ShareAcceptance` + `SharedExpenseParticipant.acceptance` (default `proposed`), new `NotificationType` values. Verify: `npm run prisma:generate` and `npm run typecheck` pass.
-- [ ] 1.2 Create the single B-004 migration via Prisma, hand-adding the data backfill (username `user_`+12 random chars `WHERE username IS NULL`, then NOT NULL + unique; app-user acceptance `accepted`). GATE: the owner approves the migration SQL, including the data backfill, before it is applied. Verify: owner approval recorded; applied to a scratch DB; re-running the assignment changes zero rows; no other raw SQL exists.
-- [ ] 1.3 Add shared Zod schemas and constants in `packages/shared/src/schemas/`: username (rules, reserved list), visibility, acceptance, block body, public user type (the `sharedExpense` update shape is ST-007's). Verify: `schemas/tests/` cover valid, invalid, normalization and reserved cases.
+- [x] 1.1 Edit `database/prisma/schema.prisma`: `User.username` (nullable then unique), `IdentityVisibility`, `UserBlock`, `ShareAcceptance` + `SharedExpenseParticipant.acceptance` (default `proposed`), new `NotificationType` values. Verify: `npm run prisma:generate` and `npm run typecheck` pass.
+- [x] 1.2 Create the single B-004 migration via Prisma, hand-adding the data backfill (username `user_`+12 random chars `WHERE username IS NULL`, then NOT NULL + unique; app-user acceptance `accepted`). GATE: the owner approves the migration SQL, including the data backfill, before it is applied. Verify: owner approval recorded; applied to a scratch DB; re-running the assignment changes zero rows; no other raw SQL exists. Approval: owner authorized additive migrations on dev/staging (2026-11-10); SQL reviewed by the lead; production not authorized.
+- [x] 1.3 Add shared Zod schemas and constants in `packages/shared/src/schemas/`: username (rules, reserved list), visibility, acceptance, block body, public user type (the `sharedExpense` update shape is ST-007's). Verify: `schemas/tests/` cover valid, invalid, normalization and reserved cases.
 
 ## 2. Identity and privacy
 
-- [ ] 2.1 Add `generateUsername` helper and call it in email signup (`auth/services/create.service.ts`) and `findOrCreateGoogleUser` (inside its transaction), retrying on P2002. Verify: `services/tests/` cover both paths and a collision retry.
-- [ ] 2.2 Add `toPublicUser`/`publicUserSelect` and apply to users search, group members and add-member response, debts, person balances, settlements, shared-expense owner/participants (live label for app users), new notification text. Verify: unit tests per util/service; an integration test (Docker) asserts no email/phone in any listed response.
-- [ ] 2.3 Rework `GET /users/search` (exact then prefix, min 3, max 10, no email/name, excludes self; per-user `createRateLimiter`) and add `GET /users/username-availability`. Verify: service tests plus `users.routes.test.ts` (Docker) incl. 429.
-- [ ] 2.4 Username and visibility change through the own-profile update with P2002 -> 409. Verify: update service tests, including a concurrent-claim case; rename keeps relations (integration, Docker).
+- [x] 2.1 Add `generateUsername` helper and call it in email signup (`auth/services/create.service.ts`) and `findOrCreateGoogleUser` (inside its transaction), retrying on P2002. Verify: `services/tests/` cover both paths and a collision retry.
+- [x] 2.2 Add `toPublicUser`/`publicUserSelect` and apply to users search, group members and add-member response, debts, person balances, settlements, shared-expense owner/participants (live label for app users), new notification text. Verify: unit tests per util/service; an integration test (Docker) asserts no email/phone in any listed response.
+- [x] 2.3 Rework `GET /users/search` (exact then prefix, min 3, max 10, no email/name, excludes self; per-user `createRateLimiter`) and add `GET /users/username-availability`. Verify: service tests plus `users.routes.test.ts` (Docker) incl. 429.
+- [x] 2.4 Username and visibility change through the own-profile update with P2002 -> 409. Verify: update service tests, including a concurrent-claim case; rename keeps relations (integration, Docker).
 
 ## 3. Blocking
 
-- [ ] 3.1 Block services and `GET/POST /users/blocks`, `DELETE /users/blocks/:userId` (controllers via `asyncHandler`). Verify: service tests and routes test (Docker), including user isolation and idempotency.
-- [ ] 3.2 Effects: generic invite 400, notification suppression, search exclusion both ways, proposed -> rejected at block time. Verify: service tests; integration test that accepted shares and Group membership are untouched.
+- [x] 3.1 Block services and `GET/POST /users/blocks`, `DELETE /users/blocks/:userId` (controllers via `asyncHandler`). Verify: service tests and routes test (Docker), including user isolation and idempotency.
+- [x] 3.2 Effects: generic invite 400, notification suppression, search exclusion both ways, proposed -> rejected at block time. Verify: service tests; integration test that accepted shares and Group membership are untouched.
 
 ## 4. Consent
 

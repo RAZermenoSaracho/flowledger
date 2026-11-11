@@ -10,6 +10,7 @@ import {
   assertSettlementAccount,
   assertSettlementCategory
 } from "./settlementValidation.service.js";
+import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
 /** Creates a settlement request for a debt, validating direction, outstanding balance, and account/category ownership before notifying the creditor. */
 export async function createSettlementRequest(
@@ -86,17 +87,17 @@ export async function createSettlementRequest(
       paymentInfo: body.paymentInfo?.trim() || null
     },
     include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       sharedExpenseParticipant: {
         include: {
           sharedExpense: {
             include: {
-              owner: { select: { id: true, name: true, email: true } },
+              owner: { select: publicUserSelect },
               transaction: { select: publicTransactionSelect }
             }
           },
-          user: { select: { id: true, name: true, email: true } }
+          user: { select: publicUserSelect }
         }
       }
     }
@@ -105,9 +106,10 @@ export async function createSettlementRequest(
   await createNotifications(prisma, [
     {
       userId: settlementRequest.creditorUserId,
+      senderUserId: userId,
       type: "settlement_requested",
       title: "Settlement requested",
-      message: `${settlementRequest.debtor.name} requested settlement of ${moneyText(
+      message: `${userLabel(settlementRequest.debtor)} requested settlement of ${moneyText(
         settlementRequest.amount
       )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
       metadata: {
@@ -127,7 +129,7 @@ export async function createSettlementRequest(
     }
   ]);
 
-  return settlementRequest;
+  return publicizeUsers(settlementRequest);
 }
 
 /** Creates a settlement request for each entry in `requests`, sequentially, reusing {@link createSettlementRequest}. */

@@ -21,6 +21,7 @@ import {
   assertSettlementCategory,
   resolveSettlementExpenseOffsetCategoryId
 } from "./settlementValidation.service.js";
+import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
 /** Marks a shared expense `settled` once none of its participants have an unpaid balance. */
 export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
@@ -83,6 +84,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
       await createNotifications(tx, [
         {
           userId: direction.debtorUserId,
+          senderUserId: userId,
           type: "settlement_approved",
           title: "Settlement approved",
           message: `Your settlement for ${debt.sharedExpense.title} was approved.`,
@@ -96,6 +98,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
         },
         {
           userId: direction.debtorUserId,
+          senderUserId: userId,
           type: "settlement_payment_registration_needed",
           title: "Register settlement payment",
           message: `Your settlement for ${debt.sharedExpense.title} was approved. Register the payment as a transaction when ready.`,
@@ -114,7 +117,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
   });
 
   await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
-  return { debt: balanceDebt(result.debt) };
+  return { debt: publicizeUsers(balanceDebt(result.debt)) };
 }
 
 /** Approves a pending settlement request and creates the matching debtor-expense/creditor-income transaction pair for it. */
@@ -139,15 +142,15 @@ export async function approveSettlement(
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         },
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } }
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect }
       }
     });
     if (!settlementRequest) throw notFound("Settlement request");
@@ -184,17 +187,17 @@ export async function approveSettlement(
       where: { id: settlementRequest.id },
       data: { status: "approved", approvedAt: new Date() },
       include: {
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } },
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect },
         sharedExpenseParticipant: {
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         }
       }
@@ -353,17 +356,17 @@ export async function approveSettlement(
         creditorTransactionId: creditorTransaction.id
       },
       include: {
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } },
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect },
         sharedExpenseParticipant: {
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         }
       }
@@ -372,9 +375,10 @@ export async function approveSettlement(
     await createNotifications(tx, [
       {
         userId: approvedRequestWithTransactions.debtorUserId,
-        type: "settlement_approved",
+        senderUserId: userId,
+          type: "settlement_approved",
         title: "Settlement approved",
-        message: `${approvedRequestWithTransactions.creditor.name} approved your ${moneyText(
+        message: `${userLabel(approvedRequestWithTransactions.creditor)} approved your ${moneyText(
           approvedRequestWithTransactions.amount
         )} settlement for ${approvedRequestWithTransactions.sharedExpenseParticipant.sharedExpense.title}. A transaction was created automatically.`,
         metadata: {
@@ -405,10 +409,10 @@ export async function approveSettlement(
   });
 
   await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
-  return {
+  return publicizeUsers({
     settlementRequest: result.settlementRequest,
     debt: balanceDebt(result.debt)
-  };
+  });
 }
 
 /** Approves each entry in `approvals` sequentially, reusing {@link approveSettlement}. */
@@ -449,17 +453,17 @@ export async function rejectSettlement(
     where: { id: settlementRequest.id },
     data: { status: "rejected" },
     include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       sharedExpenseParticipant: {
         include: {
           sharedExpense: {
             include: {
-              owner: { select: { id: true, name: true, email: true } },
+              owner: { select: publicUserSelect },
               transaction: { select: publicTransactionSelect }
             }
           },
-          user: { select: { id: true, name: true, email: true } }
+          user: { select: publicUserSelect }
         }
       }
     }
@@ -468,9 +472,10 @@ export async function rejectSettlement(
   await createNotifications(prisma, [
     {
       userId: rejectedRequest.debtorUserId,
+      senderUserId: userId,
       type: "settlement_rejected",
       title: "Settlement rejected",
-      message: `${rejectedRequest.creditor.name} rejected your ${moneyText(
+      message: `${userLabel(rejectedRequest.creditor)} rejected your ${moneyText(
         rejectedRequest.amount
       )} settlement for ${rejectedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
       metadata: {
@@ -490,5 +495,5 @@ export async function rejectSettlement(
     }
   ]);
 
-  return rejectedRequest;
+  return publicizeUsers(rejectedRequest);
 }

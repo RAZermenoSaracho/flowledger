@@ -1,3 +1,5 @@
+import { publicUserSelect } from "../../users/utils/publicUser.js";
+
 /**
  * Prisma-native `include` for a single group fetch (`getGroupById`, a plain
  * `prisma.group.findUnique` call — not run through datasieve). Loads
@@ -12,7 +14,7 @@ export function groupInclude(userId: string) {
   return {
     members: {
       include: {
-        user: { select: { id: true, name: true, email: true } }
+        user: { select: publicUserSelect }
       },
       orderBy: { createdAt: "asc" as const }
     },
@@ -48,7 +50,7 @@ export function groupListInclude() {
   return {
     members: {
       include: {
-        user: { select: { id: true, name: true, email: true } }
+        user: { select: publicUserSelect }
       },
       sort: [{ field: "createdAt", direction: "asc" as const }]
     },
