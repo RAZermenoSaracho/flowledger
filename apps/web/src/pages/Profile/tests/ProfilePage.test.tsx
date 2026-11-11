@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -26,10 +26,7 @@ describe("ProfilePage", () => {
       "aria-selected",
       "true"
     );
-    expect(screen.getByRole("tabpanel")).toHaveAttribute(
-      "id",
-      "profile-panel-general"
-    );
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("General");
   });
 
   it("falls back to General for an unknown ?tab= value", () => {
@@ -60,18 +57,18 @@ describe("ProfilePage", () => {
     mockBaseline();
     renderProfile();
     await userEvent.click(
-      await screen.findByRole("button", { name: /Edit Currency/ })
-    );
-    await userEvent.click(
       await screen.findByRole("combobox", { name: "Preferred currency" })
     );
     await userEvent.click(await screen.findByRole("option", { name: /USD/ }));
     await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
     await userEvent.click(screen.getByRole("tab", { name: "General" }));
-    expect(
-      await screen.findByRole("button", { name: "Edit Currency: USD" })
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Preferred currency" })
+      ).toHaveValue("USD — US Dollar")
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("does not request API keys until the Security & API tab is opened", async () => {

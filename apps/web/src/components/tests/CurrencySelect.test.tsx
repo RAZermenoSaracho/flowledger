@@ -48,6 +48,15 @@ describe("CurrencySelect", () => {
     expect(screen.getByRole("combobox", { name: "Currency" })).toBeDisabled();
   });
 
+  it("keeps the label for assistive tech but hides it visually with hideLabel", () => {
+    mockCurrencies();
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="" onChange={vi.fn()} hideLabel />
+    );
+    expect(screen.getByText("Currency")).toHaveClass("sr-only");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toBeInTheDocument();
+  });
+
   it("shows the selected currency's formatted label when closed", async () => {
     mockCurrencies();
     renderWithProviders(

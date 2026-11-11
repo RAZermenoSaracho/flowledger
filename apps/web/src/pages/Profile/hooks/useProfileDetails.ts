@@ -1,136 +1,97 @@
-import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrenciesQuery } from "../../../components/CurrencySelect";
+import { useFormDraft } from "../../../hooks/useFormDraft";
 import * as authClient from "../../../services/auth.client";
 import * as usersClient from "../../../services/users.client";
-import type { ProfileDraft, ProfileDraftField } from "../types/profile.types";
+import type { ProfileDraft } from "../types/profile.types";
+import { validateProfile } from "../utils/profileValidation";
 import { useProfileUser } from "./useProfileUser";
 
+const EMPTY_PROFILE: ProfileDraft = { name: "", email: "", preferredCurrency: "", avatarFile: null };
+
 /**
- * Read model for the Profile page: the user plus derived display values (avatar URL, initials,
- * currency label, member-since date) plus the inline-edit draft. Owned by `ProfilePage`, which stays
- * mounted across tab switches so drafts survive them. Nothing persists until `save()`; while dirty a
- * `beforeunload` guard is registered. `save()` is a no-op when `fieldErrors` is non-empty. When the email
- * changed, `save()` instead opens the password prompt (`isPasswordPromptOpen`); `confirmEmailChange(password)`
- * then changes the email first (replacing the access token), followed by the remaining name/currency/avatar changes.
+ * Profile adapter over `useFormDraft`: supplies Profile's `initial`, `validate` and `save` (email,
+ * then profile, then avatar) plus display values (avatar URL, initials, currency label, member-since).
+ * Owned by `ProfilePage`, which stays mounted across tab switches so the draft survives them.
+ * `draft` is the form hook result for `FormView`; pass `onSave` as the view's `onSave`: when the
+ * email changed it opens the password prompt (`isPasswordPromptOpen`) instead of saving, and
+ * `confirmEmailChange(password)` then saves with that password. `values` is the draft with
+ * empty defaults while the user loads.
  */
 export function useProfileDetails() {
   const { query, user, syncUser } = useProfileUser();
   const currenciesQuery = useCurrenciesQuery();
-  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [draft, setDraft] = useState<Partial<ProfileDraft>>({});
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [isPasswordPromptOpen, setIsPasswordPromptOpen] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const passwordRef = useRef<string | undefined>(undefined);
 
-  const original: ProfileDraft = {
-    name: user?.name ?? "",
-    email: user?.email ?? "",
-    preferredCurrency: user?.preferredCurrency ?? ""
-  };
-  const values: ProfileDraft = { ...original, ...draft };
-  const isDirty = Object.keys(draft).length > 0 || avatarFile !== null;
+  const initial = useMemo<ProfileDraft | null>(
+    () =>
+      user
+        ? {
+            name: user.name,
+            email: user.email,
+            preferredCurrency: user.preferredCurrency ?? "",
+            avatarFile: null
+          }
+        : null,
+    [user]
+  );
 
-  const fieldErrors: Partial<Record<ProfileDraftField, string>> = {};
-  if (draft.name !== undefined && !values.name.trim())
-    fieldErrors.name = "Name is required";
-  if (
-    draft.email !== undefined &&
-    !/^\S+@\S+\.\S+$/.test(values.email.trim())
-  ) {
-    fieldErrors.email = "Enter a valid email address";
-  }
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const guard = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", guard);
-    return () => window.removeEventListener("beforeunload", guard);
-  }, [isDirty]);
-
-  const saveMutation = useMutation({
-    mutationFn: async (currentPassword?: string) => {
-      let email = original.email;
-      if (draft.email !== undefined && currentPassword !== undefined) {
-        const changed = await usersClient.updateEmail({
-          email: values.email.trim(),
-          currentPassword
+  const draft = useFormDraft<ProfileDraft>({
+    initial,
+    validate: validateProfile,
+    save: async (values, changedKeys) => {
+      try {
+        let email = values.email.trim();
+        if (changedKeys.includes("email") && passwordRef.current !== undefined) {
+          const changed = await usersClient.updateEmail({
+            email,
+            currentPassword: passwordRef.current
+          });
+          authClient.setToken(changed.token);
+          syncUser(changed.user);
+          email = changed.user.email;
+        }
+        let saved = await usersClient.updateProfile({
+          name: values.name.trim(),
+          email,
+          preferredCurrency: values.preferredCurrency || null
         });
-        authClient.setToken(changed.token);
-        syncUser(changed.user);
-        setDraft(({ email: _email, ...rest }) => rest);
-        email = changed.user.email;
-      } else {
-        email = values.email.trim();
+        if (values.avatarFile) saved = await usersClient.uploadAvatar(values.avatarFile);
+        syncUser(saved.user);
+        setIsPasswordPromptOpen(false);
+      } finally {
+        passwordRef.current = undefined;
       }
-      let saved = await usersClient.updateProfile({
-        name: values.name.trim(),
-        email,
-        preferredCurrency: values.preferredCurrency || null
-      });
-      if (avatarFile) saved = await usersClient.uploadAvatar(avatarFile);
-      return saved;
-    },
-    onSuccess: (response) => {
-      syncUser(response.user);
-      setDraft({});
-      setAvatarFile(null);
-      setSaveError(null);
-      setIsPasswordPromptOpen(false);
-    },
-    onError: (caught) =>
-      setSaveError(
-        caught instanceof Error
-          ? caught.message
-          : "Profile could not be updated"
-      )
+    }
   });
 
-  /** Sets a draft value; setting it back to the original value drops it so `isDirty` stays accurate. */
-  function setField(field: ProfileDraftField, value: string) {
-    setDraft((current) => {
-      const { [field]: _removed, ...rest } = current;
-      return value === original[field] ? rest : { ...rest, [field]: value };
-    });
-  }
+  const values = initial ? draft.values : EMPTY_PROFILE;
 
-  /** Reverts one field to its saved value. */
-  function revertField(field: ProfileDraftField) {
-    setField(field, original[field]);
-  }
-
-  /** Discards every draft value and the pending avatar. */
-  function cancel() {
-    setDraft({});
-    setAvatarFile(null);
-    setSaveError(null);
-    setIsPasswordPromptOpen(false);
-  }
-
-  /** Persists the draft (email, then profile, then avatar); no-op while invalid or already saving. A changed email opens the password prompt instead of saving. */
-  function save() {
-    if (Object.keys(fieldErrors).length > 0 || saveMutation.isPending) return;
-    setSaveError(null);
-    if (draft.email !== undefined) {
-      setIsPasswordPromptOpen(true);
+  /** Save handler for `FormView`: opens the password prompt when the email changed, otherwise saves. */
+  async function onSave() {
+    if (draft.isSaving) return;
+    if (draft.changedKeys.includes("email")) {
+      if (Object.keys(draft.fieldErrors).length === 0) setIsPasswordPromptOpen(true);
       return;
     }
-    saveMutation.mutate(undefined);
+    await draft.save();
   }
 
-  /** Submits the email change with the user's current password; a rejection leaves the prompt open with `saveError` set. */
-  function confirmEmailChange(currentPassword: string) {
-    if (saveMutation.isPending) return;
-    setSaveError(null);
-    saveMutation.mutate(currentPassword);
+  /** Saves with the user's current password; a rejection leaves the prompt open with `draft.saveError` set. */
+  async function confirmEmailChange(currentPassword: string) {
+    if (draft.isSaving) return;
+    passwordRef.current = currentPassword;
+    await draft.save();
   }
 
   /** Closes the password prompt without saving, keeping the draft. */
   function closePasswordPrompt() {
     setIsPasswordPromptOpen(false);
-    setSaveError(null);
   }
 
+  const avatarFile = values.avatarFile;
   useEffect(() => {
     if (!avatarFile) {
       setAvatarPreviewUrl(null);
@@ -169,17 +130,9 @@ export function useProfileDetails() {
     currencyLabel,
     memberSince: user ? new Date(user.createdAt).toLocaleDateString() : null,
     syncUser,
-    avatarFile,
-    setAvatarFile,
+    draft,
     values,
-    isDirty,
-    isSaving: saveMutation.isPending,
-    saveError,
-    fieldErrors,
-    setField,
-    revertField,
-    save,
-    cancel,
+    onSave,
     isPasswordPromptOpen,
     confirmEmailChange,
     closePasswordPrompt

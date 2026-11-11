@@ -1,5 +1,5 @@
 import { Button } from "../../../components/Button";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "../../../components/ModalDialog";
 
 /** Confirmation modal for a destructive revoke/disconnect; Escape or Cancel dismisses it. */
 export function ConfirmRevokeDialog({

@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 import { Button } from "../../../components/Button";
 import { TextInput } from "../../../components/FormField";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "../../../components/ModalDialog";
 import { usePasswordChange } from "../hooks/usePasswordChange";
 
 /**

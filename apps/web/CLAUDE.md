@@ -246,6 +246,10 @@ Current shared components living in `src/components/`: `Card`, `Button`, `FormFi
 
 **Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
 
+### Shared Form View
+
+Editable record views (Profile now; Accounts, Transactions, Groups next) use `src/hooks/useFormDraft.ts` (the only draft/dirty/validate/batch-save/`beforeunload` state machine), `src/components/FormView.tsx` (header with always-visible compact Save/Discard, inline save error, Ctrl/Cmd+S, URL-driven tabs), `src/components/EditableField.tsx` (an always-rendered control with a dirty marker, plus a read-only variant) and `src/components/RelatedList.tsx` (table at `sm`+, stacked rows below, render-prop cells). Their types live in `src/types/common.types.ts`. Rules: there is no Edit button or edit mode (the input is the field), Save/Discard live in the `FormView` header (no bottom bar), and shared files name no model and import nothing from `pages/`. A new editable record view must adopt these instead of hand-writing draft state; its page-local hook is only an adapter supplying `initial`, `validate` and `save`.
+
 ### Adding a new page
 
 1. Create `src/pages/<Name>/<Name>Page.tsx` with a named export

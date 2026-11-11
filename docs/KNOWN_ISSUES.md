@@ -604,3 +604,15 @@ Still open:
 - Once a PR check workflow exists, add it as a required check on `main`.
 
 **Suggested fix:** Run the owner CSP checks above. Review the access logs. Add a PR check workflow, then require it.
+
+---
+
+## [OPEN] #047 — In-app navigation does not warn about unsaved Form View changes
+
+**Found in:** Implementing `st005-reusable-editable-form-view`.
+
+**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView.tsx`.
+
+**Description:** A dirty draft is protected by a `beforeunload` guard and by a confirm on the view's own Discard and Back controls. Clicking a sidebar or other in-app link while dirty leaves the page and silently drops the edits, because React Router's `useBlocker` needs a data router and the app uses `BrowserRouter`.
+
+**Suggested fix:** Move to `createBrowserRouter`/`RouterProvider`, then block navigation with `useBlocker` while `draft.isDirty` and reuse the Discard confirm dialog.

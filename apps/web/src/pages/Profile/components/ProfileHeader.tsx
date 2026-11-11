@@ -1,48 +1,23 @@
 import { useRef } from "react";
-import { Button } from "../../../components/Button";
-import { TextInput } from "../../../components/FormField";
+import { EditableField, editableControlClassName } from "../../../components/EditableField";
 import { planLabels } from "../constants";
 import { ChangeEmailDialog } from "./ChangeEmailDialog";
-import { ProfileInlineField } from "./ProfileInlineField";
 import type { useProfileDetails } from "../hooks/useProfileDetails";
 
-/** Identity header of the profile form view: inline-editable avatar, name, and email, with a Save/Cancel bar while dirty. */
+/** Identity header of the profile form view: directly editable avatar, name, and email; Save/Discard live in the `FormView` header. */
 export function ProfileHeader({
   profile
 }: {
   profile: ReturnType<typeof useProfileDetails>;
 }) {
   const p = profile;
+  const draft = p.draft;
   const fileRef = useRef<HTMLInputElement>(null);
-  const busy = p.isLoading || p.isSaving;
+  const busy = p.isLoading || draft.isSaving;
   const avatarClass = "h-20 w-20 shrink-0 rounded-full";
 
   return (
     <header className="grid grid-cols-1 gap-3">
-      {p.isDirty ? (
-        <div
-          role="group"
-          aria-label="Unsaved changes"
-          className="flex flex-wrap items-center gap-2"
-        >
-          <Button type="button" onClick={p.save} disabled={p.isSaving}>
-            {p.isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={p.cancel}
-            disabled={p.isSaving}
-          >
-            Cancel
-          </Button>
-          {p.saveError ? (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-              {p.saveError}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
         <button
           type="button"
@@ -72,49 +47,47 @@ export function ProfileHeader({
           hidden
           aria-label="Profile picture file"
           accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={(event) => p.setAvatarFile(event.target.files?.[0] ?? null)}
+          onChange={(event) =>
+            draft.setField("avatarFile", event.target.files?.[0] ?? null)
+          }
         />
         <div className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">
-          <h1
+          <h2
             aria-label={p.values.name || undefined}
             className="text-base font-semibold"
           >
-            <ProfileInlineField
+            <EditableField
               label="Name"
               hideLabel
-              display={p.values.name || "Loading..."}
-              error={p.fieldErrors.name}
-              disabled={busy}
-              onRevert={() => p.revertField("name")}
+              error={draft.fieldErrors.name}
+              dirty={draft.changedKeys.includes("name")}
+              onRevert={() => draft.revertField("name")}
             >
-              <TextInput
-                label="Name"
+              <input
+                className={editableControlClassName}
                 value={p.values.name}
                 maxLength={120}
                 disabled={busy}
-                aria-invalid={Boolean(p.fieldErrors.name)}
-                onChange={(e) => p.setField("name", e.target.value)}
+                onChange={(e) => draft.setField("name", e.target.value)}
               />
-            </ProfileInlineField>
-          </h1>
+            </EditableField>
+          </h2>
           <div className="mt-2 min-w-0">
-            <ProfileInlineField
+            <EditableField
               label="Email"
-              display={p.values.email || "Loading..."}
-              error={p.fieldErrors.email}
-              disabled={busy}
-              onRevert={() => p.revertField("email")}
+              error={draft.fieldErrors.email}
+              dirty={draft.changedKeys.includes("email")}
+              onRevert={() => draft.revertField("email")}
             >
-              <TextInput
-                label="Email"
+              <input
                 type="email"
+                className={editableControlClassName}
                 value={p.values.email}
                 maxLength={255}
                 disabled={busy}
-                aria-invalid={Boolean(p.fieldErrors.email)}
-                onChange={(e) => p.setField("email", e.target.value)}
+                onChange={(e) => draft.setField("email", e.target.value)}
               />
-            </ProfileInlineField>
+            </EditableField>
           </div>
           {p.user ? (
             <p className="mt-2 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -131,8 +104,8 @@ export function ProfileHeader({
       {p.isPasswordPromptOpen ? (
         <ChangeEmailDialog
           email={p.values.email.trim()}
-          error={p.saveError}
-          isPending={p.isSaving}
+          error={draft.saveError}
+          isPending={draft.isSaving}
           onSubmit={p.confirmEmailChange}
           onCancel={p.closePasswordPrompt}
         />
