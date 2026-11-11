@@ -27,8 +27,16 @@ const groups = [
     name: "Roommates",
     categories: [{ id: "gc1", name: "Rent", type: "expense" }],
     members: [
-      { id: "m1", userId: "me", user: { id: "me", username: "me", displayName: "Me" } },
-      { id: "m2", userId: "u2", user: { id: "u2", username: "sam", displayName: "Sam" } }
+      {
+        id: "m1",
+        userId: "me",
+        user: { id: "me", username: "me", displayName: "Me" }
+      },
+      {
+        id: "m2",
+        userId: "u2",
+        user: { id: "u2", username: "sam", displayName: "Sam" }
+      }
     ]
   }
 ] as unknown as Group[];
@@ -44,7 +52,11 @@ function Harness({
   transaction?: Transaction | null;
   preferredCurrency?: string;
 }) {
-  const draft = useFormDraft<TransactionDraft>({ initial, validate: () => ({}), save: async () => {} });
+  const draft = useFormDraft<TransactionDraft>({
+    initial,
+    validate: () => ({}),
+    save: async () => {}
+  });
   return (
     <>
       <TransactionDetailsFields
@@ -67,12 +79,19 @@ const initial = (overrides: Partial<TransactionDraft> = {}) => ({
   ...newTransactionDraft("USD", "2026-11-05T14:30"),
   ...overrides
 });
-const values = () => JSON.parse(screen.getByTestId("values").textContent ?? "{}") as TransactionDraft;
+const values = () =>
+  JSON.parse(
+    screen.getByTestId("values").textContent ?? "{}"
+  ) as TransactionDraft;
 
 function mockCurrencies() {
   server.use(
     http.get("http://localhost:4000/currencies", () =>
-      HttpResponse.json({ currencies: [], fiat: [{ code: "USD", name: "US Dollar" }], crypto: [] })
+      HttpResponse.json({
+        currencies: [],
+        fiat: [{ code: "USD", name: "US Dollar" }],
+        crypto: []
+      })
     )
   );
 }
@@ -99,7 +118,10 @@ describe("TransactionDetailsFields", () => {
 
     await user.selectOptions(screen.getByLabelText("Account"), "a2");
 
-    expect(values()).toMatchObject({ accountId: "a2", executionCurrency: "EUR" });
+    expect(values()).toMatchObject({
+      accountId: "a2",
+      executionCurrency: "EUR"
+    });
   });
 
   it("only lists categories of the selected type, and the group's own once a group is chosen", async () => {
@@ -108,24 +130,36 @@ describe("TransactionDetailsFields", () => {
     renderWithProviders(<Harness initial={initial()} />);
 
     expect(screen.getByRole("option", { name: "Food" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Pay" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Pay" })
+    ).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText("Group"), "g1");
     expect(screen.getByRole("option", { name: "Rent" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Food" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Food" })
+    ).not.toBeInTheDocument();
   });
 
   it("a group on a new draft turns sharing on; on an existing transaction it does not", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    const { unmount } = renderWithProviders(<Harness initial={initial({ amount: "10" })} />);
+    const { unmount } = renderWithProviders(
+      <Harness initial={initial({ amount: "10" })} />
+    );
     await user.selectOptions(screen.getByLabelText("Group"), "g1");
     expect(values()).toMatchObject({ isShared: true });
     unmount();
 
-    renderWithProviders(<Harness initial={initial({ amount: "10" })} isNew={false} />);
+    renderWithProviders(
+      <Harness initial={initial({ amount: "10" })} isNew={false} />
+    );
     await user.selectOptions(screen.getByLabelText("Group"), "g1");
-    expect(values()).toMatchObject({ groupId: "g1", isShared: false, participants: [] });
+    expect(values()).toMatchObject({
+      groupId: "g1",
+      isShared: false,
+      participants: []
+    });
   });
 
   it("marks only the edited field dirty", async () => {
@@ -141,7 +175,9 @@ describe("TransactionDetailsFields", () => {
   it("Reset to now writes the current local time", async () => {
     mockCurrencies();
     const user = userEvent.setup();
-    renderWithProviders(<Harness initial={initial({ date: "2000-01-01T00:00" })} />);
+    renderWithProviders(
+      <Harness initial={initial({ date: "2000-01-01T00:00" })} />
+    );
 
     await user.click(screen.getByRole("button", { name: "Reset to now" }));
 
@@ -151,14 +187,57 @@ describe("TransactionDetailsFields", () => {
 
   it("shows the amount in the preferred currency only when it differs", () => {
     mockCurrencies();
-    const tx = { executionCurrency: "EUR", amountInPreferredCurrency: 46 } as Transaction;
+    const tx = {
+      executionCurrency: "EUR",
+      amountInPreferredCurrency: 46
+    } as Transaction;
     const { unmount } = renderWithProviders(
-      <Harness initial={initial()} isNew={false} transaction={tx} preferredCurrency="USD" />
+      <Harness
+        initial={initial()}
+        isNew={false}
+        transaction={tx}
+        preferredCurrency="USD"
+      />
     );
     expect(screen.getByText("$46.00")).toBeInTheDocument();
     unmount();
 
-    renderWithProviders(<Harness initial={initial()} isNew={false} transaction={tx} preferredCurrency="EUR" />);
-    expect(screen.queryByText("Amount in your currency")).not.toBeInTheDocument();
+    renderWithProviders(
+      <Harness
+        initial={initial()}
+        isNew={false}
+        transaction={tx}
+        preferredCurrency="EUR"
+      />
+    );
+    expect(
+      screen.queryByText("Amount in your currency")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the provider import date for an imported transaction only", () => {
+    mockCurrencies();
+    const imported = {
+      executionCurrency: "USD",
+      providerImportedTransaction: {
+        transactionDate: "2026-05-31T12:00:00.000Z"
+      }
+    } as Transaction;
+    const { unmount } = renderWithProviders(
+      <Harness initial={initial()} isNew={false} transaction={imported} />
+    );
+    expect(screen.getByText("Imported from provider")).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <Harness
+        initial={initial()}
+        isNew={false}
+        transaction={{ executionCurrency: "USD" } as Transaction}
+      />
+    );
+    expect(
+      screen.queryByText("Imported from provider")
+    ).not.toBeInTheDocument();
   });
 });

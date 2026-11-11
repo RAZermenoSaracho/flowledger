@@ -1,7 +1,7 @@
 import type { Category } from "../../../types/categories.types";
 import type { ParticipantStatus } from "@flowledger/shared";
 import type { ShareAcceptance } from "../../../types/sharedExpenses.types";
-import type { ProviderImportedTransaction, Transaction } from "../../../types/transactions.types";
+import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 
 /** Which of the Transactions page's two tabs is active. */
 export type TransactionsTab = "transactions" | "imported";
@@ -43,13 +43,6 @@ export type TransactionDraft = {
   isShared: boolean;
   sharedTitle: string;
   participants: ParticipantDraft[];
-};
-
-/** A settlement transaction linked to the viewed one through `TransactionRelation`. */
-export type RelatedSettlementRow = {
-  id: string;
-  relationType: string;
-  transaction: Pick<Transaction, "id" | "name" | "amount" | "executionCurrency" | "date">;
 };
 
 /** Props for one row in the Imported Transactions review list. */

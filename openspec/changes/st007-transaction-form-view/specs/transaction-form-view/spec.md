@@ -9,19 +9,19 @@ The transaction view at `/transactions/:id` SHALL let the user edit its fields i
 #### Scenario: Edit without entering a mode
 - **WHEN** a user opens a transaction and changes its description
 - **THEN** the field is editable immediately and no Edit button exists
-- **AND** the header Save and Discard controls become enabled
+- **AND** the header Save and Cancel controls appear
 
 #### Scenario: Batch save
 - **WHEN** the user changes the description and the category and saves
 - **THEN** one update request carries both fields
 
-#### Scenario: Discard
-- **WHEN** the user changes a field and discards
-- **THEN** the stored values are shown and Save and Discard are disabled again
+#### Scenario: Cancel
+- **WHEN** the user changes a field and cancels
+- **THEN** the stored values are shown immediately and Save and Cancel are hidden again
 
 #### Scenario: Compact controls
 - **WHEN** the view renders on any width
-- **THEN** Save and Discard are small buttons in the header row, not a sticky bottom bar
+- **THEN** Save and Cancel are compact icon buttons in the header row, not a sticky bottom bar; a stored transaction offers Delete (with confirmation) in the header "Record actions" menu; and a "Back to transactions" link sits above the title
 
 #### Scenario: Another user's transaction
 - **WHEN** a user opens `/transactions/:id` for a transaction owned by someone else
@@ -81,15 +81,23 @@ Saving a transaction SHALL send `date` only when the user changed the date and t
 
 ### Requirement: View is organized in Details, Sharing and Related tabs
 
-The view SHALL render tabs Details, Sharing and Related through the shared Form View. Switching tabs SHALL NOT discard or prompt on the draft. The Related tab SHALL list only real relationships (settlement transactions linked via `TransactionRelation`, and the originating imported provider record) as read-only lists, and SHALL be hidden when there are none. Extending the Sharing tab for existing transactions belongs to the `transaction-sharing-conversion` capability.
+The view SHALL render tabs Details, Sharing and Related through the shared Form View. Switching tabs SHALL NOT discard or prompt on the draft. The Related tab SHALL list only real, viewer-scoped relationships derived server-side from the settlement chain (the viewer's own settlement transactions of an original expense; the original expense of a settlement, navigable only when the viewer owns it, otherwise a non-navigable summary) as read-only lists, SHALL never list the transaction itself or a counterparty's transaction, and SHALL be hidden when there are none. The originating imported provider record is shown in the Details tab, not Related. Extending the Sharing tab for existing transactions belongs to the `transaction-sharing-conversion` capability.
 
 #### Scenario: Tab switch keeps the draft
 - **WHEN** the user edits the description, opens Sharing, then returns to Details
 - **THEN** the edit is still present and unsaved
 
 #### Scenario: Related lists
-- **WHEN** a transaction has two settlement transactions and an imported source record
-- **THEN** the Related tab lists them read-only
+- **WHEN** the owner views an original shared expense settled by two participants
+- **THEN** the Related tab lists the owner's two settlement transactions read-only, and none of the participants' transactions
+
+#### Scenario: Settlement shows its origin
+- **WHEN** a participant views their settlement transaction
+- **THEN** the Related tab shows a non-navigable summary of the shared expense and its owner, and not the settlement itself or the owner's transactions
+
+#### Scenario: Imported source in Details
+- **WHEN** a transaction was imported from a provider
+- **THEN** the Details tab shows the provider date and the Related tab does not list the import
 
 #### Scenario: Related hidden when empty
 - **WHEN** a transaction has no related records
@@ -112,7 +120,7 @@ A request for `/transactions/:id/edit` SHALL redirect to `/transactions/:id`.
 - **THEN** the draft shows those values and no transaction exists yet
 
 #### Scenario: Leave without saving
-- **WHEN** the user discards or navigates away from a prefilled draft
+- **WHEN** the user cancels or navigates away from a prefilled draft
 - **THEN** no transaction is created
 
 #### Scenario: Save creates one transaction
@@ -153,7 +161,7 @@ The Sharing tab of `/transactions/new` SHALL offer a shared toggle, a title and 
 
 ### Requirement: View works at mobile width
 
-The transaction view and new-draft view SHALL be fully usable at mobile width, with stacked field rows, stacked participant rows, and the header Save/Discard actions reachable without horizontal scrolling.
+The transaction view and new-draft view SHALL be fully usable at mobile width, with stacked field rows, stacked participant rows, and the header actions reachable without horizontal scrolling.
 
 #### Scenario: Mobile edit and save
 - **WHEN** a user edits and saves a transaction at 375px width

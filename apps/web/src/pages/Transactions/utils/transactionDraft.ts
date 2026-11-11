@@ -2,7 +2,6 @@ import type { Transaction } from "../../../types/transactions.types";
 import { transactionDateInputValue } from "../../../utils/dateTime";
 import type {
   ParticipantDraft,
-  RelatedSettlementRow,
   TransactionDraft
 } from "../types/transactions.types";
 import type { TransactionPrefill } from "./transactionPrefill";
@@ -79,20 +78,4 @@ export function isShareLocked(participant: ParticipantDraft): boolean {
 /** Whether a participant may be removed from the draft: stored rows with a payment cannot be (the server also rejects pending settlement requests). */
 export function canRemoveParticipant(participant: ParticipantDraft): boolean {
   return !((participant.paidAmount ?? 0) > 0);
-}
-
-/** Lists the settlement transactions linked to `transaction` in either direction through `TransactionRelation`. */
-export function relatedSettlementRows(transaction: Transaction): RelatedSettlementRow[] {
-  return [
-    ...(transaction.relations ?? []).map((relation) => ({
-      id: relation.id,
-      relationType: relation.relationType,
-      transaction: relation.relatedTransaction
-    })),
-    ...(transaction.relatedBy ?? []).map((relation) => ({
-      id: relation.id,
-      relationType: relation.relationType,
-      transaction: relation.transaction
-    }))
-  ];
 }

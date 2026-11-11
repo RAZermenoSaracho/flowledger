@@ -1,3 +1,4 @@
+import type { PublicUser } from "./users.types";
 import type { TransactionType } from "@flowledger/shared";
 import type { Account } from "./accounts.types";
 import type { Category } from "./categories.types";
@@ -30,24 +31,32 @@ export type Transaction = {
   sharedExpense?: SharedExpense | null;
   /** Set when imported from a provider; `transactionDate` is the provider's original value. */
   providerImportedTransaction?: { transactionDate: string } | null;
-  /** Links from this transaction to related ones (settlement payments). */
-  relations?: TransactionRelationLink[];
-  /** Links from other transactions to this one. */
-  relatedBy?: TransactionRelationBackLink[];
+  /** Viewer-owned transactions related through the settlement chain: own settlements of an original, or the original of a settlement. */
+  relatedTransactions?: RelatedTransaction[];
+  /** For a participant's settlement: summary of the shared expense it settles; not navigable. */
+  settlementOrigin?: SettlementOrigin | null;
 };
 
-/** Outgoing `TransactionRelation` row on a transaction, with the related transaction. */
-export type TransactionRelationLink = {
+/** A viewer-owned transaction related to the viewed one. */
+export type RelatedTransaction = {
   id: string;
-  relationType: string;
-  relatedTransaction: Transaction;
+  description: string;
+  amount: number;
+  currency: string;
+  date: string;
+  type: string;
+  relation: "settlement" | "origin";
+  settlementStatus: string;
 };
 
-/** Incoming `TransactionRelation` row on a transaction, with the transaction that points at it. */
-export type TransactionRelationBackLink = {
-  id: string;
-  relationType: string;
-  transaction: Transaction;
+/** What a participant may see of the shared expense behind their settlement. */
+export type SettlementOrigin = {
+  title: string;
+  amount: number;
+  currency: string;
+  date: string;
+  type: string;
+  owner: PublicUser;
 };
 
 /** Review status of a provider-imported transaction. */

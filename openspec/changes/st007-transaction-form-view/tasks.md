@@ -19,10 +19,13 @@ Tests follow `docs/TESTING.md`: `tests/` folder beside each source file, same ba
 
 - [x] 3.1 Rebuild `TransactionDetailPage` on ST-005's `FormView` (header Save/Discard, `tabs`), `EditableField`, `useFormDraft`, with Details tab and not-found state. Verify: `tests/TransactionDetailPage.test.tsx` covers direct edit without an Edit button, batch save, discard, not-found.
 - [x] 3.2 Add the Sharing tab for new drafts using `RelatedList` in draft mode (editable share cell, remove, equal split, totals footer). Verify: component test covers share edit, totals, shared create payload, create failure keeps draft.
-- [x] 3.3 Add the Related tab (`RelatedList`s for settlement transactions and imported source; hidden when empty). Verify: component test covers populated and hidden cases.
+- [x] 3.3 Add the Related tab (`RelatedList`s of viewer-scoped settlement-chain transactions and origin summary from `GET /transactions/:id`; hidden when empty; provider import shown in Details). Verify: component and API integration tests cover populated, origin-summary and hidden cases.
 - [x] 3.4 Add `/transactions/new` and the `/transactions/:id/edit` redirect in `main.tsx` and routes constants. Verify: route tests cover prefill, nothing created until save, redirect, landing on the new transaction.
 - [x] 3.5 Point the list add control and row edit actions at the new routes; delete `TransactionFormCard`, `TransactionEditPage` and their tests, carrying their scenarios (date preservation, DST, transfer, couplings) into view tests. Verify: `TransactionsPage.test.tsx` passes; `grep` finds no references.
 - [x] 3.6 Mobile pass (stacked field and participant rows, header actions, 16px inputs). Verify: view test at narrow width plus headless check at 375px.
+
+- [x] 3.x Move Delete into `FormView` `actions` (stored transactions only, window.confirm kept), pass `isNew` and `backLink` "Back to transactions". Verify: `tests/TransactionDetailPage.test.tsx` covers the menu delete, dismissed confirm and Cancel.
+
 
 ## 4. Docs
 

@@ -7,7 +7,7 @@ import type { FormDraft } from "../../../types/common.types";
 import type { Group } from "../../../types/groups.types";
 import type { Transaction } from "../../../types/transactions.types";
 import { formatMoney } from "../../../utils/currency";
-import { transactionDateNowInputValue } from "../../../utils/dateTime";
+import { formatTransactionDate, transactionDateNowInputValue } from "../../../utils/dateTime";
 import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { TransactionDraft } from "../types/transactions.types";
 import {
@@ -210,6 +210,15 @@ export function TransactionDetailsFields({
           </EditableField>
         </>
       )}
+      {transaction?.providerImportedTransaction ? (
+        <EditableField
+          label="Imported from provider"
+          readOnly
+          display={formatTransactionDate({ date: transaction.providerImportedTransaction.transactionDate })}
+        >
+          {null}
+        </EditableField>
+      ) : null}
       <div className="sm:col-span-2 xl:col-span-3">
         <EditableField label="Notes" {...field("notes")}>
           <textarea

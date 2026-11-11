@@ -73,6 +73,8 @@ Balance = `initialBalance + (sum of above)`, computed in the account's own nativ
 
 `TransactionRelation` links two transactions. Currently used only for `settlement_payment` — pairs the debtor and creditor settlement transactions. These links make settlement transactions queryable as a group and filter them from the "normal" transaction view.
 
+**Related transactions.** `GET /transactions/:id` does not expose `TransactionRelation` rows (they point at the counterparty's transaction). It returns `relatedTransactions` and `settlementOrigin`, derived from the `SettlementRequest` chain and always scoped to the caller: an original shared expense lists the caller's own settlement transactions (one per settled participant); a settlement lists its original expense when the caller owns it, otherwise only a non-navigable `settlementOrigin` summary (title, total, currency, date, owner as public user). The viewed transaction itself and the counterparty's settlement transaction are never included.
+
 ---
 
 ## Shared Expenses
@@ -99,7 +101,7 @@ Sum of `shareAmount` across participants must not exceed the transaction amount;
 
 The four independent sharing concepts are ownership/edit rights (only the owner changes structure), allocation/proposal (the owner proposes shares), acceptance/rejection (the participant consents), and settlement/payment (paid amounts and payment status). An allocation does not itself create an obligation. Group membership separately grants access to Group data; adding a Group member remains immediate and does not accept a share.
 
-Other users appear only as `{ id, username, displayName }`, never email, phone, avatar or authentication identifiers. `displayName` is null for `username_only` and the name for `username_and_name`. Own-profile reads retain private fields, username and visibility. User search matches username only (exact first, then prefix), requires three characters, caps at ten, excludes self and blocks in either direction, and is limited per user.
+Other users appear only as `{ id, username, nickname, displayName }`, never email, phone, avatar or authentication identifiers. `displayName` is null for `username_only` and the name for `username_and_name`. Nickname is always public when set, optional and non-unique. Labels join nickname and visible name with ` · ` and append ` (@username)`, or show `@username` alone. Visibility governs only the private name. Own-profile reads retain private fields, nickname, username and visibility. User search matches exact username first, then case-insensitive username or nickname prefix, requires three characters, caps at ten, excludes self and blocks in either direction, and is limited per user.
 
 Sharing is universal on owned expense/income transactions: Group membership is not required, and manual participants are supported. Blocked invitations fail with 400 "This user can't be invited." A non-member participant sees only the shared expense and transaction summary, without Group data, account, notes or personal category.
 

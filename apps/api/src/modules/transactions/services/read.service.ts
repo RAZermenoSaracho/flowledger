@@ -12,6 +12,8 @@ import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import type {
   ImportedTransactionsQueryInput,
+  RelatedTransactionRow,
+  SettlementOriginSummary,
   TransactionRecord,
   TransactionsQueryInput
 } from "../types/transactions.types.js";
@@ -19,7 +21,7 @@ import {
   importedTransactionInclude,
   resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
-import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
+import { publicUserSelect, publicizeUsers, toPublicUser } from "../../users/utils/publicUser.js";
 import { boundedPagination } from "../utils/boundedPagination.js";
 
 const transactionsSieve = createSieve(prisma.transaction);
@@ -286,14 +288,93 @@ export async function getTransactionById(userId: string, id: string) {
       expenseOffsetCategory: true,
       group: true,
       providerImportedTransaction: { select: { transactionDate: true } },
-      relations: { include: { relatedTransaction: true } },
-      relatedBy: { include: { transaction: true } },
       sharedExpense: { include: { participants: { include: { user: { select: publicUserSelect } } } } }
     }
   });
 
   if (!transaction) throw notFound("Transaction");
-  return publicizeUsers(transaction);
+  return publicizeUsers({ ...transaction, ...(await loadRelatedTransactions(userId, id)) });
+}
+
+const relatedTransactionSelect = {
+  id: true,
+  userId: true,
+  name: true,
+  amount: true,
+  executionCurrency: true,
+  type: true,
+  date: true
+} as const;
+
+/**
+ * Derives the Related tab data from the SettlementRequest chain, never from `TransactionRelation` (whose rows
+ * point at the counterparty's transaction). Everything returned is scoped to `userId`: an original expense lists
+ * the viewer's own settlement transactions; a settlement lists its original only when the viewer owns it, otherwise
+ * a non-navigable {@link SettlementOriginSummary}.
+ */
+async function loadRelatedTransactions(
+  userId: string,
+  id: string
+): Promise<{ relatedTransactions: RelatedTransactionRow[]; settlementOrigin: SettlementOriginSummary | null }> {
+  const requests = await prisma.settlementRequest.findMany({
+    where: {
+      OR: [
+        { debtorTransactionId: id, debtorUserId: userId },
+        { creditorTransactionId: id, creditorUserId: userId },
+        { sharedExpenseParticipant: { sharedExpense: { transactionId: id, ownerUserId: userId } } }
+      ]
+    },
+    orderBy: { createdAt: "asc" },
+    include: {
+      debtorTransaction: { select: relatedTransactionSelect },
+      creditorTransaction: { select: relatedTransactionSelect },
+      sharedExpenseParticipant: {
+        include: {
+          sharedExpense: {
+            include: { transaction: { select: relatedTransactionSelect }, owner: { select: publicUserSelect } }
+          }
+        }
+      }
+    }
+  });
+
+  const rows = new Map<string, RelatedTransactionRow>();
+  let settlementOrigin: SettlementOriginSummary | null = null;
+  const toRow = (
+    tx: { id: string; name: string; amount: unknown; executionCurrency: string; date: Date; type: string },
+    relation: RelatedTransactionRow["relation"],
+    settlementStatus: string
+  ): RelatedTransactionRow => ({
+    id: tx.id,
+    description: tx.name,
+    amount: Number(tx.amount),
+    currency: tx.executionCurrency,
+    date: tx.date,
+    type: tx.type,
+    relation,
+    settlementStatus
+  });
+
+  for (const request of requests) {
+    const expense = request.sharedExpenseParticipant.sharedExpense;
+    if (expense.transactionId === id) {
+      const own = request.creditorUserId === userId ? request.creditorTransaction : request.debtorTransaction;
+      if (own && own.userId === userId && own.id !== id) rows.set(own.id, toRow(own, "settlement", request.status));
+    } else if (expense.transaction.userId === userId) {
+      rows.set(expense.transaction.id, toRow(expense.transaction, "origin", request.status));
+    } else {
+      settlementOrigin = {
+        title: expense.title,
+        amount: Number(expense.totalAmount),
+        currency: expense.transaction.executionCurrency,
+        date: expense.transaction.date,
+        type: expense.transaction.type,
+        owner: toPublicUser(expense.owner)
+      };
+    }
+  }
+
+  return { relatedTransactions: [...rows.values()], settlementOrigin };
 }
 
 function parseImportedTransactionsQueryParam(raw: string | undefined) {

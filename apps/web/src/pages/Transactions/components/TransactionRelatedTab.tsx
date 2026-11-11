@@ -1,59 +1,80 @@
 import { Link } from "react-router-dom";
 import { RelatedList } from "../../../components/RelatedList";
 import { routes } from "../../../constants/routes";
-import type { Transaction } from "../../../types/transactions.types";
+import type { RelatedTransaction, Transaction } from "../../../types/transactions.types";
 import { formatMoney } from "../../../utils/currency";
 import { formatTransactionDate } from "../../../utils/dateTime";
-import type { RelatedSettlementRow } from "../types/transactions.types";
-import { relatedSettlementRows } from "../utils/transactionDraft";
+import { formatEnumLabel } from "../../../utils/enumLabels";
+import { formatPublicUser } from "../../../utils/publicUser";
 
-/** Whether `transaction` has anything to show in the Related tab: a linked settlement or an originating import. */
+/** Whether `transaction` has anything to show in the Related tab: viewer-owned settlement-chain transactions or a participant's origin summary. */
 export function hasRelatedRecords(transaction: Transaction): boolean {
-  return relatedSettlementRows(transaction).length > 0 || Boolean(transaction.providerImportedTransaction);
+  return (transaction.relatedTransactions ?? []).length > 0 || Boolean(transaction.settlementOrigin);
 }
 
-/** Related tab of the Transaction Form View: read-only lists of linked settlement transactions and the originating provider import. */
+/**
+ * Related tab of the Transaction Form View: read-only lists built from the server's settlement-chain data.
+ * Navigable rows are always transactions the viewer owns; a participant's origin is a plain summary.
+ */
 export function TransactionRelatedTab({ transaction }: { transaction: Transaction }) {
-  const imported = transaction.providerImportedTransaction;
+  const related = transaction.relatedTransactions ?? [];
+  const settlements = related.filter((row) => row.relation === "settlement");
+  const origins = related.filter((row) => row.relation === "origin");
+  const summary = transaction.settlementOrigin;
+  const columns = [
+    {
+      key: "name",
+      header: "Transaction",
+      cell: (row: RelatedTransaction) => (
+        <Link className="font-semibold text-pine underline dark:text-emerald-300" to={routes.transaction(row.id)}>
+          {row.description}
+        </Link>
+      )
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right" as const,
+      cell: (row: RelatedTransaction) => formatMoney(row.amount, row.currency)
+    },
+    { key: "date", header: "Date", cell: (row: RelatedTransaction) => formatTransactionDate(row) },
+    { key: "status", header: "Status", cell: (row: RelatedTransaction) => formatEnumLabel(row.settlementStatus) }
+  ];
+
   return (
     <div className="grid gap-6">
-      <RelatedList<RelatedSettlementRow>
-        title="Settlement transactions"
-        rows={relatedSettlementRows(transaction)}
-        rowKey={(row) => row.id}
-        emptyText="No settlement transactions."
-        columns={[
-          {
-            key: "name",
-            header: "Transaction",
-            cell: (row) => (
-              <Link className="font-semibold text-pine underline dark:text-emerald-300" to={routes.transaction(row.transaction.id)}>
-                {row.transaction.name}
-              </Link>
-            )
-          },
-          {
-            key: "amount",
-            header: "Amount",
-            align: "right",
-            cell: (row) => formatMoney(row.transaction.amount, row.transaction.executionCurrency)
-          },
-          { key: "date", header: "Date", cell: (row) => formatTransactionDate(row.transaction) }
-        ]}
-      />
-      <RelatedList<{ id: string; transactionDate: string }>
-        title="Imported from provider"
-        rows={imported ? [{ id: transaction.id, transactionDate: imported.transactionDate }] : []}
-        rowKey={(row) => row.id}
-        emptyText="This transaction was not imported."
-        columns={[
-          {
-            key: "date",
-            header: "Provider date",
-            cell: (row) => formatTransactionDate({ date: row.transactionDate })
-          }
-        ]}
-      />
+      {settlements.length > 0 ? (
+        <RelatedList<RelatedTransaction>
+          title="Settlement transactions"
+          rows={settlements}
+          rowKey={(row) => row.id}
+          emptyText="No settlement transactions."
+          columns={columns}
+        />
+      ) : null}
+      {origins.length > 0 ? (
+        <RelatedList<RelatedTransaction>
+          title="Original expense"
+          rows={origins}
+          rowKey={(row) => row.id}
+          emptyText="No original expense."
+          columns={columns}
+        />
+      ) : null}
+      {summary ? (
+        <RelatedList<NonNullable<Transaction["settlementOrigin"]>>
+          title="Settles shared expense"
+          rows={[summary]}
+          rowKey={() => "origin"}
+          emptyText="No shared expense."
+          columns={[
+            { key: "name", header: "Expense", cell: (row) => row.title },
+            { key: "owner", header: "Owner", cell: (row) => formatPublicUser(row.owner) },
+            { key: "amount", header: "Total", align: "right", cell: (row) => formatMoney(row.amount, row.currency) },
+            { key: "date", header: "Date", cell: (row) => formatTransactionDate(row) }
+          ]}
+        />
+      ) : null}
     </div>
   );
 }
