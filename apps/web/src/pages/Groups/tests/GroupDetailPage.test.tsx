@@ -20,7 +20,10 @@ const authedUser = {
   updatedAt: "2024-01-01T00:00:00.000Z"
 };
 
-function makeGroup(role: "admin" | "member" = "admin", overrides: Partial<Group> = {}): Group {
+function makeGroup(
+  role: "admin" | "member" = "admin",
+  overrides: Partial<Group> = {}
+): Group {
   return {
     id: "group-1",
     name: "Roommates",
@@ -33,7 +36,12 @@ function makeGroup(role: "admin" | "member" = "admin", overrides: Partial<Group>
         groupId: "group-1",
         userId: "user-1",
         role,
-        user: { id: "user-1", username: "jane", displayName: "Jane" },
+        user: {
+          id: "user-1",
+          username: "jane",
+          nickname: null,
+          displayName: "Jane"
+        },
         createdAt: "",
         updatedAt: ""
       }
@@ -53,12 +61,20 @@ function LocationProbe() {
 
 function mock(group: Group | null) {
   server.use(
-    http.post(`${API_URL}/auth/refresh`, () => HttpResponse.json({ token: "tok", user: authedUser })),
-    http.get(`${API_URL}/groups`, () => HttpResponse.json({ groups: group ? [group] : [] })),
-    http.get(`${API_URL}/groups/:id`, () =>
-      group ? HttpResponse.json({ group }) : new HttpResponse(null, { status: 400 })
+    http.post(`${API_URL}/auth/refresh`, () =>
+      HttpResponse.json({ token: "tok", user: authedUser })
     ),
-    http.get(`${API_URL}/categories`, () => HttpResponse.json({ categories: [] }))
+    http.get(`${API_URL}/groups`, () =>
+      HttpResponse.json({ groups: group ? [group] : [] })
+    ),
+    http.get(`${API_URL}/groups/:id`, () =>
+      group
+        ? HttpResponse.json({ group })
+        : new HttpResponse(null, { status: 400 })
+    ),
+    http.get(`${API_URL}/categories`, () =>
+      HttpResponse.json({ categories: [] })
+    )
   );
 }
 
@@ -82,8 +98,12 @@ describe("GroupDetailPage", () => {
     expect(screen.getByText("Group categories")).toBeInTheDocument();
     expect(screen.getByText("Group summary")).toBeInTheDocument();
     expect(screen.getByText("Latest Group Transactions")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Edit" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows read-only fields and no management actions for a non-admin member", async () => {
@@ -92,14 +112,21 @@ describe("GroupDetailPage", () => {
 
     await screen.findByText("Group summary");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Record actions" })
+    ).not.toBeInTheDocument();
   });
 
   it("keeps an archived group read-only for its admin but offers Restore", async () => {
     mock(makeGroup("admin", { isArchived: true }));
     renderDetail();
 
-    expect(await screen.findByRole("button", { name: "Restore" })).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Record actions" })
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Restore" })
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
@@ -108,7 +135,9 @@ describe("GroupDetailPage", () => {
     renderDetail("nope");
 
     expect(await screen.findByText("Group not found")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to groups" })).toHaveAttribute("href", "/groups");
+    expect(
+      screen.getByRole("link", { name: "Back to groups" })
+    ).toHaveAttribute("href", "/groups");
   });
 
   it("saves an edited name through the shared Save", async () => {
@@ -135,7 +164,11 @@ describe("GroupDetailPage", () => {
     mock(makeGroup());
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-3", username: "sam", displayName: null }] })
+        HttpResponse.json({
+          users: [
+            { id: "user-3", username: "sam", nickname: null, displayName: null }
+          ]
+        })
       ),
       http.post(`${API_URL}/groups/group-1/members`, () =>
         HttpResponse.json({ member: { id: "m2" } })
@@ -150,18 +183,31 @@ describe("GroupDetailPage", () => {
     await user.type(screen.getByLabelText("Find app user"), "sam");
     await user.click(await screen.findByRole("button", { name: "Add member" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Flat"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Flat")
+    );
   });
 
   it("returns to the overview after deleting the group", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mock(makeGroup());
-    server.use(http.delete(`${API_URL}/groups/group-1`, () => new HttpResponse(null, { status: 204 })));
+    server.use(
+      http.delete(
+        `${API_URL}/groups/group-1`,
+        () => new HttpResponse(null, { status: 204 })
+      )
+    );
     const user = userEvent.setup();
     renderDetail();
 
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Record actions" })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(window.confirm).toHaveBeenCalled();
 
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/groups$/));
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(/^\/groups$/)
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Button } from "../../components/Button";
+import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { CurrencySelect } from "../../components/CurrencySelect";
 import {
@@ -82,7 +82,33 @@ export function AccountDetailPage() {
           title={account.name}
           subtitle={`${getAccountTypeLabel(account.type)}${account.isArchived ? " · Archived" : ""}`}
           draft={draft}
-          onBack={() => navigate(routes.accounts)}
+          backLink={{ to: routes.accounts, label: "Back to accounts" }}
+          actions={
+            <>
+              {account.isArchived ? (
+                <ActionMenuItem
+                  disabled={actions.restoreAccount.isPending}
+                  onClick={() => actions.restoreAccount.mutate()}
+                >
+                  Restore
+                </ActionMenuItem>
+              ) : (
+                <ActionMenuItem
+                  disabled={actions.archiveAccount.isPending}
+                  onClick={() => actions.archiveAccount.mutate()}
+                >
+                  Archive
+                </ActionMenuItem>
+              )}
+              <ActionMenuItem
+                variant="danger"
+                disabled={actions.deleteAccount.isPending}
+                onClick={confirmDelete}
+              >
+                Delete
+              </ActionMenuItem>
+            </>
+          }
         >
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <EditableField label="Name" {...field("name")}>
@@ -161,36 +187,6 @@ export function AccountDetailPage() {
                 )
               }
             />
-          </div>
-
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            {account.isArchived ? (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={actions.restoreAccount.isPending}
-                onClick={() => actions.restoreAccount.mutate()}
-              >
-                Restore
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={actions.archiveAccount.isPending}
-                onClick={() => actions.archiveAccount.mutate()}
-              >
-                Archive
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="danger"
-              disabled={actions.deleteAccount.isPending}
-              onClick={confirmDelete}
-            >
-              Delete
-            </Button>
           </div>
         </FormView>
       </Card>

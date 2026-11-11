@@ -20,7 +20,7 @@
 
 ### Requirement: A Group opens in its own linkable view
 
-Clicking a Group card SHALL navigate to `/groups/:id`, the Group detail view. The overview SHALL NOT be shown beside the detail view. The detail view SHALL provide a clear control that returns to the overview, and the browser back button SHALL return to the overview too.
+Clicking a Group card SHALL navigate to `/groups/:id`, the Group detail view. The overview SHALL NOT be shown beside the detail view. The detail view SHALL provide a "Back to groups" link, guarded by the unsaved-changes confirm while the draft is dirty, that returns to the overview, and the browser back button SHALL return to the overview too.
 
 #### Scenario: Open a Group
 - **WHEN** the user clicks a Group card
@@ -44,19 +44,23 @@ The Group detail view SHALL be composed from the shared Form View introduced by 
 
 #### Scenario: Compact controls at desktop width
 - **WHEN** the detail view is shown at desktop width
-- **THEN** compact Save/Discard sit top-right in the header, disabled while the draft is clean
+- **THEN** icon Save/Cancel sit top-right in the header and appear only while the draft is dirty
 
 #### Scenario: Compact controls at mobile width
 - **WHEN** the detail view is shown at 375px width
-- **THEN** compact Save/Discard stay in the header row (wrapping below the title only if needed), with no sticky bottom bar and no horizontal scrolling
+- **THEN** the header wraps without overflow, with no sticky bottom bar and no horizontal scrolling
 
 #### Scenario: Editing with the shared lifecycle
 - **WHEN** a Group admin changes the name and saves
-- **THEN** the change is saved through the shared Save/Discard lifecycle and the updated name is shown
+- **THEN** the change is saved through the shared Save/Cancel lifecycle and the updated name is shown
 
 #### Scenario: Empty name
 - **WHEN** a Group admin clears the name
 - **THEN** a validation error is shown next to the field and Save is blocked
+
+#### Scenario: Management actions in the record menu
+- **WHEN** a Group admin opens the "Record actions" menu
+- **THEN** Archive (or Restore) and Delete are offered there, Delete keeps its confirmation, and a non-admin member sees no menu
 
 #### Scenario: Immediate actions do not dirty the draft
 - **WHEN** a member is added or removed in the members `RelatedList`, a category is changed in the categories `RelatedList` (both immediate mode), or the Group is archived or restored, while the name is unedited

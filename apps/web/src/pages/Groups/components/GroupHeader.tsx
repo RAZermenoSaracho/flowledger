@@ -1,29 +1,22 @@
-import { Button } from "../../../components/Button";
 import {
   EditableField,
   editableControlClassName
 } from "../../../components/EditableField";
 import type { FormDraft } from "../../../types/common.types";
 import type { Group } from "../../../types/groups.types";
-import type { useGroupManagement } from "../hooks/useGroupManagement";
 import type { GroupDraft } from "../types/groups.types";
 
 /**
- * Group name/description fields on the shared draft (read-only unless `canEdit`) plus the immediate
- * archive/restore/delete actions, shown only to admins (`canManage`). The actions never touch the draft.
+ * Group name/description fields on the shared draft (read-only unless `canEdit`).
  */
 export function GroupHeader({
   group,
   draft,
-  canEdit,
-  canManage,
-  management
+  canEdit
 }: {
   group: Group;
   draft: FormDraft<GroupDraft>;
   canEdit: boolean;
-  canManage: boolean | undefined;
-  management: ReturnType<typeof useGroupManagement>;
 }) {
   function field(key: keyof GroupDraft) {
     return {
@@ -64,37 +57,6 @@ export function GroupHeader({
           />
         </EditableField>
       </div>
-      {canManage ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          {group.isArchived ? (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={management.restoreGroup.isPending}
-              onClick={() => management.restoreGroup.mutate(group.id)}
-            >
-              Restore
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={management.archiveGroup.isPending}
-              onClick={() => management.archiveGroup.mutate(group.id)}
-            >
-              Archive
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="danger"
-            disabled={management.deleteGroup.isPending}
-            onClick={() => management.confirmDeleteGroup(group)}
-          >
-            Delete
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

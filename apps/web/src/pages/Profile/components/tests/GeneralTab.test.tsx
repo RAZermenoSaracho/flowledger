@@ -24,7 +24,9 @@ describe("GeneralTab", () => {
     server.use(http.get(`${API_URL}/users/me`, () => new Promise(() => {})));
     renderWithProviders(<GeneralHarness />, { withAuth: true });
     expect(screen.getAllByText("Loading...").length).toBeGreaterThan(0);
-    expect(screen.getByRole("combobox", { name: "Preferred currency" })).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Preferred currency" })
+    ).toBeDisabled();
     expect(screen.getByText("Member since").parentElement).toHaveTextContent(
       "Loading..."
     );
@@ -115,16 +117,25 @@ describe("GeneralTab", () => {
     );
     const details = (await screen.findByText("Member since")).closest("dl")!;
     const child = screen.getByText("appended section");
-    expect(details.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      details.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("renders the financial overview section", async () => {
     mockBaseline();
     server.use(
-      http.get(`${API_URL}/reports/financial-overview`, () => new Promise(() => {}))
+      http.get(
+        `${API_URL}/reports/financial-overview`,
+        () => new Promise(() => {})
+      )
     );
     renderWithProviders(<GeneralHarness />, { withAuth: true });
-    expect(await screen.findByRole("heading", { name: "Financial overview" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Financial overview" })
+    ).toBeInTheDocument();
   });
 });

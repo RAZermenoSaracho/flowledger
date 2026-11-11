@@ -32,9 +32,9 @@ The account view SHALL let the user edit name, type, identifier, currency and in
 - **WHEN** a field value is invalid (for example an empty name)
 - **THEN** the error is shown next to the field and Save is blocked
 
-#### Scenario: Discard
-- **WHEN** the user presses Discard with unsaved changes
-- **THEN** the draft reverts to the saved values
+#### Scenario: Cancel
+- **WHEN** the user presses Cancel with unsaved changes
+- **THEN** the draft reverts to the saved values immediately
 
 #### Scenario: Save rejected by the server
 - **WHEN** the server rejects the save
@@ -42,7 +42,7 @@ The account view SHALL let the user edit name, type, identifier, currency and in
 
 ### Requirement: Account actions remain available
 
-The account view SHALL show the account's sync status and sync controls where the account is synced, and SHALL offer archive (or restore) and delete. Delete SHALL require confirmation, and after delete the user SHALL return to the accounts list.
+The account view SHALL show the account's sync status and sync controls where the account is synced, and SHALL offer archive (or restore) and delete in the header "Record actions" menu. The view SHALL link back with "Back to accounts". Delete SHALL require confirmation, and after delete the user SHALL return to the accounts list.
 
 #### Scenario: Synced account
 - **WHEN** a synced account is opened
@@ -62,11 +62,11 @@ The account view SHALL be usable at mobile width: fields and actions are reachab
 
 #### Scenario: Narrow viewport
 - **WHEN** the view is shown at 375px width
-- **THEN** all fields and actions are usable without horizontal scrolling, and the compact Save/Discard stay in the header row (wrapping below the title only if needed) with no sticky bottom bar
+- **THEN** all fields and actions are usable without horizontal scrolling, and the header (back link, title, icon Save/Cancel, record actions menu) wraps without overflow, with no sticky bottom bar
 
 #### Scenario: Desktop width
 - **WHEN** the view is shown at desktop width
-- **THEN** compact Save/Discard sit top-right in the header, disabled while the draft is clean
+- **THEN** icon Save/Cancel sit top-right in the header and appear only while the draft is dirty
 
 ### Requirement: Type-specific fields and sections
 

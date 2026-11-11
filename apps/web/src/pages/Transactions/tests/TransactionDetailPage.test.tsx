@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -48,7 +54,10 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     name: "Roommates",
     ownerUserId: "user-1",
     isArchived: false,
-    members: [member("user-1", "Jane", "admin"), member("user-2", "Sam", "member")],
+    members: [
+      member("user-1", "Jane", "admin"),
+      member("user-2", "Sam", "member")
+    ],
     categories: [],
     createdAt: "",
     updatedAt: "",
@@ -57,12 +66,44 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
 }
 
 const ACCOUNTS = [
-  { id: "acc-1", name: "Checking", type: "checking", currency: "USD", initialBalance: 0, isArchived: false, createdAt: "", updatedAt: "" },
-  { id: "acc-2", name: "Savings", type: "savings", currency: "EUR", initialBalance: 0, isArchived: false, createdAt: "", updatedAt: "" }
+  {
+    id: "acc-1",
+    name: "Checking",
+    type: "checking",
+    currency: "USD",
+    initialBalance: 0,
+    isArchived: false,
+    createdAt: "",
+    updatedAt: ""
+  },
+  {
+    id: "acc-2",
+    name: "Savings",
+    type: "savings",
+    currency: "EUR",
+    initialBalance: 0,
+    isArchived: false,
+    createdAt: "",
+    updatedAt: ""
+  }
 ];
 const CATEGORIES = [
-  { id: "cat-1", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" },
-  { id: "cat-2", name: "Salary", type: "income", isArchived: false, createdAt: "", updatedAt: "" }
+  {
+    id: "cat-1",
+    name: "Groceries",
+    type: "expense",
+    isArchived: false,
+    createdAt: "",
+    updatedAt: ""
+  },
+  {
+    id: "cat-2",
+    name: "Salary",
+    type: "income",
+    isArchived: false,
+    createdAt: "",
+    updatedAt: ""
+  }
 ];
 
 function mockBaseline({
@@ -87,10 +128,17 @@ function mockBaseline({
     http.get(`${API_URL}/transactions/tx-1`, () =>
       transaction
         ? HttpResponse.json({ transaction })
-        : HttpResponse.json({ message: "Transaction not found" }, { status: 404 })
+        : HttpResponse.json(
+            { message: "Transaction not found" },
+            { status: 404 }
+          )
     ),
-    http.get(`${API_URL}/accounts`, () => HttpResponse.json({ accounts: ACCOUNTS })),
-    http.get(`${API_URL}/categories`, () => HttpResponse.json({ categories: CATEGORIES })),
+    http.get(`${API_URL}/accounts`, () =>
+      HttpResponse.json({ accounts: ACCOUNTS })
+    ),
+    http.get(`${API_URL}/categories`, () =>
+      HttpResponse.json({ categories: CATEGORIES })
+    ),
     http.get(`${API_URL}/groups`, () => HttpResponse.json({ groups })),
     http.get(`${API_URL}/currencies`, () =>
       HttpResponse.json({
@@ -103,7 +151,10 @@ function mockBaseline({
 }
 
 function mockPut(response: () => Response) {
-  const state: { body: Record<string, unknown> | null; calls: number } = { body: null, calls: 0 };
+  const state: { body: Record<string, unknown> | null; calls: number } = {
+    body: null,
+    calls: 0
+  };
   server.use(
     http.put(`${API_URL}/transactions/tx-1`, async ({ request }) => {
       state.calls += 1;
@@ -115,7 +166,10 @@ function mockPut(response: () => Response) {
 }
 
 function mockPost(response: () => Response) {
-  const state: { body: Record<string, unknown> | null; calls: number } = { body: null, calls: 0 };
+  const state: { body: Record<string, unknown> | null; calls: number } = {
+    body: null,
+    calls: 0
+  };
   server.use(
     http.post(`${API_URL}/transactions`, async ({ request }) => {
       state.calls += 1;
@@ -135,10 +189,22 @@ function renderPage(entry = "/transactions/tx-1") {
       <MemoryRouter initialEntries={[entry]}>
         <AuthProvider>
           <Routes>
-            <Route path="/transactions" element={<div>Transactions list</div>} />
-            <Route path="/transactions/new" element={<TransactionDetailPage />} />
-            <Route path="/transactions/:id" element={<TransactionDetailPage />} />
-            <Route path="/transactions/:id/edit" element={<TransactionEditRedirect />} />
+            <Route
+              path="/transactions"
+              element={<div>Transactions list</div>}
+            />
+            <Route
+              path="/transactions/new"
+              element={<TransactionDetailPage />}
+            />
+            <Route
+              path="/transactions/:id"
+              element={<TransactionDetailPage />}
+            />
+            <Route
+              path="/transactions/:id/edit"
+              element={<TransactionEditRedirect />}
+            />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -156,8 +222,26 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
       totalAmount: 42.5,
       status: "open",
       participants: [
-        { id: "p1", userId: "user-2", participantName: "@sam", currency: "USD", shareAmount: 20, paidAmount: 10, status: "partial", acceptance: "accepted" },
-        { id: "p2", userId: "user-3", participantName: "@kim", currency: "USD", shareAmount: 10, paidAmount: 0, status: "pending", acceptance: "proposed" }
+        {
+          id: "p1",
+          userId: "user-2",
+          participantName: "@sam",
+          currency: "USD",
+          shareAmount: 20,
+          paidAmount: 10,
+          status: "partial",
+          acceptance: "accepted"
+        },
+        {
+          id: "p2",
+          userId: "user-3",
+          participantName: "@kim",
+          currency: "USD",
+          shareAmount: 10,
+          paidAmount: 0,
+          status: "pending",
+          acceptance: "proposed"
+        }
       ],
       createdAt: "",
       updatedAt: "",
@@ -167,12 +251,16 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
 }
 
 const saveButton = () => screen.getByRole("button", { name: "Save" });
-const discardButton = () => screen.getByRole("button", { name: "Discard" });
+const cancelButton = () => screen.getByRole("button", { name: "Cancel" });
 const setDate = (value: string) =>
-  fireEvent.change(screen.getByLabelText("Date and time"), { target: { value } });
+  fireEvent.change(screen.getByLabelText("Date and time"), {
+    target: { value }
+  });
 
 async function loaded() {
-  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Groceries"));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Name")).toHaveValue("Groceries")
+  );
 }
 
 describe("TransactionDetailPage (existing transaction)", () => {
@@ -201,14 +289,24 @@ describe("TransactionDetailPage (existing transaction)", () => {
 
     await loaded();
     expect(screen.getByLabelText("Amount")).toHaveValue(42.5);
-    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-05-31T15:33");
-    expect(screen.getByRole("heading", { name: "Groceries" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(saveButton()).toBeDisabled();
-    expect(discardButton()).toBeDisabled();
+    expect(screen.getByLabelText("Date and time")).toHaveValue(
+      "2026-05-31T15:33"
+    );
+    expect(
+      screen.getByRole("heading", { name: "Groceries" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" })
+    ).not.toBeInTheDocument();
   });
 
-  it("enables Save and Discard on the first change", async () => {
+  it("shows Save and Cancel on the first change", async () => {
     mockBaseline();
     const user = userEvent.setup();
     renderPage();
@@ -217,12 +315,14 @@ describe("TransactionDetailPage (existing transaction)", () => {
     await user.type(screen.getByLabelText("Notes"), "n");
 
     expect(saveButton()).toBeEnabled();
-    expect(discardButton()).toBeEnabled();
+    expect(cancelButton()).toBeEnabled();
   });
 
   it("sends one update with every changed field, then stays on the view", async () => {
     mockBaseline();
-    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = userEvent.setup();
     renderPage();
 
@@ -233,26 +333,35 @@ describe("TransactionDetailPage (existing transaction)", () => {
     await user.click(saveButton());
 
     await waitFor(() => expect(put.calls).toBe(1));
-    expect(put.body).toMatchObject({ name: "New name", accountId: "acc-2", executionCurrency: "EUR" });
+    expect(put.body).toMatchObject({
+      name: "New name",
+      accountId: "acc-2",
+      executionCurrency: "EUR"
+    });
     expect(put.body).not.toHaveProperty("amount");
     expect(put.body).not.toHaveProperty("sharedExpense");
     expect(screen.queryByText("Transactions list")).not.toBeInTheDocument();
   });
 
-  it("Discard restores the stored values and disables Save and Discard", async () => {
+  it("Cancel restores the stored values immediately and hides Save and Cancel", async () => {
     mockBaseline();
-    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = userEvent.setup();
     renderPage();
 
     await loaded();
     await user.type(screen.getByLabelText("Name"), "!");
-    await user.click(discardButton());
-    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await user.click(cancelButton());
 
     expect(screen.getByLabelText("Name")).toHaveValue("Groceries");
-    expect(saveButton()).toBeDisabled();
-    expect(discardButton()).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" })
+    ).not.toBeInTheDocument();
     expect(put.calls).toBe(0);
   });
 
@@ -260,15 +369,21 @@ describe("TransactionDetailPage (existing transaction)", () => {
     mockBaseline({ transaction: null });
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Transaction not found" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Transaction not found" })
+    ).toBeInTheDocument();
   });
 
   it("shows a pending-classification message when account/category is missing", async () => {
-    mockBaseline({ transaction: makeTransaction({ categoryId: null, category: null }) });
+    mockBaseline({
+      transaction: makeTransaction({ categoryId: null, category: null })
+    });
     renderPage();
 
     expect(
-      await screen.findByText("Pending classification: add a category and account.")
+      await screen.findByText(
+        "Pending classification: add a category and account."
+      )
     ).toBeInTheDocument();
   });
 
@@ -283,12 +398,19 @@ describe("TransactionDetailPage (existing transaction)", () => {
     });
     renderPage();
 
-    await waitFor(() => expect(screen.getByLabelText("From account")).toHaveValue("acc-1"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("From account")).toHaveValue("acc-1")
+    );
     expect(screen.getByLabelText("To account")).toHaveValue("acc-2");
   });
 
   it("shows the amount in the user's currency when it differs", async () => {
-    mockBaseline({ transaction: makeTransaction({ executionCurrency: "EUR", amountInPreferredCurrency: 46 }) });
+    mockBaseline({
+      transaction: makeTransaction({
+        executionCurrency: "EUR",
+        amountInPreferredCurrency: 46
+      })
+    });
     server.use(
       http.post(`${API_URL}/auth/refresh`, () =>
         HttpResponse.json({
@@ -324,7 +446,8 @@ describe("TransactionDetailPage (existing transaction)", () => {
     renderPage();
 
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Record actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     await waitFor(() => expect(deleted).toBe(true));
     expect(await screen.findByText("Transactions list")).toBeInTheDocument();
@@ -344,7 +467,8 @@ describe("TransactionDetailPage (existing transaction)", () => {
     renderPage();
 
     await loaded();
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Record actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     expect(deleted).toBe(false);
   });
@@ -359,7 +483,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
 
     await user.click(screen.getByRole("button", { name: "Reset to now" }));
 
-    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-11-05T21:07");
+    expect(screen.getByLabelText("Date and time")).toHaveValue(
+      "2026-11-05T21:07"
+    );
   });
 
   describe("date in the update request", () => {
@@ -428,17 +554,32 @@ describe("TransactionDetailPage (existing transaction)", () => {
           hour: "numeric",
           minute: "2-digit"
         });
-        expect(await screen.findByText(new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+        expect(
+          await screen.findByText(
+            new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          )
+        ).toBeInTheDocument();
       }
     );
 
     it("shows no time for an unedited provider date at UTC noon", async () => {
       const date = "2026-06-04T12:00:00.000Z";
-      mockBaseline({ transaction: makeTransaction({ date, providerImportedTransaction: { transactionDate: date } }) });
+      mockBaseline({
+        transaction: makeTransaction({
+          date,
+          providerImportedTransaction: { transactionDate: date }
+        })
+      });
       renderPage();
 
-      const shown = new Date(date).toLocaleDateString(undefined, { timeZone: "America/Mexico_City" });
-      expect(await screen.findByText(new RegExp(`· ${shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))).toBeInTheDocument();
+      const shown = new Date(date).toLocaleDateString(undefined, {
+        timeZone: "America/Mexico_City"
+      });
+      expect(
+        await screen.findByText(
+          new RegExp(`· ${shown.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`)
+        )
+      ).toBeInTheDocument();
     });
   });
 
@@ -459,7 +600,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
 
     it("blocks Save and flags the destination for a transfer without a To account", async () => {
       mockBaseline();
-      const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+      const put = mockPut(() =>
+        HttpResponse.json({ transaction: makeTransaction() })
+      );
       const user = userEvent.setup();
       renderPage();
 
@@ -467,7 +610,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await user.selectOptions(screen.getByLabelText("Type"), "transfer");
       await user.click(saveButton());
 
-      expect(await screen.findByText("To account is required for transfers")).toBeInTheDocument();
+      expect(
+        await screen.findByText("To account is required for transfers")
+      ).toBeInTheDocument();
       expect(saveButton()).toBeDisabled();
       expect(put.calls).toBe(0);
     });
@@ -481,13 +626,23 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await user.selectOptions(screen.getByLabelText("Type"), "transfer");
       await user.selectOptions(screen.getByLabelText("To account"), "acc-2");
 
-      expect(within(screen.getByLabelText("From account")).queryByRole("option", { name: "Savings" })).not.toBeInTheDocument();
-      expect(within(screen.getByLabelText("To account")).queryByRole("option", { name: "Checking" })).not.toBeInTheDocument();
+      expect(
+        within(screen.getByLabelText("From account")).queryByRole("option", {
+          name: "Savings"
+        })
+      ).not.toBeInTheDocument();
+      expect(
+        within(screen.getByLabelText("To account")).queryByRole("option", {
+          name: "Checking"
+        })
+      ).not.toBeInTheDocument();
     });
 
     it("sends the type-coupled fields when switching to transfer", async () => {
       mockBaseline();
-      const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+      const put = mockPut(() =>
+        HttpResponse.json({ transaction: makeTransaction() })
+      );
       const user = userEvent.setup();
       renderPage();
 
@@ -509,9 +664,15 @@ describe("TransactionDetailPage (existing transaction)", () => {
       mockBaseline();
       renderPage();
 
-      await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
-      expect(screen.getByRole("option", { name: "Groceries" })).toBeInTheDocument();
-      expect(screen.queryByRole("option", { name: "Salary" })).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByLabelText("Category")).toHaveValue("cat-1")
+      );
+      expect(
+        screen.getByRole("option", { name: "Groceries" })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: "Salary" })
+      ).not.toBeInTheDocument();
     });
 
     it("switching type clears a category that no longer matches", async () => {
@@ -519,7 +680,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Category")).toHaveValue("cat-1")
+      );
       await user.selectOptions(screen.getByLabelText("Type"), "income");
 
       expect(screen.getByLabelText("Category")).toHaveValue("");
@@ -530,7 +693,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Category")).toHaveValue("cat-1")
+      );
       await user.selectOptions(screen.getByLabelText("Group"), "group-1");
 
       expect(screen.getByLabelText("Category")).toHaveValue("");
@@ -544,7 +709,12 @@ describe("TransactionDetailPage (existing transaction)", () => {
         HttpResponse.json(
           {
             message: "Amount cannot be below the sum of participant shares",
-            issues: { formErrors: [], fieldErrors: { amount: ["Amount cannot be below the sum of participant shares"] } }
+            issues: {
+              formErrors: [],
+              fieldErrors: {
+                amount: ["Amount cannot be below the sum of participant shares"]
+              }
+            }
           },
           { status: 400 }
         )
@@ -558,7 +728,13 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await user.click(saveButton());
 
       await waitFor(() => expect(put.calls).toBe(1));
-      expect((await screen.findAllByText("Amount cannot be below the sum of participant shares")).length).toBeGreaterThan(0);
+      expect(
+        (
+          await screen.findAllByText(
+            "Amount cannot be below the sum of participant shares"
+          )
+        ).length
+      ).toBeGreaterThan(0);
       expect(screen.getByLabelText("Amount")).toHaveValue(5);
     });
 
@@ -566,7 +742,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       mockBaseline();
       let fail = true;
       const put = mockPut(() =>
-        fail ? HttpResponse.error() : HttpResponse.json({ transaction: makeTransaction() })
+        fail
+          ? HttpResponse.error()
+          : HttpResponse.json({ transaction: makeTransaction() })
       );
       const user = userEvent.setup();
       renderPage();
@@ -606,7 +784,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await loaded();
       await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-      expect(screen.getByLabelText("Shared transaction title")).toHaveValue("Dinner split");
+      expect(screen.getByLabelText("Shared transaction title")).toHaveValue(
+        "Dinner split"
+      );
       expect(screen.getByText("@sam")).toBeInTheDocument();
       expect(screen.getByText("$10.00")).toBeInTheDocument();
       expect(screen.getByText("Accepted")).toBeInTheDocument();
@@ -621,7 +801,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await loaded();
       await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-      expect(screen.getByRole("checkbox", { name: "Shared transaction" })).not.toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Shared transaction" })
+      ).not.toBeChecked();
     });
 
     it("hides the Related tab when there are no related records", async () => {
@@ -629,16 +811,26 @@ describe("TransactionDetailPage (existing transaction)", () => {
       renderPage();
 
       await loaded();
-      expect(screen.queryByRole("tab", { name: "Related" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("tab", { name: "Related" })
+      ).not.toBeInTheDocument();
     });
 
-    it("lists settlement transactions and the imported source in the Related tab", async () => {
-      const settlement = (id: string) => makeTransaction({ id, name: `Settlement ${id}`, amount: 10 });
+    it("lists related settlement transactions in the Related tab", async () => {
       mockBaseline({
         transaction: makeTransaction({
-          relations: [{ id: "r1", relationType: "settlement_payment", relatedTransaction: settlement("tx-2") }],
-          relatedBy: [{ id: "r2", relationType: "settlement_payment", transaction: settlement("tx-3") }],
-          providerImportedTransaction: { transactionDate: "2026-05-31T12:00:00.000Z" }
+          relatedTransactions: [
+            {
+              id: "tx-2",
+              description: "Settlement tx-2",
+              amount: 10,
+              currency: "USD",
+              date: "2026-05-31T12:00:00.000Z",
+              type: "income",
+              relation: "settlement",
+              settlementStatus: "approved"
+            }
+          ]
         })
       });
       const user = userEvent.setup();
@@ -647,9 +839,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await loaded();
       await user.click(screen.getByRole("tab", { name: "Related" }));
 
-      expect(screen.getByRole("link", { name: "Settlement tx-2" })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Settlement tx-3" })).toBeInTheDocument();
-      expect(screen.getByRole("region", { name: "Imported from provider" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Settlement tx-2" })
+      ).toBeInTheDocument();
     });
   });
 
@@ -658,7 +850,9 @@ describe("TransactionDetailPage (existing transaction)", () => {
     renderPage("/transactions/tx-1/edit");
 
     await loaded();
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit" })
+    ).not.toBeInTheDocument();
   });
 
   it("stacks the field grid in one column by default for narrow screens", async () => {
@@ -690,19 +884,27 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
   const searchUser = () =>
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-9", username: "kim9", displayName: null }] })
+        HttpResponse.json({
+          users: [{ id: "user-9", username: "kim9", displayName: null }]
+        })
       )
     );
 
   it("converts with other edits in one PUT carrying a manual and an app participant", async () => {
     mockBaseline();
     searchUser();
-    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = await openSharing();
 
-    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    );
     await user.type(screen.getByLabelText("Find app user"), "kim");
-    await user.click(await screen.findByRole("button", { name: "Add app user" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Add app user" })
+    );
     await user.type(screen.getByLabelText("Manual participant"), "Pat");
     await user.click(screen.getByRole("button", { name: "Add" }));
     const shares = screen.getAllByLabelText("Share");
@@ -727,22 +929,30 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
 
   it("blocks Save with a row error when shares exceed the amount", async () => {
     mockBaseline();
-    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = await openSharing();
 
-    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    );
     await user.type(screen.getByLabelText("Manual participant"), "Pat");
     await user.click(screen.getByRole("button", { name: "Add" }));
     await user.type(screen.getByLabelText("Share"), "100");
     await user.click(saveButton());
 
-    expect(await screen.findByText("This share pushes the total over the amount")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This share pushes the total over the amount")
+    ).toBeInTheDocument();
     expect(put.calls).toBe(0);
   });
 
   it("edits a share and removes an unpaid participant, sending stored rows by id", async () => {
     mockBaseline({ transaction: sharedTransaction() });
-    const put = mockPut(() => HttpResponse.json({ transaction: sharedTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: sharedTransaction() })
+    );
     const user = await openSharing();
 
     await user.clear(screen.getAllByLabelText("Share")[0]!);
@@ -752,7 +962,11 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
 
     await waitFor(() => expect(put.calls).toBe(1));
     expect(put.body).toEqual({
-      sharedExpense: { enabled: true, title: "Dinner split", participants: [{ id: "p1", userId: "user-2", share: 25 }] }
+      sharedExpense: {
+        enabled: true,
+        title: "Dinner split",
+        participants: [{ id: "p1", userId: "user-2", share: 25 }]
+      }
     });
   });
 
@@ -767,7 +981,9 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     let saved = false;
     server.use(
       http.get(`${API_URL}/transactions/tx-1`, () =>
-        HttpResponse.json({ transaction: saved ? refreshed : sharedTransaction() })
+        HttpResponse.json({
+          transaction: saved ? refreshed : sharedTransaction()
+        })
       )
     );
     mockPut(() => {
@@ -781,23 +997,40 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     await user.type(screen.getAllByLabelText("Share")[0]!, "25");
     await user.click(saveButton());
 
-    await waitFor(() => expect(screen.queryByText("Accepted")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText("Accepted")).not.toBeInTheDocument()
+    );
     expect(screen.getAllByText("Proposed")).toHaveLength(2);
-    expect(saveButton()).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("turns sharing off with enabled:false when nobody has paid", async () => {
     mockBaseline({
       transaction: sharedTransaction({
         participants: [
-          { id: "p2", userId: "user-3", participantName: "@kim", currency: "USD", shareAmount: 10, paidAmount: 0, status: "pending", acceptance: "proposed" }
+          {
+            id: "p2",
+            userId: "user-3",
+            participantName: "@kim",
+            currency: "USD",
+            shareAmount: 10,
+            paidAmount: 0,
+            status: "pending",
+            acceptance: "proposed"
+          }
         ]
       })
     });
-    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const put = mockPut(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = await openSharing();
 
-    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    );
     await user.click(saveButton());
 
     await waitFor(() => expect(put.calls).toBe(1));
@@ -808,8 +1041,12 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     mockBaseline({ transaction: sharedTransaction() });
     await openSharing();
 
-    expect(screen.getByRole("checkbox", { name: "Shared transaction" })).toBeDisabled();
-    expect(screen.getByText(/cannot be turned off while a participant has paid/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/cannot be turned off while a participant has paid/)
+    ).toBeInTheDocument();
   });
 
   it("keeps the draft and marks the offending row on a 400 guard error", async () => {
@@ -818,7 +1055,13 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
       HttpResponse.json(
         {
           message: "@kim's share cannot be below what was paid",
-          issues: { fieldErrors: { "sharedExpense.participants.1.share": ["@kim's share cannot be below what was paid"] } }
+          issues: {
+            fieldErrors: {
+              "sharedExpense.participants.1.share": [
+                "@kim's share cannot be below what was paid"
+              ]
+            }
+          }
         },
         { status: 400 }
       )
@@ -829,7 +1072,10 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     await user.type(screen.getAllByLabelText("Share")[1]!, "5");
     await user.click(saveButton());
 
-    expect((await screen.findAllByText("@kim's share cannot be below what was paid")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("@kim's share cannot be below what was paid"))
+        .length
+    ).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Share")[1]).toHaveValue(5);
     expect(screen.getAllByLabelText("Share")[1]).toBeInvalid();
     expect(screen.getAllByLabelText("Share")[0]).toBeValid();
@@ -837,16 +1083,25 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
 
   it("keeps the draft and shows the message on a 409 duplicate conversion", async () => {
     mockBaseline();
-    const put = mockPut(() => HttpResponse.json({ message: "This transaction is already shared" }, { status: 409 }));
+    const put = mockPut(() =>
+      HttpResponse.json(
+        { message: "This transaction is already shared" },
+        { status: 409 }
+      )
+    );
     const user = await openSharing();
 
-    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    );
     await user.type(screen.getByLabelText("Manual participant"), "Pat");
     await user.click(screen.getByRole("button", { name: "Add" }));
     await user.type(screen.getByLabelText("Share"), "5");
     await user.click(saveButton());
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("This transaction is already shared");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This transaction is already shared"
+    );
     expect(put.calls).toBe(1);
     expect(screen.getByLabelText("Share")).toHaveValue(5);
     expect(saveButton()).toBeEnabled();
@@ -874,10 +1129,14 @@ describe("TransactionDetailPage (new draft)", () => {
   }
 
   it("opens an empty draft with Save disabled and nothing created", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     await openNew();
 
-    expect(screen.getByRole("heading", { name: "New transaction" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "New transaction" })
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(saveButton()).toBeDisabled();
     expect(post.calls).toBe(0);
@@ -888,12 +1147,18 @@ describe("TransactionDetailPage (new draft)", () => {
     vi.setSystemTime(new Date("2026-11-06T03:07:00.000Z"));
     await openNew();
 
-    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-11-05T21:07");
+    expect(screen.getByLabelText("Date and time")).toHaveValue(
+      "2026-11-05T21:07"
+    );
   });
 
   it("prefills from whitelisted query params and ignores invalid ones", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
-    await openNew("/transactions/new?type=expense&amount=25&description=Lunch&bogus=1&currency=USD&categoryId=cat-1");
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
+    await openNew(
+      "/transactions/new?type=expense&amount=25&description=Lunch&bogus=1&currency=USD&categoryId=cat-1"
+    );
 
     expect(screen.getByLabelText("Name")).toHaveValue("Lunch");
     expect(screen.getByLabelText("Amount")).toHaveValue(25);
@@ -912,17 +1177,20 @@ describe("TransactionDetailPage (new draft)", () => {
     await openNew("/transactions/new?accountId=acc-2");
 
     expect(screen.getByLabelText("Account")).toHaveValue("acc-2");
-    expect(await screen.findByRole("combobox", { name: /currency/i })).toHaveValue("EUR");
+    expect(
+      await screen.findByRole("combobox", { name: /currency/i })
+    ).toHaveValue("EUR");
   });
 
-  it("Discard on a prefilled draft creates nothing", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+  it("Cancel on a prefilled draft creates nothing", async () => {
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = userEvent.setup();
     await openNew("/transactions/new?description=Lunch");
 
     await user.type(screen.getByLabelText("Amount"), "5");
-    await user.click(discardButton());
-    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await user.click(cancelButton());
 
     expect(screen.getByLabelText("Amount")).toHaveValue(null);
     expect(post.calls).toBe(0);
@@ -930,7 +1198,9 @@ describe("TransactionDetailPage (new draft)", () => {
 
   it("sends the entered local date and time as a UTC instant and lands on the new transaction", async () => {
     const post = mockPost(() =>
-      HttpResponse.json({ transaction: makeTransaction({ id: "tx-1", name: "Dinner" }) })
+      HttpResponse.json({
+        transaction: makeTransaction({ id: "tx-1", name: "Dinner" })
+      })
     );
     const user = userEvent.setup();
     await openNew();
@@ -946,13 +1216,22 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.click(saveButton());
 
     await waitFor(() => expect(post.calls).toBe(1));
-    expect(post.body).toMatchObject({ name: "Dinner", amount: 10, type: "expense", date: "2026-11-05T20:30:00.000Z" });
+    expect(post.body).toMatchObject({
+      name: "Dinner",
+      amount: 10,
+      type: "expense",
+      date: "2026-11-05T20:30:00.000Z"
+    });
     expect(post.body).not.toHaveProperty("sharedExpense");
-    expect(await screen.findByRole("heading", { name: "Dinner" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Dinner" })
+    ).toBeInTheDocument();
   });
 
   it("blocks Save for a transfer with no From/To accounts", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = userEvent.setup();
     await openNew();
 
@@ -961,7 +1240,9 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.selectOptions(screen.getByLabelText("Type"), "transfer");
     await user.click(saveButton());
 
-    expect(await screen.findByText("To account is required for transfers")).toBeInTheDocument();
+    expect(
+      await screen.findByText("To account is required for transfers")
+    ).toBeInTheDocument();
     expect(saveButton()).toBeDisabled();
     expect(post.calls).toBe(0);
   });
@@ -992,7 +1273,11 @@ describe("TransactionDetailPage (new draft)", () => {
   });
 
   it("creates a shared transaction with one POST carrying the sharedExpense", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction({ id: "tx-1", name: "Dinner" }) }));
+    const post = mockPost(() =>
+      HttpResponse.json({
+        transaction: makeTransaction({ id: "tx-1", name: "Dinner" })
+      })
+    );
     const user = userEvent.setup();
     await openNew();
 
@@ -1004,15 +1289,26 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.click(saveButton());
 
     await waitFor(() => expect(post.calls).toBe(1));
-    const shared = post.body?.sharedExpense as { title: string; participants: unknown[] };
+    const shared = post.body?.sharedExpense as {
+      title: string;
+      participants: unknown[];
+    };
     expect(shared.title).toBe("Dinner");
     expect(shared.participants).toEqual([
-      { userId: "user-2", participantName: "Sam (@sam)", shareAmount: 50, paidAmount: 0, status: "pending" }
+      {
+        userId: "user-2",
+        participantName: "Sam (@sam)",
+        shareAmount: 50,
+        paidAmount: 0,
+        status: "pending"
+      }
     ]);
   });
 
   it("keeps the draft and shows the error when create fails", async () => {
-    const post = mockPost(() => HttpResponse.json({ message: "Boom" }, { status: 500 }));
+    const post = mockPost(() =>
+      HttpResponse.json({ message: "Boom" }, { status: 500 })
+    );
     const user = userEvent.setup();
     await openNew();
 
@@ -1027,17 +1323,25 @@ describe("TransactionDetailPage (new draft)", () => {
   });
 
   it("blocks Save for a shared draft with no participants", async () => {
-    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
     const user = userEvent.setup();
     await openNew();
 
     await user.type(screen.getByLabelText("Name"), "Dinner");
     await user.type(screen.getByLabelText("Amount"), "10");
     await user.click(screen.getByRole("tab", { name: "Sharing" }));
-    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    );
     await user.click(saveButton());
 
-    expect(await screen.findByText("Add at least one participant to share this transaction")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Add at least one participant to share this transaction"
+      )
+    ).toBeInTheDocument();
     expect(post.calls).toBe(0);
   });
 
@@ -1048,7 +1352,9 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.selectOptions(screen.getByLabelText("Type"), "transfer");
     await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-    expect(screen.queryByRole("checkbox", { name: "Shared transaction" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Shared transaction" })
+    ).not.toBeInTheDocument();
   });
 
   it("clears participants when a draft switches to transfer", async () => {
@@ -1061,6 +1367,8 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.selectOptions(screen.getByLabelText("Type"), "expense");
     await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-    expect(screen.getByRole("checkbox", { name: "Shared transaction" })).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Shared transaction" })
+    ).not.toBeChecked();
   });
 });

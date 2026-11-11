@@ -111,10 +111,8 @@ describe("AccountDetailPage", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    await user.click(
-      await screen.findByRole("button", { name: "Discard changes" })
-    );
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByLabelText("Name")).toHaveValue("Checking")
     );
@@ -166,17 +164,27 @@ describe("AccountDetailPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Archive" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Record actions" })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Archive" }));
     await waitFor(() => expect(archived).toBe(true));
   });
 
   it("offers Restore for an archived account", async () => {
     mockAccounts([makeAccount({ isArchived: true })]);
+    const user = userEvent.setup();
     renderPage();
 
+    await user.click(
+      await screen.findByRole("button", { name: "Record actions" })
+    );
     expect(
-      await screen.findByRole("button", { name: "Restore" })
+      screen.getByRole("menuitem", { name: "Restore" })
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Archive" })
+    ).not.toBeInTheDocument();
   });
 
   it("deletes after confirmation and returns to the list", async () => {
@@ -190,7 +198,11 @@ describe("AccountDetailPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Record actions" })
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(window.confirm).toHaveBeenCalled();
     expect(await screen.findByText("Accounts list")).toBeInTheDocument();
   });
 });

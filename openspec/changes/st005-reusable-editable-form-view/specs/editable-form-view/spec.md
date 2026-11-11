@@ -66,7 +66,7 @@ When `initial` changes, the draft SHALL rebase onto it only if the draft is not 
 - **THEN** the user's edited values are kept
 
 ### Requirement: Form View composition
-`FormView` SHALL be composition only, taking `title`, optional `subtitle`, `headerExtra`, `tabs`, `children`, `draft` (the hook result), optional `onSave` and optional `onBack`. It SHALL contain no reference to any specific model. There SHALL be no Edit button and no edit mode. Sections that are read-only or run immediate actions SHALL be plain children and SHALL NOT touch the draft.
+`FormView` SHALL be composition only, taking `title`, optional `subtitle`, `headerExtra`, `tabs`, `children`, `draft` (the hook result), optional `onSave`, optional `backLink` (`{ to, label }`), optional `isNew` and optional `actions` (record-action menu items). It SHALL contain no reference to any specific model. There SHALL be no Edit button and no edit mode. Sections that are read-only or run immediate actions SHALL be plain children and SHALL NOT touch the draft.
 
 #### Scenario: No edit mode
 - **WHEN** a Form View renders
@@ -77,27 +77,35 @@ When `initial` changes, the draft SHALL rebase onto it only if the draft is not 
 - **THEN** the draft and header actions are unaffected
 
 ### Requirement: Header actions
-`FormView` SHALL render compact Save and Discard buttons in its header row at all times, without any bottom bar. While the draft is clean both SHALL be disabled, with an accessible name or title that explains why (for example "No changes to save"). While dirty, Discard SHALL be enabled and Save SHALL be enabled unless `draft.isSaving` or `draft.fieldErrors` is non-empty, in which case it is disabled with its reason. While saving, Save SHALL show a busy state (`aria-busy`). Buttons SHALL be at least 40px high and never full-width. At 375 CSS pixels they SHALL stay in the header row, wrapping below the title only if needed. `draft.saveError` SHALL show inline under the header. Ctrl/Cmd+S SHALL save when dirty and enabled, and prevent the browser default. `onSave` SHALL replace Save's default `draft.save`.
+`FormView` SHALL render compact icon Save (lucide `CloudUpload`) and Cancel (lucide `X`) buttons on the right of its header row, without any bottom bar. Each SHALL have an `aria-label` ("Save" / "Cancel"), a `title` tooltip, a hit target of at least 40x40px, a visible focus ring and a small icon. Both SHALL render only while the draft is dirty. With `isNew`, Save SHALL always render (disabled until the draft is dirty and valid) while Cancel still renders only when dirty. Save SHALL be disabled, with its reason in the title and an accessible description, while `draft.isSaving` or `draft.fieldErrors` is non-empty, and SHALL show a spinner and `aria-busy` while saving. Cancel SHALL discard the draft immediately (restoring the last persisted state) without a confirm dialog. The header SHALL wrap at 375 CSS pixels with no horizontal overflow. `draft.saveError` SHALL show inline under the header. Ctrl/Cmd+S SHALL save when dirty and enabled, and prevent the browser default. `onSave` SHALL replace Save's default `draft.save`.
 
 #### Scenario: Clean draft
-- **WHEN** nothing has changed
-- **THEN** Save and Discard are rendered, disabled, and expose the reason
+- **WHEN** a Form View renders with a clean draft
+- **THEN** neither Save nor Cancel is rendered
 
 #### Scenario: Dirty draft
-- **WHEN** a field changes
-- **THEN** Save and Discard become enabled and the dirty marker shows on that field
+- **WHEN** a user edits a field
+- **THEN** icon Save and Cancel appear, enabled when valid, and the dirty marker shows on that field
 
-#### Scenario: Busy
+#### Scenario: Create mode
+- **WHEN** `isNew` is set and the draft is clean
+- **THEN** Save is rendered disabled with its reason, and Cancel is not rendered
+
+#### Scenario: Saving
 - **WHEN** a save is in progress
-- **THEN** Save shows a busy state and is disabled
+- **THEN** Save shows a spinner and `aria-busy` and is disabled
 
 #### Scenario: Invalid draft
-- **WHEN** the draft has validation errors
+- **WHEN** the draft has field errors
 - **THEN** Save is disabled and its reason names the validation problem
+
+#### Scenario: Cancel
+- **WHEN** the user activates Cancel with a dirty draft
+- **THEN** the draft is restored immediately with no confirm dialog
 
 #### Scenario: Targets and layout
 - **WHEN** the view renders at 375 CSS pixels
-- **THEN** both buttons are at least 40px high, not full-width, and in the header row with no horizontal overflow
+- **THEN** both buttons are at least 40px square and the header wraps with no horizontal overflow
 
 #### Scenario: Save shortcut
 - **WHEN** the draft is dirty and the user presses Ctrl+S or Cmd+S
@@ -179,20 +187,31 @@ A field error SHALL render with `role="alert"` and be linked to the input by `ar
 - **WHEN** a field has an error
 - **THEN** the message is announced and referenced by the input
 
+### Requirement: Record actions menu
+`FormView` SHALL take an optional `actions` node of `ActionMenuItem`s and, when it contains at least one item, render the shared `ActionMenu` labelled "Record actions" at the right of the header after Save and Cancel. It SHALL render no menu when `actions` is absent or empty. Danger items use the `danger` variant. Confirmation semantics belong to the consumer.
+
+#### Scenario: Actions provided
+- **WHEN** a consumer passes `actions`
+- **THEN** a "Record actions" menu button opens a menu listing those items
+
+#### Scenario: No actions
+- **WHEN** `actions` is undefined or empty
+- **THEN** no menu button is rendered
+
 ### Requirement: Unsaved-change protection
-While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's own Discard and Back controls SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty and discard it only when confirmed. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
+While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's back link SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty, and SHALL navigate and discard the draft only when confirmed. Cancel never asks. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
 
 #### Scenario: Close tab with edits
 - **WHEN** a user closes or reloads the page with a dirty draft
 - **THEN** the browser's unsaved-changes prompt appears
 
-#### Scenario: Discard with edits
-- **WHEN** a user activates Discard with a dirty draft
-- **THEN** a confirm dialog appears, and the draft is discarded only if confirmed
+#### Scenario: Back link with edits
+- **WHEN** a user activates the back link with a dirty draft
+- **THEN** a confirm dialog appears, and the app navigates and discards the draft only if confirmed
 
-#### Scenario: Back with edits
-- **WHEN** a user activates the view's Back control with a dirty draft
-- **THEN** a confirm dialog appears, and the draft is discarded only if confirmed
+#### Scenario: Back link when clean
+- **WHEN** a user activates the back link with a clean draft
+- **THEN** the app navigates immediately without a dialog
 
 #### Scenario: Clean draft
 - **WHEN** the draft is clean

@@ -16,6 +16,9 @@
 - [x] 3.2 Add `pages/Accounts/AccountDetailPage.tsx`: lookup by id (archived included), not-found state, `FormView` with the five directly editable fields (no Edit button; ST-005 compact header Save/Discard), `AccountSyncPanel`, archive/restore/delete (confirm, return to list). Verify: `tests/AccountDetailPage.test.tsx` covers render, direct edit and save, discard, not-found for unknown/foreign id, synced panel, archive, delete.
 - [x] 3.3 Register the route in `main.tsx`. Verify: route renders under the authenticated layout (covered by 3.2 test via router).
 
+- [x] 3.4 Move Archive/Restore/Delete into `FormView` `actions` (window.confirm kept on Delete) and use `backLink` "Back to accounts". Verify: `tests/AccountDetailPage.test.tsx` opens "Record actions" and covers archive, restore and delete.
+
+
 ## 4. List cleanup
 
 - [x] 4.1 Make rows link to the view; remove inline edit form, row expansion and `useAccountEditForm`; use type labels. Verify: updated `AccountListItem.test.tsx` and `AccountsPage.test.tsx` pass; no references to `useAccountEditForm` remain (`grep`).

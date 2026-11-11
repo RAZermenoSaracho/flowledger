@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button } from "../../components/Button";
+import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { FormView } from "../../components/FormView";
 import { routes } from "../../constants/routes";
@@ -176,7 +176,26 @@ export function TransactionDetailPage() {
         }
         draft={draft}
         tabs={tabs}
-        onBack={() => navigate(routes.transactions)}
+        backLink={{ to: routes.transactions, label: "Back to transactions" }}
+        isNew={isNew}
+        actions={
+          transaction ? (
+            <ActionMenuItem
+              variant="danger"
+              disabled={deleteTransaction.isPending}
+              onClick={() => {
+                const sharedCleanup = transaction.sharedExpense
+                  ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
+                  : "";
+                if (window.confirm(`Delete "${transaction.name}" permanently?${sharedCleanup}`)) {
+                  void deleteTransaction.mutateAsync(transaction.id);
+                }
+              }}
+            >
+              Delete
+            </ActionMenuItem>
+          ) : undefined
+        }
         headerExtra={
           transaction ? (
             <>
@@ -187,23 +206,6 @@ export function TransactionDetailPage() {
                     : "Pending classification: add a category and account."}
                 </p>
               ) : null}
-              <div>
-                <Button
-                  type="button"
-                  variant="danger"
-                  disabled={deleteTransaction.isPending}
-                  onClick={() => {
-                    const sharedCleanup = transaction.sharedExpense
-                      ? " This transaction has a shared expense, so participants, debts, settlements, and related notifications will also be removed."
-                      : "";
-                    if (window.confirm(`Delete "${transaction.name}" permanently?${sharedCleanup}`)) {
-                      void deleteTransaction.mutateAsync(transaction.id);
-                    }
-                  }}
-                >
-                  Delete
-                </Button>
-              </div>
             </>
           ) : null
         }

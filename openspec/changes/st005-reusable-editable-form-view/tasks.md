@@ -26,6 +26,10 @@
 - [x] 4.1 Add a `docs/KNOWN_ISSUES.md` entry that in-app route-level unsaved-change blocking is deferred (needs a data router; `main.tsx` uses `BrowserRouter`). Verify: the entry follows the file's format with a suggested fix.
 - [x] 4.2 Note the shared Form View in `apps/web/CLAUDE.md` (file locations, the no-edit-mode and header-actions rules, and the adoption rule). Verify: the section names the four files and the rule.
 
+## 4b. Header correction (PR #40 review)
+
+- [x] 4b.1 In `components/FormView.tsx`, replace `onBack` with `backLink` (descriptive react-router `Link`, dirty-guard confirm dialog before navigating), render icon Save/Cancel (`CloudUpload`/`X`, `aria-label`, `title`, 40px, focus ring) only while dirty (Save also when `isNew`), Cancel discards without confirm, and add the `actions` "Record actions" `ActionMenu`. Verify: `components/tests/FormView.test.tsx` covers back link clean/dirty, hidden/visible Save and Cancel, disabled invalid/saving, `isNew`, Cancel restore, actions menu, Ctrl+S.
+
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint` and `npm run test -w apps/web` pass. Verify: all green.

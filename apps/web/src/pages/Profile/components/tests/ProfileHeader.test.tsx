@@ -45,30 +45,39 @@ describe("ProfileHeader", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("edits directly, enables Save/Discard only when dirty, and Discard restores", async () => {
+  it("edits directly, shows Save/Cancel only when dirty, and Cancel restores", async () => {
     mockBaseline();
     const user = userEvent.setup();
     render();
     const input = await screen.findByLabelText("Name");
     await waitFor(() => expect(input).toHaveValue("Jane Doe"));
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" })
+    ).not.toBeInTheDocument();
     await user.type(input, "x");
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Discard" }));
-    await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("Escape reverts the field", async () => {
     mockBaseline();
     const user = userEvent.setup();
     render();
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe")
+    );
     await user.type(screen.getByLabelText("Name"), "x{Escape}");
     expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("blocks save and shows an error for an invalid email", async () => {
@@ -102,13 +111,19 @@ describe("ProfileHeader", () => {
     await user.clear(input);
     await user.type(input, "Jane Roe");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Jane Roe"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Roe")
+    );
     expect(body).toEqual({
       name: "Jane Roe",
       email: "jane@example.com",
       preferredCurrency: null
     });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Save" })
+      ).not.toBeInTheDocument()
+    );
   });
 
   it("asks for the current password on an email change, then replaces the token and saves the rest", async () => {
@@ -136,19 +151,33 @@ describe("ProfileHeader", () => {
     expect(profileBody).toBeUndefined();
     await user.type(await screen.findByLabelText("Current password"), "secret");
     await user.click(screen.getByRole("button", { name: "Change email" }));
-    await waitFor(() => expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument());
-    expect(emailBody).toEqual({ email: "new@example.com", currentPassword: "secret" });
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("Current password")
+      ).not.toBeInTheDocument()
+    );
+    expect(emailBody).toEqual({
+      email: "new@example.com",
+      currentPassword: "secret"
+    });
     expect(profileBody).toMatchObject({ email: "new@example.com" });
     expect(getToken()).toBe("new-tok");
-    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveValue("new@example.com"));
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Email")).toHaveValue("new@example.com")
+    );
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the dialog open and shows the server message when the email is taken", async () => {
     mockBaseline();
     server.use(
       http.patch(`${API_URL}/auth/email`, () =>
-        HttpResponse.json({ message: "Email already registered" }, { status: 409 })
+        HttpResponse.json(
+          { message: "Email already registered" },
+          { status: 409 }
+        )
       )
     );
     const user = userEvent.setup();
@@ -161,7 +190,9 @@ describe("ProfileHeader", () => {
     await user.type(await screen.findByLabelText("Current password"), "secret");
     await user.click(screen.getByRole("button", { name: "Change email" }));
     const dialog = screen.getByRole("dialog");
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Email already registered");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Email already registered"
+    );
   });
 
   it("previews a chosen avatar and uploads it on Save; beforeunload only while dirty", async () => {
@@ -181,7 +212,9 @@ describe("ProfileHeader", () => {
     const add = vi.spyOn(window, "addEventListener");
     const user = userEvent.setup();
     const { container } = render();
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe")
+    );
     expect(add.mock.calls.some(([t]) => t === "beforeunload")).toBe(false);
     await user.upload(
       screen.getByLabelText("Profile picture file"),
@@ -194,7 +227,11 @@ describe("ProfileHeader", () => {
     expect(add.mock.calls.some(([t]) => t === "beforeunload")).toBe(true);
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(uploaded).toBe(true));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Save" })
+      ).not.toBeInTheDocument()
+    );
     add.mockRestore();
   });
 });

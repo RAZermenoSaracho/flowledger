@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { FormView } from "../../components/FormView";
 import { routes } from "../../constants/routes";
@@ -62,15 +63,41 @@ export function GroupDetailPage() {
         title={group.name}
         subtitle={`${canManage ? "Admin" : "Member"}${group.isArchived ? " · Archived" : ""}`}
         draft={draft}
-        onBack={() => navigate(routes.groups)}
+        backLink={{ to: routes.groups, label: "Back to groups" }}
+        actions={
+          canManage ? (
+            <>
+              {group.isArchived ? (
+                <ActionMenuItem
+                  disabled={management.restoreGroup.isPending}
+                  onClick={() => management.restoreGroup.mutate(group.id)}
+                >
+                  Restore
+                </ActionMenuItem>
+              ) : (
+                <ActionMenuItem
+                  disabled={management.archiveGroup.isPending}
+                  onClick={() => management.archiveGroup.mutate(group.id)}
+                >
+                  Archive
+                </ActionMenuItem>
+              )}
+              <ActionMenuItem
+                variant="danger"
+                disabled={management.deleteGroup.isPending}
+                onClick={() => management.confirmDeleteGroup(group)}
+              >
+                Delete
+              </ActionMenuItem>
+            </>
+          ) : undefined
+        }
       >
         <div className="mt-4 grid gap-8">
           <GroupHeader
             group={group}
             draft={draft}
             canEdit={canManageActive}
-            canManage={canManage}
-            management={management}
           />
           <GroupMembersSection
             group={group}

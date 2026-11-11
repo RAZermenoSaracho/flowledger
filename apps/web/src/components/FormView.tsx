@@ -1,16 +1,20 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
+import { CloudUpload, Loader2, X } from "lucide-react";
+import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { FormDraftControls, FormViewTab } from "../types/common.types";
+import { ActionMenu } from "./ActionMenu";
 import { Button } from "./Button";
 import { ModalDialog } from "./ModalDialog";
 
 /**
- * Composition shell for an editable record: a header row with `title`, always-visible compact
- * Save and Discard buttons (disabled with a stated reason while clean, saving or invalid), the
- * inline `draft.saveError`, optional URL-driven tabs (`?tab=`) and plain `children` sections that
- * never touch the draft. Ctrl/Cmd+S saves when Save is enabled. `onSave` replaces `draft.save`.
- * Discard and `onBack` ask for confirmation while dirty. The caller owns the draft hook, so
- * the draft survives tab switches. There is no Edit button or edit mode.
+ * Composition shell for an editable record: a header with an optional descriptive `backLink`, the
+ * `title`, compact icon Save/Cancel buttons that render only while the draft is dirty (Save is
+ * also always rendered, disabled until dirty and valid, when `isNew`), an optional "Record
+ * actions" menu built from `actions` (`ActionMenuItem`s), the inline `draft.saveError`, optional
+ * URL-driven tabs (`?tab=`) and plain `children` sections that never touch the draft.
+ * Ctrl/Cmd+S saves when Save is enabled; `onSave` replaces `draft.save`. Cancel discards the draft
+ * immediately; clicking the back link while dirty asks for confirmation before navigating. The
+ * caller owns the draft hook, so the draft survives tab switches. There is no Edit mode.
  */
 export function FormView({
   title,
@@ -20,7 +24,9 @@ export function FormView({
   children,
   draft,
   onSave,
-  onBack
+  backLink,
+  isNew,
+  actions
 }: {
   title: string;
   subtitle?: string;
@@ -29,11 +35,14 @@ export function FormView({
   children?: ReactNode;
   draft: FormDraftControls;
   onSave?: () => void | Promise<void>;
-  onBack?: () => void;
+  backLink?: { to: string; label: string };
+  isNew?: boolean;
+  actions?: ReactNode;
 }) {
   const reasonId = useId();
   const dialogTitleId = useId();
-  const [pending, setPending] = useState<"discard" | "back" | null>(null);
+  const navigate = useNavigate();
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
   const hasErrors = Object.keys(draft.fieldErrors).length > 0;
   const saveReason = draft.isSaving
     ? "Saving..."
@@ -42,8 +51,10 @@ export function FormView({
       : hasErrors
         ? "Fix the highlighted fields to save"
         : null;
-  const discardReason = draft.isDirty ? null : "No changes to discard";
   const doSave = onSave ?? draft.save;
+  const showSave = draft.isDirty || Boolean(isNew);
+  const iconButton =
+    "inline-flex h-10 w-10 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950";
 
   const latest = useRef({ canSave: saveReason === null, doSave });
   latest.current = { canSave: saveReason === null, doSave };
@@ -58,53 +69,66 @@ export function FormView({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  function request(action: "discard" | "back") {
-    if (draft.isDirty) setPending(action);
-    else if (action === "back") onBack?.();
-  }
-
-  function confirm() {
-    const action = pending;
-    setPending(null);
+  function confirmLeave() {
+    const to = leaveTo;
+    setLeaveTo(null);
     draft.cancel();
-    if (action === "back") onBack?.();
+    if (to) navigate(to);
   }
 
   return (
     <div className="grid grid-cols-1 gap-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {onBack ? (
-            <Button type="button" variant="secondary" onClick={() => request("back")} className="mb-2">
-              Back
-            </Button>
+        <div className="min-w-0 flex-1 basis-48">
+          {backLink ? (
+            <Link
+              to={backLink.to}
+              onClick={(event) => {
+                if (!draft.isDirty) return;
+                event.preventDefault();
+                setLeaveTo(backLink.to);
+              }}
+              className="mb-2 inline-block rounded text-sm font-semibold text-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 dark:text-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950"
+            >
+              {backLink.label}
+            </Link>
           ) : null}
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="break-words text-xl font-semibold">{title}</h1>
           {subtitle ? <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p> : null}
         </div>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            type="button"
-            aria-busy={draft.isSaving}
-            disabled={saveReason !== null}
-            title={saveReason ?? undefined}
-            aria-describedby={saveReason ? `${reasonId}-save` : undefined}
-            onClick={() => void doSave()}
-          >
-            {draft.isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={discardReason !== null}
-            title={discardReason ?? undefined}
-            aria-describedby={discardReason ? `${reasonId}-discard` : undefined}
-            onClick={() => request("discard")}
-          >
-            Discard
-          </Button>
-          {saveReason ? <span id={`${reasonId}-save`} className="sr-only">{saveReason}</span> : null}
-          {discardReason ? <span id={`${reasonId}-discard`} className="sr-only">{discardReason}</span> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {showSave ? (
+            <button
+              type="button"
+              aria-label="Save"
+              title={saveReason ?? "Save"}
+              aria-busy={draft.isSaving}
+              disabled={saveReason !== null}
+              aria-describedby={saveReason ? `${reasonId}-save` : undefined}
+              onClick={() => void doSave()}
+              className={`${iconButton} border-pine bg-pine text-white hover:bg-emerald-800`}
+            >
+              {draft.isSaving ? (
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+              ) : (
+                <CloudUpload className="h-5 w-5" aria-hidden="true" />
+              )}
+            </button>
+          ) : null}
+          {draft.isDirty ? (
+            <button
+              type="button"
+              aria-label="Cancel"
+              title="Cancel"
+              disabled={draft.isSaving}
+              onClick={() => draft.cancel()}
+              className={`${iconButton} border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800`}
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+          {showSave && saveReason ? <span id={`${reasonId}-save`} className="sr-only">{saveReason}</span> : null}
+          {Children.toArray(actions).length > 0 ? <ActionMenu label="Record actions">{actions}</ActionMenu> : null}
         </div>
       </header>
       {draft.saveError ? (
@@ -115,14 +139,14 @@ export function FormView({
       {headerExtra}
       {tabs && tabs.length > 0 ? <Tabs tabs={tabs} /> : null}
       {children}
-      {pending ? (
-        <ModalDialog titleId={dialogTitleId} title="Discard unsaved changes?" onCancel={() => setPending(null)}>
+      {leaveTo ? (
+        <ModalDialog titleId={dialogTitleId} title="Discard unsaved changes?" onCancel={() => setLeaveTo(null)}>
           <p className="mt-2 text-sm">Your edits will be lost.</p>
           <div className="mt-4 flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setPending(null)}>
+            <Button type="button" variant="secondary" onClick={() => setLeaveTo(null)}>
               Keep editing
             </Button>
-            <Button type="button" variant="danger" onClick={confirm}>
+            <Button type="button" variant="danger" onClick={confirmLeave}>
               Discard changes
             </Button>
           </div>

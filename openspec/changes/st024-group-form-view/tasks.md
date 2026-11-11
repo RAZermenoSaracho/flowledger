@@ -25,6 +25,9 @@ Prerequisites: ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-c
 - [x] 4.2 Fix `docs/DOMAIN_LOGIC.md` "only the owner" to Group admins (role `admin`). Verify: grep finds no "only the owner" in the group section.
 - [x] 4.3 Mark `docs/KNOWN_ISSUES.md` #028 resolved. Leave #015, #018 and #020 unchanged. Verify: diff touches only #028.
 
+- [x] 4.x Move Archive/Restore/Delete from `GroupHeader` into `FormView` `actions` for admins only, and use `backLink` "Back to groups". Verify: `GroupDetailPage.test.tsx` covers the menu (admin) and no menu (member); `GroupHeader.test.tsx` no longer renders actions.
+
+
 ## 5. Final verification
 
 - [x] 5.1 Web `npm run typecheck`, `npm run lint` and `npm run test` pass; new files have TSDoc and matching tests; no Group-specific form lifecycle remains.
