@@ -352,7 +352,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #028 — Groups page filter modal appears behind parts of the selected group's form
+## [RESOLVED] #028 — Groups page filter modal appears behind parts of the selected group's form
 
 **Found in:** `fix-transaction-date-display` PR review. It is an existing production bug; this PR did not cause it.
 
@@ -360,7 +360,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Description:** On the Groups page, opening the filter modal from the group list leaves it partly covered by the selected group's detail form, so stacking and overlap are wrong. The page shows the list and the detail side by side at `xl`, with the list column wrapped in `xl:sticky xl:top-6`. Not reproduced or verified in this session. Plausible: the sticky wrapper forms its own stacking context, so the modal's `fixed z-50` (`FilterBuilder.tsx`) is confined to it and can paint under positioned elements in the detail `Card`. `<main>` overflow changed in this PR (`overflow-x-clip`); there is no evidence it is involved.
 
-**Suggested fix:** Resolved by the Group overview redesign, ST-024 (B-004), which removes the side-by-side layout and sticky column.
+**Resolved:** The Group overview redesign (ST-024, B-004) removes the side-by-side layout and sticky column; the filter dropdown and modal were verified above all content on the overview and detail views at 375px and 1440px.
 
 **Scope:** `apps/web/src/components/FilterBuilder.tsx` (the "Filters" modal).
 

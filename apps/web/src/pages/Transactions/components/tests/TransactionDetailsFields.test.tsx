@@ -27,8 +27,8 @@ const groups = [
     name: "Roommates",
     categories: [{ id: "gc1", name: "Rent", type: "expense" }],
     members: [
-      { id: "m1", userId: "me", user: { id: "me", name: "Me", email: "" } },
-      { id: "m2", userId: "u2", user: { id: "u2", name: "Sam", email: "" } }
+      { id: "m1", userId: "me", user: { id: "me", username: "me", displayName: "Me" } },
+      { id: "m2", userId: "u2", user: { id: "u2", username: "sam", displayName: "Sam" } }
     ]
   }
 ] as unknown as Group[];

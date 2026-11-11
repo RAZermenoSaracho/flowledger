@@ -39,7 +39,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     groupId: "group-1",
     userId: id,
     role,
-    user: { id, name, email: `${name.toLowerCase()}@example.com` },
+    user: { id, username: name.toLowerCase(), displayName: name },
     createdAt: "",
     updatedAt: ""
   });
@@ -789,8 +789,8 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.selectOptions(screen.getByLabelText("Group"), "group-1");
     await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-    expect(await screen.findByText("Sam")).toBeInTheDocument();
-    expect(screen.queryByText("Jane")).not.toBeInTheDocument();
+    expect(await screen.findByText("Sam (@sam)")).toBeInTheDocument();
+    expect(screen.queryByText("Jane (@jane)")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Share")).toHaveValue(50);
   });
 
@@ -815,14 +815,14 @@ describe("TransactionDetailPage (new draft)", () => {
     await user.type(screen.getByLabelText("Amount"), "100");
     await user.selectOptions(screen.getByLabelText("Group"), "group-1");
     await user.click(screen.getByRole("tab", { name: "Sharing" }));
-    await screen.findByText("Sam");
+    await screen.findByText("Sam (@sam)");
     await user.click(saveButton());
 
     await waitFor(() => expect(post.calls).toBe(1));
     const shared = post.body?.sharedExpense as { title: string; participants: unknown[] };
     expect(shared.title).toBe("Dinner");
     expect(shared.participants).toEqual([
-      { userId: "user-2", participantName: "Sam", shareAmount: 50, paidAmount: 0, status: "pending" }
+      { userId: "user-2", participantName: "Sam (@sam)", shareAmount: 50, paidAmount: 0, status: "pending" }
     ]);
   });
 

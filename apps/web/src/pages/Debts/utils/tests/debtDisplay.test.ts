@@ -33,13 +33,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", name: "Jane", email: "jane@example.com" },
+      owner: { id: "user-1", username: "jane", displayName: "Jane" },
       transaction: { type: "expense" } as Debt["sharedExpense"]["transaction"],
       participants: [],
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z"
     },
-    user: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    user: { id: "user-2", username: "sam", displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -53,7 +53,7 @@ describe("debtTitle", () => {
 
 describe("participantName", () => {
   it("prefers the linked user's name over the stored participant name", () => {
-    expect(participantName(makeDebt())).toBe("Sam");
+    expect(participantName(makeDebt())).toBe("Sam (@sam)");
   });
 
   it("falls back to the stored participant name when there's no linked user", () => {
@@ -67,11 +67,11 @@ describe("partyName", () => {
   });
 
   it("resolves the shared expense owner's name", () => {
-    expect(partyName(makeDebt(), "user-1")).toBe("Jane");
+    expect(partyName(makeDebt(), "user-1")).toBe("Jane (@jane)");
   });
 
   it("resolves the linked participant's name", () => {
-    expect(partyName(makeDebt(), "user-2")).toBe("Sam");
+    expect(partyName(makeDebt(), "user-2")).toBe("Sam (@sam)");
   });
 
   it("falls back to participantName for an unlinked manual participant matching debtor/creditor id", () => {
@@ -88,14 +88,14 @@ describe("otherParty", () => {
   it("resolves the creditor as the other party when the viewer is the debtor", () => {
     const result = otherParty(makeDebt(), "user-2");
     expect(result.key).toBe("user-1");
-    expect(result.person?.name).toBe("Jane");
-    expect(result.fallbackName).toBe("Jane");
+    expect(result.person?.displayName).toBe("Jane");
+    expect(result.fallbackName).toBe("Jane (@jane)");
   });
 
   it("resolves the debtor as the other party when the viewer is the creditor", () => {
     const result = otherParty(makeDebt(), "user-1");
     expect(result.key).toBe("user-2");
-    expect(result.person?.name).toBe("Sam");
+    expect(result.person?.displayName).toBe("Sam");
   });
 
   it("falls back to a synthetic key when neither debtor/creditor id resolves", () => {
@@ -119,7 +119,7 @@ describe("displayPerson", () => {
   it("prefers the linked person's name", () => {
     const balance: PersonBalance = {
       key: "user-2",
-      person: { id: "user-2", name: "Sam", email: "sam@example.com" },
+      person: { id: "user-2", username: "sam", displayName: "Sam" },
       fallbackName: "Fallback",
       theyOweMe: [],
       iOweThem: [],
@@ -127,7 +127,7 @@ describe("displayPerson", () => {
       iOweThemTotal: 0,
       netBalance: 0
     };
-    expect(displayPerson(balance)).toBe("Sam");
+    expect(displayPerson(balance)).toBe("Sam (@sam)");
   });
 
   it("falls back to fallbackName when there's no linked person", () => {
@@ -164,13 +164,13 @@ describe("transactionTypeLabel", () => {
 describe("debtDescription", () => {
   it("describes the debt from the debtor's perspective", () => {
     expect(debtDescription(makeDebt(), "user-2")).toBe(
-      "Jane · expense split · $40.00 settled of $100.00"
+      "Jane (@jane) · expense split · $40.00 settled of $100.00"
     );
   });
 
   it("describes the debt from the creditor's perspective", () => {
     expect(debtDescription(makeDebt(), "user-1")).toBe(
-      "Sam · expense split · $40.00 settled of $100.00"
+      "Sam (@sam) · expense split · $40.00 settled of $100.00"
     );
   });
 });

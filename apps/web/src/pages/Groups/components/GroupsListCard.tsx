@@ -7,6 +7,7 @@ import {
   createEmptyGroup
 } from "../../../utils/searchDomain";
 import type { Group } from "../../../types/groups.types";
+import { GroupCard } from "./GroupCard";
 import {
   buildGroupSearchFields,
   GROUP_DEFAULT_SEARCH_FIELD,
@@ -23,19 +24,17 @@ const initialGroupDomain = {
   children: [createConditionWithValue("isArchived", "=", "false")]
 };
 
-/** Search/sort/list card for choosing which group is selected. */
+/** Search/sort card with the responsive grid of group cards; each card opens that group's detail view. */
 export function GroupsListCard({
   onQueryChange,
   onAddGroup,
   visibleGroups,
-  selectedGroupId,
-  onSelectGroup
+  currentUserId
 }: {
   onQueryChange: (query: SearchBarQuery) => void;
   onAddGroup: () => void;
   visibleGroups: Group[];
-  selectedGroupId: string | null;
-  onSelectGroup: (groupId: string) => void;
+  currentUserId: string | undefined;
 }) {
   return (
     <Card>
@@ -53,39 +52,20 @@ export function GroupsListCard({
           onQueryChange={onQueryChange}
         />
       </PageHeader>
-      <div className="mt-4 grid max-h-[55vh] gap-3 overflow-y-auto pr-1">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {visibleGroups.map((group) => (
-          <button
-            id={`group-${group.id}`}
+          <GroupCard
             key={group.id}
-            type="button"
-            className={`rounded-md border p-3 text-left transition ${
-              selectedGroupId === group.id
-                ? "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950"
-                : "border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
-            }`}
-            onClick={() => onSelectGroup(group.id)}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold">{group.name}</p>
-              {group.isArchived ? (
-                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Archived
-                </span>
-              ) : null}
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {group.members.length} members · {group.categories.length}{" "}
-              categories
-            </p>
-          </button>
+            group={group}
+            currentUserId={currentUserId}
+          />
         ))}
-        {visibleGroups.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No groups found.
-          </p>
-        ) : null}
       </div>
+      {visibleGroups.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+          No groups found.
+        </p>
+      ) : null}
     </Card>
   );
 }

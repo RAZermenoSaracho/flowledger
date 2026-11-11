@@ -18,7 +18,7 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
       type: "expense",
       executionCurrency: "USD"
     } as SharedExpense["transaction"],
-    owner: { id: "user-1", name: "Jane" },
+    owner: { id: "user-1", username: "jane", displayName: "Jane" },
     participants: [
       {
         id: "p-1",
@@ -61,7 +61,7 @@ describe("splitDirectionLabel", () => {
         makeSharedExpense({ transaction: { type: "expense" } as never }),
         "user-2"
       )
-    ).toBe("You owe Jane");
+    ).toBe("You owe Jane (@jane)");
   });
 
   it("labels an income transaction as '{owner} owes you' for a participant", () => {
@@ -70,7 +70,7 @@ describe("splitDirectionLabel", () => {
         makeSharedExpense({ transaction: { type: "income" } as never }),
         "user-2"
       )
-    ).toBe("Jane owes you");
+    ).toBe("Jane (@jane) owes you");
   });
 
   it("falls back to a generic 'the owner' when the owner's name isn't in the response", () => {
@@ -121,7 +121,7 @@ describe("splitDirectionLabel", () => {
         }),
         "user-2"
       )
-    ).toBe("You owed Jane");
+    ).toBe("You owed Jane (@jane)");
   });
 
   it("switches to past tense for a settled income split, participant perspective", () => {
@@ -133,7 +133,7 @@ describe("splitDirectionLabel", () => {
         }),
         "user-2"
       )
-    ).toBe("Jane owed you");
+    ).toBe("Jane (@jane) owed you");
   });
 });
 
@@ -167,7 +167,7 @@ describe("SharedExpenseListItem", () => {
       />
     );
 
-    expect(screen.getByText(/open · You owe Jane/)).toBeInTheDocument();
+    expect(screen.getByText(/open · You owe Jane \(@jane\)/)).toBeInTheDocument();
   });
 
   it("shows past-tense direction text once the shared expense is settled", () => {

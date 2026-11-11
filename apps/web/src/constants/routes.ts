@@ -12,6 +12,7 @@ export const routes = {
   account: (id: string) => `/accounts/${id}`,
   categories: "/categories",
   groups: "/groups",
+  group: (id: string) => `/groups/${id}`,
   reports: "/reports",
   debts: "/debts",
   profile: "/profile",

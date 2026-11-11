@@ -1,9 +1,11 @@
 import { Button } from "../../../components/Button";
 import { TextInput } from "../../../components/FormField";
+import { RelatedList } from "../../../components/RelatedList";
+import { formatPublicUser } from "../../../utils/publicUser";
 import type { Group } from "../../../types/groups.types";
 import type { useGroupManagement } from "../hooks/useGroupManagement";
 
-/** Section listing a group's members with add/remove management actions. */
+/** Immediate-mode `RelatedList` of a group's members by public identity (never email) plus, for admins of an active group, a username search that adds a member on its own request. */
 export function GroupMembersSection({
   group,
   canManageActive,
@@ -14,28 +16,32 @@ export function GroupMembersSection({
   management: ReturnType<typeof useGroupManagement>;
 }) {
   return (
-    <section>
-      <h3 className="font-semibold">Members</h3>
-      <div className="mt-3 grid gap-2">
-        {group.members.map((member) => (
-          <div
-            key={member.id}
-            className="min-w-0 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-950"
-          >
-            <p className="break-words font-medium">{member.user.name}</p>
-            <p className="break-words text-slate-500 dark:text-slate-400">
-              {member.user.email} · {member.role}
-            </p>
-          </div>
-        ))}
-      </div>
+    <section className="grid gap-4">
+      <RelatedList
+        title="Members"
+        rows={group.members}
+        rowKey={(member) => member.id}
+        emptyText="No members."
+        columns={[
+          {
+            key: "member",
+            header: "Member",
+            cell: (member) => (
+              <span className="break-words font-medium">
+                {formatPublicUser(member.user)}
+              </span>
+            )
+          },
+          { key: "role", header: "Role", cell: (member) => member.role }
+        ]}
+      />
       {canManageActive ? (
-        <div className="mt-4 grid gap-3">
+        <div className="grid gap-3">
           <TextInput
             label="Find app user"
             value={management.userSearch}
             onChange={(event) => management.setUserSearch(event.target.value)}
-            placeholder="Search by name or email"
+            placeholder="Search by username"
           />
           {management.trimmedUserSearch.length > 0 && management.trimmedUserSearch.length < 3 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -55,9 +61,8 @@ export function GroupMembersSection({
                     className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
                   >
                     <div className="min-w-0">
-                      <p className="break-words font-medium">{user.name}</p>
-                      <p className="break-words text-slate-500 dark:text-slate-400">
-                        {user.email}
+                      <p className="break-words font-medium">
+                        {formatPublicUser(user)}
                       </p>
                     </div>
                     <Button

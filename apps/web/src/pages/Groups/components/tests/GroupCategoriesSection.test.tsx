@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../../../../tests/mocks/server";
 import type { Category } from "../../../../types/categories.types";
 import { useGroupCategoryManagement } from "../../hooks/useGroupCategoryManagement";
@@ -100,5 +100,76 @@ describe("GroupCategoriesSection", () => {
     await user.click(screen.getByRole("button", { name: "Add category" }));
 
     await waitFor(() => expect(createdBody).toMatchObject({ name: "Rent" }));
+  });
+
+  it("edits a category through the inline form", async () => {
+    mockCategories([makeCategory()]);
+    let updatedBody: unknown;
+    server.use(
+      http.put(`${API_URL}/categories/cat-1`, async ({ request }) => {
+        updatedBody = await request.json();
+        return HttpResponse.json({ category: makeCategory({ name: "Food" }) });
+      })
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Edit Groceries" }));
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Food");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(updatedBody).toMatchObject({ name: "Food" }));
+  });
+
+  it("archives an active category", async () => {
+    mockCategories([makeCategory()]);
+    let archived = false;
+    server.use(
+      http.post(`${API_URL}/categories/cat-1/archive`, () => {
+        archived = true;
+        return HttpResponse.json({ category: makeCategory({ isArchived: true }) });
+      })
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Archive Groceries" }));
+
+    await waitFor(() => expect(archived).toBe(true));
+  });
+
+  it("shows Restore and an Archived badge for an archived category", async () => {
+    mockCategories([makeCategory({ isArchived: true })]);
+    renderSection();
+
+    expect(await screen.findByRole("button", { name: "Restore Groceries" })).toBeInTheDocument();
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+  });
+
+  it("deletes a category after confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockCategories([makeCategory()]);
+    let deleted = false;
+    server.use(
+      http.delete(`${API_URL}/categories/cat-1`, () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Delete Groceries" }));
+
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it("hides row actions when the viewer cannot manage", async () => {
+    mockCategories([makeCategory()]);
+    renderSection(false);
+
+    await screen.findByText("Groceries");
+    expect(screen.queryByRole("button", { name: "Edit Groceries" })).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import { RecordCard, type RecordCardAction } from "../../../components/RecordCard";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import { formatMoney } from "../../../utils/currency";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 /**
  * Debt-direction label from `currentUserId`'s perspective. The owner sees the
@@ -30,7 +31,7 @@ export function splitDirectionLabel(
     return isSettled ? "You owed participants" : "You owe participants";
   }
 
-  const ownerName = sharedExpense.owner?.name ?? "the owner";
+  const ownerName = sharedExpense.owner ? formatPublicUser(sharedExpense.owner) : "the owner";
   if (type === "expense") {
     return isSettled ? `You owed ${ownerName}` : `You owe ${ownerName}`;
   }

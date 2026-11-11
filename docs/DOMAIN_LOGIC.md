@@ -10,7 +10,7 @@ Groups are the multi-user collaboration unit in FlowLedger. They replace the old
 - Groups own categories (`Category.groupId`). Group members can use these categories.
 - Transactions can be scoped to a group (`Transaction.groupId`). Group transactions appear in group reports.
 - Groups can be archived (soft delete).
-- Group admin: only the owner can update or archive the group, add/remove members.
+- Group admin: Group admins (members with role `admin`) can update, archive, restore or delete the group and add members and categories.
 
 ### Membership rules
 - Only group members can access group categories or create group-scoped transactions.

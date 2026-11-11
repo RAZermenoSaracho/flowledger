@@ -43,7 +43,7 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     creditorUserId: "user-1",
     amount: 50,
     status: "pending",
-    debtor: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    debtor: { id: "user-2", username: "sam", displayName: "Sam" },
     sharedExpenseParticipant: makeDebt(),
     createdAt: "",
     updatedAt: "",
@@ -55,7 +55,7 @@ describe("SettlementRequestCard", () => {
   it("renders the linked debt's title, requester, and amount", () => {
     renderWithProviders(<SettlementRequestCard request={makeRequest()} />);
     expect(screen.getByText("Dinner split")).toBeInTheDocument();
-    expect(screen.getByText(/Sam requested \$50\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Sam \(@sam\) requested \$50\.00/)).toBeInTheDocument();
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 

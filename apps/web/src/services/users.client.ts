@@ -62,7 +62,7 @@ export function updateSidebarSide(mobileSidebarSide: MobileSidebarSide) {
   });
 }
 
-/** Searches other users by name/email. */
+/** Searches other users by username (min 3 chars). */
 export function searchUsers(query: string, limit = 8) {
   return apiRequest<{ users: PublicUser[] }>("/users/search", {
     query: { q: query, limit: String(limit) }

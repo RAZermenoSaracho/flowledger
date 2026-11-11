@@ -66,7 +66,7 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
 function makeBalance(overrides: Partial<PersonBalance> = {}): PersonBalance {
   return {
     key: "user-2",
-    person: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    person: { id: "user-2", username: "sam", displayName: "Sam" },
     fallbackName: "Sam",
     theyOweMe: [makeDebt()],
     iOweThem: [],
@@ -106,7 +106,7 @@ function baseProps(overrides: Partial<Parameters<typeof PersonDebtDetail>[0]> = 
 describe("PersonDebtDetail", () => {
   it("renders the person's name, net balance, and they-owe-me/I-owe-them totals", () => {
     renderWithProviders(<PersonDebtDetail {...baseProps()} />);
-    expect(screen.getByText("Sam")).toBeInTheDocument();
+    expect(screen.getByText("Sam (@sam)")).toBeInTheDocument();
     expect(screen.getByText("Net balance $60.00")).toBeInTheDocument();
     expect(screen.getByText("They Owe Me")).toBeInTheDocument();
     expect(screen.getByText("I Owe Them")).toBeInTheDocument();

@@ -51,6 +51,7 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/accounts` | `AccountsPage` | Yes |
 | `/categories` | `CategoriesPage` | Yes |
 | `/groups` | `GroupsPage` | Yes |
+| `/groups/:id` | `GroupDetailPage` | Yes |
 | `/debts` | `DebtsPage` | Yes |
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |

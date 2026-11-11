@@ -16,6 +16,7 @@ import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { DebtsPage } from "./pages/Debts/DebtsPage";
 import { PersonDebtDetailPage } from "./pages/Debts/PersonDebtDetailPage";
 import { LoginPage } from "./pages/Login/LoginPage";
+import { GroupDetailPage } from "./pages/Groups/GroupDetailPage";
 import { GroupsPage } from "./pages/Groups/GroupsPage";
 import { OAuthAuthorizePage } from "./pages/OAuthAuthorize/OAuthAuthorizePage";
 import { OAuthCallbackPage } from "./pages/OAuthCallback/OAuthCallbackPage";
@@ -74,6 +75,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
+                <Route path="/groups/:id" element={<GroupDetailPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route
                   path="/shared-expenses"

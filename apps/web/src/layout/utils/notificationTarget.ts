@@ -17,7 +17,7 @@ export function notificationTarget(notification: Notification) {
   if (notification.type === "group_member_added") {
     const groupId = metadataString(metadata, "groupId");
     return groupId
-      ? `${routes.groups}?groupId=${encodeURIComponent(groupId)}`
+      ? routes.group(encodeURIComponent(groupId))
       : routes.groups;
   }
 
@@ -75,7 +75,7 @@ export function notificationTarget(notification: Notification) {
 
   const groupId = metadataString(metadata, "groupId");
   if (groupId) {
-    return `${routes.groups}?groupId=${encodeURIComponent(groupId)}`;
+    return routes.group(encodeURIComponent(groupId));
   }
 
   return null;

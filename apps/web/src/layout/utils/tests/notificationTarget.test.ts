@@ -23,12 +23,12 @@ function makeNotification(overrides: Partial<Notification> = {}): Notification {
 const unhandledType = "unhandled_future_type" as unknown as Notification["type"];
 
 describe("notificationTarget", () => {
-  it("links group_member_added to the group's groups page with groupId when present", () => {
+  it("links group_member_added to the group detail view when groupId is present", () => {
     const notification = makeNotification({
       type: "group_member_added",
       metadata: { groupId: "group-1" }
     });
-    expect(notificationTarget(notification)).toBe("/groups?groupId=group-1");
+    expect(notificationTarget(notification)).toBe("/groups/group-1");
   });
 
   it("falls back to the plain groups route when group_member_added has no groupId", () => {
@@ -125,12 +125,12 @@ describe("notificationTarget", () => {
     expect(notificationTarget(creditor)).toBe("/transactions/tx-creditor");
   });
 
-  it("falls back to a groupId-scoped groups link for the generic case", () => {
+  it("falls back to a group detail link for the generic case", () => {
     const notification = makeNotification({
       type: unhandledType,
       metadata: { groupId: "group-1" }
     });
-    expect(notificationTarget(notification)).toBe("/groups?groupId=group-1");
+    expect(notificationTarget(notification)).toBe("/groups/group-1");
   });
 
   it("returns null when there is no actionable target", () => {

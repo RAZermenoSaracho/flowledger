@@ -29,7 +29,7 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     creditorUserId: "user-1",
     amount: 50,
     status: "pending",
-    debtor: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    debtor: { id: "user-2", username: "sam", displayName: "Sam" },
     sharedExpenseParticipant: {
       sharedExpense: { title: "Dinner split", transaction: { type: "expense" } }
     } as unknown as Debt,

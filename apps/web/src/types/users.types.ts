@@ -13,5 +13,9 @@ export type User = {
   updatedAt: string;
 };
 
-/** User fields safe to expose to other users (e.g. group members, debt counterparties). */
-export type PublicUser = Pick<User, "id" | "name" | "email">;
+/** Public identity of another user (group members, debt counterparties, participants); never carries email or name. */
+export type PublicUser = {
+  id: string;
+  username: string;
+  displayName: string | null;
+};

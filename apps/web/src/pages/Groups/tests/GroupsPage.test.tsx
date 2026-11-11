@@ -1,11 +1,26 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
 import type { Group } from "../../../types/groups.types";
 import { GroupsPage } from "../GroupsPage";
+
+function LocationProbe() {
+  return <p data-testid="location">{useLocation().pathname}</p>;
+}
+
+function renderOverview(route = "/groups") {
+  return renderWithProviders(
+    <Routes>
+      <Route path="/groups" element={<GroupsPage />} />
+      <Route path="/groups/:id" element={<LocationProbe />} />
+    </Routes>,
+    { withAuth: true, route }
+  );
+}
 
 const API_URL = "http://localhost:4000";
 
@@ -31,7 +46,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
         groupId: "group-1",
         userId: "user-1",
         role: "admin",
-        user: { id: "user-1", name: "Jane", email: "jane@example.com" },
+        user: { id: "user-1", username: "jane", displayName: "Jane" },
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z"
       }
@@ -66,102 +81,88 @@ function mockBaseline({
 }
 
 describe("GroupsPage", () => {
-  it("shows a prompt to select a group when none is selected", async () => {
-    mockBaseline({ groups: [makeGroup()] });
-    renderWithProviders(<GroupsPage />, { withAuth: true });
+  it("shows groups as cards without any detail beside them", async () => {
+    mockBaseline({ groups: [makeGroup()], authed: true });
+    renderOverview();
 
     await waitFor(() => expect(screen.getByText("Roommates")).toBeInTheDocument());
-    expect(screen.getByText("Select a group to view details.")).toBeInTheDocument();
+    expect(screen.queryByText("Select a group to view details.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Group summary")).not.toBeInTheDocument();
   });
 
-  it("selects a group and shows its detail sections", async () => {
+  it("navigates to the group's detail URL when a card is clicked", async () => {
     mockBaseline({ groups: [makeGroup()], authed: true });
     const user = userEvent.setup();
-    renderWithProviders(<GroupsPage />, { withAuth: true });
+    renderOverview();
 
-    await waitFor(() => expect(screen.getByText("Roommates")).toBeInTheDocument());
-    await user.click(screen.getByText("Roommates"));
+    await user.click(await screen.findByText("Roommates"));
 
-    await waitFor(() => expect(screen.getByText("Group summary")).toBeInTheDocument());
-    expect(screen.getByText("Members")).toBeInTheDocument();
-    expect(screen.getByText("Group categories")).toBeInTheDocument();
-    expect(screen.getByText("Latest Group Transactions")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/groups/group-1");
   });
 
-  it("deselects the group when clicking it again", async () => {
-    mockBaseline({ groups: [makeGroup()], authed: true });
+  it("hides archived groups by default and shows them after the chip is removed", async () => {
+    server.use(
+      http.get(`${API_URL}/groups`, ({ request }) => {
+        const where = new URL(request.url).searchParams.get("query") ?? "";
+        const hidesArchived = where.includes("isArchived");
+        return HttpResponse.json({
+          groups: hidesArchived
+            ? [makeGroup()]
+            : [makeGroup(), makeGroup({ id: "group-2", name: "Old trip", isArchived: true })]
+        });
+      }),
+      http.post(`${API_URL}/auth/refresh`, () => HttpResponse.json({ token: "tok", user: authedUser }))
+    );
     const user = userEvent.setup();
-    renderWithProviders(<GroupsPage />, { withAuth: true });
+    renderOverview();
 
-    await waitFor(() => expect(screen.getByText("Roommates")).toBeInTheDocument());
-    await user.click(screen.getByText("Roommates"));
-    await waitFor(() => expect(screen.getByText("Group summary")).toBeInTheDocument());
+    await screen.findByText("Roommates");
+    expect(screen.queryByText("Old trip")).not.toBeInTheDocument();
 
-    await user.click(document.getElementById("group-group-1")!);
+    const chip = screen.getByText(/Archived/, { selector: "span, button" });
+    expect(chip).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /remove/i }));
+
+    expect(await screen.findByText("Old trip")).toBeInTheDocument();
+  });
+
+  it("redirects ?groupId= to /groups/:id", async () => {
+    mockBaseline({ groups: [makeGroup()], authed: true });
+    renderOverview("/groups?groupId=group-1");
 
     await waitFor(() =>
-      expect(screen.getByText("Select a group to view details.")).toBeInTheDocument()
+      expect(screen.getByTestId("location")).toHaveTextContent("/groups/group-1")
     );
-  });
-
-  it("grants manage actions (Edit) when the authed user is an admin member", async () => {
-    mockBaseline({ groups: [makeGroup()], authed: true });
-    const user = userEvent.setup();
-    renderWithProviders(<GroupsPage />, { withAuth: true });
-
-    await waitFor(() => expect(screen.getByText("Roommates")).toBeInTheDocument());
-    await user.click(screen.getByText("Roommates"));
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument());
-  });
-
-  it("withholds manage actions when the authed user is not an admin member", async () => {
-    mockBaseline({
-      groups: [
-        makeGroup({
-          members: [
-            {
-              id: "m1",
-              groupId: "group-1",
-              userId: "user-1",
-              role: "member",
-              user: { id: "user-1", name: "Jane", email: "jane@example.com" },
-              createdAt: "2024-01-01T00:00:00.000Z",
-              updatedAt: "2024-01-01T00:00:00.000Z"
-            }
-          ]
-        })
-      ],
-      authed: true
-    });
-    const user = userEvent.setup();
-    renderWithProviders(<GroupsPage />, { withAuth: true });
-
-    await waitFor(() => expect(screen.getByText("Roommates")).toBeInTheDocument());
-    await user.click(screen.getByText("Roommates"));
-
-    await waitFor(() => expect(screen.getByText("Member")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  });
-
-  it("auto-selects and scrolls to the group named in ?groupId=", async () => {
-    mockBaseline({ groups: [makeGroup({ id: "group-highlighted" })], authed: true });
-    renderWithProviders(<GroupsPage />, {
-      withAuth: true,
-      route: "/groups?groupId=group-highlighted"
-    });
-
-    await waitFor(() => expect(screen.getByText("Group summary")).toBeInTheDocument());
   });
 
   it("opens the create-group form via the AddRecordButton", async () => {
     mockBaseline({ groups: [] });
     const user = userEvent.setup();
-    renderWithProviders(<GroupsPage />, { withAuth: true });
+    renderOverview();
 
     await waitFor(() => expect(screen.getByText("No groups found.")).toBeInTheDocument());
     await user.click(screen.getAllByRole("button", { name: "Add group" })[0]!);
 
     expect(screen.getByText("New group")).toBeInTheDocument();
+  });
+
+  it("creates a group and opens its detail view", async () => {
+    mockBaseline({ groups: [], authed: true });
+    server.use(
+      http.post(`${API_URL}/groups`, () =>
+        HttpResponse.json({ group: makeGroup({ id: "group-9", name: "Trip" }) })
+      )
+    );
+    const user = userEvent.setup();
+    renderOverview();
+
+    await waitFor(() => expect(screen.getByText("No groups found.")).toBeInTheDocument());
+    await user.click(screen.getAllByRole("button", { name: "Add group" })[0]!);
+    await user.type(screen.getByLabelText("Name"), "Trip");
+    await user.click(screen.getByRole("button", { name: "Save group" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent("/groups/group-9")
+    );
   });
 });

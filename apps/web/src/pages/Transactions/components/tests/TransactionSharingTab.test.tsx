@@ -16,8 +16,8 @@ const group = {
   id: "g1",
   name: "Roommates",
   members: [
-    { id: "m1", userId: "me", user: { id: "me", name: "Me", email: "me@x.io" } },
-    { id: "m2", userId: "u2", user: { id: "u2", name: "Sam", email: "sam@x.io" } }
+    { id: "m1", userId: "me", user: { id: "me", username: "me", displayName: "Me" } },
+    { id: "m2", userId: "u2", user: { id: "u2", username: "sam", displayName: "Sam" } }
   ]
 } as unknown as Group;
 
@@ -103,7 +103,7 @@ describe("TransactionSharingTab", () => {
   it("asks for three characters before searching and adds a found app user", async () => {
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "u9", name: "Kim", email: "kim@x.io" }] })
+        HttpResponse.json({ users: [{ id: "u9", username: "kim", displayName: "Kim" }] })
       )
     );
     const user = userEvent.setup();
@@ -114,7 +114,7 @@ describe("TransactionSharingTab", () => {
     await user.type(screen.getByLabelText("Find app user"), "m");
     await user.click(await screen.findByRole("button", { name: "Add app user" }));
 
-    expect(screen.getByText("App user · kim@x.io")).toBeInTheDocument();
+    expect(screen.getByText("Kim (@kim)")).toBeInTheDocument();
   });
 
   it("limits search results to the selected group's members and hides manual entry", async () => {
@@ -122,8 +122,8 @@ describe("TransactionSharingTab", () => {
       http.get(`${API_URL}/users/search`, () =>
         HttpResponse.json({
           users: [
-            { id: "u2", name: "Sam", email: "sam@x.io" },
-            { id: "u9", name: "Kim", email: "kim@x.io" }
+            { id: "u2", username: "sam", displayName: "Sam" },
+            { id: "u9", username: "kim", displayName: "Kim" }
           ]
         })
       )

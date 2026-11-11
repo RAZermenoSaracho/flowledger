@@ -3,6 +3,7 @@ import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft, TransactionDraft } from "../types/transactions.types";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 function toShare(value: number) {
   return (Math.round(value * 100) / 100).toFixed(2);
@@ -83,8 +84,7 @@ export function splitAmongGroup(
       .map((member) => ({
         draftId: member.id,
         userId: member.userId,
-        participantName: member.user.name,
-        email: member.user.email,
+        participantName: formatPublicUser(member.user),
         source: "app",
         shareAmount: share
       }))
@@ -149,8 +149,7 @@ export function addUserParticipant(
   const participant: ParticipantDraft = {
     draftId: crypto.randomUUID(),
     userId: user.id,
-    participantName: user.name,
-    email: user.email,
+    participantName: formatPublicUser(user),
     source: "app",
     shareAmount: ""
   };

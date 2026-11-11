@@ -41,13 +41,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", name: "Jane", email: "jane@example.com" },
-      user: { id: "user-2", name: "Sam", email: "sam@example.com" },
+      owner: { id: "user-1", username: "jane", displayName: "Jane" },
+      user: { id: "user-2", username: "sam", displayName: "Sam" },
       participants: [],
       createdAt: "",
       updatedAt: ""
     } as Debt["sharedExpense"],
-    user: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    user: { id: "user-2", username: "sam", displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -60,7 +60,7 @@ function makeDebtsResponse(overrides: Partial<DebtsResponse> = {}): DebtsRespons
     balances: [
       {
         key: "user-2",
-        person: { id: "user-2", name: "Sam", email: "sam@example.com" },
+        person: { id: "user-2", username: "sam", displayName: "Sam" },
         fallbackName: "Sam",
         theyOweMe: [makeDebt()],
         iOweThem: [],
@@ -95,7 +95,7 @@ describe("DebtsPage", () => {
     mockBaseline();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Sam")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Outstanding Balances" })).toHaveAttribute(
       "aria-selected",
       "true"
@@ -130,7 +130,7 @@ describe("DebtsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Sam")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Pending Settlement Requests" }));
 
     expect(screen.getByText("Pending settlement requests")).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe("DebtsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Sam")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Settled History" }));
 
     expect(screen.getByText("Settled history")).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe("DebtsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Sam")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Shared Expenses" }));
 
     expect(screen.getByRole("heading", { name: "Shared expenses" })).toBeInTheDocument();

@@ -1,3 +1,4 @@
+import type { PublicUser } from "./users.types";
 import type { ParticipantStatus, SharedExpenseStatus } from "@flowledger/shared";
 import type { Transaction } from "./transactions.types";
 
@@ -27,7 +28,7 @@ export type SharedExpense = {
   totalAmount: number;
   status: SharedExpenseStatus;
   transaction?: SharedExpenseTransaction;
-  owner?: { id: string; name: string };
+  owner?: PublicUser;
   participants: SharedExpenseParticipant[];
   createdAt: string;
   updatedAt: string;

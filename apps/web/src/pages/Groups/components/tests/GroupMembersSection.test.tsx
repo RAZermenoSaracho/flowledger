@@ -22,7 +22,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
         groupId: "group-1",
         userId: "user-2",
         role: "member",
-        user: { id: "user-2", name: "Jane", email: "jane@example.com" },
+        user: { id: "user-2", username: "jane", displayName: "Jane" },
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z"
       }
@@ -35,11 +35,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
 }
 
 function Harness({ group, canManageActive }: { group: Group; canManageActive: boolean }) {
-  const management = useGroupManagement({
-    selectedGroupId: group.id,
-    setSelectedGroupId: () => {},
-    selectedGroup: group
-  });
+  const management = useGroupManagement({ selectedGroupId: group.id });
   return (
     <GroupMembersSection group={group} canManageActive={canManageActive} management={management} />
   );
@@ -57,10 +53,18 @@ function renderSection(group: Group, canManageActive = true) {
 }
 
 describe("GroupMembersSection", () => {
-  it("renders each member's name, email, and role", () => {
+  it("renders each member by public identity and role, never an email", () => {
     renderSection(makeGroup());
-    expect(screen.getByText("Jane")).toBeInTheDocument();
-    expect(screen.getByText(/jane@example.com · member/)).toBeInTheDocument();
+    expect(screen.getByText("Jane (@jane)")).toBeInTheDocument();
+    expect(screen.getByText("member")).toBeInTheDocument();
+    expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to @username when the member shares no display name", () => {
+    const group = makeGroup();
+    group.members[0]!.user.displayName = null;
+    renderSection(group);
+    expect(screen.getByText("@jane")).toBeInTheDocument();
   });
 
   it("omits the member-search UI when canManageActive is false", () => {
@@ -80,7 +84,7 @@ describe("GroupMembersSection", () => {
   it("searches app users and adds one as a member", async () => {
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-3", name: "Sam", email: "sam@example.com" }] })
+        HttpResponse.json({ users: [{ id: "user-3", username: "sam", displayName: "Sam" }] })
       ),
       http.post(`${API_URL}/groups/group-1/members`, () =>
         HttpResponse.json({
@@ -89,7 +93,7 @@ describe("GroupMembersSection", () => {
             groupId: "group-1",
             userId: "user-3",
             role: "member",
-            user: { id: "user-3", name: "Sam", email: "sam@example.com" },
+            user: { id: "user-3", username: "sam", displayName: "Sam" },
             createdAt: "2024-01-01T00:00:00.000Z",
             updatedAt: "2024-01-01T00:00:00.000Z"
           }
@@ -101,7 +105,7 @@ describe("GroupMembersSection", () => {
 
     await user.type(screen.getByLabelText("Find app user"), "sam");
 
-    await waitFor(() => expect(screen.getByText("sam@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Add member" }));
 
     await waitFor(() =>

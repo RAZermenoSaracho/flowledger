@@ -7,7 +7,7 @@ import { BalancesTab } from "../BalancesTab";
 function makeBalance(overrides: Partial<PersonBalance> = {}): PersonBalance {
   return {
     key: "user-2",
-    person: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    person: { id: "user-2", username: "sam", displayName: "Sam" },
     fallbackName: "Sam",
     theyOweMe: [],
     iOweThem: [],
@@ -41,15 +41,15 @@ describe("BalancesTab", () => {
 
   it("renders each balance as a card with amounts and the visible/total count", () => {
     renderWithProviders(<BalancesTab {...baseProps()} />);
-    expect(screen.getByText("Sam")).toBeInTheDocument();
-    expect(screen.getByText(/sam@example.com/)).toBeInTheDocument();
+    expect(screen.getByText("Sam (@sam)")).toBeInTheDocument();
+    expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
     expect(screen.getAllByText("$100.00").length).toBeGreaterThan(0);
     expect(screen.getByText("1 of 1")).toBeInTheDocument();
   });
 
   it("links each card to that person's detail page", () => {
     renderWithProviders(<BalancesTab {...baseProps()} />);
-    expect(screen.getByText("Sam").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Sam (@sam)").closest("a")).toHaveAttribute(
       "href",
       "/debts/balances/user-2"
     );

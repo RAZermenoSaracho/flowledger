@@ -20,6 +20,7 @@ import {
   splitAmongGroup,
   splitEqually
 } from "../utils/transactionDraftReducers";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 const mutedClassName = "text-sm text-slate-500 dark:text-slate-400";
 
@@ -146,7 +147,7 @@ export function TransactionSharingTab({
               <input
                 className={editableControlClassName}
                 value={userSearch}
-                placeholder="Search by name or email"
+                placeholder="Search by username"
                 onChange={(event) => setUserSearch(event.target.value)}
               />
             </EditableField>
@@ -188,8 +189,7 @@ export function TransactionSharingTab({
                     className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm sm:flex-row sm:items-center dark:border-slate-800"
                   >
                     <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className={mutedClassName}>{user.email}</p>
+                      <p className="font-medium">{formatPublicUser(user)}</p>
                     </div>
                     <Button
                       type="button"
@@ -226,7 +226,7 @@ export function TransactionSharingTab({
                     <p className="font-semibold">{participant.participantName}</p>
                     <p className={mutedClassName}>
                       {participant.source === "app"
-                        ? `App user${participant.email ? ` · ${participant.email}` : ""}`
+                        ? "App user"
                         : "Manual participant"}
                     </p>
                   </div>
