@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatStatus } from "../accountDisplay";
+import { ACCOUNT_TYPES } from "@flowledger/shared";
+import {
+  formatDateTime,
+  formatStatus,
+  getAccountTypeLabel
+} from "../accountDisplay";
 
 describe("formatDateTime", () => {
   it("formats a valid ISO timestamp", () => {
@@ -33,5 +38,19 @@ describe("formatStatus", () => {
 
   it("passes through a value with no underscore unchanged", () => {
     expect(formatStatus("active")).toBe("active");
+  });
+});
+
+describe("getAccountTypeLabel", () => {
+  it("labels every account type without the raw enum", () => {
+    for (const type of ACCOUNT_TYPES) {
+      const label = getAccountTypeLabel(type);
+      expect(label).toBeTruthy();
+      expect(label).not.toContain("_");
+    }
+  });
+
+  it("labels checking as checking / debit", () => {
+    expect(getAccountTypeLabel("checking")).toBe("Checking / debit");
   });
 });

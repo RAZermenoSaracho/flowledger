@@ -1,3 +1,5 @@
+import type { AccountType } from "@flowledger/shared";
+
 const dateTime = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short"
@@ -14,4 +16,18 @@ export function formatDateTime(value: string | null | undefined) {
 /** Formats a status code for display, replacing underscores with spaces. */
 export function formatStatus(value: string | null | undefined) {
   return value ? value.replace("_", " ") : "unknown";
+}
+
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  cash: "Cash",
+  checking: "Checking / debit",
+  savings: "Savings",
+  credit_card: "Credit card",
+  investment: "Investment",
+  other: "Other"
+};
+
+/** Human-readable label for an account type; `checking` reads "Checking / debit" since it covers debit and everyday bank accounts. */
+export function getAccountTypeLabel(type: AccountType) {
+  return ACCOUNT_TYPE_LABELS[type];
 }

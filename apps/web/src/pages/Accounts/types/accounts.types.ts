@@ -1,3 +1,7 @@
+import type { AccountType } from "@flowledger/shared";
+import type { ComponentType } from "react";
+import type { FormDraft } from "../../../types/common.types";
+
 /** Constructor for the Syncfy authentication widget SDK, loaded dynamically at runtime. */
 export type SyncfyWidgetConstructor = new (params: {
   token: string;
@@ -20,3 +24,22 @@ export type SyncfyWidgetEntrypoint =
 export type SyncfyWidgetResult =
   | { event: "success" | "updated" | "closed"; credential?: unknown }
   | { event: "error" | "socket-error" | "api-error"; credential?: unknown };
+
+/** Editable account fields as held by the account Form View draft; `initialBalance` stays a string while typed. */
+export type AccountDraft = {
+  name: string;
+  type: AccountType;
+  identifier: string;
+  currency: string;
+  initialBalance: string;
+};
+
+/** Props of a type-specific section rendered inside the account Form View. */
+export type AccountTypeSectionProps = {
+  draft: FormDraft<AccountDraft>;
+};
+
+/** Registry of optional per-account-type sections. */
+export type AccountTypeSectionMap = Partial<
+  Record<AccountType, ComponentType<AccountTypeSectionProps>>
+>;

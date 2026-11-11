@@ -7,6 +7,7 @@ export const routes = {
   oauthAuthorize: "/oauth/authorize",
   transactions: "/transactions",
   accounts: "/accounts",
+  account: (id: string) => `/accounts/${id}`,
   categories: "/categories",
   groups: "/groups",
   reports: "/reports",

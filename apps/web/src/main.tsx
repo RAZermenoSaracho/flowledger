@@ -9,6 +9,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ThemeProvider } from "./hooks/useTheme";
 import { AppLayout } from "./layout/AppLayout";
 import { ProtectedRoute } from "./layout/ProtectedRoute";
+import { AccountDetailPage } from "./pages/Accounts/AccountDetailPage";
 import { AccountsPage } from "./pages/Accounts/AccountsPage";
 import { CategoriesPage } from "./pages/Categories/CategoriesPage";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
@@ -36,7 +37,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Routes>
               <Route path={routes.login} element={<LoginPage />} />
               <Route path={routes.register} element={<RegisterPage />} />
-              <Route path={routes.oauthCallback} element={<OAuthCallbackPage />} />
+              <Route
+                path={routes.oauthCallback}
+                element={<OAuthCallbackPage />}
+              />
               <Route
                 path={routes.oauthAuthorize}
                 element={
@@ -63,6 +67,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   element={<TransactionEditPage />}
                 />
                 <Route path="/accounts" element={<AccountsPage />} />
+                <Route path="/accounts/:id" element={<AccountDetailPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
