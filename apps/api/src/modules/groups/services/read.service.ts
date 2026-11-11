@@ -115,16 +115,13 @@ export async function listGroups(userId: string, rawQuery: string | undefined) {
   return publicizeUsers(result.data);
 }
 
-/** Like `getGroupById` but answers a non-member (or missing group) with 404, for external surfaces that must not reveal group existence. */
-export async function getMemberGroup(userId: string, groupId: string) {
+/** Alias of `getGroupById` for the external surfaces (/v1, MCP); both answer a non-member or missing group with 404. */
+export const getMemberGroup = (userId: string, groupId: string) => getGroupById(userId, groupId);
+
+/** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member; a non-member or missing group is a 404 so existence doesn't leak. */
+export async function getGroupById(userId: string, groupId: string) {
   const member = await prisma.groupMember.findFirst({ where: { groupId, userId }, select: { id: true } });
   if (!member) throw notFound("Group");
-  return getGroupById(userId, groupId);
-}
-
-/** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
-export async function getGroupById(userId: string, groupId: string) {
-  await getGroupMembership(userId, groupId);
 
   const [group, transactionTotals] = await Promise.all([
     prisma.group.findUnique({

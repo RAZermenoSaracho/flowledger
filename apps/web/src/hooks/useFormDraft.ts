@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import type { FormDraft, FormErrors, UseFormDraftOptions } from "../types/common.types";
 import { structuralEqual } from "../utils/structuralEqual";
@@ -113,7 +114,8 @@ export function useFormDraft<T extends object>({
         setBaseline(refreshed);
         setDraft((current) => overlayKeys(refreshed, current, changedKeysOf(current, draft)));
       } else {
-        setBaseline(draft);
+        // Synchronous so the clean baseline commits before a refetch's own sync-lane render can rebase against the stale one.
+        flushSync(() => setBaseline(draft));
       }
       setTouched(new Set());
       setSubmitted(false);

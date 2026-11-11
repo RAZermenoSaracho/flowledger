@@ -36,12 +36,12 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 |---|---|---|---|---|---|
 | ST-001 | Correct transaction execution date and time | High | None | Completed | Task #129 |
 | ST-002 | "Keep me logged in on this device" | High | None | Completed | Task #128 |
-| ST-003 | Convert an existing transaction to shared | High | ST-007 | Planned | Task #127 |
+| ST-003 | Convert an existing transaction to shared | High | ST-007 | In review | Task #127 |
 | ST-004 | Neutral charcoal dark theme | Medium | None | Completed | None |
-| ST-005 | Reusable Editable Form View Foundation | High | None | Planned | None |
-| ST-006 | Account Form View | High | ST-005 | Planned | None |
-| ST-007 | Transaction Form View | Medium | ST-005 | Planned | None |
-| ST-008 | Personal Financial Metrics | Medium | None | Planned | None |
+| ST-005 | Reusable Editable Form View Foundation | High | None | In review | None |
+| ST-006 | Account Form View | High | ST-005 | In review | None |
+| ST-007 | Transaction Form View | Medium | ST-005 | In review | None |
+| ST-008 | Personal Financial Metrics | Medium | None | In review | None |
 | ST-010 | Notification regex rules | Medium | ST-005 | Planned | None |
 | ST-011 | Notification ingestion endpoint | Medium | ST-010 | Planned | None |
 | ST-013 | Credit-card limit and available credit | Medium | ST-006 | Planned | None |
@@ -55,7 +55,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-021 | Public securities catalog (stocks and ETFs) | Medium | ST-015 | Planned | None |
 | ST-022 | Custom and non-public assets | Medium | ST-015 | Planned | None |
 | ST-023 | Multi-currency balance correctness | High | ST-001, ST-007 | Planned | None |
-| ST-024 | Group overview and Group Form View | Medium | ST-005 | Planned | None |
+| ST-024 | Group overview and Group Form View | Medium | ST-005 | In review | None |
 | ST-025 | Access-token purpose validation | Critical | None | Complete | None |
 | ST-026 | Account identity and session hardening | High | ST-025 | Complete | None |
 | ST-027 | Financial data isolation | High | ST-025 | Complete | None |
@@ -807,7 +807,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | S-006 | ST-030 | Delete the pre-August `flowledger.token` localStorage entry on load; the access token stays in memory only | None | S | Complete |
 | S-007 | ST-031 | Enforce a script-restricting CSP on application pages; no auth changes | None | S | Complete |
 | B-003 | None | Retired; ST-003 moved into B-004 and ST-009 was deferred to the Odoo Flowledger project backlog | None | n/a | Retired |
-| B-004 | ST-005, ST-006, ST-007, ST-003, ST-024, ST-008 | Odoo-inspired directly-editable Form View with tabs and `RelatedList`, Profile, then Account, Transaction (with prefilled drafts, Details/Sharing/Related tabs, atomic save), convert and edit shared transactions with participant consent, blocking, public usernames and universal invitations (one migration, owned by ST-003), Group views with card overview, and Financial overview counting accepted shares only, all in one PR | S-001 to S-005 (sequencing only) | XL (grew with consent, blocking, and public identity) | Planned |
+| B-004 | ST-005, ST-006, ST-007, ST-003, ST-024, ST-008 | Odoo-inspired directly-editable Form View with tabs and `RelatedList`, Profile, then Account, Transaction (with prefilled drafts, Details/Sharing/Related tabs, atomic save), convert and edit shared transactions with participant consent, blocking, public usernames and universal invitations (one migration, owned by ST-003), Group views with card overview, and Financial overview counting accepted shares only, all in one PR | S-001 to S-005 (sequencing only) | XL (grew with consent, blocking, and public identity) | In review (implemented; on staging; PR to `razs_ai` awaiting acceptance) |
 | B-005 | None | Retired; ST-008 was absorbed into B-004 | None | n/a | Retired |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Planned |
 | B-007 | ST-010, ST-011 | Notification regex rules and the ingestion endpoint | B-004 | L | Planned |

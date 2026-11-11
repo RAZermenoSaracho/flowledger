@@ -65,6 +65,20 @@ describe("/groups routes", () => {
     expect(getResponse.status).toBe(200);
   });
 
+  it("answers a non-member's group detail request with 404", async () => {
+    const owner = await createAuthedUser(app);
+    const outsider = await createAuthedUser(app);
+    const created = await request(app)
+      .post("/groups")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({ name: "Private Fund" });
+
+    const response = await request(app)
+      .get(`/groups/${created.body.group.id}`)
+      .set("Authorization", `Bearer ${outsider.token}`);
+    expect(response.status).toBe(404);
+  });
+
   it("scopes group detail transactions and their provider date to the caller", async () => {
     const { prisma } = await import("../../../db/prisma.js");
     const owner = await createAuthedUser(app);

@@ -221,7 +221,7 @@ describe("sharing conversion and consent", () => {
     const list = await as(outsider, request(app).get("/shared-expenses"));
     const debts = await as(outsider, request(app).get("/debts"));
 
-    expect(groupRoute.status).toBeGreaterThanOrEqual(400);
+    expect(groupRoute.status).toBe(404);
     expect(JSON.stringify(groupRoute.body)).not.toContain("Trip");
     expect(detail.body.sharedExpense.transaction.groupId).toBeNull();
     expect(list.body.sharedExpenses[0].transaction.groupId).toBeNull();

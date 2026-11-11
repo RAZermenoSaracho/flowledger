@@ -756,6 +756,36 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     });
   });
 
+  it("shows the server's refreshed acceptance after a save without a reload", async () => {
+    mockBaseline({ transaction: sharedTransaction() });
+    const refreshed = sharedTransaction();
+    refreshed.sharedExpense!.participants[0] = {
+      ...refreshed.sharedExpense!.participants[0]!,
+      shareAmount: 25,
+      acceptance: "proposed"
+    };
+    let saved = false;
+    server.use(
+      http.get(`${API_URL}/transactions/tx-1`, () =>
+        HttpResponse.json({ transaction: saved ? refreshed : sharedTransaction() })
+      )
+    );
+    mockPut(() => {
+      saved = true;
+      return HttpResponse.json({ transaction: refreshed });
+    });
+    const user = await openSharing();
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+
+    await user.clear(screen.getAllByLabelText("Share")[0]!);
+    await user.type(screen.getAllByLabelText("Share")[0]!, "25");
+    await user.click(saveButton());
+
+    await waitFor(() => expect(screen.queryByText("Accepted")).not.toBeInTheDocument());
+    expect(screen.getAllByText("Proposed")).toHaveLength(2);
+    expect(saveButton()).toBeDisabled();
+  });
+
   it("turns sharing off with enabled:false when nobody has paid", async () => {
     mockBaseline({
       transaction: sharedTransaction({

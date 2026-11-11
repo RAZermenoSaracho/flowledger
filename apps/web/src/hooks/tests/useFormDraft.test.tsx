@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { flushSync } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { UseFormDraftOptions } from "../../types/common.types";
 import { useFormDraft } from "../useFormDraft";
@@ -188,5 +189,22 @@ describe("useFormDraft", () => {
     });
     expect(result.current.values).toEqual({ title: "Saved", qty: 7, tags: [{ name: "z" }] });
     expect(result.current.changedKeys).toEqual(["qty"]);
+  });
+
+  it("lets a refetch that lands right after a save replace the saved keys", async () => {
+    let release: () => void = () => {};
+    const { result, rerender } = setup({ save: () => new Promise<void>((r) => (release = r)) });
+    act(() => result.current.setField("tags", [{ name: "mine" }]));
+    let pending: Promise<void> = Promise.resolve();
+    act(() => {
+      pending = result.current.save();
+    });
+    await act(async () => {
+      release();
+      await pending;
+      flushSync(() => rerender({ initial: { ...base, tags: [{ name: "server" }] } }));
+    });
+    expect(result.current.values.tags).toEqual([{ name: "server" }]);
+    expect(result.current.isDirty).toBe(false);
   });
 });
