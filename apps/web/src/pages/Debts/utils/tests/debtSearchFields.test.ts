@@ -33,13 +33,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", username: "jane", displayName: "Jane" },
+      owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { name: "Dinner out", type: "expense" } as Debt["sharedExpense"]["transaction"],
       participants: [],
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z"
     },
-    user: { id: "user-2", username: "sam", displayName: "Sam" },
+    user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -50,7 +50,7 @@ describe("toBalanceSearchRow", () => {
     const debt = makeDebt();
     const balance: PersonBalance = {
       key: "user-2",
-      person: { id: "user-2", username: "sam", displayName: "Sam" },
+      person: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
       fallbackName: "Sam",
       theyOweMe: [debt],
       iOweThem: [],
@@ -91,8 +91,8 @@ describe("toSettlementRequestSearchRow", () => {
       amount: 50,
       status: "pending",
       note: "Paying you back",
-      debtor: { id: "user-2", username: "sam", displayName: "Sam" },
-      creditor: { id: "user-1", username: "jane", displayName: "Jane" },
+      debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
+      creditor: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       sharedExpenseParticipant: makeDebt(),
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",

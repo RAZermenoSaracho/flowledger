@@ -19,7 +19,7 @@ const testUser: User = {
   name: "Jane Doe",
   email: "jane@example.com",
   username: "jane",
-  identityVisibility: "username_only",
+  identityVisibility: "username_only", nickname: null,
   planType: "free",
   mobileSidebarSide: "left",
   createdAt: "2024-01-01T00:00:00.000Z",

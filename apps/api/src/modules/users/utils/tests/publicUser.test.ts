@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { publicizeUsers, publicUserLabel, publicUserSelect, toPublicUser, userLabel } from "../publicUser.js";
 
-const ana = { id: "u1", username: "ana", name: "Ana Pérez", identityVisibility: "username_only" as const };
+const ana = { id: "u1", username: "ana", name: "Ana Pérez", nickname: null, identityVisibility: "username_only" as const };
 
 describe("toPublicUser", () => {
   it("hides the name in username_only mode", () => {
-    expect(toPublicUser(ana)).toEqual({ id: "u1", username: "ana", displayName: null });
+    expect(toPublicUser(ana)).toEqual({ id: "u1", username: "ana", nickname: null, displayName: null });
   });
 
   it("shows the name in username_and_name mode and falls back to null when blank", () => {
@@ -15,20 +15,20 @@ describe("toPublicUser", () => {
 
   it("never carries email or phone even if the source object has them", () => {
     const result = toPublicUser({ ...ana, email: "a@x.com", phone: "1" } as never);
-    expect(Object.keys(result).sort()).toEqual(["displayName", "id", "username"]);
+    expect(Object.keys(result).sort()).toEqual(["displayName", "id", "nickname", "username"]);
   });
 });
 
 describe("publicUserSelect", () => {
   it("selects no email or auth fields", () => {
-    expect(Object.keys(publicUserSelect).sort()).toEqual(["id", "identityVisibility", "name", "username"]);
+    expect(Object.keys(publicUserSelect).sort()).toEqual(["id", "identityVisibility", "name", "nickname", "username"]);
   });
 });
 
 describe("publicUserLabel", () => {
   it("formats with and without a display name", () => {
-    expect(publicUserLabel({ username: "ana", displayName: "Ana" })).toBe("Ana (@ana)");
-    expect(publicUserLabel({ username: "ana", displayName: null })).toBe("@ana");
+    expect(publicUserLabel({ username: "ana", nickname: null, displayName: "Ana" })).toBe("Ana (@ana)");
+    expect(publicUserLabel({ username: "ana", nickname: null, displayName: null })).toBe("@ana");
   });
 });
 
@@ -42,8 +42,8 @@ describe("publicizeUsers", () => {
       title: "t"
     });
     expect(result).toEqual({
-      owner: { id: "u1", username: "ana", displayName: null },
-      participants: [{ participantName: "Ana Pérez (@bo)", user: { id: "u2", username: "bo", displayName: "Ana Pérez" } }, { user: null }],
+      owner: { id: "u1", username: "ana", nickname: null, displayName: null },
+      participants: [{ participantName: "Ana Pérez (@bo)", user: { id: "u2", username: "bo", nickname: null, displayName: "Ana Pérez" } }, { user: null }],
       createdAt: date,
       title: "t"
     });
@@ -63,4 +63,17 @@ describe("userLabel", () => {
   it("labels from a raw select row without leaking the name in username_only mode", () => {
     expect(userLabel(ana)).toBe("@ana");
   });
+});
+
+ describe("nickname labels", () => {
+   it("includes nickname and only the visible name, always with username", () => {
+     expect(publicUserLabel({ username: "ana", nickname: "Sunny", displayName: "Ana" })).toBe("Sunny · Ana (@ana)");
+     expect(publicUserLabel({ username: "ana", nickname: "Sunny", displayName: null })).toBe("Sunny (@ana)");
+   });
+ });
+
+it("publishes nickname regardless of private name visibility, including linked participant labels", () => {
+  const user = { ...ana, nickname: "Sunny" };
+  expect(toPublicUser(user)).toEqual({ id: "u1", username: "ana", nickname: "Sunny", displayName: null });
+  expect(publicizeUsers({ participantName: "stale", user }).participantName).toBe("Sunny (@ana)");
 });

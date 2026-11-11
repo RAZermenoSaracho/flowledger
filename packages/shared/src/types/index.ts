@@ -34,6 +34,7 @@ export type InstitutionCategory =
 export type PublicUser = {
   id: string;
   username: string;
+  nickname: string | null;
   displayName: string | null;
 };
 

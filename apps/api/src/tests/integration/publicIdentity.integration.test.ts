@@ -107,7 +107,7 @@ describe("public identity across modules", () => {
 
     const debts = await as(owner, request(app).get("/debts"));
     expect(debts.body.owedToMe).toHaveLength(1);
-    expect(debts.body.owedToMe[0].user).toEqual({ id: friend.user.id, username: "renamed_friend", displayName: "Visible Name" });
+    expect(debts.body.owedToMe[0].user).toEqual({ id: friend.user.id, username: "renamed_friend", nickname: null, displayName: "Visible Name" });
     expect(debts.body.owedToMe[0].participantName).toBe("Visible Name (@renamed_friend)");
     expect(debts.body.balances[0].person.id).toBe(friend.user.id);
   });

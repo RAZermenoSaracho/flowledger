@@ -7,7 +7,7 @@ import { BalancesTab } from "../BalancesTab";
 function makeBalance(overrides: Partial<PersonBalance> = {}): PersonBalance {
   return {
     key: "user-2",
-    person: { id: "user-2", username: "sam", displayName: "Sam" },
+    person: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     fallbackName: "Sam",
     theyOweMe: [],
     iOweThem: [],

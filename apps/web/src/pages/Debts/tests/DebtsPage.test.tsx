@@ -41,13 +41,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", username: "jane", displayName: "Jane" },
-      user: { id: "user-2", username: "sam", displayName: "Sam" },
+      owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
+      user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
       participants: [],
       createdAt: "",
       updatedAt: ""
     } as Debt["sharedExpense"],
-    user: { id: "user-2", username: "sam", displayName: "Sam" },
+    user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -60,7 +60,7 @@ function makeDebtsResponse(overrides: Partial<DebtsResponse> = {}): DebtsRespons
     balances: [
       {
         key: "user-2",
-        person: { id: "user-2", username: "sam", displayName: "Sam" },
+        person: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
         fallbackName: "Sam",
         theyOweMe: [makeDebt()],
         iOweThem: [],

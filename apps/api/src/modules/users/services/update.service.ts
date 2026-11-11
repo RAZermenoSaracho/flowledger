@@ -28,7 +28,7 @@ const avatarContentTypes = new Set([
 ]);
 
 /**
- * Updates a user's name, preferred currency, username and identity visibility. Rejects a differing email, which only {@link updateEmail} can change.
+ * Updates a user's name, public nickname, preferred currency, username and identity visibility. Rejects a differing email, which only {@link updateEmail} can change.
  * @throws 409 addressed to `username` when another user holds it; the unique constraint decides concurrent claims.
  */
 export async function updateProfile(
@@ -46,6 +46,7 @@ export async function updateProfile(
       where: { id: userId },
       data: {
         name: input.name,
+        ...(input.nickname !== undefined ? { nickname: input.nickname } : {}),
         ...(input.preferredCurrency !== undefined
           ? { preferredCurrency: input.preferredCurrency }
           : {}),

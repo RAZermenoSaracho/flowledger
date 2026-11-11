@@ -12,7 +12,7 @@ const statusText: Record<UsernameStatus, string | null> = {
 
 /**
  * How other users see the account: the public `username` (with its debounced availability check)
- * and the identity visibility, both fields of the Profile draft saved with the rest of it.
+ * nickname and identity visibility, saved with the rest of the Profile draft.
  */
 export function IdentityFields({ profile }: { profile: ReturnType<typeof useProfileDetails> }) {
   const { draft, values, usernameStatus } = profile;
@@ -40,6 +40,25 @@ export function IdentityFields({ profile }: { profile: ReturnType<typeof useProf
         </EditableField>
         <p role="status" className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {statusText[usernameStatus]}
+        </p>
+      </div>
+      <div className="min-w-0">
+        <EditableField
+          label="Public nickname"
+          error={draft.fieldErrors.nickname}
+          dirty={draft.changedKeys.includes("nickname")}
+          onRevert={() => draft.revertField("nickname")}
+        >
+          <input
+            className={editableControlClassName}
+            value={values.nickname}
+            disabled={disabled}
+            maxLength={40}
+            onChange={(event) => draft.setField("nickname", event.target.value)}
+          />
+        </EditableField>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Optional, not unique, visible to others and searchable; username always shown alongside.
         </p>
       </div>
       <EditableField

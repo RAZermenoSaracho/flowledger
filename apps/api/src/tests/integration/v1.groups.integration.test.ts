@@ -226,7 +226,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
     await call(a, "post", "/v1/users/blocks", { userId: c.userId }, 403, "user.block", true);
     await call(a, "delete", `/v1/users/blocks/${c.userId}`, {}, 403, "user.unblock", true);
     const blocked = await call(a, "post", "/v1/users/blocks", { userId: c.userId }, 201, "user.block");
-    expect(Object.keys(blocked.body.block.user).sort()).toEqual(["displayName", "id", "username"]);
+    expect(Object.keys(blocked.body.block.user).sort()).toEqual(["displayName", "id", "nickname", "username"]);
     const list = await call(a, "get", "/v1/users/blocks", undefined, 200, undefined, true);
     expect(list.body.blocks).toHaveLength(1);
     expect((await call(c, "get", "/v1/users/blocks", undefined, 200)).body.blocks).toEqual([]);
@@ -364,7 +364,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       expect((await get("zed", "&limit=11")).status).toBe(400);
       const hit = await get("Zed_Search");
       expect(hit.status).toBe(200);
-      expect(hit.body.users).toEqual([{ id: target.userId, username: "zed_searchable", displayName: null }]);
+      expect(hit.body.users).toEqual([{ id: target.userId, username: "zed_searchable", nickname: null, displayName: null }]);
       expect((await get(encodeURIComponent(target.email))).body.users).toEqual([]);
       expect((await get("Zed%20Searchable")).body.users).toEqual([]);
       expect((await get("zed_search", "", a.writeKey)).status).toBe(200);

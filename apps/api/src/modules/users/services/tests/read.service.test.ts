@@ -14,6 +14,7 @@ const row = (id: string, username: string, name = "Secret Name") => ({
   id,
   username,
   name,
+  nickname: null,
   identityVisibility: "username_only" as const
 });
 
@@ -25,14 +26,15 @@ describe("searchUsers", () => {
     const result = await searchUsers("u1", "Ana_1", 10);
 
     expect(result).toEqual([
-      { id: "u2", username: "ana_1", displayName: null },
-      { id: "u3", username: "ana_10", displayName: null }
+      { id: "u2", username: "ana_1", nickname: null, displayName: null },
+      { id: "u3", username: "ana_10", nickname: null, displayName: null }
     ]);
     const exactWhere = prismaMock.user.findFirst.mock.calls[0]![0]!.where;
     expect(exactWhere).toMatchObject({ username: "ana_1", id: { not: "u1" } });
     const prefix = prismaMock.user.findMany.mock.calls[0]![0]!;
     expect(prefix.where).toMatchObject({
-      username: { startsWith: "ana_1", not: "ana_1" },
+      NOT: { id: "u2" },
+      OR: [{ username: { startsWith: "ana_1", mode: "insensitive" } }, { nickname: { startsWith: "Ana_1", mode: "insensitive" } }],
       blocksMade: { none: { blockedId: "u1" } },
       blocksReceived: { none: { blockerId: "u1" } }
     });
@@ -47,7 +49,7 @@ describe("searchUsers", () => {
     await searchUsers("u1", "@bob", 10);
 
     expect(prismaMock.user.findMany.mock.calls[0]![0]!.take).toBe(10);
-    expect(prismaMock.user.findMany.mock.calls[0]![0]!.where).toMatchObject({ username: { startsWith: "bob" } });
+    expect(prismaMock.user.findMany.mock.calls[0]![0]!.where).toMatchObject({ OR: [{ username: { startsWith: "bob", mode: "insensitive" } }, { nickname: { startsWith: "@bob", mode: "insensitive" } }] });
   });
 
   it("returns nothing for an empty needle without querying", async () => {
@@ -68,9 +70,9 @@ describe("isUsernameAvailable", () => {
 
 describe("getCurrentUser", () => {
   it("returns the user by id", async () => {
-    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ id: "user-1" } as never);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ id: "user-1", nickname: "Sunny" } as never);
 
-    expect(await getCurrentUser("user-1")).toMatchObject({ id: "user-1" });
+    expect(await getCurrentUser("user-1")).toMatchObject({ id: "user-1", nickname: "Sunny" });
   });
 });
 
@@ -83,7 +85,7 @@ describe("listBlocks", () => {
     const result = await listBlocks("u1");
 
     expect(prismaMock.userBlock.findMany.mock.calls[0]![0]!.where).toEqual({ blockerId: "u1" });
-    expect(result).toEqual([{ id: "b1", createdAt: new Date(0), user: { id: "u2", username: "bo", displayName: null } }]);
+    expect(result).toEqual([{ id: "b1", createdAt: new Date(0), user: { id: "u2", username: "bo", nickname: null, displayName: null } }]);
   });
 });
 
@@ -117,4 +119,22 @@ describe("block checks", () => {
     prismaMock.userBlock.findMany.mockResolvedValueOnce([]);
     await expect(assertNoBlockedInvitees("me", ["z"])).resolves.toBeUndefined();
   });
+});
+
+it("returns distinct usernames sharing a nickname and filters blocks in both queries", async () => {
+  prismaMock.user.findFirst.mockResolvedValue(row("u2", "sunny") as never);
+  prismaMock.user.findMany.mockResolvedValue([
+    { ...row("u3", "alice"), nickname: "Sunny" },
+    { ...row("u4", "bob"), nickname: "Sunny" }
+  ] as never);
+  const users = await searchUsers("me", "Sunny", 10);
+  expect(users.map((user) => user.username)).toEqual(["sunny", "alice", "bob"]);
+  expect(users.slice(1).map((user) => user.nickname)).toEqual(["Sunny", "Sunny"]);
+  for (const call of [prismaMock.user.findFirst.mock.calls[0], prismaMock.user.findMany.mock.calls[0]]) {
+    expect(call![0]!.where).toMatchObject({
+      id: { not: "me" },
+      blocksMade: { none: { blockedId: "me" } },
+      blocksReceived: { none: { blockerId: "me" } }
+    });
+  }
 });

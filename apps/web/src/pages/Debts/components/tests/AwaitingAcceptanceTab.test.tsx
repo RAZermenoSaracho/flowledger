@@ -28,7 +28,7 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "owner-1",
-      owner: { id: "owner-1", username: "ana", displayName: "Ana" },
+      owner: { id: "owner-1", username: "ana", nickname: null, displayName: "Ana" },
       title: "Dinner",
       totalAmount: 100,
       status: "open",
@@ -115,9 +115,9 @@ describe("AwaitingAcceptanceTab", () => {
   it("gives the owner no response buttons, and lists rejected shares", () => {
     renderTab({
       viewerUserId: "owner-1",
-      awaiting: [makeDebt({ userId: "u2", user: { id: "u2", username: "sam", displayName: null } })],
+      awaiting: [makeDebt({ userId: "u2", user: { id: "u2", username: "sam", nickname: null, displayName: null } })],
       rejected: [
-        makeDebt({ id: "p2", acceptance: "rejected", user: { id: "u3", username: "kim", displayName: null } })
+        makeDebt({ id: "p2", acceptance: "rejected", user: { id: "u3", username: "kim", nickname: null, displayName: null } })
       ]
     });
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();

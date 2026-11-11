@@ -21,3 +21,21 @@ Login, registration, refresh, password change, and email change SHALL reject exc
 #### Scenario: Search and availability limited
 - **WHEN** one user exceeds the search or username-availability limit
 - **THEN** further calls return 429 and other users are unaffected
+
+## ADDED Requirements
+
+### Requirement: Owner manages public nickname
+
+The own-profile update SHALL accept optional, non-unique, nullable nickname through the shared schema. Nickname SHALL be trimmed, 1–40 characters when set, reject controls and leading `@`, and clear to null on blank input. Own-profile reads SHALL return nickname. Nickname SHALL be public and searchable regardless of private name visibility, with username always shown alongside. Existing identity privacy and rate limits SHALL remain unchanged.
+
+#### Scenario: Set and clear nickname
+- **WHEN** an owner saves Sunny and later clears the Public nickname field
+- **THEN** the profile returns Sunny and later null, and other users see the updated public label
+
+#### Scenario: Duplicate nickname
+- **WHEN** two owners save Sunny
+- **THEN** both succeed, and discovery distinguishes them by username
+
+#### Scenario: Private account name
+- **WHEN** an owner with username_only visibility sets a nickname
+- **THEN** nickname is public and searchable while private name remains hidden and unsearchable

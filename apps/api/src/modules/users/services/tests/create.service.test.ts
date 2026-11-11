@@ -36,6 +36,6 @@ describe("blockUser", () => {
       where: { userId: "u1", acceptance: "proposed", sharedExpense: { ownerUserId: "u2" } },
       data: { acceptance: "rejected" }
     });
-    expect(result).toEqual({ id: "b1", createdAt: new Date(0), user: { id: "u2", username: "bo", displayName: "Bo" } });
+    expect(result).toEqual({ id: "b1", createdAt: new Date(0), user: { id: "u2", username: "bo", nickname: null, displayName: "Bo" } });
   });
 });

@@ -68,46 +68,46 @@ The Profile General tab SHALL let the user edit `username` and `identityVisibili
 
 ### Requirement: Identity visibility modes
 
-`User.identityVisibility` SHALL be `username_only` (default) or `username_and_name`. Other users SHALL see `Name (@username)` only in `username_and_name` and `@username` otherwise, never an email fallback.
+`User.identityVisibility` SHALL be `username_only` (default) or `username_and_name`. Visibility SHALL govern only private name exposure through `displayName`. Nickname SHALL always be public when set. Labels SHALL join present nickname and displayName with ` · ` and append ` (@username)`, or show `@username` alone, never an email fallback.
 
 #### Scenario: Username only
 - **WHEN** a user in the default mode appears to another user
-- **THEN** only `@username` is shown and `displayName` is null
+- **THEN** `@username` is shown when nickname is absent and `displayName` is null
 
 #### Scenario: Username and name
 - **WHEN** a user with `username_and_name` and a name appears to another user
 - **THEN** `Name (@username)` is shown
 
 #### Scenario: Name missing
-- **WHEN** the mode is `username_and_name` and the user has no name
+- **WHEN** the mode is `username_and_name` and the user has no name or nickname
 - **THEN** `@username` is shown
 
 ### Requirement: Public identity shape on every cross-user surface
 
-`toPublicUser` and `publicUserSelect` SHALL be the only way a user is serialized to another user, yielding `{ id, username, displayName }` with no email, phone, avatar or auth fields. They SHALL be applied to: users search, group members (web, `/v1`, MCP), debts counterparties and person balances, settlement requests, shared-expense owner and participants, and notification text created from now on. App-user participants SHALL render the live public label rather than the stored `participantName` snapshot; manual participants keep their owner-entered name. The web SHALL stop rendering emails and SHALL search debts by username.
+`toPublicUser` and `publicUserSelect` SHALL be the only way a user is serialized to another user, yielding `{ id, username, nickname, displayName }` with no email, phone, avatar or auth fields. They SHALL be applied to: users search, group members (web, `/v1`, MCP), debts counterparties and person balances, settlement requests, shared-expense owner and participants, and notification text created from now on. App-user participants SHALL render the live public label rather than the stored `participantName` snapshot; manual participants keep their owner-entered name. The web SHALL stop rendering emails and SHALL search debts by username.
 
 #### Scenario: No email or phone via any surface
 - **WHEN** a user views search results, group members, debts, settlements, shared expenses and notifications of another user, through web, `/v1` and MCP
 - **THEN** no response contains that user's email or phone
 
 #### Scenario: Live label
-- **WHEN** an app-user participant changes username or visibility
+- **WHEN** an app-user participant changes nickname, username or visibility
 - **THEN** shared expenses show the new label, while old notification text stays as stored
 
 #### Scenario: Group member add response
 - **WHEN** an admin adds a member
 - **THEN** the response contains the public identity only
 
-### Requirement: Username-only discovery
+### Requirement: Username and nickname discovery
 
-`GET /users/search?q=` (and its `/v1` and MCP twins) SHALL match exact username first, then username prefix, require at least 3 characters, return at most 10 results, never match on email or name, exclude the caller and any user blocked in either direction, and be rate limited per user with `createRateLimiter`.
+`GET /users/search?q=` (and its `/v1` and MCP twins) SHALL match exact username first, then case-insensitive username or nickname prefix, require at least 3 characters, return at most 10 results, never match on email or name, exclude the caller and any user blocked in either direction, and be rate limited per user with `createRateLimiter`.
 
 #### Scenario: Exact then prefix
 - **WHEN** `q=ana_1` matches `ana_1` exactly and `ana_10` by prefix
 - **THEN** `ana_1` is listed first
 
 #### Scenario: Email not searchable
-- **WHEN** `q` equals another user's email or display name
+- **WHEN** `q` matches only another user's private email or account name, without matching username or nickname
 - **THEN** that user is not returned
 
 #### Scenario: Limits
@@ -148,12 +148,40 @@ A participant who is not a Group member SHALL see only the shared expense and a 
 
 ### Requirement: Own-profile endpoints keep private fields
 
-`/auth/me`, `GET /v1/me` and MCP `get_profile` SHALL continue to return the owner's private fields (including email) to that owner only, plus `username` and `identityVisibility`.
+`/auth/me`, `GET /v1/me` and MCP `get_profile` SHALL continue to return the owner's private fields (including email) to that owner only, plus `nickname`, `username` and `identityVisibility`.
 
 #### Scenario: Owner reads own profile
 - **WHEN** a user reads their own profile
-- **THEN** email, username and visibility are returned
+- **THEN** email, nickname, username and visibility are returned
 
 #### Scenario: Other user
 - **WHEN** another user is serialized elsewhere
 - **THEN** the private fields are absent
+
+### Requirement: Optional public nickname
+
+`User.nickname` SHALL be nullable, non-unique, trimmed and 1–40 characters when set. Blank input SHALL clear it to null. Shared Zod validation SHALL reject control characters and a leading `@`. Profile SHALL edit it through an EditableField and explain that it is public, searchable, optional and not unique. Username SHALL always appear alongside nickname. No existing user SHALL be backfilled. `/v1 PATCH /me` and MCP `update_preferences` SHALL remain unchanged.
+
+#### Scenario: Nickname with private name
+- **WHEN** a user with nickname Sunny and username ana uses username_only visibility
+- **THEN** the public label is `Sunny (@ana)` and displayName is null
+
+#### Scenario: Nickname with visible name
+- **WHEN** that user shares the name Ana
+- **THEN** the label is `Sunny · Ana (@ana)`
+
+#### Scenario: Clear nickname
+- **WHEN** the owner saves blank nickname or null
+- **THEN** nickname is null and the label uses only the remaining visible parts
+
+#### Scenario: Duplicate nickname discovery
+- **WHEN** multiple unblocked users share nickname Sunny and the query is sunny
+- **THEN** all matching usernames remain distinct, exact username first and remaining users ordered by username within the limit
+
+#### Scenario: Separate query normalization
+- **WHEN** the query is @ana
+- **THEN** username matching uses ana and nickname matching uses the trimmed raw @ana
+
+#### Scenario: Nickname privacy and blocks
+- **WHEN** nickname matches but the user is self or blocked in either direction
+- **THEN** that user is excluded and private name and email are never searched

@@ -1,8 +1,7 @@
 import type { PublicUser } from "../types/users.types";
 
-/** Label for another user's public identity: `Name (@username)` when they share a name, else `@username`. Never includes an email. */
+/** Label for another user's public identity: nickname and visible name joined by ` · `, followed by `(@username)`, or `@username` alone. Never includes an email. */
 export function formatPublicUser(user: PublicUser): string {
-  return user.displayName
-    ? `${user.displayName} (@${user.username})`
-    : `@${user.username}`;
+  const parts = [user.nickname, user.displayName].filter(Boolean);
+  return parts.length ? `${parts.join(" · ")} (@${user.username})` : `@${user.username}`;
 }

@@ -8,6 +8,7 @@ export type ProfileDraft = {
   name: string;
   email: string;
   username: string;
+  nickname: string;
   identityVisibility: IdentityVisibility;
   preferredCurrency: string;
   avatarFile: File | null;

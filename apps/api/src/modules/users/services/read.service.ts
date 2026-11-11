@@ -8,12 +8,13 @@ import { publicUserSelect, toPublicUser } from "../utils/publicUser.js";
 export const cannotInviteMessage = "This user can't be invited.";
 
 /**
- * Searches app users by username only: the exact match first, then usernames starting with `query`.
+ * Searches app users by exact username first, then case-insensitive username or public nickname prefix.
  * Never matches or returns email or name; excludes the caller and anyone blocked in either direction.
  * @returns at most `limit` public users.
  */
 export async function searchUsers(userId: string, query: string, limit: number): Promise<PublicUser[]> {
-  const needle = query.trim().replace(/^@/, "").toLowerCase();
+  const raw = query.trim();
+  const needle = raw.replace(/^@/, "").toLowerCase();
   if (!needle) return [];
 
   const visible: Prisma.UserWhereInput = {
@@ -26,7 +27,14 @@ export async function searchUsers(userId: string, query: string, limit: number):
     select: publicUserSelect
   });
   const prefixed = await prisma.user.findMany({
-    where: { ...visible, username: { startsWith: needle, ...(exact ? { not: needle } : {}) } },
+    where: {
+      ...visible,
+      ...(exact ? { NOT: { id: exact.id } } : {}),
+      OR: [
+        { username: { startsWith: needle, mode: "insensitive" } },
+        { nickname: { startsWith: raw, mode: "insensitive" } }
+      ]
+    },
     select: publicUserSelect,
     orderBy: { username: "asc" },
     take: exact ? limit - 1 : limit

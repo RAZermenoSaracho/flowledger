@@ -9,6 +9,7 @@ export type User = {
   name: string;
   email: string;
   username: string;
+  nickname: string | null;
   identityVisibility: IdentityVisibility;
   avatarUrl?: string | null;
   planType: PlanType;
@@ -22,6 +23,7 @@ export type User = {
 export type PublicUser = {
   id: string;
   username: string;
+  nickname: string | null;
   displayName: string | null;
 };
 

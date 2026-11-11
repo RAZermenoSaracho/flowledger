@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { usernameSchema } from "@flowledger/shared";
+import { nicknameSchema, usernameSchema } from "@flowledger/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrenciesQuery } from "../../../components/CurrencySelect";
 import { useFormDraft } from "../../../hooks/useFormDraft";
@@ -13,6 +13,7 @@ const EMPTY_PROFILE: ProfileDraft = {
   name: "",
   email: "",
   username: "",
+  nickname: "",
   identityVisibility: "username_only",
   preferredCurrency: "",
   avatarFile: null
@@ -45,6 +46,7 @@ export function useProfileDetails() {
             name: user.name,
             email: user.email,
             username: user.username,
+            nickname: user.nickname ?? "",
             identityVisibility: user.identityVisibility,
             preferredCurrency: user.preferredCurrency ?? "",
             avatarFile: null
@@ -57,7 +59,12 @@ export function useProfileDetails() {
 
   const draft = useFormDraft<ProfileDraft>({
     initial,
-    validate: (values) => validateProfile(values, takenUsername),
+    validate: (values) => {
+      const errors = validateProfile(values, takenUsername);
+      const nickname = nicknameSchema.safeParse(values.nickname);
+      if (!nickname.success) errors.nickname = nickname.error.issues[0]?.message ?? "Enter a valid nickname";
+      return errors;
+    },
     save: async (values, changedKeys) => {
       try {
         let email = values.email.trim();
@@ -73,6 +80,7 @@ export function useProfileDetails() {
         let saved = await usersClient.updateProfile({
           name: values.name.trim(),
           email,
+          ...(changedKeys.includes("nickname") ? { nickname: nicknameSchema.parse(values.nickname) } : {}),
           preferredCurrency: values.preferredCurrency || null,
           ...(changedKeys.includes("username") ? { username: values.username.trim() } : {}),
           ...(changedKeys.includes("identityVisibility")

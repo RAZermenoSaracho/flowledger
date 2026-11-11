@@ -73,7 +73,7 @@ describe("/users routes", () => {
     const byUsername = await search("findme_a");
     expect(byUsername.status).toBe(200);
     expect(byUsername.body.users.map((u: { username: string }) => u.username)).toEqual(["findme_a", "findme_ab"]);
-    expect(byUsername.body.users[0]).toEqual({ id: target.user.id, username: "findme_a", displayName: null });
+    expect(byUsername.body.users[0]).toEqual({ id: target.user.id, username: "findme_a", nickname: null, displayName: null });
     expect(JSON.stringify(byUsername.body)).not.toContain(target.user.email);
 
     expect((await search(target.user.email)).body.users).toEqual([]);
@@ -94,7 +94,7 @@ describe("/users routes", () => {
 
     const list = await as(a, request(app).get("/users/blocks"));
     expect(list.body.blocks).toHaveLength(1);
-    expect(list.body.blocks[0].user).toEqual({ id: b.user.id, username: b.user.username, displayName: null });
+    expect(list.body.blocks[0].user).toEqual({ id: b.user.id, username: b.user.username, nickname: null, displayName: null });
     expect(JSON.stringify(list.body)).not.toContain(b.user.email);
     expect((await as(b, request(app).get("/users/blocks"))).body.blocks).toEqual([]);
 

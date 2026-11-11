@@ -51,7 +51,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | GET | `/notifications/unread-count` | read | `{ count }`, all unread |
 | PATCH | `/notifications/:id/read` | write | `404` if not yours; idempotent |
 | PATCH | `/notifications/read-all` | write | `204`; only your notifications |
-| GET | `/me` | read | your private profile including email, username and identityVisibility (no password hash) |
+| GET | `/me` | read | your private profile including email, nickname, username and identityVisibility (no password hash) |
 | PATCH | `/me` | write | only `name` and `preferredCurrency` (null clears it); at least one required; email, password and plan cannot be changed |
 | GET | `/imported-transactions` | read | capped at 100 rows, `total` is the full count |
 | PATCH | `/imported-transactions/:id` | write | `{ categoryId }` (null clears); pending rows only, category type must match the row's direction (`400` otherwise) |
@@ -60,7 +60,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | POST | `/imported-transactions/batch-ignore`, `/batch-unignore`, `/batch-import` | write | body `{ selection: { mode: "ids", ids: [1..50] } }` (+ `categoryId` for import); the web app's `filtered` mode is rejected (`400`). Validation is all-or-nothing: one bad row gives `400` with per-row `errors` and nothing changes. Ids that are not yours are skipped (count `0`), not `404`. Batch import creates the transactions one by one after validation (not one database transaction) |
 | GET | `/groups`, `/groups/:id` | read | groups you belong to; detail includes members; `404` if not a member |
 | GET | `/shared-expenses`, `/shared-expenses/:id` | read | where you are owner or participant; list capped at 100 rows, `total` is the full count |
-| GET | `/users/search?q=&limit=` | read | `q` min 3 chars, `limit` max 10; matches username only (exact first, then prefix), returns `{ id, username, displayName }`; excludes the caller and blocks in either direction; shares the web per-user limiter; MCP `search_users` |
+| GET | `/users/search?q=&limit=` | read | `q` min 3 chars, `limit` max 10; matches exact username first, then case-insensitive username or nickname prefix, returns `{ id, username, nickname, displayName }`; excludes the caller and blocks in either direction; shares the web per-user limiter; MCP `search_users` |
 | POST | `/groups` | write | `201`; you become admin |
 | PUT | `/groups/:id` | write | group admin only; affects all members |
 | POST | `/groups/:id/archive`, `/groups/:id/restore` | write | group admin only; idempotent |
@@ -76,9 +76,9 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | POST | `/users/blocks` | write | `{ userId }`, 201 `{ block }`; idempotent, 400 for self/unknown user |
 | DELETE | `/users/blocks/:userId` | write | 204; idempotent; rejected shares stay rejected |
 
-Other users in search, members, shared expenses, debts and settlements appear only as `{ id, username, displayName }`; email and phone are private. Group member addition returns the same public identity within the member record. Non-member participants receive no Group data or private transaction fields. Debts count accepted shares only; `awaitingAcceptance` and owner-only `rejectedShares` remain separate and excluded from totals. Blocking hides discovery in both directions, rejects the blocker's pending proposals from the blocked owner, and suppresses future invitations/notifications without changing accepted obligations or membership.
+Other users in search, members, shared expenses, debts and settlements appear only as `{ id, username, nickname, displayName }`; nickname is optional, non-unique and always public when set; email and phone are private. Labels join nickname and visible displayName with ` · ` followed by ` (@username)`, or show `@username` alone. Identity visibility governs only displayName. Group member addition returns the same public identity within the member record. Non-member participants receive no Group data or private transaction fields. Debts count accepted shares only; `awaitingAcceptance` and owner-only `rejectedShares` remain separate and excluded from totals. Blocking hides discovery in both directions, rejects the blocker's pending proposals from the blocked owner, and suppresses future invitations/notifications without changing accepted obligations or membership.
 
-`PATCH /me` does not edit username or identityVisibility; use the web Profile. Username availability remains web-only. `PUT` and `DELETE /shared-expenses/:id` remain unrouted. All consent and blocking writes require write scope and emit one audit entry.
+`PATCH /me` does not edit nickname, username or identityVisibility; use the web Profile. Username availability remains web-only. `PUT` and `DELETE /shared-expenses/:id` remain unrouted. All consent and blocking writes require write scope and emit one audit entry.
 
 Creating records is not idempotent: retrying a failed `POST` may create a duplicate. Group delete, updating or deleting shared expenses, direct settlement and batch settlement routes are not available (`404`).
 

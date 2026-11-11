@@ -57,3 +57,11 @@ Verification note for 7.1–7.2: implementation and unit checks complete (127 te
 - [ ] 9.2 Integration and e2e suites with Docker pass, including user isolation. Verify: exit 0.
 - [ ] 9.3 Headless check at 375px and desktop of convert, accept, Blocked users and username change. Verify: no horizontal scroll; flows complete.
 - [ ] 9.4 `openspec validate st003-convert-transaction-to-shared --strict` passes.
+
+## 10. Optional public nickname
+
+- [x] 10.1 Add nullable non-unique User.nickname migration without backfill; generate Prisma client without applying migration.
+- [x] 10.2 Add shared nickname validation, public types, public serialization and nickname-aware labels; preserve name privacy.
+- [x] 10.3 Save and clear own-profile nickname; search exact username first, then case-insensitive username/nickname prefixes with existing exclusions and limits.
+- [x] 10.4 Add Profile Public nickname draft field, helper text and null clearing; keep public API and MCP preference writes unchanged.
+- [x] 10.5 Add targeted schema, API and web tests and update identity/search documentation and specifications.

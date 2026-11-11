@@ -81,6 +81,7 @@ model User {
   id                           String                        @id @default(cuid())
   name                         String
   email                        String                        @unique
+  nickname                     String?
   /// Public identity: unique, stored lowercase, never derived from email, never a credential.
   username                     String                        @unique
   identityVisibility           IdentityVisibility            @default(username_only)

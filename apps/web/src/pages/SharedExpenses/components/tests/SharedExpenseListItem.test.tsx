@@ -18,7 +18,7 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
       type: "expense",
       executionCurrency: "USD"
     } as SharedExpense["transaction"],
-    owner: { id: "user-1", username: "jane", displayName: "Jane" },
+    owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
     participants: [
       {
         id: "p-1",

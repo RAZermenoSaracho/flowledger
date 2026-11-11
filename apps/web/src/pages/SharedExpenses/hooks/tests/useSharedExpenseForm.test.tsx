@@ -101,7 +101,7 @@ describe("useSharedExpenseForm", () => {
   it("adds a user participant, deduping by userId", () => {
     mockBaseline();
     const { result } = renderHook(() => useSharedExpenseForm(), { wrapper });
-    const user = { id: "user-2", username: "jane", displayName: "Jane" };
+    const user = { id: "user-2", username: "jane", nickname: null, displayName: "Jane" };
 
     act(() => result.current.addUserParticipant(user));
     expect(result.current.participants).toHaveLength(1);

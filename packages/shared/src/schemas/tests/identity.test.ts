@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blockUserSchema,
+  nicknameSchema,
   identityVisibilitySchema,
   shareAcceptanceSchema,
   usernameAvailabilityQuerySchema,
@@ -56,5 +57,17 @@ describe("identity schemas", () => {
       updateUserProfileSchema.parse({ ...base, username: "Ana", identityVisibility: "username_and_name" })
     ).toMatchObject({ username: "ana", identityVisibility: "username_and_name" });
     expect(updateUserProfileSchema.safeParse({ ...base, username: "admin" }).success).toBe(false);
+  });
+});
+
+describe("nicknameSchema", () => {
+  it("trims, preserves case, and clears blank input", () => {
+    expect(nicknameSchema.parse("  Sunny  ")).toBe("Sunny");
+    expect(nicknameSchema.parse("   ")).toBeNull();
+    expect(nicknameSchema.parse("x".repeat(40))).toHaveLength(40);
+    expect(updateUserProfileSchema.parse({ name: "A", email: "a@b.com", nickname: null }).nickname).toBeNull();
+  });
+  it.each(["@ana", "  @ana", "x".repeat(41), "a\n", "a\tname", "a\u0000b", "a\u007fb", "a\u0085b"])("rejects %j", (value) => {
+    expect(nicknameSchema.safeParse(value).success).toBe(false);
   });
 });

@@ -1,10 +1,10 @@
 import { publicUserLabel } from "../../users/utils/publicUser.js";
 
 /** A user as shown to another user; `displayName` is absent or null unless the user opted into showing their name. */
-type PublicUserLike = { id: string; username: string; displayName?: string | null };
+type PublicUserLike = { id: string; username: string; nickname?: string | null; displayName?: string | null };
 
 function userLabel(user: PublicUserLike) {
-  return publicUserLabel({ username: user.username, displayName: user.displayName ?? null });
+  return publicUserLabel({ username: user.username, nickname: user.nickname ?? null, displayName: user.displayName ?? null });
 }
 
 type BalanceDebt = {

@@ -13,7 +13,10 @@ function mockAvailability(taken: string[]) {
     http.get(`${API_URL}/users/username-availability`, ({ request }) => {
       const username = new URL(request.url).searchParams.get("username")!;
       asked.push(username);
-      return HttpResponse.json({ username, available: !taken.includes(username) });
+      return HttpResponse.json({
+        username,
+        available: !taken.includes(username)
+      });
     })
   );
   return asked;
@@ -31,7 +34,9 @@ describe("Profile identity fields", () => {
   it("shows the saved username and visibility", async () => {
     const field = await renderProfile();
     expect(field).toHaveValue("jane");
-    expect(screen.getByLabelText("Identity visibility")).toHaveValue("username_only");
+    expect(screen.getByLabelText("Identity visibility")).toHaveValue(
+      "username_only"
+    );
   });
 
   it("checks availability once after typing stops, then says available", async () => {
@@ -48,7 +53,9 @@ describe("Profile identity fields", () => {
     const field = await renderProfile();
     await userEvent.clear(field);
     await userEvent.type(field, "sam");
-    expect(await screen.findByText("That username is taken")).toBeInTheDocument();
+    expect(
+      await screen.findByText("That username is taken")
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
@@ -69,17 +76,35 @@ describe("Profile identity fields", () => {
       http.patch(`${API_URL}/users/me`, async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
-          user: { id: "user-1", name: "Jane Doe", email: "jane@example.com", username: "jane.new", identityVisibility: "username_and_name", planType: "free", mobileSidebarSide: "left", createdAt: "", updatedAt: "" }
+          user: {
+            id: "user-1",
+            name: "Jane Doe",
+            email: "jane@example.com",
+            username: "jane.new",
+            identityVisibility: "username_and_name",
+            planType: "free",
+            mobileSidebarSide: "left",
+            createdAt: "",
+            updatedAt: ""
+          }
         });
       })
     );
     const field = await renderProfile();
     await userEvent.clear(field);
     await userEvent.type(field, "jane.new");
-    await userEvent.selectOptions(screen.getByLabelText("Identity visibility"), "username_and_name");
+    await userEvent.selectOptions(
+      screen.getByLabelText("Identity visibility"),
+      "username_and_name"
+    );
     await screen.findByText("Available");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(body).toMatchObject({ username: "jane.new", identityVisibility: "username_and_name" }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        username: "jane.new",
+        identityVisibility: "username_and_name"
+      })
+    );
   });
 
   it("keeps the draft and marks the username field when the server answers 409", async () => {
@@ -87,7 +112,12 @@ describe("Profile identity fields", () => {
     server.use(
       http.patch(`${API_URL}/users/me`, () =>
         HttpResponse.json(
-          { message: "Username taken", issues: { fieldErrors: { username: ["That username was just taken"] } } },
+          {
+            message: "Username taken",
+            issues: {
+              fieldErrors: { username: ["That username was just taken"] }
+            }
+          },
           { status: 409 }
         )
       )
@@ -97,7 +127,23 @@ describe("Profile identity fields", () => {
     await userEvent.type(field, "racing");
     await screen.findByText("Available");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect((await screen.findAllByText("That username was just taken")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("That username was just taken")).length
+    ).toBeGreaterThan(0);
     expect(screen.getByLabelText("Username")).toHaveValue("racing");
   });
+});
+
+it("shows public nickname helper text and validates with shared rules", async () => {
+  await renderProfile();
+  const nickname = screen.getByLabelText("Public nickname");
+  expect(nickname).toHaveValue("");
+  expect(
+    screen.getByText(/Optional, not unique, visible to others and searchable/)
+  ).toBeInTheDocument();
+  await userEvent.type(nickname, "@jane");
+  expect(
+    await screen.findByText("Nickname cannot start with @")
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });

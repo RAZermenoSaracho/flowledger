@@ -25,13 +25,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", username: "jane", displayName: "Jane" },
+      owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { type: "expense" } as Debt["sharedExpense"]["transaction"],
       participants: [],
       createdAt: "",
       updatedAt: ""
     },
-    user: { id: "user-2", username: "sam", displayName: "Sam" },
+    user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };

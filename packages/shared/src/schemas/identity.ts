@@ -21,6 +21,13 @@ export const usernameSchema = z
   .refine((value) => !value.includes(".."), "Username cannot contain consecutive dots")
   .refine((value) => !(RESERVED_USERNAMES as readonly string[]).includes(value), "This username is reserved");
 
+/** Optional public nickname, trimmed and cleared by blank input; never begins with @ or contains controls. */
+export const nicknameSchema = z.string()
+  .refine((value) => !/[\p{Cc}]/u.test(value), "Nickname cannot contain control characters")
+  .transform((value) => value.trim())
+  .pipe(z.string().max(40).refine((value) => !value.startsWith("@"), "Nickname cannot start with @"))
+  .transform((value) => value || null);
+
 /** How a user appears to others: `@username` only, or `Name (@username)`. */
 export const identityVisibilitySchema = z.enum(IDENTITY_VISIBILITIES);
 

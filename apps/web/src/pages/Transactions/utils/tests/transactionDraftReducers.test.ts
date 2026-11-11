@@ -136,7 +136,7 @@ describe("group split", () => {
 });
 
 describe("participants", () => {
-  const user = { id: "u9", username: "kim", displayName: "Kim" };
+  const user = { id: "u9", username: "kim", nickname: null, displayName: "Kim" };
 
   it("adds any app user once, regardless of Group membership", () => {
     const once = addUserParticipant(base(), user);

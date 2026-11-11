@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MOBILE_SIDEBAR_SIDES, PLAN_TYPES } from "../constants/index.js";
-import { identityVisibilitySchema, usernameSchema } from "./identity.js";
+import { identityVisibilitySchema, nicknameSchema, usernameSchema } from "./identity.js";
 
 export const registerSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -44,6 +44,7 @@ export const updateUserProfileSchema = z.object({
   email: z.string().trim().email().max(255),
   preferredCurrency: z.string().min(1).max(10).nullable().optional(),
   username: usernameSchema.optional(),
+  nickname: nicknameSchema.nullable().optional(),
   identityVisibility: identityVisibilitySchema.optional()
 });
 

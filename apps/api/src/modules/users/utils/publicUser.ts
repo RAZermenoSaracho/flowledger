@@ -4,6 +4,7 @@ import type { PublicUser } from "@flowledger/shared";
 export const publicUserSelect = {
   id: true,
   username: true,
+  nickname: true,
   name: true,
   identityVisibility: true
 } as const;
@@ -12,6 +13,7 @@ export const publicUserSelect = {
 export type PublicUserSource = {
   id: string;
   username: string;
+  nickname: string | null;
   name: string;
   identityVisibility: "username_only" | "username_and_name";
 };
@@ -21,13 +23,15 @@ export function toPublicUser(user: PublicUserSource): PublicUser {
   return {
     id: user.id,
     username: user.username,
+    nickname: user.nickname ?? null,
     displayName: user.identityVisibility === "username_and_name" && user.name.trim() ? user.name : null
   };
 }
 
-/** Text label for a public user: `Name (@username)` when a display name is present, else `@username`. */
-export function publicUserLabel(user: Pick<PublicUser, "username" | "displayName">): string {
-  return user.displayName ? `${user.displayName} (@${user.username})` : `@${user.username}`;
+/** Text label for a public user: nickname and visible name joined by ` · `, then `(@username)`, or `@username` alone. */
+export function publicUserLabel(user: Pick<PublicUser, "username" | "nickname" | "displayName">): string {
+  const parts = [user.nickname, user.displayName].filter(Boolean);
+  return parts.length ? `${parts.join(" · ")} (@${user.username})` : `@${user.username}`;
 }
 
 /** {@link publicUserLabel} of a freshly loaded {@link publicUserSelect} row, for notification text. */
@@ -50,9 +54,9 @@ export function publicizeUsers<T>(value: T): T {
   if (value !== null && typeof value === "object" && typeof (value as { toJSON?: unknown }).toJSON !== "function") {
     if (isPublicUserSource(value)) return toPublicUser(value) as T;
     const copy = Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, publicizeUsers(nested)]));
-    const linked = copy.user as { username?: unknown; displayName?: string | null } | null | undefined;
+    const linked = copy.user as { username?: unknown; nickname?: string | null; displayName?: string | null } | null | undefined;
     if (typeof copy.participantName === "string" && linked && typeof linked.username === "string") {
-      copy.participantName = publicUserLabel({ username: linked.username, displayName: linked.displayName ?? null });
+      copy.participantName = publicUserLabel({ username: linked.username, nickname: linked.nickname ?? null, displayName: linked.displayName ?? null });
     }
     return copy as T;
   }

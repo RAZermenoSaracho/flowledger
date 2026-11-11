@@ -226,7 +226,7 @@ describe("MCP group tools", () => {
     expect((await request(app).post("/v1/shared-expenses").set(bearer(a.writeKey)).send(args)).status).toBe(400);
     const blocks = (await call(c.read, "list_blocked_users")).structuredContent;
     expect(blocks).toEqual((await request(app).get("/v1/users/blocks").set(bearer(c.readKey))).body);
-    expect(Object.keys(blocks!.blocks[0].user).sort()).toEqual(["displayName", "id", "username"]);
+    expect(Object.keys(blocks!.blocks[0].user).sort()).toEqual(["displayName", "id", "nickname", "username"]);
     expect((await call(c.write, "unblock_user", { userId: a.userId })).isError).toBeFalsy();
     expect((await call(c.read, "list_blocked_users")).structuredContent).toEqual({ blocks: [] });
     const shared = (await call(a.write, "create_shared_expense", args)).structuredContent!.sharedExpense;
@@ -234,7 +234,7 @@ describe("MCP group tools", () => {
     const visible = (await call(c.read, "list_shared_expenses", { id: shared.id })).structuredContent!.sharedExpense;
     expect(visible.transaction.groupId).toBeNull();
     expect(visible.transaction.accountId).toBeUndefined();
-    expect(visible.owner).toMatchObject({ id: a.userId, username: expect.any(String), displayName: null });
+    expect(visible.owner).toMatchObject({ id: a.userId, username: expect.any(String), nickname: null, displayName: null });
     expect((await request(app).get(`/v1/groups/${groupId}`).set(bearer(c.readKey))).status).toBe(404);
     await request(app).delete(`/transactions/${tx.id}`).set(bearer(a.jwt)).expect(204);
     const profile = (await call(a.read, "get_profile")).structuredContent!;
@@ -284,7 +284,7 @@ describe("MCP group tools", () => {
     expect((await call(a.read, "search_users", { q: "mc" })).isError).toBe(true);
     expect((await call(a.read, "search_users", { q: "mcpcap", limit: 11 })).isError).toBe(true);
     const found = await call(a.read, "search_users", { q: "Mcp_Find" });
-    expect(found.structuredContent).toEqual({ users: [{ id: target.id, username: "mcp_findable", displayName: null }] });
+    expect(found.structuredContent).toEqual({ users: [{ id: target.id, username: "mcp_findable", nickname: null, displayName: null }] });
     expect((await call(a.read, "search_users", { q: "mcpcap" })).structuredContent!.users).toHaveLength(10);
     const viaRest = (await request(app).get("/v1/users/search?q=Mcp_Find").set(bearer(a.readKey))).body;
     expect(found.structuredContent).toEqual(viaRest);

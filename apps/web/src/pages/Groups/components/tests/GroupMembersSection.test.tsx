@@ -22,7 +22,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
         groupId: "group-1",
         userId: "user-2",
         role: "member",
-        user: { id: "user-2", username: "jane", displayName: "Jane" },
+        user: { id: "user-2", username: "jane", nickname: null, displayName: "Jane" },
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z"
       }
@@ -84,7 +84,7 @@ describe("GroupMembersSection", () => {
   it("searches app users and adds one as a member", async () => {
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-3", username: "sam", displayName: "Sam" }] })
+        HttpResponse.json({ users: [{ id: "user-3", username: "sam", nickname: null, displayName: "Sam" }] })
       ),
       http.post(`${API_URL}/groups/group-1/members`, () =>
         HttpResponse.json({
@@ -93,7 +93,7 @@ describe("GroupMembersSection", () => {
             groupId: "group-1",
             userId: "user-3",
             role: "member",
-            user: { id: "user-3", username: "sam", displayName: "Sam" },
+            user: { id: "user-3", username: "sam", nickname: null, displayName: "Sam" },
             createdAt: "2024-01-01T00:00:00.000Z",
             updatedAt: "2024-01-01T00:00:00.000Z"
           }

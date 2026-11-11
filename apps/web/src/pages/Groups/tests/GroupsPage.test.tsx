@@ -46,7 +46,7 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
         groupId: "group-1",
         userId: "user-1",
         role: "admin",
-        user: { id: "user-1", username: "jane", displayName: "Jane" },
+        user: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
         createdAt: "2024-01-01T00:00:00.000Z",
         updatedAt: "2024-01-01T00:00:00.000Z"
       }

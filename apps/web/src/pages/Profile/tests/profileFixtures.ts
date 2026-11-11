@@ -9,7 +9,7 @@ export const baseUser: User = {
   name: "Jane Doe",
   email: "jane@example.com",
   username: "jane",
-  identityVisibility: "username_only",
+  identityVisibility: "username_only", nickname: null,
   planType: "free",
   mobileSidebarSide: "left",
   preferredCurrency: null,

@@ -7,6 +7,7 @@ const ok: ProfileDraft = {
   email: "jane@example.com",
   username: "jane",
   identityVisibility: "username_only",
+  nickname: "",
   preferredCurrency: "",
   avatarFile: null
 };
@@ -25,12 +26,16 @@ describe("validateProfile", () => {
 
   it("rejects a username that breaks the shared rules", () => {
     expect(validateProfile({ ...ok, username: "ab" }).username).toBeDefined();
-    expect(validateProfile({ ...ok, username: "admin" }).username).toBe("This username is reserved");
+    expect(validateProfile({ ...ok, username: "admin" }).username).toBe(
+      "This username is reserved"
+    );
     expect(validateProfile({ ...ok, username: ".bob" }).username).toBeDefined();
   });
 
   it("normalizes case and flags a username reported as taken", () => {
-    expect(validateProfile({ ...ok, username: " Jane2 " }, "jane2").username).toBe("That username is taken");
+    expect(
+      validateProfile({ ...ok, username: " Jane2 " }, "jane2").username
+    ).toBe("That username is taken");
     expect(validateProfile({ ...ok, username: "jane3" }, "jane2")).toEqual({});
   });
 });
