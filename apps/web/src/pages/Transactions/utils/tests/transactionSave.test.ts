@@ -73,9 +73,41 @@ describe("transaction save", () => {
       });
     });
 
-    it("never sends sharing keys", () => {
-      const body = buildUpdateBody(draft({ isShared: true, sharedTitle: "t" }), ["isShared", "sharedTitle", "participants"], stored);
-      expect(body).toEqual({});
+    it("sends only the changed core fields when sharing is untouched", () => {
+      expect(buildUpdateBody(draft({ isShared: true, sharedTitle: "t" }), ["notes"], stored)).not.toHaveProperty("sharedExpense");
+    });
+
+    it("sends the whole sharing state in one sharedExpense, by id, userId or manualName and without payment fields", () => {
+      const body = buildUpdateBody(
+        draft({
+          isShared: true,
+          sharedTitle: " Trip ",
+          participants: [
+            { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "20", paidAmount: 5, status: "partial" },
+            { draftId: "x", userId: "u3", participantName: "Kim", source: "app", shareAmount: "7.5" },
+            { draftId: "y", participantName: "Pat", source: "manual", shareAmount: "2" }
+          ]
+        }),
+        ["isShared", "participants"],
+        stored
+      );
+      expect(body).toEqual({
+        sharedExpense: {
+          enabled: true,
+          title: "Trip",
+          participants: [
+            { id: "p1", userId: "u2", share: 20 },
+            { userId: "u3", share: 7.5 },
+            { manualName: "Pat", share: 2 }
+          ]
+        }
+      });
+    });
+
+    it("sends enabled:false when sharing is turned off", () => {
+      expect(buildUpdateBody(draft({ isShared: false }), ["isShared", "participants"], stored)).toEqual({
+        sharedExpense: { enabled: false }
+      });
     });
   });
 
@@ -180,6 +212,29 @@ describe("transaction save", () => {
         original: null
       }).catch((caught: unknown) => caught);
       expect(error).toMatchObject({ field: "participants", message: "Shares too high" });
+    });
+
+    it("maps guard errors to the participant row or the participants list", async () => {
+      const cases: [string, string][] = [
+        ["sharedExpense.participants.2.share", "participants.2.shareAmount"],
+        ["sharedExpense.participants.1.id", "participants.1.shareAmount"],
+        ["sharedExpense.participants.removed.0", "participants"],
+        ["sharedExpense.participants", "participants"],
+        ["type", "type"]
+      ];
+      for (const [serverField, draftField] of cases) {
+        server.use(
+          http.put(`${API_URL}/transactions/tx-1`, () =>
+            HttpResponse.json({ message: "bad", issues: { fieldErrors: { [serverField]: ["Nope"] } } }, { status: 400 })
+          )
+        );
+        const error = await saveTransactionDraft({
+          draft: draft({ isShared: true }),
+          changedKeys: ["isShared"],
+          original: stored
+        }).catch((caught: unknown) => caught);
+        expect(error).toMatchObject({ field: draftField, message: "Nope" });
+      }
     });
 
     it("rethrows an error that names no field unchanged", async () => {

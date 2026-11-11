@@ -52,6 +52,23 @@ export function notificationTarget(notification: Notification) {
     return `${routes.debts}?${params.toString()}`;
   }
 
+  if (
+    notification.type === "shared_expense_invited" ||
+    notification.type === "shared_expense_updated" ||
+    notification.type === "shared_expense_rejected"
+  ) {
+    const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
+    params.set("tab", "awaiting");
+    if (sharedExpenseId) params.set("sharedExpenseId", sharedExpenseId);
+    return `${routes.debts}?${params.toString()}`;
+  }
+
+  if (notification.type === "shared_expense_accepted") {
+    const participantId = metadataString(metadata, "participantId");
+    if (participantId) params.set("debtId", participantId);
+    return `${routes.debts}?${params.toString()}`;
+  }
+
   if (notification.type === "shared_expense_added") {
     const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
     const participantId = metadataString(metadata, "participantId");

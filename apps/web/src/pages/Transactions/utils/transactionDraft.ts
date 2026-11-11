@@ -26,6 +26,10 @@ export function draftFromTransaction(transaction: Transaction): TransactionDraft
     participants: (shared?.participants ?? []).map(
       (participant): ParticipantDraft => ({
         draftId: participant.id,
+        id: participant.id,
+        paidAmount: participant.paidAmount,
+        status: participant.status,
+        acceptance: participant.acceptance,
         userId: participant.userId,
         participantName: participant.participantName,
         source: participant.userId ? "app" : "manual",
@@ -65,6 +69,16 @@ export function sumParticipantShares(participants: ParticipantDraft[]): number {
     const share = Number(participant.shareAmount);
     return sum + (Number.isFinite(share) ? share : 0);
   }, 0);
+}
+
+/** Whether a stored participant's share is fully paid (server `status` is `paid`), so the server rejects any change to it. Judged by status, not by the editable input. */
+export function isShareLocked(participant: ParticipantDraft): boolean {
+  return participant.status === "paid";
+}
+
+/** Whether a participant may be removed from the draft: stored rows with a payment cannot be (the server also rejects pending settlement requests). */
+export function canRemoveParticipant(participant: ParticipantDraft): boolean {
+  return !((participant.paidAmount ?? 0) > 0);
 }
 
 /** Lists the settlement transactions linked to `transaction` in either direction through `TransactionRelation`. */

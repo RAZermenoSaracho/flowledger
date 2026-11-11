@@ -37,7 +37,7 @@ export function useTransactionForm({
 
   return useFormDraft<TransactionDraft>({
     initial,
-    validate: (values) => validateTransactionDraft(values, { validateSharing: !original }),
+    validate: validateTransactionDraft,
     save: async (values, changedKeys) => {
       const saved = await saveTransactionDraft({ draft: values, changedKeys, original });
       await Promise.all(

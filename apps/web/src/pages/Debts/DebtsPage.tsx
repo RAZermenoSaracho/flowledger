@@ -10,6 +10,7 @@ import * as debtsClient from "../../services/debts.client";
 import { listGroups } from "../../services/groups.client";
 import { SharedExpensesPage } from "../SharedExpenses/SharedExpensesPage";
 import { matchesWhere } from "../../utils/searchDomain";
+import { AwaitingAcceptanceTab } from "./components/AwaitingAcceptanceTab";
 import { BalancesTab } from "./components/BalancesTab";
 import { PendingRequestsTab } from "./components/PendingRequestsTab";
 import { SettledDebtsTab } from "./components/SettledDebtsTab";
@@ -26,6 +27,7 @@ const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "balances", label: "Outstanding Balances" },
   { id: "pending", label: "Pending Settlement Requests" },
   { id: "settled", label: "Settled History" },
+  { id: "awaiting", label: "Awaiting Acceptance" },
   { id: "sharedExpenses", label: "Shared Expenses" }
 ];
 
@@ -34,6 +36,7 @@ function isDebtsTab(value: string | null): value is DebtsTab {
     value === "balances" ||
     value === "pending" ||
     value === "settled" ||
+    value === "awaiting" ||
     value === "sharedExpenses"
   );
 }
@@ -46,6 +49,7 @@ export function DebtsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightedDebtId = searchParams.get("debtId");
   const highlightedSettlementId = searchParams.get("settlementId");
+  const highlightedSharedExpenseId = searchParams.get("sharedExpenseId");
   const requestedTab = searchParams.get("tab");
   // The URL's `tab` param is the single source of truth for which tab is
   // active — both the desktop tab bar and the mobile drawer's subpage links
@@ -216,7 +220,7 @@ export function DebtsPage() {
     <div className="grid gap-6">
       <div className="grid min-w-0 gap-4">
         <div
-          className="hidden gap-2 lg:grid lg:grid-cols-2 xl:grid-cols-4"
+          className="hidden gap-2 lg:grid lg:grid-cols-2 xl:grid-cols-5"
           role="tablist"
           aria-label="Debt views"
         >
@@ -291,6 +295,15 @@ export function DebtsPage() {
               onSettledQueryChange={setSettledQuery}
               viewerUserId={auth.user?.id}
               highlightedDebtId={highlightedDebtId}
+            />
+          ) : null}
+          {activeTab === "awaiting" ? (
+            <AwaitingAcceptanceTab
+              awaiting={debts?.awaitingAcceptance ?? []}
+              rejected={debts?.rejectedShares ?? []}
+              viewerUserId={auth.user?.id}
+              highlightedSharedExpenseId={highlightedSharedExpenseId}
+              isLoading={debtsQuery.isLoading}
             />
           ) : null}
           {activeTab === "sharedExpenses" ? <SharedExpensesPage /> : null}

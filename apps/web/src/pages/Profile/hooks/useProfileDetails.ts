@@ -1,17 +1,30 @@
+import { useQuery } from "@tanstack/react-query";
+import { usernameSchema } from "@flowledger/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrenciesQuery } from "../../../components/CurrencySelect";
 import { useFormDraft } from "../../../hooks/useFormDraft";
 import * as authClient from "../../../services/auth.client";
 import * as usersClient from "../../../services/users.client";
-import type { ProfileDraft } from "../types/profile.types";
+import type { ProfileDraft, UsernameStatus } from "../types/profile.types";
 import { validateProfile } from "../utils/profileValidation";
 import { useProfileUser } from "./useProfileUser";
 
-const EMPTY_PROFILE: ProfileDraft = { name: "", email: "", preferredCurrency: "", avatarFile: null };
+const EMPTY_PROFILE: ProfileDraft = {
+  name: "",
+  email: "",
+  username: "",
+  identityVisibility: "username_only",
+  preferredCurrency: "",
+  avatarFile: null
+};
+const AVAILABILITY_DEBOUNCE_MS = 400;
 
 /**
  * Profile adapter over `useFormDraft`: supplies Profile's `initial`, `validate` and `save` (email,
  * then profile, then avatar) plus display values (avatar URL, initials, currency label, member-since).
+ * `usernameStatus` reports the debounced availability check of an edited username; a taken name
+ * becomes a `username` field error so Save stays disabled, and a concurrent claim rejected by the
+ * server (409) lands on the same field with the draft kept.
  * Owned by `ProfilePage`, which stays mounted across tab switches so the draft survives them.
  * `draft` is the form hook result for `FormView`; pass `onSave` as the view's `onSave`: when the
  * email changed it opens the password prompt (`isPasswordPromptOpen`) instead of saving, and
@@ -31,6 +44,8 @@ export function useProfileDetails() {
         ? {
             name: user.name,
             email: user.email,
+            username: user.username,
+            identityVisibility: user.identityVisibility,
             preferredCurrency: user.preferredCurrency ?? "",
             avatarFile: null
           }
@@ -38,9 +53,11 @@ export function useProfileDetails() {
     [user]
   );
 
+  const [takenUsername, setTakenUsername] = useState<string | null>(null);
+
   const draft = useFormDraft<ProfileDraft>({
     initial,
-    validate: validateProfile,
+    validate: (values) => validateProfile(values, takenUsername),
     save: async (values, changedKeys) => {
       try {
         let email = values.email.trim();
@@ -56,11 +73,19 @@ export function useProfileDetails() {
         let saved = await usersClient.updateProfile({
           name: values.name.trim(),
           email,
-          preferredCurrency: values.preferredCurrency || null
+          preferredCurrency: values.preferredCurrency || null,
+          ...(changedKeys.includes("username") ? { username: values.username.trim() } : {}),
+          ...(changedKeys.includes("identityVisibility")
+            ? { identityVisibility: values.identityVisibility }
+            : {})
         });
         if (values.avatarFile) saved = await usersClient.uploadAvatar(values.avatarFile);
         syncUser(saved.user);
         setIsPasswordPromptOpen(false);
+      } catch (error) {
+        const fieldError = usersClient.getFieldError(error);
+        if (fieldError) throw Object.assign(new Error(fieldError.message), { field: fieldError.field });
+        throw error;
       } finally {
         passwordRef.current = undefined;
       }
@@ -68,6 +93,35 @@ export function useProfileDetails() {
   });
 
   const values = initial ? draft.values : EMPTY_PROFILE;
+
+  const [debouncedUsername, setDebouncedUsername] = useState(values.username);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedUsername(values.username), AVAILABILITY_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [values.username]);
+  const parsedUsername = usernameSchema.safeParse(debouncedUsername);
+  const candidate = parsedUsername.success ? parsedUsername.data : null;
+  const isCandidateNew = Boolean(user && candidate && candidate !== user.username);
+  const availabilityQuery = useQuery({
+    queryKey: ["username-availability", candidate],
+    enabled: isCandidateNew,
+    queryFn: () => usersClient.checkUsernameAvailability(candidate!)
+  });
+  useEffect(() => {
+    if (availabilityQuery.data && !availabilityQuery.data.available) {
+      setTakenUsername(availabilityQuery.data.username);
+    }
+  }, [availabilityQuery.data]);
+  const typedUsername = usernameSchema.safeParse(values.username);
+  const usernameStatus: UsernameStatus = !typedUsername.success
+    ? "invalid"
+    : typedUsername.data === user?.username
+      ? "unchanged"
+      : typedUsername.data !== candidate || availabilityQuery.isFetching || !availabilityQuery.data
+        ? "checking"
+        : availabilityQuery.data.available
+          ? "available"
+          : "taken";
 
   /** Save handler for `FormView`: opens the password prompt when the email changed, otherwise saves. */
   async function onSave() {
@@ -130,6 +184,7 @@ export function useProfileDetails() {
     currencyLabel,
     memberSince: user ? new Date(user.createdAt).toLocaleDateString() : null,
     syncUser,
+    usernameStatus,
     draft,
     values,
     onSave,

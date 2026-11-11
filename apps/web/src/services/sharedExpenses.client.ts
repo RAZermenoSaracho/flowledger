@@ -55,3 +55,17 @@ export function updateSharedExpense(
     { method: "PUT", body }
   );
 }
+
+/** Accepts the caller's own proposed share of a shared expense. */
+export function acceptSharedExpense(sharedExpenseId: string) {
+  return apiRequest<unknown>(`/shared-expenses/${encodeURIComponent(sharedExpenseId)}/accept`, {
+    method: "POST"
+  });
+}
+
+/** Rejects the caller's own proposed share of a shared expense. */
+export function rejectSharedExpense(sharedExpenseId: string) {
+  return apiRequest<unknown>(`/shared-expenses/${encodeURIComponent(sharedExpenseId)}/reject`, {
+    method: "POST"
+  });
+}

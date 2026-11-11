@@ -93,6 +93,18 @@ describe("notificationTarget", () => {
     );
   });
 
+  it("links invitation, update and rejection notifications to the awaiting tab for that shared expense", () => {
+    for (const type of ["shared_expense_invited", "shared_expense_updated", "shared_expense_rejected"] as const) {
+      const notification = makeNotification({ type, metadata: { sharedExpenseId: "se-1", participantId: "p-1" } });
+      expect(notificationTarget(notification)).toBe("/debts?tab=awaiting&sharedExpenseId=se-1");
+    }
+  });
+
+  it("links shared_expense_accepted to the accepted debt", () => {
+    const notification = makeNotification({ type: "shared_expense_accepted", metadata: { participantId: "p-1" } });
+    expect(notificationTarget(notification)).toBe("/debts?debtId=p-1");
+  });
+
   it("links provider_transactions_pending to the imported/pending transactions tab", () => {
     const notification = makeNotification({
       type: "provider_transactions_pending",

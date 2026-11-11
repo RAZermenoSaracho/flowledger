@@ -57,6 +57,10 @@ export type PersonBalance = {
 export type DebtsResponse = {
   iOwe: Debt[];
   owedToMe: Debt[];
+  /** Proposed shares, listed to the owner and the participant; not counted in balances. */
+  awaitingAcceptance?: Debt[];
+  /** Rejected shares, owner only. */
+  rejectedShares?: Debt[];
   balances: PersonBalance[];
   pendingSettlementRequests: SettlementRequest[];
   approvedSettlementRequests: SettlementRequest[];

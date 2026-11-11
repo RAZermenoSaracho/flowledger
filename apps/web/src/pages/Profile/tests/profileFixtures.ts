@@ -8,6 +8,8 @@ export const baseUser: User = {
   id: "user-1",
   name: "Jane Doe",
   email: "jane@example.com",
+  username: "jane",
+  identityVisibility: "username_only",
   planType: "free",
   mobileSidebarSide: "left",
   preferredCurrency: null,

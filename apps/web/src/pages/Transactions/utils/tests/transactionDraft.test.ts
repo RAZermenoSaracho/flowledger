@@ -3,6 +3,8 @@ import type { Transaction } from "../../../../types/transactions.types";
 import {
   draftFromTransaction,
   newTransactionDraft,
+  canRemoveParticipant,
+  isShareLocked,
   relatedSettlementRows,
   sumParticipantShares
 } from "../transactionDraft";
@@ -52,8 +54,8 @@ describe("transaction draft helpers", () => {
       sharedExpense: {
         title: "Split",
         participants: [
-          { id: "p1", userId: "u2", participantName: "Sam", shareAmount: 20 },
-          { id: "p2", userId: null, participantName: "Pat", shareAmount: 5 }
+          { id: "p1", userId: "u2", participantName: "Sam", shareAmount: 20, paidAmount: 5, status: "partial", acceptance: "accepted" },
+          { id: "p2", userId: null, participantName: "Pat", shareAmount: 5, paidAmount: 0, status: "pending", acceptance: "accepted" }
         ]
       }
     } as unknown as Transaction);
@@ -61,8 +63,8 @@ describe("transaction draft helpers", () => {
     expect(draft.isShared).toBe(true);
     expect(draft.sharedTitle).toBe("Split");
     expect(draft.participants).toEqual([
-      { draftId: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "20" },
-      { draftId: "p2", userId: null, participantName: "Pat", source: "manual", shareAmount: "5" }
+      { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "20", paidAmount: 5, status: "partial", acceptance: "accepted" },
+      { draftId: "p2", id: "p2", userId: null, participantName: "Pat", source: "manual", shareAmount: "5", paidAmount: 0, status: "pending", acceptance: "accepted" }
     ]);
   });
 
@@ -101,5 +103,14 @@ describe("transaction draft helpers", () => {
       ["r2", "b"]
     ]);
     expect(relatedSettlementRows(transaction)).toEqual([]);
+  });
+
+  it("locks a fully paid share and blocks removing a paid row", () => {
+    const row = { draftId: "a", participantName: "A", source: "app" as const, shareAmount: "10" };
+    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid" })).toBe(true);
+    expect(isShareLocked({ ...row, paidAmount: 4, status: "partial" })).toBe(false);
+    expect(isShareLocked(row)).toBe(false);
+    expect(canRemoveParticipant({ ...row, paidAmount: 4 })).toBe(false);
+    expect(canRemoveParticipant(row)).toBe(true);
   });
 });

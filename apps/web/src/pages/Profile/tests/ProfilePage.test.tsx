@@ -29,6 +29,20 @@ describe("ProfilePage", () => {
     expect(screen.getByRole("tabpanel")).toHaveAccessibleName("General");
   });
 
+  it("opens the Blocked users tab from the URL and lists blocks", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/users/blocks`, () =>
+        HttpResponse.json({
+          blocks: [{ id: "b1", createdAt: "2026-01-02T00:00:00.000Z", user: { id: "u2", username: "sam", displayName: null } }]
+        })
+      )
+    );
+    renderProfile("/profile?tab=blocked");
+    expect(await screen.findByText("@sam")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Blocked users" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("falls back to General for an unknown ?tab= value", () => {
     mockBaseline();
     renderProfile("/profile?tab=bogus");

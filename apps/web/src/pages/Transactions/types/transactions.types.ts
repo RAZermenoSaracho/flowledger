@@ -1,4 +1,6 @@
 import type { Category } from "../../../types/categories.types";
+import type { ParticipantStatus } from "@flowledger/shared";
+import type { ShareAcceptance } from "../../../types/sharedExpenses.types";
 import type { ProviderImportedTransaction, Transaction } from "../../../types/transactions.types";
 
 /** Which of the Transactions page's two tabs is active. */
@@ -7,9 +9,15 @@ export type TransactionsTab = "transactions" | "imported";
 /**
  * One participant row of a transaction draft's split. `draftId` is the stable client key (an
  * existing participant's server id, or a generated id for a new row); `shareAmount` is the raw input string.
+ * `id`, `paidAmount`, `status` and `acceptance` are the server-owned values of a stored row; they are
+ * display and lock inputs only and are never sent (the server owns payment and consent state).
  */
 export type ParticipantDraft = {
   draftId: string;
+  id?: string;
+  paidAmount?: number;
+  status?: ParticipantStatus;
+  acceptance?: ShareAcceptance;
   userId?: string | null;
   participantName: string;
   source: "app" | "manual";
@@ -19,7 +27,7 @@ export type ParticipantDraft = {
 /**
  * Draft state of the Transaction Form View, for new and existing transactions alike. Money and
  * date fields are raw input strings (`date` is a `datetime-local` value); empty strings mean "none".
- * `isShared`, `sharedTitle` and `participants` are editable only on new drafts.
+ * `isShared`, `sharedTitle` and `participants` are the sharing state, saved with the same request as the other fields.
  */
 export type TransactionDraft = {
   name: string;

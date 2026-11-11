@@ -138,11 +138,10 @@ describe("group split", () => {
 describe("participants", () => {
   const user = { id: "u9", username: "kim", displayName: "Kim" };
 
-  it("adds an app user once, and only members of the selected group", () => {
-    const once = addUserParticipant(base(), user, undefined);
+  it("adds any app user once, regardless of Group membership", () => {
+    const once = addUserParticipant(base(), user);
     expect(once.participants).toHaveLength(1);
-    expect(addUserParticipant(once, user, undefined).participants).toHaveLength(1);
-    expect(addUserParticipant(base(), user, group).participants).toEqual([]);
+    expect(addUserParticipant(once, user).participants).toHaveLength(1);
   });
 
   it("adds a trimmed manual participant and ignores a blank name", () => {
@@ -160,6 +159,15 @@ describe("participants", () => {
     const edited = setParticipantShare(draft, a!.draftId, "7");
     expect(edited.participants.map((p) => p.shareAmount)).toEqual(["7", ""]);
     expect(removeParticipant(edited, b!.draftId).participants.map((p) => p.participantName)).toEqual(["A"]);
+  });
+
+  it("splitEqually leaves a fully paid share untouched", () => {
+    const draft = addManualParticipant(addManualParticipant(base({ amount: "90" }), "A"), "B");
+    const locked = {
+      ...draft,
+      participants: [{ ...draft.participants[0]!, shareAmount: "50", paidAmount: 50, status: "paid" as const }, draft.participants[1]!]
+    };
+    expect(splitEqually(locked).participants.map((p) => p.shareAmount)).toEqual(["50", "30.00"]);
   });
 
   it("splitEqually divides between the owner and the participants", () => {

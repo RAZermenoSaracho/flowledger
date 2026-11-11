@@ -4,6 +4,7 @@ import type { Group } from "../../../types/groups.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft, TransactionDraft } from "../types/transactions.types";
 import { formatPublicUser } from "../../../utils/publicUser";
+import { isShareLocked } from "./transactionDraft";
 
 function toShare(value: number) {
   return (Math.round(value * 100) / 100).toFixed(2);
@@ -127,24 +128,21 @@ export function setShared(draft: TransactionDraft, isShared: boolean): Transacti
   return isShared ? { ...draft, isShared } : { ...draft, isShared, sharedTitle: "", participants: [] };
 }
 
-/** Splits the amount equally between the owner and the current participants. */
+/** Splits the amount equally between the owner and the current participants; fully paid (locked) shares keep their value. */
 export function splitEqually(draft: TransactionDraft): TransactionDraft {
   const amount = Number(draft.amount);
   if (!Number.isFinite(amount) || amount <= 0 || draft.participants.length === 0) return draft;
   const share = toShare(amount / (draft.participants.length + 1));
   return {
     ...draft,
-    participants: draft.participants.map((participant) => ({ ...participant, shareAmount: share }))
+    participants: draft.participants.map((participant) =>
+      isShareLocked(participant) ? participant : { ...participant, shareAmount: share }
+    )
   };
 }
 
-/** Adds an app user as a participant with an empty share, ignoring duplicates and non-members of `group`. */
-export function addUserParticipant(
-  draft: TransactionDraft,
-  user: PublicUser,
-  group: Group | undefined
-): TransactionDraft {
-  if (group && !group.members.some((member) => member.userId === user.id)) return draft;
+/** Adds any app user as a participant with an empty share (sharing is not limited to Group members), ignoring duplicates. */
+export function addUserParticipant(draft: TransactionDraft, user: PublicUser): TransactionDraft {
   if (draft.participants.some((participant) => participant.userId === user.id)) return draft;
   const participant: ParticipantDraft = {
     draftId: crypto.randomUUID(),

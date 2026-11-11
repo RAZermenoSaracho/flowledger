@@ -1,6 +1,9 @@
 import type { PublicUser } from "./users.types";
-import type { ParticipantStatus, SharedExpenseStatus } from "@flowledger/shared";
+import type { SHARE_ACCEPTANCES, ParticipantStatus, SharedExpenseStatus } from "@flowledger/shared";
 import type { Transaction } from "./transactions.types";
+
+/** A participant's response state on a share. */
+export type ShareAcceptance = (typeof SHARE_ACCEPTANCES)[number];
 
 /** Participant record shape on a shared expense. */
 export type SharedExpenseParticipant = {
@@ -11,6 +14,8 @@ export type SharedExpenseParticipant = {
   shareAmount: number;
   paidAmount: number;
   status: ParticipantStatus;
+  /** Consent state; manual participants are always `accepted`. Absent only in payloads that predate consent. */
+  acceptance?: ShareAcceptance;
 };
 
 /** Transaction fields every viewer of a shared expense gets; the owner also receives the rest of the {@link Transaction}. */

@@ -146,6 +146,26 @@ function renderPage(entry = "/transactions/tx-1") {
   );
 }
 
+function sharedTransaction(overrides: Record<string, unknown> = {}) {
+  return makeTransaction({
+    sharedExpense: {
+      id: "se-1",
+      transactionId: "tx-1",
+      ownerUserId: "user-1",
+      title: "Dinner split",
+      totalAmount: 42.5,
+      status: "open",
+      participants: [
+        { id: "p1", userId: "user-2", participantName: "@sam", currency: "USD", shareAmount: 20, paidAmount: 10, status: "partial", acceptance: "accepted" },
+        { id: "p2", userId: "user-3", participantName: "@kim", currency: "USD", shareAmount: 10, paidAmount: 0, status: "pending", acceptance: "proposed" }
+      ],
+      createdAt: "",
+      updatedAt: "",
+      ...overrides
+    } as Transaction["sharedExpense"]
+  });
+}
+
 const saveButton = () => screen.getByRole("button", { name: "Save" });
 const discardButton = () => screen.getByRole("button", { name: "Discard" });
 const setDate = (value: string) =>
@@ -578,38 +598,22 @@ describe("TransactionDetailPage (existing transaction)", () => {
       expect(screen.getByLabelText("Notes")).toHaveValue("hello");
     });
 
-    it("shows the shared expense's participants read-only", async () => {
-      mockBaseline({
-        transaction: makeTransaction({
-          sharedExpense: {
-            id: "se-1",
-            transactionId: "tx-1",
-            ownerUserId: "user-1",
-            title: "Dinner split",
-            totalAmount: 42.5,
-            status: "open",
-            participants: [
-              { id: "p1", participantName: "Sam", currency: "USD", shareAmount: 20, paidAmount: 10, status: "partial" }
-            ],
-            createdAt: "",
-            updatedAt: ""
-          } as Transaction["sharedExpense"]
-        })
-      });
+    it("shows the shared expense's participants with paid and response columns", async () => {
+      mockBaseline({ transaction: sharedTransaction() });
       const user = userEvent.setup();
       renderPage();
 
       await loaded();
       await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-      expect(screen.getByText("Dinner split")).toBeInTheDocument();
-      expect(screen.getByText("Sam")).toBeInTheDocument();
-      expect(screen.getByText("$20.00")).toBeInTheDocument();
+      expect(screen.getByLabelText("Shared transaction title")).toHaveValue("Dinner split");
+      expect(screen.getByText("@sam")).toBeInTheDocument();
       expect(screen.getByText("$10.00")).toBeInTheDocument();
-      expect(screen.queryByRole("checkbox", { name: "Shared transaction" })).not.toBeInTheDocument();
+      expect(screen.getByText("Accepted")).toBeInTheDocument();
+      expect(screen.getByText("Proposed")).toBeInTheDocument();
     });
 
-    it("says no shared expense is attached when there is none", async () => {
+    it("offers to share an unshared transaction", async () => {
       mockBaseline();
       const user = userEvent.setup();
       renderPage();
@@ -617,7 +621,7 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await loaded();
       await user.click(screen.getByRole("tab", { name: "Sharing" }));
 
-      expect(screen.getByText("No shared expense is attached.")).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "Shared transaction" })).not.toBeChecked();
     });
 
     it("hides the Related tab when there are no related records", async () => {
@@ -665,6 +669,157 @@ describe("TransactionDetailPage (existing transaction)", () => {
     const grid = screen.getByLabelText("Name").closest(".grid");
     expect(grid).toHaveClass("grid-cols-1");
     expect(screen.getByLabelText("Name").className).toContain("text-base");
+  });
+});
+
+describe("TransactionDetailPage (sharing an existing transaction)", () => {
+  beforeEach(() => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const openSharing = async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await loaded();
+    await user.click(screen.getByRole("tab", { name: "Sharing" }));
+    return user;
+  };
+  const searchUser = () =>
+    server.use(
+      http.get(`${API_URL}/users/search`, () =>
+        HttpResponse.json({ users: [{ id: "user-9", username: "kim9", displayName: null }] })
+      )
+    );
+
+  it("converts with other edits in one PUT carrying a manual and an app participant", async () => {
+    mockBaseline();
+    searchUser();
+    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const user = await openSharing();
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.type(screen.getByLabelText("Find app user"), "kim");
+    await user.click(await screen.findByRole("button", { name: "Add app user" }));
+    await user.type(screen.getByLabelText("Manual participant"), "Pat");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    const shares = screen.getAllByLabelText("Share");
+    await user.type(shares[0]!, "10");
+    await user.type(shares[1]!, "5");
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await user.type(screen.getByLabelText("Notes"), "n");
+    await user.click(saveButton());
+
+    await waitFor(() => expect(put.calls).toBe(1));
+    expect(put.body).toEqual({
+      notes: "n",
+      sharedExpense: {
+        enabled: true,
+        participants: [
+          { userId: "user-9", share: 10 },
+          { manualName: "Pat", share: 5 }
+        ]
+      }
+    });
+  });
+
+  it("blocks Save with a row error when shares exceed the amount", async () => {
+    mockBaseline();
+    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const user = await openSharing();
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.type(screen.getByLabelText("Manual participant"), "Pat");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Share"), "100");
+    await user.click(saveButton());
+
+    expect(await screen.findByText("This share pushes the total over the amount")).toBeInTheDocument();
+    expect(put.calls).toBe(0);
+  });
+
+  it("edits a share and removes an unpaid participant, sending stored rows by id", async () => {
+    mockBaseline({ transaction: sharedTransaction() });
+    const put = mockPut(() => HttpResponse.json({ transaction: sharedTransaction() }));
+    const user = await openSharing();
+
+    await user.clear(screen.getAllByLabelText("Share")[0]!);
+    await user.type(screen.getAllByLabelText("Share")[0]!, "25");
+    await user.click(screen.getAllByRole("button", { name: "Remove" })[0]!);
+    await user.click(saveButton());
+
+    await waitFor(() => expect(put.calls).toBe(1));
+    expect(put.body).toEqual({
+      sharedExpense: { enabled: true, title: "Dinner split", participants: [{ id: "p1", userId: "user-2", share: 25 }] }
+    });
+  });
+
+  it("turns sharing off with enabled:false when nobody has paid", async () => {
+    mockBaseline({
+      transaction: sharedTransaction({
+        participants: [
+          { id: "p2", userId: "user-3", participantName: "@kim", currency: "USD", shareAmount: 10, paidAmount: 0, status: "pending", acceptance: "proposed" }
+        ]
+      })
+    });
+    const put = mockPut(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const user = await openSharing();
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.click(saveButton());
+
+    await waitFor(() => expect(put.calls).toBe(1));
+    expect(put.body).toEqual({ sharedExpense: { enabled: false } });
+  });
+
+  it("locks the toggle and explains why while a participant has paid", async () => {
+    mockBaseline({ transaction: sharedTransaction() });
+    await openSharing();
+
+    expect(screen.getByRole("checkbox", { name: "Shared transaction" })).toBeDisabled();
+    expect(screen.getByText(/cannot be turned off while a participant has paid/)).toBeInTheDocument();
+  });
+
+  it("keeps the draft and marks the offending row on a 400 guard error", async () => {
+    mockBaseline({ transaction: sharedTransaction() });
+    mockPut(() =>
+      HttpResponse.json(
+        {
+          message: "@kim's share cannot be below what was paid",
+          issues: { fieldErrors: { "sharedExpense.participants.1.share": ["@kim's share cannot be below what was paid"] } }
+        },
+        { status: 400 }
+      )
+    );
+    const user = await openSharing();
+
+    await user.clear(screen.getAllByLabelText("Share")[1]!);
+    await user.type(screen.getAllByLabelText("Share")[1]!, "5");
+    await user.click(saveButton());
+
+    expect((await screen.findAllByText("@kim's share cannot be below what was paid")).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Share")[1]).toHaveValue(5);
+    expect(screen.getAllByLabelText("Share")[1]).toBeInvalid();
+    expect(screen.getAllByLabelText("Share")[0]).toBeValid();
+  });
+
+  it("keeps the draft and shows the message on a 409 duplicate conversion", async () => {
+    mockBaseline();
+    const put = mockPut(() => HttpResponse.json({ message: "This transaction is already shared" }, { status: 409 }));
+    const user = await openSharing();
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+    await user.type(screen.getByLabelText("Manual participant"), "Pat");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Share"), "5");
+    await user.click(saveButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This transaction is already shared");
+    expect(put.calls).toBe(1);
+    expect(screen.getByLabelText("Share")).toHaveValue(5);
+    expect(saveButton()).toBeEnabled();
   });
 });
 

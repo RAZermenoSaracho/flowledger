@@ -35,9 +35,9 @@ Prerequisites: `st005-reusable-editable-form-view` and `st007-transaction-form-v
 
 ## 6. Web UI
 
-- [ ] 6.1 Extend ST-007's Sharing tab for existing transactions (convert, edit, disable, acceptance/paid columns and locks, username invitation search, totals, equal split) with `RelatedList`/`EditableField`; atomic save keeps the draft on failure. Verify: `TransactionDetailPage.test.tsx` additions for convert, edit, disable blocked, 400/409 keep draft, at 375px and desktop.
-- [ ] 6.2 Debts "awaiting acceptance" list and notification target with Accept, Reject, "Reject and block". Verify: component tests incl. mobile and not-found.
-- [ ] 6.3 Profile: username and visibility fields with debounced availability, and "Blocked users" tab (`RelatedList`, immediate mode). Remove email rendering and switch debts search to username. Verify: Profile tests; grep finds no email rendering of other users.
+- [x] 6.1 Extend ST-007's Sharing tab for existing transactions (convert, edit, disable, acceptance/paid columns and locks, username invitation search, totals, equal split) with `RelatedList`/`EditableField`; atomic save keeps the draft on failure. Verify: `TransactionDetailPage.test.tsx` additions for convert, edit, disable blocked, 400/409 keep draft, at 375px and desktop.
+- [x] 6.2 Debts "awaiting acceptance" list and notification target with Accept, Reject, "Reject and block". Verify: component tests incl. mobile and not-found.
+- [x] 6.3 Profile: username and visibility fields with debounced availability, and "Blocked users" tab (`RelatedList`, immediate mode). Remove email rendering and switch debts search to username. Verify: Profile tests; grep finds no email rendering of other users.
 
 ## 7. /v1 and MCP parity
 

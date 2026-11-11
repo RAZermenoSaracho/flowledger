@@ -137,6 +137,20 @@ describe("useFormDraft", () => {
     expect(result.current.changedKeys).toEqual(["title", "qty"]);
   });
 
+  it("adopts a fresher initial that arrived while the save ran", async () => {
+    const refreshed: Order = { ...base, title: "Coffee", tags: [{ name: "a" }, { name: "server" }] };
+    let rerender: (props: { initial: Order | null }) => void = () => {};
+    const save = vi.fn(async () => rerender({ initial: refreshed }));
+    const hook = setup({ save });
+    rerender = hook.rerender;
+
+    act(() => hook.result.current.setField("title", "Coffee"));
+    await act(() => hook.result.current.save());
+
+    expect(hook.result.current.values).toEqual(refreshed);
+    expect(hook.result.current.isDirty).toBe(false);
+  });
+
   it("registers beforeunload only while dirty", () => {
     const add = vi.spyOn(window, "addEventListener");
     const remove = vi.spyOn(window, "removeEventListener");

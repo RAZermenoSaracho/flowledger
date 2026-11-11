@@ -1,6 +1,8 @@
 import { Card } from "../../components/Card";
 import { FormView } from "../../components/FormView";
+import { BlockedUsersTab } from "./components/BlockedUsersTab";
 import { GeneralTab } from "./components/GeneralTab";
+import { IdentityFields } from "./components/IdentityFields";
 import { PreferencesTab } from "./components/PreferencesTab";
 import { ProfileHeader } from "./components/ProfileHeader";
 import { SecurityTab } from "./components/SecurityTab";
@@ -12,9 +14,14 @@ import { useProfileDetails } from "./hooks/useProfileDetails";
 export function ProfilePage() {
   const profile = useProfileDetails();
   const content = {
-    general: <GeneralTab profile={profile} />,
+    general: (
+      <GeneralTab profile={profile}>
+        <IdentityFields profile={profile} />
+      </GeneralTab>
+    ),
     preferences: <PreferencesTab />,
     security: <SecurityTab />,
+    blocked: <BlockedUsersTab />,
     subscription: <SubscriptionTab />
   };
 

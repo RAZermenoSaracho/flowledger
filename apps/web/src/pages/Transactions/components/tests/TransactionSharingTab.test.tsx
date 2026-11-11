@@ -117,7 +117,7 @@ describe("TransactionSharingTab", () => {
     expect(screen.getByText("Kim (@kim)")).toBeInTheDocument();
   });
 
-  it("limits search results to the selected group's members and hides manual entry", async () => {
+  it("offers any found app user and manual entry on a Group transaction, not only members", async () => {
     server.use(
       http.get(`${API_URL}/users/search`, () =>
         HttpResponse.json({
@@ -131,10 +131,9 @@ describe("TransactionSharingTab", () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness initial={draft()} group={group} />);
 
-    expect(screen.queryByLabelText("Manual participant")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Manual participant")).toBeInTheDocument();
     await user.type(screen.getByLabelText("Find app user"), "sam");
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Add app user" })).toHaveLength(1));
-    expect(screen.queryByText("Kim")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Add app user" })).toHaveLength(2));
   });
 
   it("resets the split from the group's members", async () => {
@@ -151,28 +150,81 @@ describe("TransactionSharingTab", () => {
     expect(screen.getByText(/cannot be shared or split/)).toBeInTheDocument();
   });
 
-  it("shows an existing transaction's sharing read-only", () => {
-    renderWithProviders(
-      <Harness
-        initial={draft()}
-        transaction={
-          {
-            sharedExpense: {
-              title: "Dinner split",
-              status: "open",
-              participants: [{ id: "p1", participantName: "Sam", currency: "USD", shareAmount: 20, paidAmount: 5 }]
-            }
-          } as unknown as Transaction
-        }
-      />
-    );
-    expect(screen.getByText("Dinner split")).toBeInTheDocument();
-    expect(screen.getByText("$20.00")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  const stored = (participants: TransactionDraft["participants"], overrides: Partial<TransactionDraft> = {}) => ({
+    initial: draft({ participants, ...overrides }),
+    transaction: { sharedExpense: { id: "se1", title: "Dinner" } } as unknown as Transaction
+  });
+  const stub = (id: string, extra: Partial<TransactionDraft["participants"][number]> = {}) => ({
+    draftId: id,
+    id,
+    userId: `user-${id}`,
+    participantName: `@${id}`,
+    source: "app" as const,
+    shareAmount: "20",
+    paidAmount: 0,
+    status: "pending" as const,
+    acceptance: "proposed" as const,
+    ...extra
   });
 
-  it("says nothing is shared for an existing unshared transaction", () => {
-    renderWithProviders(<Harness initial={draft()} transaction={{ sharedExpense: null } as Transaction} />);
-    expect(screen.getByText("No shared expense is attached.")).toBeInTheDocument();
+  it("shows paid and response columns for a stored transaction and lets the owner edit a share", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness {...stored([stub("sam", { paidAmount: 5, acceptance: "accepted" }), stub("kim")])} />);
+
+    expect(screen.getByText("$5.00")).toBeInTheDocument();
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+    expect(screen.getByText("Proposed")).toBeInTheDocument();
+    const shares = screen.getAllByLabelText("Share");
+    await user.clear(shares[1]!);
+    await user.type(shares[1]!, "30");
+    expect(screen.getByTestId("values")).toHaveTextContent('["20","30"]');
+  });
+
+  it("locks a fully paid share and its removal, and the unshare toggle while a payment exists", () => {
+    renderWithProviders(
+      <Harness {...stored([stub("sam", { paidAmount: 20, status: "paid", acceptance: "accepted" }), stub("kim")])} />
+    );
+
+    expect(screen.getAllByLabelText("Share")[0]).toBeDisabled();
+    expect(screen.getAllByLabelText("Share")[1]).toBeEnabled();
+    expect(screen.getByText("Fully paid, locked")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
+    const toggle = screen.getByRole("checkbox", { name: "Shared transaction" });
+    expect(toggle).toBeDisabled();
+    expect(toggle).toHaveAccessibleDescription(/cannot be turned off/);
+  });
+
+  it("allows turning sharing off when nobody has paid", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness {...stored([stub("sam")])} />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+
+    expect(screen.queryByText("@sam")).not.toBeInTheDocument();
+  });
+
+  it("marks a newly added app user as invited on save and a manual one as accepted", () => {
+    renderWithProviders(
+      <Harness
+        {...stored([
+          { draftId: "n", userId: "u7", participantName: "@new", source: "app", shareAmount: "5" },
+          { draftId: "m", participantName: "Pat", source: "manual", shareAmount: "5" }
+        ])}
+      />
+    );
+
+    expect(screen.getByText("Invited on save")).toBeInTheDocument();
+    expect(screen.getByText("Accepted")).toBeInTheDocument();
+  });
+
+  it("can enable sharing on a stored, unshared transaction", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Harness initial={draft({ isShared: false })} transaction={{ sharedExpense: null } as Transaction} />
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: "Shared transaction" }));
+
+    expect(screen.getByLabelText("Shared transaction title")).toBeInTheDocument();
   });
 });

@@ -16,7 +16,8 @@ function changedKeysOf<T extends object>(draft: T | null, baseline: T | null) {
  *
  * When `initial` changes the draft rebases onto it only if the draft is clean, so a refetch never
  * clobbers edits. After a successful save the saved draft becomes the clean baseline until
- * `initial` next changes. A save rejection keeps the draft and sets `saveError`; when the
+ * `initial` next changes; if `initial` changed while `save` ran (a refetch with server-assigned
+ * values), the draft and baseline become that fresher `initial` instead. A save rejection keeps the draft and sets `saveError`; when the
  * rejection carries a string `field`, the message also lands in `fieldErrors` for that field.
  * `fieldErrors` only contains touched fields (or all of them after a blocked save attempt).
  * `values` is an empty object while `initial` is `null`.
@@ -35,6 +36,8 @@ export function useFormDraft<T extends object>({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const savingRef = useRef(false);
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
 
   if (!structuralEqual(prevInitial, initial)) {
     const clean = changedKeysOf(draft, baseline).length === 0;
@@ -96,9 +99,16 @@ export function useFormDraft<T extends object>({
     savingRef.current = true;
     setIsSaving(true);
     setSaveError(null);
+    const initialAtStart = initialRef.current;
     try {
       await persist(draft, changedKeys);
-      setBaseline(draft);
+      const refreshed = initialRef.current;
+      if (refreshed && !structuralEqual(refreshed, initialAtStart)) {
+        setBaseline(refreshed);
+        setDraft(refreshed);
+      } else {
+        setBaseline(draft);
+      }
       setTouched(new Set());
       setSubmitted(false);
       setServerErrors({});

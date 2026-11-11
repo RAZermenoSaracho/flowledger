@@ -9,37 +9,34 @@ const valid = (overrides: Partial<TransactionDraft> = {}): TransactionDraft => (
   amount: "100",
   ...overrides
 });
-const newDraft = { validateSharing: true };
 
 describe("validateTransactionDraft", () => {
   it("accepts a valid draft", () => {
-    expect(validateTransactionDraft(valid(), newDraft)).toEqual({});
+    expect(validateTransactionDraft(valid())).toEqual({});
   });
 
   it("rejects a blank name, a missing or non-numeric amount and a bad date", () => {
-    expect(validateTransactionDraft(valid({ name: " " }), newDraft).name).toBeDefined();
-    expect(validateTransactionDraft(valid({ amount: "" }), newDraft).amount).toBeDefined();
-    expect(validateTransactionDraft(valid({ amount: "abc" }), newDraft).amount).toBeDefined();
-    expect(validateTransactionDraft(valid({ date: "" }), newDraft).date).toBeDefined();
+    expect(validateTransactionDraft(valid({ name: " " })).name).toBeDefined();
+    expect(validateTransactionDraft(valid({ amount: "" })).amount).toBeDefined();
+    expect(validateTransactionDraft(valid({ amount: "abc" })).amount).toBeDefined();
+    expect(validateTransactionDraft(valid({ date: "" })).date).toBeDefined();
   });
 
   it("requires a different destination account for a transfer", () => {
     const transfer = valid({ type: "transfer", accountId: "a1" });
-    expect(validateTransactionDraft(transfer, newDraft).transferToAccountId).toBe("To account is required for transfers");
-    expect(validateTransactionDraft({ ...transfer, transferToAccountId: "a1" }, newDraft).transferToAccountId).toBe(
+    expect(validateTransactionDraft(transfer).transferToAccountId).toBe("To account is required for transfers");
+    expect(validateTransactionDraft({ ...transfer, transferToAccountId: "a1" }).transferToAccountId).toBe(
       "Source and destination accounts must be different"
     );
-    expect(validateTransactionDraft(valid({ type: "transfer" }), newDraft).accountId).toBeDefined();
-    expect(validateTransactionDraft({ ...transfer, transferToAccountId: "a2" }, newDraft)).toEqual({});
+    expect(validateTransactionDraft(valid({ type: "transfer" })).accountId).toBeDefined();
+    expect(validateTransactionDraft({ ...transfer, transferToAccountId: "a2" })).toEqual({});
   });
 
   it("ignores a stale destination, category and group outside their type", () => {
-    expect(validateTransactionDraft(valid({ transferToAccountId: "a2" }), newDraft)).toEqual({});
+    expect(validateTransactionDraft(valid({ transferToAccountId: "a2" }))).toEqual({});
     expect(
       validateTransactionDraft(
-        valid({ type: "transfer", accountId: "a1", transferToAccountId: "a2", categoryId: "c1", groupId: "g1" }),
-        newDraft
-      )
+        valid({ type: "transfer", accountId: "a1", transferToAccountId: "a2", categoryId: "c1", groupId: "g1" }))
     ).toEqual({});
   });
 
@@ -52,31 +49,36 @@ describe("validateTransactionDraft", () => {
     });
 
     it("needs a participant", () => {
-      expect(validateTransactionDraft(valid({ isShared: true }), newDraft).participants).toMatch(/at least one/);
+      expect(validateTransactionDraft(valid({ isShared: true })).participants).toMatch(/at least one/);
     });
 
     it("needs positive shares", () => {
       const errors = validateTransactionDraft(
-        valid({ isShared: true, participants: [row("a", "10"), row("b", "")] }),
-        newDraft
-      );
+        valid({ isShared: true, participants: [row("a", "10"), row("b", "")] }));
       expect(errors["participants.1.shareAmount"]).toBeDefined();
       expect(errors["participants.0.shareAmount"]).toBeUndefined();
     });
 
     it("caps shares at the amount", () => {
       expect(
-        validateTransactionDraft(valid({ isShared: true, participants: [row("a", "150")] }), newDraft).participants
+        validateTransactionDraft(valid({ isShared: true, participants: [row("a", "150")] })).participants
       ).toBe("Over by $50.00 — participant shares cannot exceed the transaction amount.");
       expect(
-        validateTransactionDraft(valid({ isShared: true, participants: [row("a", "100")] }), newDraft)
+        validateTransactionDraft(valid({ isShared: true, participants: [row("a", "100")] }))
       ).toEqual({});
     });
 
-    it("is skipped for existing transactions and for transfers", () => {
-      expect(validateTransactionDraft(valid({ isShared: true }), { validateSharing: false })).toEqual({});
+    it("marks the row whose share first pushes the total over the amount", () => {
+      const errors = validateTransactionDraft(
+        valid({ isShared: true, participants: [row("a", "60"), row("b", "60")] })
+      );
+      expect(errors["participants.1.shareAmount"]).toBeDefined();
+      expect(errors["participants.0.shareAmount"]).toBeUndefined();
+    });
+
+    it("is skipped for transfers", () => {
       expect(
-        validateTransactionDraft(valid({ type: "transfer", accountId: "a1", transferToAccountId: "a2", isShared: true }), newDraft)
+        validateTransactionDraft(valid({ type: "transfer", accountId: "a1", transferToAccountId: "a2", isShared: true }))
       ).toEqual({});
     });
   });

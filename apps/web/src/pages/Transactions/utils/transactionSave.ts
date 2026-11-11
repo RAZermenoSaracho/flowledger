@@ -53,10 +53,33 @@ export function buildCreateBody(draft: TransactionDraft): Record<string, unknown
   return body;
 }
 
+const SHARING_KEYS = ["isShared", "sharedTitle", "participants"];
+
+/**
+ * The `sharedExpense` update shape for a draft: the full participant list (stored rows by `id`,
+ * app users by `userId`, others by `manualName`; payment and consent state are never sent), or
+ * `{ enabled: false }` when sharing was turned off.
+ */
+export function buildSharedExpenseUpdate(draft: TransactionDraft): Record<string, unknown> {
+  if (!draft.isShared || draft.type === "transfer") return { enabled: false };
+  const title = draft.sharedTitle.trim();
+  return {
+    enabled: true,
+    ...(title ? { title } : {}),
+    participants: draft.participants.map((participant) => ({
+      ...(participant.id ? { id: participant.id } : {}),
+      ...(participant.userId
+        ? { userId: participant.userId }
+        : { manualName: participant.participantName }),
+      share: Number(participant.shareAmount)
+    }))
+  };
+}
+
 /**
  * Body of `PUT /transactions/:id`: only the changed core fields. `date` is sent only when changed
- * (keeping the stored seconds), and a type change also sends the fields the type couples to.
- * Sharing keys are never sent for an existing transaction.
+ * (keeping the stored seconds), and a type change also sends the fields the type couples to. Any
+ * sharing change sends the whole sharing state as `sharedExpense`, applied atomically with the rest.
  */
 export function buildUpdateBody(
   draft: TransactionDraft,
@@ -78,14 +101,28 @@ export function buildUpdateBody(
     const date = transactionDateRequestValue(draft.date, original);
     if (date !== undefined) body.date = date;
   }
+  if (changedKeys.some((key) => SHARING_KEYS.includes(key))) {
+    body.sharedExpense = buildSharedExpenseUpdate(draft);
+  }
   return body;
+}
+
+/**
+ * Maps a server field key to the draft key it is shown on: `sharedExpense.participants.<i>.share`
+ * and `.id` to `participants.<i>.shareAmount`, every other `sharedExpense...` key (including
+ * `removed.<i>`) to `participants`, anything else unchanged.
+ */
+export function draftFieldForServerField(field: string): string {
+  const row = /^sharedExpense\.participants\.(\d+)\.(share|id)$/.exec(field);
+  if (row) return `participants.${row[1]}.shareAmount`;
+  return field.startsWith("sharedExpense") ? "participants" : field;
 }
 
 /**
  * Persists a draft with exactly one request: `POST /transactions` when `original` is `null`,
  * otherwise `PUT /transactions/:id` with the changed fields. Returns the saved transaction. A
  * server rule failure naming a field rejects with a `TransactionSaveError` carrying that field
- * (`sharedExpense` maps to `participants`); any failure leaves the server unchanged.
+ * (see `draftFieldForServerField`); any failure leaves the server unchanged.
  */
 export async function saveTransactionDraft({
   draft,
@@ -106,7 +143,7 @@ export async function saveTransactionDraft({
     if (fieldError) {
       throw new TransactionSaveError(
         fieldError.message,
-        fieldError.field === "sharedExpense" ? "participants" : fieldError.field
+        draftFieldForServerField(fieldError.field)
       );
     }
     throw error;
