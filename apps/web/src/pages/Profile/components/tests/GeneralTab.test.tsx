@@ -118,4 +118,13 @@ describe("GeneralTab", () => {
     expect(details.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
+
+  it("renders the financial overview section", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/reports/financial-overview`, () => new Promise(() => {}))
+    );
+    renderWithProviders(<GeneralHarness />, { withAuth: true });
+    expect(await screen.findByRole("heading", { name: "Financial overview" })).toBeInTheDocument();
+  });
 });

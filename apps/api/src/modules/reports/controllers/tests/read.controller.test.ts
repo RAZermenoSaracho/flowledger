@@ -7,9 +7,14 @@ vi.mock("../../services/read.service.js", () => ({
   getSummaryReport: vi.fn()
 }));
 
+vi.mock("../../services/financialOverview.service.js", () => ({
+  getFinancialOverview: vi.fn()
+}));
+
+const { getFinancialOverview } = await import("../../services/financialOverview.service.js");
 const { getByCategoryReport, getMonthlyCashflowReport, getSummaryReport } =
   await import("../../services/read.service.js");
-const { getByCategory, getMonthlyCashflow, getSummary } = await import(
+const { getByCategory, getFinancialOverviewHandler, getMonthlyCashflow, getSummary } = await import(
   "../read.controller.js"
 );
 
@@ -53,5 +58,21 @@ describe("getMonthlyCashflow", () => {
       cashflow: [{ month: "2024-01" }],
       currency: "USD"
     });
+  });
+});
+
+describe("getFinancialOverviewHandler", () => {
+  it("returns the overview for the signed-in user and requested time zone", async () => {
+    const overview = { currency: "USD" };
+    vi.mocked(getFinancialOverview).mockResolvedValue(overview as never);
+    const res = mockResponse();
+
+    await getFinancialOverviewHandler(
+      mockRequest({ query: { timeZone: "America/Mexico_City" } }),
+      res
+    );
+
+    expect(getFinancialOverview).toHaveBeenCalledWith("user-1", "America/Mexico_City");
+    expect(res.json).toHaveBeenCalledWith(overview);
   });
 });

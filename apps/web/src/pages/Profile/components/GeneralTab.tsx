@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CurrencySelect } from "../../../components/CurrencySelect";
 import { EditableField } from "../../../components/EditableField";
+import { FinancialOverviewSection } from "./FinancialOverviewSection";
 import { planLabels } from "../constants";
 import type { useProfileDetails } from "../hooks/useProfileDetails";
 
@@ -66,6 +67,7 @@ export function GeneralTab({
         </div>
       </dl>
       {children}
+      <FinancialOverviewSection />
     </>
   );
 }
