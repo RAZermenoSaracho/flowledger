@@ -63,6 +63,36 @@ describe("getTransactionById", () => {
   });
 });
 
+describe("getTransactionById participants", () => {
+  it("loads only public user columns and returns the live label instead of a stored real name", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue({
+      id: "txn-1",
+      sharedExpense: {
+        participants: [
+          {
+            participantName: "Real Name",
+            user: { id: "u2", username: "friend", name: "Real Name", identityVisibility: "username_only" }
+          }
+        ]
+      }
+    } as never);
+
+    const result = await getTransactionById("user-1", "txn-1");
+
+    const call = prismaMock.transaction.findFirst.mock.calls[0]?.[0] as {
+      include: { sharedExpense: { include: { participants: { include: { user: { select: object } } } } } };
+    };
+    expect(call.include.sharedExpense.include.participants.include.user.select).toEqual({
+      id: true,
+      username: true,
+      name: true,
+      identityVisibility: true
+    });
+    expect(result.sharedExpense?.participants[0]?.participantName).toBe("@friend");
+    expect(JSON.stringify(result)).not.toContain("Real Name");
+  });
+});
+
 describe("getImportedTransactionsPendingCount", () => {
   it("counts pending imported transactions for the user", async () => {
     prismaMock.providerImportedTransaction.count.mockResolvedValue(4);

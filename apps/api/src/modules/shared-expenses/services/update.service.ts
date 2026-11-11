@@ -2,10 +2,10 @@ import type { UpdateSharedExpenseInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createDedupedNotifications } from "../../notifications/services/create.service.js";
-import { publicUserSelect, userLabel } from "../../users/utils/publicUser.js";
+import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 import { fieldError } from "../utils/shareGuards.js";
 import { legacyParticipantsToSharing } from "../utils/sharingInput.js";
-import { applySharedExpenseToTransaction } from "./apply.service.js";
+import { applySharedExpenseToTransaction, sharedExpenseResponseInclude } from "./apply.service.js";
 import { getSharedExpenseById } from "./read.service.js";
 
 /**
@@ -30,11 +30,13 @@ export async function updateSharedExpense(userId: string, sharedExpenseId: strin
       participants: input.participants ? legacyParticipantsToSharing(input.participants) : undefined
     });
     if (input.status && input.status !== existing.status) {
-      return tx.sharedExpense.update({
-        where: { id: existing.id },
-        data: { status: input.status },
-        include: { transaction: true, participants: true }
-      });
+      return publicizeUsers(
+        await tx.sharedExpense.update({
+          where: { id: existing.id },
+          data: { status: input.status },
+          include: sharedExpenseResponseInclude
+        })
+      );
     }
     return updated!;
   });

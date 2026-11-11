@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import { baseUser, mockBaseline } from "../../tests/profileFixtures";
+import { server } from "../../../../tests/mocks/server";
+import { API_URL, baseUser, mockBaseline } from "../../tests/profileFixtures";
 import { useProfileDetails } from "../useProfileDetails";
 import { hookWrapper } from "./hookWrapper";
 
@@ -38,5 +40,25 @@ describe("useProfileDetails", () => {
     act(() => result.current.closePasswordPrompt());
     expect(result.current.isPasswordPromptOpen).toBe(false);
     expect(result.current.draft.isDirty).toBe(true);
+  });
+
+  it("uploads the avatar once and not again on a later save of another field", async () => {
+    mockBaseline();
+    let uploads = 0;
+    server.use(
+      http.patch(`${API_URL}/users/me`, () => HttpResponse.json({ user: baseUser })),
+      http.post(`${API_URL}/users/me/avatar`, () => {
+        uploads += 1;
+        return HttpResponse.json({ user: baseUser });
+      })
+    );
+    const { result } = renderHook(() => useProfileDetails(), { wrapper: hookWrapper });
+    await waitFor(() => expect(result.current.user).toBeDefined());
+    act(() => result.current.draft.setField("avatarFile", new File(["x"], "a.png", { type: "image/png" })));
+    await act(() => result.current.onSave());
+    expect(uploads).toBe(1);
+    act(() => result.current.draft.setField("name", "Jane Q"));
+    await act(() => result.current.onSave());
+    expect(uploads).toBe(1);
   });
 });

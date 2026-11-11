@@ -4,7 +4,7 @@ import type { NotificationInput } from "../../notifications/types/notifications.
 import { moneyText } from "../../notifications/utils/moneyText.js";
 import { participantStatus } from "../../debts/utils/debtCalculations.js";
 import { deleteSharedTransactionData } from "../../transactions/utils/sharedTransactionCleanup.js";
-import { userLabel, publicUserSelect } from "../../users/utils/publicUser.js";
+import { userLabel, publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 import { HttpError } from "../../../utils/httpError.js";
 import type { SharingInput } from "../types/sharedExpenses.types.js";
 import { assertShareableTransaction, validateSharedExpenseParticipants } from "../utils/assertions.js";
@@ -29,6 +29,12 @@ type SharedTransaction = {
 type NormalizedParticipant = Awaited<ReturnType<typeof normalizeSharedExpenseParticipants>>[number];
 
 const cents = (value: number | string | Prisma.Decimal) => Math.round(Number(value) * 100);
+
+/** Include for every shared expense this module returns: participants carry only the public user columns, so snapshots never show a real name. */
+export const sharedExpenseResponseInclude = {
+  transaction: true,
+  participants: { include: { user: { select: publicUserSelect } } }
+} as const;
 
 /**
  * The one writer of sharing state for a transaction, run inside the caller's `$transaction`: enable/edit/disable
@@ -125,10 +131,9 @@ export async function applySharedExpenseToTransaction(
       });
     }
     await createDedupedNotifications(tx, notifications);
-    return tx.sharedExpense.findUniqueOrThrow({
-      where: { id: created.id },
-      include: { transaction: true, participants: true }
-    });
+    return publicizeUsers(
+      await tx.sharedExpense.findUniqueOrThrow({ where: { id: created.id }, include: sharedExpenseResponseInclude })
+    );
   }
 
   type Row = (typeof existing.participants)[number];
@@ -249,10 +254,9 @@ export async function applySharedExpenseToTransaction(
     data: { title, totalAmount: transaction.amount }
   });
   await createDedupedNotifications(tx, notifications);
-  return tx.sharedExpense.findUniqueOrThrow({
-    where: { id: existing.id },
-    include: { transaction: true, participants: true }
-  });
+  return publicizeUsers(
+    await tx.sharedExpense.findUniqueOrThrow({ where: { id: existing.id }, include: sharedExpenseResponseInclude })
+  );
 }
 
 async function removeSharedExpense(

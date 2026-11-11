@@ -287,4 +287,23 @@ describe("disclosures", () => {
     seed({ transactions: [tx({ type: "income", amount: dec(10), executionCurrency: "EUR" })] });
     expect((await overview()).disclosures).toContain("past_month_current_rates");
   });
+
+  it("names a rate-less app-user debt by the live public label, not the stored snapshot", async () => {
+    rateMock.mockImplementation(async (from) => {
+      if (from === "XXX") throw new Error("no rate");
+      return 1;
+    });
+    seed({
+      debts: [
+        debt("accepted", 20, "expense", {
+          userId: "user-2",
+          participantName: "Real Name",
+          currency: "XXX",
+          user: { id: "user-2", username: "friend", name: "Real Name", identityVisibility: "username_only" }
+        })
+      ]
+    });
+    const { netWorth } = await overview();
+    expect(netWorth).toMatchObject({ excluded: ["@friend: Dinner"] });
+  });
 });

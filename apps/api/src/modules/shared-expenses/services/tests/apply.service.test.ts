@@ -92,6 +92,34 @@ describe("applySharedExpenseToTransaction - create", () => {
     expect(sent()).toMatchObject([{ userId: "user-2", type: "shared_expense_invited", senderUserId: "owner-1" }]);
   });
 
+  it("returns participants with the live public label and no private user columns", async () => {
+    tx.sharedExpense.findUniqueOrThrow.mockResolvedValue({
+      id: "se-1",
+      participants: [
+        {
+          id: "p1",
+          userId: "user-2",
+          participantName: "Real Name",
+          user: { id: "user-2", username: "friend", name: "Real Name", identityVisibility: "username_only" }
+        }
+      ]
+    } as never);
+
+    const result = await applySharedExpenseToTransaction(tx, "owner-1", transaction(), "expense", {
+      enabled: true,
+      participants: [{ userId: "user-2", share: 40 }]
+    });
+
+    expect(tx.sharedExpense.findUniqueOrThrow.mock.calls[0]?.[0]).toMatchObject({
+      include: { participants: { include: { user: { select: { id: true, username: true, name: true, identityVisibility: true } } } } }
+    });
+    expect(result?.participants[0]).toMatchObject({
+      participantName: "@friend",
+      user: { id: "user-2", username: "friend", displayName: null }
+    });
+    expect(JSON.stringify(result)).not.toContain("Real Name");
+  });
+
   it("rejects shares that exceed the transaction amount with a field error", async () => {
     await expect(
       applySharedExpenseToTransaction(tx, "owner-1", transaction(), "expense", {

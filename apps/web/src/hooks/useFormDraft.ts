@@ -9,15 +9,22 @@ function changedKeysOf<T extends object>(draft: T | null, baseline: T | null) {
   );
 }
 
+function overlayKeys<T extends object>(base: T | null, source: T | null, keys: (keyof T & string)[]) {
+  if (!base || !source || keys.length === 0) return base;
+  const next = { ...base };
+  for (const key of keys) next[key] = source[key];
+  return next;
+}
+
 /**
  * The form state machine behind every editable record view: a local draft over `initial`, per-key
  * dirty tracking (structural equality, so retyping the saved value is clean), a validation gate,
  * one batch `save` and a `beforeunload` guard while dirty. Nothing persists until `save()`.
  *
- * When `initial` changes the draft rebases onto it only if the draft is clean, so a refetch never
- * clobbers edits. After a successful save the saved draft becomes the clean baseline until
+ * When `initial` changes the draft rebases onto it and keeps only the keys the user edited, so a
+ * refetch never clobbers edits nor saves back stale values for untouched keys. After a successful save the saved draft becomes the clean baseline until
  * `initial` next changes; if `initial` changed while `save` ran (a refetch with server-assigned
- * values), the draft and baseline become that fresher `initial` instead. A save rejection keeps the draft and sets `saveError`; when the
+ * values), the draft and baseline become that fresher `initial` instead, keeping keys edited while `save` ran. A save rejection keeps the draft and sets `saveError`; when the
  * rejection carries a string `field`, the message also lands in `fieldErrors` for that field.
  * `fieldErrors` only contains touched fields (or all of them after a blocked save attempt).
  * `values` is an empty object while `initial` is `null`.
@@ -40,10 +47,9 @@ export function useFormDraft<T extends object>({
   initialRef.current = initial;
 
   if (!structuralEqual(prevInitial, initial)) {
-    const clean = changedKeysOf(draft, baseline).length === 0;
     setPrevInitial(initial);
     setBaseline(initial);
-    if (clean) setDraft(initial);
+    setDraft(overlayKeys(initial, draft, changedKeysOf(draft, baseline)));
   }
 
   const changedKeys = changedKeysOf(draft, baseline);
@@ -105,7 +111,7 @@ export function useFormDraft<T extends object>({
       const refreshed = initialRef.current;
       if (refreshed && !structuralEqual(refreshed, initialAtStart)) {
         setBaseline(refreshed);
-        setDraft(refreshed);
+        setDraft((current) => overlayKeys(refreshed, current, changedKeysOf(current, draft)));
       } else {
         setBaseline(draft);
       }

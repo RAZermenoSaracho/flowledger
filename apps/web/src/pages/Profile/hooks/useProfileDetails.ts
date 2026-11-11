@@ -79,7 +79,7 @@ export function useProfileDetails() {
             ? { identityVisibility: values.identityVisibility }
             : {})
         });
-        if (values.avatarFile) saved = await usersClient.uploadAvatar(values.avatarFile);
+        if (changedKeys.includes("avatarFile") && values.avatarFile) saved = await usersClient.uploadAvatar(values.avatarFile);
         syncUser(saved.user);
         setIsPasswordPromptOpen(false);
       } catch (error) {

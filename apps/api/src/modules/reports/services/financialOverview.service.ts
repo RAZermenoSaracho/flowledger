@@ -9,6 +9,7 @@ import { balanceDebt } from "../../debts/utils/debtCalculations.js";
 import { isDebtRelevantToUser } from "../../debts/utils/debtDirection.js";
 import { debtInclude } from "../../debts/utils/debtInclude.js";
 import { isCountedShare } from "../../debts/utils/shareAcceptance.js";
+import { userLabel } from "../../users/utils/publicUser.js";
 import {
   calculateAccountBalance,
   calculateMonthlyCashflow
@@ -121,7 +122,7 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   debtResults.forEach((result, index) => {
     const debt = counted[index]!;
     if (result.status === "rejected") {
-      excluded.push(`${debt.participantName}: ${debt.sharedExpense.transaction.name}`);
+      excluded.push(`${debt.user ? userLabel(debt.user) : debt.participantName}: ${debt.sharedExpense.transaction.name}`);
     } else if (debt.creditorUserId === userId) owedToMe += result.value;
     else iOwe += result.value;
   });

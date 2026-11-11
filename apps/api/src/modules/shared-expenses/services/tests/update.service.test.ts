@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../apply.service.js", () => ({
-  applySharedExpenseToTransaction: vi.fn()
+  applySharedExpenseToTransaction: vi.fn(),
+  sharedExpenseResponseInclude: {}
 }));
 
 vi.mock("../read.service.js", () => ({
@@ -54,6 +55,27 @@ describe("updateSharedExpense", () => {
       title: "Renamed",
       participants: undefined
     });
+  });
+
+  it("returns the legacy status update with live participant labels", async () => {
+    prismaMock.sharedExpense.findFirst.mockResolvedValue(existing as never);
+    applyMock.mockResolvedValue({ id: "se-1" } as never);
+    prismaMock.sharedExpense.update.mockResolvedValue({
+      id: "se-1",
+      participants: [
+        {
+          participantName: "Real Name",
+          user: { id: "u2", username: "friend", name: "Real Name", identityVisibility: "username_only" }
+        }
+      ]
+    } as never);
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(prismaMock) : Promise.resolve(arg)
+    );
+
+    const result = await updateSharedExpense("owner-1", "se-1", { status: "settled" } as never);
+
+    expect(result).toMatchObject({ participants: [{ participantName: "@friend" }] });
   });
 
   it("maps legacy participants to the diffing shape and ignores client payment fields", async () => {

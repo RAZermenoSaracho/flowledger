@@ -19,6 +19,7 @@ import {
   importedTransactionInclude,
   resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
+import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 import { boundedPagination } from "../utils/boundedPagination.js";
 
 const transactionsSieve = createSieve(prisma.transaction);
@@ -287,12 +288,12 @@ export async function getTransactionById(userId: string, id: string) {
       providerImportedTransaction: { select: { transactionDate: true } },
       relations: { include: { relatedTransaction: true } },
       relatedBy: { include: { transaction: true } },
-      sharedExpense: { include: { participants: true } }
+      sharedExpense: { include: { participants: { include: { user: { select: publicUserSelect } } } } }
     }
   });
 
   if (!transaction) throw notFound("Transaction");
-  return transaction;
+  return publicizeUsers(transaction);
 }
 
 function parseImportedTransactionsQueryParam(raw: string | undefined) {

@@ -618,3 +618,27 @@ Still open:
 **Description:** A dirty draft is protected by a `beforeunload` guard and by a confirm on the view's own Discard and Back controls. Clicking a sidebar or other in-app link while dirty leaves the page and silently drops the edits, because React Router's `useBlocker` needs a data router and the app uses `BrowserRouter`.
 
 **Suggested fix:** Move to `createBrowserRouter`/`RouterProvider`, then block navigation with `useBlocker` while `draft.isDirty` and reuse the Discard confirm dialog.
+
+---
+
+## [OPEN] #048 — Notification messages keep the sender label from send time
+
+**Found in:** ST-003 review of identity privacy.
+
+**Scope:** `apps/api/src/modules/notifications/`, every `createDedupedNotifications` caller that builds `message` with `userLabel`.
+
+**Description:** A notification's `message` is written once with the sender's label at send time. If the sender later switches to `username_only`, their name stays visible in the notifications already sent.
+
+**Suggested fix:** Store only `senderUserId` plus the message template, and render the label at read time from the sender's current public identity.
+
+---
+
+## [OPEN] #049 — Share invitations through `/v1` and MCP have only the global rate limits
+
+**Found in:** ST-003 review of `/v1` and MCP parity.
+
+**Scope:** `/v1` shared-expense routes and the MCP `create_shared_expense` tool.
+
+**Description:** `create_shared_expense` can send share invitations to any user id with only the global API rate limits. Consent and blocking limit the impact, and nothing counts financially until the share is accepted, but a key can still spam invitations.
+
+**Suggested fix:** Add a per-key invitation rate limit on invitation creation.

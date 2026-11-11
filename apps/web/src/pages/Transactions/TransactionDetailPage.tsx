@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -95,15 +95,27 @@ export function TransactionDetailPage() {
   const initial = useMemo(() => {
     if (transaction) return draftFromTransaction(transaction);
     if (!isNew || !accountsReady || auth.isInitializing) return null;
+    return newTransactionDraft(defaultCurrency, openedAt);
+  }, [transaction, isNew, accountsReady, auth.isInitializing, defaultCurrency, openedAt]);
+
+  const prefilled = useMemo(() => {
+    if (!initial || transaction) return null;
     const prefill = parseTransactionPrefill(new URLSearchParams(prefillKey));
-    const draft = newTransactionDraft(defaultCurrency, openedAt, prefill);
+    const draft = { ...initial, ...prefill };
     return prefill.accountId && !prefill.executionCurrency
       ? selectAccount(draft, prefill.accountId, accounts)
       : draft;
-  }, [transaction, isNew, accountsReady, auth.isInitializing, prefillKey, defaultCurrency, openedAt, accounts]);
+  }, [initial, transaction, prefillKey, accounts]);
 
   const draft = useTransactionForm({ initial, original: transaction });
 
+  const appliedPrefillKey = useRef<string | null>(null);
+  const applyPrefill = draft.update;
+  useEffect(() => {
+    if (!prefilled || appliedPrefillKey.current === prefillKey) return;
+    appliedPrefillKey.current = prefillKey;
+    applyPrefill(() => prefilled);
+  }, [prefilled, prefillKey, applyPrefill]);
   if (!isNew && transactionQuery.isError) {
     return (
       <Card>

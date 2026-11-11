@@ -125,7 +125,7 @@ describe("useFormDraft", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("rebases onto a changed initial when clean but never when dirty", () => {
+  it("rebases onto a changed initial fully when clean and under the edited keys when dirty", () => {
     const { result, rerender } = setup();
     rerender({ initial: { ...base, title: "Server" } });
     expect(result.current.values.title).toBe("Server");
@@ -133,8 +133,8 @@ describe("useFormDraft", () => {
     act(() => result.current.setField("qty", 9));
     rerender({ initial: { ...base, title: "Server2" } });
     expect(result.current.values.qty).toBe(9);
-    expect(result.current.values.title).toBe("Server");
-    expect(result.current.changedKeys).toEqual(["title", "qty"]);
+    expect(result.current.values.title).toBe("Server2");
+    expect(result.current.changedKeys).toEqual(["qty"]);
   });
 
   it("adopts a fresher initial that arrived while the save ran", async () => {
@@ -162,5 +162,31 @@ describe("useFormDraft", () => {
     expect(remove.mock.calls.some(([t]) => t === "beforeunload")).toBe(true);
     add.mockRestore();
     remove.mockRestore();
+  });
+
+  it("keeps only the user's edited keys when initial changes under a dirty draft", () => {
+    const { result, rerender } = setup();
+    act(() => result.current.setField("title", "Mine"));
+    rerender({ initial: { ...base, qty: 9, title: "Server" } });
+    expect(result.current.values).toEqual({ ...base, qty: 9, title: "Mine" });
+    expect(result.current.changedKeys).toEqual(["title"]);
+  });
+
+  it("keeps keys edited during a save when a fresher initial arrives mid-save", async () => {
+    let release: () => void = () => {};
+    const { result, rerender } = setup({ save: () => new Promise<void>((r) => (release = r)) });
+    act(() => result.current.setField("title", "Saved"));
+    let pending: Promise<void> = Promise.resolve();
+    act(() => {
+      pending = result.current.save();
+    });
+    act(() => result.current.setField("qty", 7));
+    rerender({ initial: { ...base, title: "Saved", tags: [{ name: "z" }] } });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(result.current.values).toEqual({ title: "Saved", qty: 7, tags: [{ name: "z" }] });
+    expect(result.current.changedKeys).toEqual(["qty"]);
   });
 });
