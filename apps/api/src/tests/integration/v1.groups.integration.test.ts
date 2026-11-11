@@ -206,11 +206,38 @@ describe("/v1 group, shared-expense and settlement routes", () => {
     });
   });
 
+  it("supports universal sharing, consent and caller-scoped blocks with audit and public identities", async () => {
+    const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Personal", amount: 50, amountInPreferredCurrency: 50, type: "expense", date: new Date(), accountId: a.accountId } });
+    const created = await call(a, "post", "/v1/shared-expenses", { transactionId: tx.id, title: "Personal", participants: [{ userId: c.userId, participantName: "C", shareAmount: 25 }] }, 201, "sharedExpense.create");
+    const id = created.body.sharedExpense.id;
+    const own = await request(app).get("/v1/me").set(bearer(a.readKey));
+    expect(own.body.user).toMatchObject({ email: expect.any(String), username: expect.any(String), identityVisibility: "username_only" });
+    const patch = await request(app).patch("/v1/me").set(bearer(a.writeKey)).send({ name: "Own name", username: "forbidden_rename", identityVisibility: "username_and_name" });
+    expect(patch.status).toBe(200);
+    expect(patch.body.user.username).toBe(own.body.user.username);
+    expect(patch.body.user.identityVisibility).toBe(own.body.user.identityVisibility);
+    expect(created.body.sharedExpense.participants[0].acceptance).toBe("proposed");
+    for (const suffix of ["accept", "reject"]) {
+      await call(c, "post", `/v1/shared-expenses/${id}/${suffix}`, {}, 403, `sharedExpense.${suffix}`, true);
+      await call(a, "post", `/v1/shared-expenses/${id}/${suffix}`, {}, 404, `sharedExpense.${suffix}`);
+    }
+    await call(c, "post", `/v1/shared-expenses/${id}/reject`, {}, 200, "sharedExpense.reject");
+    await call(c, "post", `/v1/shared-expenses/${id}/accept`, {}, 400, "sharedExpense.accept");
+    await call(a, "post", "/v1/users/blocks", { userId: c.userId }, 403, "user.block", true);
+    await call(a, "delete", `/v1/users/blocks/${c.userId}`, {}, 403, "user.unblock", true);
+    const blocked = await call(a, "post", "/v1/users/blocks", { userId: c.userId }, 201, "user.block");
+    expect(Object.keys(blocked.body.block.user).sort()).toEqual(["displayName", "id", "username"]);
+    const list = await call(a, "get", "/v1/users/blocks", undefined, 200, undefined, true);
+    expect(list.body.blocks).toHaveLength(1);
+    expect((await call(c, "get", "/v1/users/blocks", undefined, 200)).body.blocks).toEqual([]);
+    await call(a, "delete", `/v1/users/blocks/${c.userId}`, {}, 204, "user.unblock");
+    for (const method of ["put", "delete"] as const) await call(a, method, `/v1/shared-expenses/${id}`, {}, 404);
+    await request(app).delete(`/transactions/${tx.id}`).set(bearer(a.jwt)).expect(204);
+    await prisma.notification.deleteMany({ where: { userId: c.userId } });
+  });
+
   describe("shared expenses", () => {
-    it("creates one on a group transaction, notifies the participant and enforces the group-transaction rules", async () => {
-      const personal = await prisma.transaction.create({
-        data: { userId: a.userId, name: "Solo", amount: 50, amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: a.accountId }
-      });
+    it("creates one on a group transaction, notifies the participant and enforces ownership and allocation rules", async () => {
       const bTx = await prisma.transaction.create({
         data: { userId: b.userId, name: "Mine", amount: 50, amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: b.accountId, groupId }
       });
@@ -219,8 +246,6 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       const body = (transactionId: string, participants: object[]) => ({ transactionId, title: "Split", participants });
 
       const before = await snapshot();
-      await call(a, "post", "/v1/shared-expenses", body(personal.id, [participant(b.userId, 50)]), 400, "sharedExpense.create");
-      await call(a, "post", "/v1/shared-expenses", body(personal.id, [participant(c.userId, 50)]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(bTx.id, [participant(a.userId, 50)]), 404, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body("missing", [participant(b.userId)]), 404, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(a.userId)]), 400, "sharedExpense.create");
@@ -387,6 +412,8 @@ describe("/v1 group, shared-expense and settlement routes", () => {
 
   describe("access control and excluded routes", () => {
     const routes: [Method, string][] = [
+      ["post", "/v1/shared-expenses/x/accept"], ["post", "/v1/shared-expenses/x/reject"],
+      ["get", "/v1/users/blocks"], ["post", "/v1/users/blocks"], ["delete", "/v1/users/blocks/x"],
       ["get", "/v1/groups"], ["get", "/v1/groups/x"], ["get", "/v1/shared-expenses"], ["get", "/v1/shared-expenses/x"],
       ["post", "/v1/groups"], ["put", "/v1/groups/x"], ["post", "/v1/groups/x/archive"], ["post", "/v1/groups/x/restore"],
       ["delete", "/v1/groups/x/members/y"], ["post", "/v1/shared-expenses"], ["post", "/v1/debts/x/settlement-request"],
@@ -402,6 +429,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       const before = await snapshot();
       for (const [method, path] of [
         ["delete", `/v1/groups/${groupId}`],
+        ["get", "/v1/users/username-availability?username=test"],
         ["put", `/v1/shared-expenses/${sharedExpenseId}`], ["delete", `/v1/shared-expenses/${sharedExpenseId}`],
         ["post", "/v1/debts/x/settle"], ["post", "/v1/debts/settlement-requests/batch"], ["post", "/v1/settlements/approve/batch"]
       ] as const) {

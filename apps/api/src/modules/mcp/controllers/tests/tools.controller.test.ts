@@ -44,6 +44,7 @@ const READ_TOOLS = [
   "get_transaction",
   "get_transaction_summary",
   "list_accounts",
+  "list_blocked_users",
   "list_categories",
   "list_currencies",
   "list_debts",
@@ -56,7 +57,9 @@ const READ_TOOLS = [
 ];
 
 const WRITE_TOOLS = [
+  "accept_shared_expense",
   "add_group_member",
+  "block_user",
   "create_account",
   "create_category",
   "create_group",
@@ -74,6 +77,7 @@ const WRITE_TOOLS = [
   "ignore_imported_transactions",
   "import_imported_transactions",
   "list_accounts",
+  "list_blocked_users",
   "list_categories",
   "list_currencies",
   "list_debts",
@@ -82,6 +86,7 @@ const WRITE_TOOLS = [
   "list_notifications",
   "list_shared_expenses",
   "mark_notifications_read",
+  "reject_shared_expense",
   "remove_group_member",
   "request_settlement",
   "search_transactions",
@@ -89,6 +94,7 @@ const WRITE_TOOLS = [
   "set_account_archived",
   "set_category_archived",
   "set_group_archived",
+  "unblock_user",
   "unignore_imported_transactions",
   "update_account",
   "update_category",
@@ -103,11 +109,11 @@ const validBody = { name: "Coffee", amount: 3, type: "expense", date: "2024-01-0
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerTools", () => {
-  it("registers exactly the fifteen read tools for a read credential", () => {
+  it("registers exactly the sixteen read tools for a read credential", () => {
     expect([...register(["read"]).keys()].sort()).toEqual(READ_TOOLS);
   });
 
-  it("registers exactly the forty tools for a write credential, with the annotations from the spec", () => {
+  it("registers exactly the forty-five tools for a write credential, with the annotations from the spec", () => {
     const tools = register(["read", "write"]);
     expect([...tools.keys()].sort()).toEqual(WRITE_TOOLS);
     expect(tools.get("list_accounts")!.config.annotations).toEqual({ readOnlyHint: true });

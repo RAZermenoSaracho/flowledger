@@ -1,5 +1,7 @@
 import {
   addGroupMemberToolSchema,
+  blockUserSchema,
+  transactionIdToolSchema,
   createGroupCategoryToolSchema,
   groupCategorySchema,
   groupSchema,
@@ -22,11 +24,14 @@ import { getMemberGroup, listGroups } from "../../groups/services/read.service.j
 import { archiveGroup, restoreGroup, updateGroup } from "../../groups/services/update.service.js";
 import { createSharedExpense } from "../../shared-expenses/services/create.service.js";
 import {
-  assertOwnedGroupTransaction,
   getSharedExpenseById,
+  assertOwnedSharingTransaction,
   listSharedExpenses
 } from "../../shared-expenses/services/read.service.js";
-import { searchUsers } from "../../users/services/read.service.js";
+import { respondToSharedExpense } from "../../shared-expenses/services/update.service.js";
+import { blockUser } from "../../users/services/create.service.js";
+import { unblockUser } from "../../users/services/delete.service.js";
+import { listBlocks, searchUsers } from "../../users/services/read.service.js";
 import type { McpAuth } from "../types/mcp.types.js";
 import { runRead, runWrite } from "../utils/runTool.js";
 
@@ -34,7 +39,7 @@ const READ_ONLY = { readOnlyHint: true } as const;
 const SHARED_EXPENSES_CAP = 100;
 const RETRY_NOTE = " Not idempotent: retrying a failed or timed-out call may create a duplicate.";
 
-/** Registers the group read tools (`list_groups`, `list_shared_expenses`, `search_users`); an optional `id` returns one record instead of the list. */
+/** Registers the group read tools (`list_groups`, `list_shared_expenses`, `search_users`, `list_blocked_users`); an optional `id` returns one record instead of the list. */
 export function registerGroupReadTools(server: McpServer, auth: McpAuth) {
   const userId = auth.extra.userId;
 
@@ -68,6 +73,11 @@ export function registerGroupReadTools(server: McpServer, auth: McpAuth) {
       })
   );
 
+  server.registerTool("list_blocked_users", {
+    description: "List the caller's blocked users as public identities.",
+    annotations: READ_ONLY
+  }, () => runRead(async () => ({ blocks: await listBlocks(userId) })));
+
   server.registerTool(
     "search_users",
     {
@@ -91,6 +101,33 @@ export function registerGroupReadTools(server: McpServer, auth: McpAuth) {
  */
 export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
   const userId = auth.extra.userId;
+
+  for (const [name, acceptance] of [["accept_shared_expense", "accepted"], ["reject_shared_expense", "rejected"]] as const) {
+    server.registerTool(name, {
+      description: `${acceptance === "accepted" ? "Accept" : "Reject"} the caller's proposed share by shared expense id. Affects another user: notifies the owner.`,
+      inputSchema: transactionIdToolSchema.shape
+    }, (args) => runWrite(auth, `mcp.${name}`, args.id, async () => {
+      const { id } = transactionIdToolSchema.parse(args);
+      const sharedExpense = await respondToSharedExpense(userId, id, acceptance);
+      return { data: { sharedExpense }, resourceId: id, status: 200 };
+    }));
+  }
+  server.registerTool("block_user", {
+    description: "Block another user. Affects that user: prevents invitations and notifications, hides discovery, and rejects their pending proposals to the caller.",
+    inputSchema: blockUserSchema.shape
+  }, (args) => runWrite(auth, "mcp.block_user", args.userId, async () => {
+    const { userId: target } = blockUserSchema.parse(args);
+    return { data: { block: await blockUser(userId, target) }, resourceId: target, status: 201 };
+  }));
+  server.registerTool("unblock_user", {
+    description: "Unblock another user. Affects that user: permits discovery and future invitations without restoring rejected shares.",
+    inputSchema: blockUserSchema.shape,
+    annotations: { idempotentHint: true }
+  }, (args) => runWrite(auth, "mcp.unblock_user", args.userId, async () => {
+    const { userId: target } = blockUserSchema.parse(args);
+    await unblockUser(userId, target);
+    return { data: { unblocked: true }, resourceId: target, status: 200 };
+  }));
 
   server.registerTool(
     "create_group",
@@ -184,13 +221,13 @@ export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "create_shared_expense",
     {
-      description: `Split one of the user's group transactions among group members. The transaction must belong to a group and participants must be members of that group; shares must add up to the transaction amount. Notifies every participant and creates debts for them.${RETRY_NOTE}`,
+      description: `Share any owned non-transfer transaction with existing app users or manual participants, including users outside its group. Shares cannot exceed the amount. Notifies app users with proposals; only accepted shares count as debts.${RETRY_NOTE}`,
       inputSchema: sharedExpenseSchema.shape
     },
     async (args) =>
       runWrite(auth, "mcp.create_shared_expense", null, async () => {
         const body = sharedExpenseSchema.parse(args);
-        await assertOwnedGroupTransaction(userId, body.transactionId);
+        await assertOwnedSharingTransaction(userId, body.transactionId);
         const sharedExpense = await createSharedExpense(userId, body);
         return { data: { sharedExpense }, resourceId: sharedExpense.id, status: 201 };
       })

@@ -87,12 +87,41 @@ A `SharedExpense` is created on an existing expense or income `Transaction`.
 
 `SharedExpenseParticipant` — each participant has:
 - `userId` (optional — can be a named non-registered person)
-- `participantName` — display name
+- `participantName` — owner-entered label for manual participants; app users use their live public identity
 - `shareAmount` — what they owe
 - `paidAmount` — what they've paid (incremented as settlements are approved)
 - `status` — `pending` / `partial` / `paid`
+- `acceptance` — `proposed` / `accepted` / `rejected`, independent of payment status
 
-Sum of `shareAmount` across all participants should equal the transaction amount.
+Sum of `shareAmount` across participants must not exceed the transaction amount; the remainder is the owner's own share.
+
+### Ownership, allocation, acceptance and payment
+
+The four independent sharing concepts are ownership/edit rights (only the owner changes structure), allocation/proposal (the owner proposes shares), acceptance/rejection (the participant consents), and settlement/payment (paid amounts and payment status). An allocation does not itself create an obligation. Group membership separately grants access to Group data; adding a Group member remains immediate and does not accept a share.
+
+Other users appear only as `{ id, username, displayName }`, never email, phone, avatar or authentication identifiers. `displayName` is null for `username_only` and the name for `username_and_name`. Own-profile reads retain private fields, username and visibility. User search matches username only (exact first, then prefix), requires three characters, caps at ten, excludes self and blocks in either direction, and is limited per user.
+
+Sharing is universal on owned expense/income transactions: Group membership is not required, and manual participants are supported. Blocked invitations fail with 400 "This user can't be invited." A non-member participant sees only the shared expense and transaction summary, without Group data, account, notes or personal category.
+
+New app-user shares are proposed; manual shares are always accepted. Only the participant can accept or reject a proposed share; another caller gets 404 and a repeated response gets 400. Accepted shares alone count in debts, balances and settlement requests. Proposed shares appear in `awaitingAcceptance` for both sides; rejected shares appear in `rejectedShares` for the owner.
+
+Raising an accepted share or flipping its debt direction proposes it again. Lowering a share or editing a title preserves acceptance. A rejected share is re-proposed only when its amount changes. Invitation/update and accept/reject notifications are deduplicated to one unread notification per recipient, expense and type, and suppressed for blocked senders.
+
+### Atomic edits and settlement guards
+
+The owner's transaction update can convert, edit or disable sharing atomically. Participant rows are diffed by id/userId, preserving payments and status; client payment fields are ignored. Duplicate conversion returns 409 "This transaction is already shared". Structural edits are owner-scoped in database queries.
+
+The same guards apply to transaction updates/deletes and legacy shared-expense updates/deletes, with 400 field-addressable errors:
+
+- A share cannot fall below paid amount plus pending settlement amounts; fully paid shares are locked.
+- Removing a participant requires zero payments and no pending request.
+- Disabling sharing or deleting requires no payments or pending/approved settlements.
+- Expense/income direction changes and conversion to transfer are blocked by payments or pending requests; transfers cannot be shared.
+- Allocated shares cannot exceed the transaction amount.
+
+### Blocking
+
+Caller-scoped blocks are idempotent. Blocking rejects the blocker's proposed shares from the blocked owner, suppresses that sender's notifications, prevents invitations and hides both users from each other's search. Accepted obligations, payments, settlements and Group membership remain unchanged. Unblocking restores no rejected shares automatically.
 
 ### Debt direction logic
 
@@ -105,7 +134,7 @@ Debt direction depends on the transaction type:
 | `expense` | Participant (`userId`) | Expense owner (`ownerUserId`) |
 | `income` | Income owner (`ownerUserId`) | Participant (`userId`) |
 
-For income shared expenses (e.g., rent collected): the owner is owed by participants. For expense shared expenses (e.g., dinner split): the owner paid and participants owe them.
+For income shared expenses, the owner owes participants their allocated income. For expense shared expenses (e.g., dinner split), the owner paid and participants owe them.
 
 Manual participants (`userId = null`) have `debtorUserId` or `creditorUserId` set to `null` — they are external and cannot participate in digital settlements.
 
@@ -117,12 +146,14 @@ Manual participants (`userId = null`) have `debtorUserId` or `creditorUserId` se
 
 The debt view (`GET /debts`) returns:
 
-- **iOwe** — participations where `debtorUserId = userId` AND `outstandingAmount > 0`
-- **owedToMe** — participations where `creditorUserId = userId` AND `outstandingAmount > 0`
+- **iOwe** — accepted participations where `debtorUserId = userId` AND `outstandingAmount > 0`
+- **owedToMe** — accepted participations where `creditorUserId = userId` AND `outstandingAmount > 0`
 - **balances** — `iOwe`/`owedToMe` grouped by counterparty (`buildPersonBalances()` in `debts/utils/personBalances.ts`) into per-person summaries (`theyOweMeTotal`, `iOweThemTotal`, `netBalance`), sorted by largest absolute net balance first
 - **pendingSettlementRequests** — `SettlementRequest` where `status = "pending"` AND user is debtor or creditor
 - **approvedSettlementRequests** — approved requests where debtor is the current user (awaiting transaction registration)
-- **settledDebts** — participations with `outstandingAmount = 0`
+- **awaitingAcceptance** — proposed shares, excluded from totals
+- **rejectedShares** — rejected shares visible to the owner, excluded from totals
+- **settledDebts** — accepted participations with `outstandingAmount = 0`
 
 `outstandingAmount = shareAmount - paidAmount`, in the debt's own `currency` (inherited from the underlying transaction). `pendingSettlementAmount` = sum of pending settlement requests for a debt (cannot submit a new request that exceeds `outstanding - pending`).
 
@@ -237,7 +268,9 @@ Notifications are created by calling `createNotifications()` (`notifications/ser
 | Event | Type | Who receives |
 |---|---|---|
 | Group member added | `group_member_added` | New member |
-| Shared expense created | `shared_expense_added` | All participants |
+| Share proposed | `shared_expense_invited` | App-user participant |
+| Proposal materially changed | `shared_expense_updated` | App-user participant |
+| Share accepted / rejected | `shared_expense_accepted` / `shared_expense_rejected` | Owner |
 | Debt created | `debt_owes_money` / `debt_owed_money` | Debtor / Creditor |
 | Settlement requested | `settlement_requested` | Creditor |
 | Settlement approved | `settlement_approved` | Debtor |

@@ -41,13 +41,15 @@ Prerequisites: `st005-reusable-editable-form-view` and `st007-transaction-form-v
 
 ## 7. /v1 and MCP parity
 
-- [ ] 7.1 `/v1` routes: accept, reject, blocks, search/members/shared-expense/debts public shape, own profile fields; `PUT`/`DELETE /v1/shared-expenses/:id` stay unrouted. Verify: `v1` route tests (Docker) incl. read-key 403 and audit.
-- [ ] 7.2 MCP tools: accept/reject/block/unblock/list_blocked_users, universal sharing, `search_users`, `add_group_member`, `list_debts`, `get_profile`. Verify: MCP controller tests and REST parity tests (Docker).
+- [x] 7.1 `/v1` routes: accept, reject, blocks, search/members/shared-expense/debts public shape, own profile fields; `PUT`/`DELETE /v1/shared-expenses/:id` stay unrouted. Verify: `v1` route tests (Docker) incl. read-key 403 and audit.
+- [x] 7.2 MCP tools: accept/reject/block/unblock/list_blocked_users, universal sharing, `search_users`, `add_group_member`, `list_debts`, `get_profile`. Verify: MCP controller tests and REST parity tests (Docker).
+
+Verification note for 7.1–7.2: implementation and unit checks complete (127 tests across 13 files). Docker integration validation was attempted with the required host variables; container setup failed because `192.168.56.20:2375` was unreachable. Integration validation remains pending; no existing database was migrated.
 
 ## 8. Docs
 
-- [ ] 8.1 Update `docs/DOMAIN_LOGIC.md` (four concepts, consent, counting, guards, blocking, universal sharing) and `docs/PUBLIC_API.md` (new routes, public shape, search). Verify: diff review.
-- [ ] 8.2 In `docs/KNOWN_ISSUES.md`, confirm the planning-time #037 update (email exposure fixed; Group add stays immediate) is still accurate; do not touch #019 (already reclassified). Verify: diff touches only #037, if at all.
+- [x] 8.1 Update `docs/DOMAIN_LOGIC.md` (four concepts, consent, counting, guards, blocking, universal sharing) and `docs/PUBLIC_API.md` (new routes, public shape, search). Verify: diff review.
+- [x] 8.2 In `docs/KNOWN_ISSUES.md`, confirm the planning-time #037 update (email exposure fixed; Group add stays immediate) is still accurate; do not touch #019 (already reclassified). Verify: diff touches only #037, if at all.
 
 ## 9. Final verification
 

@@ -32,7 +32,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | GET | `/transactions/:id` | read | `404` if not yours |
 | POST | `/transactions` | write | `201`, body as in the web API |
 | PUT | `/transactions/:id` | write | body as in the web API |
-| DELETE | `/transactions/:id` | write | `204`; irreversible, also removes related notifications and the linked shared expense with its participants and settlement requests |
+| DELETE | `/transactions/:id` | write | `204`; irreversible, blocked with 400 while sharing has payments or pending/approved settlements; otherwise removes related notifications and the linked shared expense |
 | DELETE | `/accounts/:id` | write | `204`; irreversible, same as the web app: no guards, its transactions are kept but lose their account link (a transfer loses that leg's account), imported-transaction and provider-account links are cleared |
 | DELETE | `/categories/:id` | write | `204`; irreversible, same as the web app: its transactions are kept but become uncategorized; group categories need group admin |
 | POST | `/accounts` | write | `201` |
@@ -51,7 +51,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | GET | `/notifications/unread-count` | read | `{ count }`, all unread |
 | PATCH | `/notifications/:id/read` | write | `404` if not yours; idempotent |
 | PATCH | `/notifications/read-all` | write | `204`; only your notifications |
-| GET | `/me` | read | your profile (no password hash) |
+| GET | `/me` | read | your private profile including email, username and identityVisibility (no password hash) |
 | PATCH | `/me` | write | only `name` and `preferredCurrency` (null clears it); at least one required; email, password and plan cannot be changed |
 | GET | `/imported-transactions` | read | capped at 100 rows, `total` is the full count |
 | PATCH | `/imported-transactions/:id` | write | `{ categoryId }` (null clears); pending rows only, category type must match the row's direction (`400` otherwise) |
@@ -60,18 +60,27 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | POST | `/imported-transactions/batch-ignore`, `/batch-unignore`, `/batch-import` | write | body `{ selection: { mode: "ids", ids: [1..50] } }` (+ `categoryId` for import); the web app's `filtered` mode is rejected (`400`). Validation is all-or-nothing: one bad row gives `400` with per-row `errors` and nothing changes. Ids that are not yours are skipped (count `0`), not `404`. Batch import creates the transactions one by one after validation (not one database transaction) |
 | GET | `/groups`, `/groups/:id` | read | groups you belong to; detail includes members; `404` if not a member |
 | GET | `/shared-expenses`, `/shared-expenses/:id` | read | where you are owner or participant; list capped at 100 rows, `total` is the full count |
-| GET | `/users/search?q=&limit=` | read | `q` min 3 chars, `limit` max 10; returns `id`, `name`, `email`; excludes the caller; MCP `search_users` |
+| GET | `/users/search?q=&limit=` | read | `q` min 3 chars, `limit` max 10; matches username only (exact first, then prefix), returns `{ id, username, displayName }`; excludes the caller and blocks in either direction; shares the web per-user limiter; MCP `search_users` |
 | POST | `/groups` | write | `201`; you become admin |
 | PUT | `/groups/:id` | write | group admin only; affects all members |
 | POST | `/groups/:id/archive`, `/groups/:id/restore` | write | group admin only; idempotent |
 | POST | `/groups/:id/members` | write | body `{userId}`; group admin only; `404` non-admin/non-member, `409` already a member, `400` self, unknown user or archived group; the target is notified and gains category access; MCP `add_group_member` |
 | POST | `/groups/:id/categories` | write | body `{name, type, color?}`; group admin only; MCP `create_group_category` |
 | DELETE | `/groups/:id/members/:userId` | write | `204`; leave yourself, or remove a member as admin; revokes group-category access |
-| POST | `/shared-expenses` | write | `201`; only for your own group transactions (`400` otherwise); participants must be group members and are notified |
+| POST | `/shared-expenses` | write | `201`; any owned non-transfer transaction, with any existing non-blocked app user or manual participant; Group membership is not required; app-user shares are proposed and participants notified |
 | POST | `/debts/:id/settlement-request` | write | `201`; debtor only; notifies the creditor |
 | POST | `/settlements/:id/approve`, `/settlements/:id/reject` | write | creditor only while pending; approve writes both users' transactions (REST only, no MCP tool) |
 
-Creating records is not idempotent: retrying a failed `POST` may create a duplicate. Group delete, adding members, updating or deleting shared expenses, direct settlement and batch settlement routes are not available (`404`).
+| POST | `/shared-expenses/:id/accept`, `/shared-expenses/:id/reject` | write | respond only to your proposed share; 404 for other callers, 400 for an already answered share; notifies owner |
+| GET | `/users/blocks` | read | `{ blocks }`, only your blocks with public identities |
+| POST | `/users/blocks` | write | `{ userId }`, 201 `{ block }`; idempotent, 400 for self/unknown user |
+| DELETE | `/users/blocks/:userId` | write | 204; idempotent; rejected shares stay rejected |
+
+Other users in search, members, shared expenses, debts and settlements appear only as `{ id, username, displayName }`; email and phone are private. Group member addition returns the same public identity within the member record. Non-member participants receive no Group data or private transaction fields. Debts count accepted shares only; `awaitingAcceptance` and owner-only `rejectedShares` remain separate and excluded from totals. Blocking hides discovery in both directions, rejects the blocker's pending proposals from the blocked owner, and suppresses future invitations/notifications without changing accepted obligations or membership.
+
+`PATCH /me` does not edit username or identityVisibility; use the web Profile. Username availability remains web-only. `PUT` and `DELETE /shared-expenses/:id` remain unrouted. All consent and blocking writes require write scope and emit one audit entry.
+
+Creating records is not idempotent: retrying a failed `POST` may create a duplicate. Group delete, updating or deleting shared expenses, direct settlement and batch settlement routes are not available (`404`).
 
 Request bodies and responses are identical to the internal `/transactions`, `/accounts` and `/categories` routes. Another user's ids behave like missing ones (`404`).
 
@@ -107,4 +116,4 @@ Every `POST`/`PUT`/`DELETE` is written to the server audit log (user, key id, op
 
 ## MCP tools
 
-The MCP server (`/mcp`) exposes the same data. Read credentials get 15 tools (`search_users`, `list_accounts`, `list_categories`, `search_transactions`, `get_transaction_summary`, `list_debts`, `get_report`, `get_exchange_rate`, `list_notifications` (also returns `unreadCount`), `get_transaction`, `list_currencies`, `get_profile`, `list_imported_transactions`, `list_groups`, `list_shared_expenses`); credentials with `write` also get 25 more (`add_group_member`, `create_group_category`, `update_imported_transaction`, `ignore_imported_transactions`, `unignore_imported_transactions`, `import_imported_transactions` (1 to 50 ids; creates real transactions, the assistant is told to confirm with the user), `update_preferences` (name and default currency only), `mark_notifications_read` (`id` or `all: true`), `create_group`, `update_group`, `set_group_archived`, `remove_group_member`, `create_shared_expense`, `request_settlement`, `create_transaction`, `update_transaction`, `delete_transaction`, `delete_account`, `delete_category`, `create_account`, `update_account`, `set_account_archived`, `create_category`, `update_category`, `set_category_archived`). `delete_transaction`, `delete_account`, `delete_category` and `remove_group_member` are marked destructive; the assistant is instructed to get explicit user confirmation first. Tools that notify or affect other users say so in their descriptions; not exposed over MCP: group delete, shared-expense update/delete, direct settle, batch settlement, and approving or rejecting settlements (REST only where a route exists). Every write call is audited as `mcp.<tool>`.
+The MCP server (`/mcp`) exposes the same data. Read credentials get 16 tools (`list_blocked_users`, `search_users`, `list_accounts`, `list_categories`, `search_transactions`, `get_transaction_summary`, `list_debts`, `get_report`, `get_exchange_rate`, `list_notifications` (also returns `unreadCount`), `get_transaction`, `list_currencies`, `get_profile`, `list_imported_transactions`, `list_groups`, `list_shared_expenses`); credentials with `write` also get 29 more (`accept_shared_expense`, `reject_shared_expense`, `block_user`, `unblock_user`, `add_group_member`, `create_group_category`, `update_imported_transaction`, `ignore_imported_transactions`, `unignore_imported_transactions`, `import_imported_transactions` (1 to 50 ids; creates real transactions, the assistant is told to confirm with the user), `update_preferences` (name and default currency only), `mark_notifications_read` (`id` or `all: true`), `create_group`, `update_group`, `set_group_archived`, `remove_group_member`, `create_shared_expense`, `request_settlement`, `create_transaction`, `update_transaction`, `delete_transaction`, `delete_account`, `delete_category`, `create_account`, `update_account`, `set_account_archived`, `create_category`, `update_category`, `set_category_archived`). `delete_transaction`, `delete_account`, `delete_category` and `remove_group_member` are marked destructive; the assistant is instructed to get explicit user confirmation first. Tools that notify or affect other users say so in their descriptions; not exposed over MCP: group delete, shared-expense update/delete, direct settle, batch settlement, and approving or rejecting settlements (REST only where a route exists). Every write call is audited as `mcp.<tool>`.

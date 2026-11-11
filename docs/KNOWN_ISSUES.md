@@ -478,9 +478,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Scope:** `addGroupMember`.
 
-**Description:** A group admin can add any user id, and that exposes member names and emails within the group. Related to #019.
+**Description:** A group admin can add a user immediately without consent. Email exposure is fixed: members are public identities (`id`, `username`, `displayName`). Group membership grants access independently of shared-expense consent.
 
-**Suggested fix:** TBD. Needs a product decision on an invite-and-accept step, ideally decided together with #019.
+**Suggested fix:** A future product decision may add Group invitations. Group add remains immediate; shared-expense proposals have their own accept/reject flow and universal sharing does not grant Group access.
 
 **Update:** The email exposure is addressed by B-004 ST-003's public identity; group-add consent stays open.
 

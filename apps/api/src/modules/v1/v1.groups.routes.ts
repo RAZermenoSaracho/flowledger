@@ -1,5 +1,7 @@
 import {
   apiUserSearchQuerySchema,
+  blockUserSchema,
+  blockedUserParamsSchema,
   groupCategorySchema,
   groupMemberSchema,
   groupSchema,
@@ -20,13 +22,17 @@ import { postGroup, postGroupCategory, postGroupMember } from "../groups/control
 import { deleteGroupMember } from "../groups/controllers/delete.controller.js";
 import { getGroups } from "../groups/controllers/read.controller.js";
 import { postGroupArchive, postGroupRestore, putGroup } from "../groups/controllers/update.controller.js";
-import { getUserSearch } from "../users/controllers/read.controller.js";
+import { postBlock } from "../users/controllers/create.controller.js";
+import { deleteBlock } from "../users/controllers/delete.controller.js";
+import { userSearchLimiter } from "../users/utils/userRateLimits.js";
+import { postAcceptSharedExpense, postRejectSharedExpense } from "../shared-expenses/controllers/update.controller.js";
+import { getBlocks, getUserSearch } from "../users/controllers/read.controller.js";
 import { getSharedExpense } from "../shared-expenses/controllers/read.controller.js";
 import { getV1Group, getV1SharedExpenses, postV1SharedExpense } from "./controllers/v1.groups.controller.js";
 import { auditV1Write } from "./utils/v1Audit.js";
 
 /**
- * `/v1` routes for groups, shared expenses, settlements and user search (16 of the allowlist), mounted by `v1Router`
+ * `/v1` routes for groups, shared expenses, settlements and user search (21 of the allowlist), mounted by `v1Router`
  * after `requireCredential`. Authorization (membership, group admin, debtor/creditor) is enforced by the services.
  * Group delete, shared-expense update/delete, direct settle and batch routes are deliberately absent.
  */
@@ -42,6 +48,7 @@ v1GroupsRouter.get("/groups/:id", requireScope("read"), asyncHandler(getV1Group)
 v1GroupsRouter.get(
   "/users/search",
   requireScope("read"),
+  userSearchLimiter,
   validate(apiUserSearchQuerySchema, "query"),
   asyncHandler(getUserSearch)
 );
@@ -126,3 +133,9 @@ v1GroupsRouter.post(
   requireScope("write"),
   asyncHandler(postRejectSettlement)
 );
+
+v1GroupsRouter.get("/users/blocks", requireScope("read"), asyncHandler(getBlocks));
+v1GroupsRouter.post("/users/blocks", auditV1Write("user.block"), requireScope("write"), validate(blockUserSchema), asyncHandler(postBlock));
+v1GroupsRouter.delete("/users/blocks/:userId", auditV1Write("user.unblock"), requireScope("write"), validate(blockedUserParamsSchema, "params"), asyncHandler(deleteBlock));
+v1GroupsRouter.post("/shared-expenses/:id/accept", auditV1Write("sharedExpense.accept"), requireScope("write"), asyncHandler(postAcceptSharedExpense));
+v1GroupsRouter.post("/shared-expenses/:id/reject", auditV1Write("sharedExpense.reject"), requireScope("write"), asyncHandler(postRejectSharedExpense));

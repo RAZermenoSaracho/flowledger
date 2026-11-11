@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { publicUserSelect } from "../../../users/utils/publicUser.js";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import {
-  assertOwnedGroupTransaction,
+  assertOwnedSharingTransaction,
   getOwnedTransaction,
   getSharedExpenseById,
   listSharedExpenses,
@@ -31,26 +31,26 @@ describe("getOwnedTransaction", () => {
   });
 });
 
-describe("assertOwnedGroupTransaction", () => {
+describe("assertOwnedSharingTransaction", () => {
   it("scopes the lookup by owner and 404s for a missing or foreign transaction", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue(null);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "txn-1", userId: "user-1" } })
     );
   });
 
-  it("400s for a transaction without a group", async () => {
+  it("allows an owned transaction without a group", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ groupId: null } as never);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 400 });
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).resolves.toBeUndefined();
   });
 
   it("passes for an owned group transaction", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ groupId: "g1" } as never);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).resolves.toBeUndefined();
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).resolves.toBeUndefined();
   });
 });
 

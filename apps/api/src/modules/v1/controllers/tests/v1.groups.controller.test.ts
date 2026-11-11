@@ -5,13 +5,13 @@ import { HttpError } from "../../../../utils/httpError.js";
 vi.mock("../../../groups/services/read.service.js", () => ({ getMemberGroup: vi.fn() }));
 vi.mock("../../../shared-expenses/services/create.service.js", () => ({ createSharedExpense: vi.fn() }));
 vi.mock("../../../shared-expenses/services/read.service.js", () => ({
-  assertOwnedGroupTransaction: vi.fn(),
+  assertOwnedSharingTransaction: vi.fn(),
   listSharedExpenses: vi.fn()
 }));
 
 const { getMemberGroup } = await import("../../../groups/services/read.service.js");
 const { createSharedExpense } = await import("../../../shared-expenses/services/create.service.js");
-const { assertOwnedGroupTransaction, listSharedExpenses } = await import(
+const { listSharedExpenses } = await import(
   "../../../shared-expenses/services/read.service.js"
 );
 const { getV1Group, getV1SharedExpenses, postV1SharedExpense } = await import("../v1.groups.controller.js");
@@ -42,22 +42,20 @@ describe("getV1SharedExpenses", () => {
 describe("postV1SharedExpense", () => {
   const body = { transactionId: "t1", title: "x" };
 
-  it("checks the group-transaction precondition before creating", async () => {
+  it("delegates universal sharing to the web service", async () => {
     vi.mocked(createSharedExpense).mockResolvedValue({ id: "s1" } as never);
     const response = res();
 
     await postV1SharedExpense(req({ body }), response);
 
-    expect(assertOwnedGroupTransaction).toHaveBeenCalledWith("u1", "t1");
     expect(createSharedExpense).toHaveBeenCalledWith("u1", body);
     expect(response.status).toHaveBeenCalledWith(201);
   });
 
-  it("creates nothing when the precondition fails", async () => {
-    vi.mocked(assertOwnedGroupTransaction).mockRejectedValue(new HttpError(400, "no group"));
+  it("propagates ownership errors from the service", async () => {
+    vi.mocked(createSharedExpense).mockRejectedValue(new HttpError(404, "Transaction not found"));
 
-    await expect(postV1SharedExpense(req({ body }), res())).rejects.toThrow("no group");
-    expect(createSharedExpense).not.toHaveBeenCalled();
+    await expect(postV1SharedExpense(req({ body }), res())).rejects.toThrow("Transaction not found");
   });
 });
 
