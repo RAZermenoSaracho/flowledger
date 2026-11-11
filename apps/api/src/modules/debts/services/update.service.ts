@@ -10,6 +10,7 @@ import {
   participantStatus,
   settlementNotes
 } from "../utils/debtCalculations.js";
+import { isCountedShare } from "../utils/shareAcceptance.js";
 import {
   getDebtDirection,
   isSettlementDirectionCurrent
@@ -55,6 +56,9 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
     });
     if (!debt) throw notFound("Debt");
 
+    if (!isCountedShare(debt)) {
+      throw new HttpError(400, "This share has not been accepted");
+    }
     const direction = getDebtDirection(debt);
     if (!direction) throw notFound("Debt");
 

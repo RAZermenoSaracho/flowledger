@@ -112,6 +112,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
     const debt = await prisma.sharedExpenseParticipant.findFirstOrThrow({
       where: { sharedExpenseId: res.body.sharedExpense.id, userId: b.userId }
     });
+    await prisma.sharedExpenseParticipant.update({ where: { id: debt.id }, data: { acceptance: "accepted" } });
     return { debtId: debt.id };
   }
 
@@ -222,7 +223,6 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       await call(a, "post", "/v1/shared-expenses", body(personal.id, [participant(c.userId, 50)]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(bTx.id, [participant(a.userId, 50)]), 404, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body("missing", [participant(b.userId)]), 404, "sharedExpense.create");
-      await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(c.userId)]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(a.userId)]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, 150)]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", { transactionId: groupTransactionId }, 400, "sharedExpense.create");
@@ -232,7 +232,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
       const created = await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, 100)]), 201, "sharedExpense.create");
       sharedExpenseId = created.body.sharedExpense.id;
       expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ resourceId: sharedExpenseId }));
-      expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_added" } })).toBe(1);
+      expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_invited" } })).toBe(1);
       expect(await prisma.notification.count({ where: { userId: c.userId } })).toBe(0);
     });
 

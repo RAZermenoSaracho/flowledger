@@ -30,6 +30,7 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     userId: "user-1",
     shareAmount: { toNumber: () => 100 },
     paidAmount: { toNumber: () => 0 },
+    acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
       title: "Dinner",
@@ -51,6 +52,16 @@ describe("createSettlementRequest", () => {
         categoryId: "cat-1"
       })
     ).rejects.toThrow("Debt not found");
+  });
+
+  it.each(["proposed", "rejected"])("throws a 400 when the share is %s", async (acceptance) => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
+      debtRow({ acceptance }) as never
+    );
+
+    await expect(
+      createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" })
+    ).rejects.toThrow("This share has not been accepted");
   });
 
   it("throws a 404 when the caller isn't the debtor", async () => {

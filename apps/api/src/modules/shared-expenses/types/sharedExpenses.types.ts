@@ -29,3 +29,25 @@ export type SharedExpensesQueryInput = {
   where?: RawWhereNode;
   sort?: DataSieveQuery<SharedExpenseListRecord>["sort"];
 };
+
+/** One participant as the sharing editor sends it: an existing row by `id`, an app user by `userId`, or a manual one by `manualName`. */
+export type SharingParticipantInput = {
+  id?: string;
+  userId?: string | null;
+  manualName?: string;
+  share: number | string;
+};
+
+/** What {@link import("../services/apply.service.js").applySharedExpenseToTransaction} applies: disable sharing, or enable/edit it (omit `participants` to leave them untouched). */
+export type SharingInput =
+  | { enabled: false }
+  | { enabled: true; title?: string; participants?: SharingParticipantInput[] };
+
+/** A participant row with the settlement data the guards need. */
+export type GuardParticipant = {
+  id: string;
+  participantName: string;
+  shareAmount: { toNumber(): number };
+  paidAmount: { toNumber(): number };
+  settlementRequests: { status: string; amount: { toNumber(): number } }[];
+};

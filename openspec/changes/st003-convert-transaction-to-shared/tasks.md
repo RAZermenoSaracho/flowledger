@@ -22,16 +22,16 @@ Prerequisites: `st005-reusable-editable-form-view` and `st007-transaction-form-v
 
 ## 4. Consent
 
-- [ ] 4.1 Accept/reject service and `POST /shared-expenses/:id/accept|reject` scoped by `sharedExpenseId` + caller `userId`, only from `proposed`. Verify: service tests (not participant, owner, wrong state).
-- [ ] 4.2 Accepted-only counting helper applied to debts reads/totals, person balances and settlement requests; proposed listed as awaiting acceptance. Verify: `debts` service/util tests; integration test across modules (Docker).
-- [ ] 4.3 Material-change re-proposal, rejection stickiness, manual participants always accepted. Verify: tests for raise, lower, flip, title-only, rejected unchanged, rejected new amount.
-- [ ] 4.4 Notifications `shared_expense_invited/updated/accepted/rejected` with dedup. Verify: tests for dedup and blocked suppression.
+- [x] 4.1 Accept/reject service and `POST /shared-expenses/:id/accept|reject` scoped by `sharedExpenseId` + caller `userId`, only from `proposed`. Verify: service tests (not participant, owner, wrong state).
+- [x] 4.2 Accepted-only counting helper applied to debts reads/totals, person balances and settlement requests; proposed listed as awaiting acceptance. Verify: `debts` service/util tests; integration test across modules (Docker).
+- [x] 4.3 Material-change re-proposal, rejection stickiness, manual participants always accepted. Verify: tests for raise, lower, flip, title-only, rejected unchanged, rejected new amount.
+- [x] 4.4 Notifications `shared_expense_invited/updated/accepted/rejected` with dedup. Verify: tests for dedup and blocked suppression.
 
 ## 5. Sharing edit and guards
 
-- [ ] 5.1 Implement `applySharedExpenseToTransaction(tx, ...)` (diff/upsert by id/userId, server-owned payment fields, universal participant rule in `normalizeSharedExpenseParticipants`, 409 on duplicate conversion). Verify: `shared-expenses/services/tests/` cover create, diff, add/remove, ignored client `paidAmount`, 409.
-- [ ] 5.2 Wire it into `transactions/update.service.ts` (inside the existing `$transaction`), re-point `PUT /shared-expenses/:id`, and add guards to `DELETE /shared-expenses/:id` and `DELETE /transactions/:id` (all the design's guards, 400 field messages). Verify: tests for each guard on each entry point; payment state preserved after legacy PUT.
-- [ ] 5.3 Non-member participant visibility: summary only, no Group data. Verify: integration test (Docker) asserts group routes 404 and no group fields.
+- [x] 5.1 Implement `applySharedExpenseToTransaction(tx, ...)` (diff/upsert by id/userId, server-owned payment fields, universal participant rule in `normalizeSharedExpenseParticipants`, 409 on duplicate conversion). Verify: `shared-expenses/services/tests/` cover create, diff, add/remove, ignored client `paidAmount`, 409.
+- [x] 5.2 Wire it into `transactions/update.service.ts` (inside the existing `$transaction`), re-point `PUT /shared-expenses/:id`, and add guards to `DELETE /shared-expenses/:id` and `DELETE /transactions/:id` (all the design's guards, 400 field messages). Verify: tests for each guard on each entry point; payment state preserved after legacy PUT.
+- [x] 5.3 Non-member participant visibility: summary only, no Group data. Verify: integration test (Docker) asserts group routes 404 and no group fields.
 
 ## 6. Web UI
 

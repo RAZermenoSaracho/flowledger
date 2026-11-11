@@ -315,6 +315,9 @@ describe("/v1 CRUD integration", () => {
         { participantId: participant.id }, { settlementRequestId: settlement.id }
       ].map((metadata) => prisma.notification.create({ data: {
         userId: b.userId, type: "settlement_requested", title: "Shared", message: "Shared", metadata } })));
+      await write(a, "delete", `/v1/transactions/${tx.id}`, {}, 400);
+      expect(await prisma.transaction.findUnique({ where: { id: tx.id } })).not.toBeNull();
+      await prisma.settlementRequest.update({ where: { id: settlement.id }, data: { status: "rejected" } });
       await write(a, "delete", `/v1/transactions/${tx.id}`, {}, 204);
       expect(await prisma.transaction.findUnique({ where: { id: tx.id } })).toBeNull();
       expect(await prisma.sharedExpense.findUnique({ where: { id: expense.id } })).toBeNull();

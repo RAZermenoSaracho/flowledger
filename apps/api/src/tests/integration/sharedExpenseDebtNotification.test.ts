@@ -54,6 +54,18 @@ describe("shared expense -> debt -> notification chain", () => {
       });
     expect(transactionResponse.status).toBe(201);
 
+    const sharedExpenseId = transactionResponse.body.transaction.sharedExpense.id as string;
+
+    // Proposed shares do not count until the participant accepts.
+    const beforeAccept = await request(app)
+      .get("/debts")
+      .set("Authorization", `Bearer ${participant.token}`);
+    expect(beforeAccept.body.iOwe).toHaveLength(0);
+    expect(beforeAccept.body.awaitingAcceptance).toHaveLength(1);
+    await request(app)
+      .post(`/shared-expenses/${sharedExpenseId}/accept`)
+      .set("Authorization", `Bearer ${participant.token}`);
+
     // The participant owes the owner: appears in the participant's iOwe list.
     const participantDebts = await request(app)
       .get("/debts")
@@ -67,21 +79,20 @@ describe("shared expense -> debt -> notification chain", () => {
       .set("Authorization", `Bearer ${owner.token}`);
     expect(ownerDebts.body.owedToMe).toHaveLength(1);
 
-    // Both the participant (added + debt_owes_money) and owner (debt_owed_money)
-    // receive notifications.
+    // The participant gets the invitation; the owner is told it was accepted.
     const participantNotifications = await request(app)
       .get("/notifications")
       .set("Authorization", `Bearer ${participant.token}`);
     expect(
       participantNotifications.body.notifications.map((n: { type: string }) => n.type)
-    ).toEqual(expect.arrayContaining(["shared_expense_added", "debt_owes_money"]));
+    ).toEqual(expect.arrayContaining(["shared_expense_invited"]));
 
     const ownerNotifications = await request(app)
       .get("/notifications")
       .set("Authorization", `Bearer ${owner.token}`);
     expect(
       ownerNotifications.body.notifications.map((n: { type: string }) => n.type)
-    ).toEqual(expect.arrayContaining(["debt_owed_money"]));
+    ).toEqual(expect.arrayContaining(["shared_expense_accepted"]));
   });
 
   it("deleting the transaction cascades to remove the shared expense and its notifications", async () => {

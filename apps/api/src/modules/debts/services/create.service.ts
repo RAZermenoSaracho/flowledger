@@ -4,6 +4,7 @@ import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
 import { debtOutstanding, pendingSettlementTotal } from "../utils/debtCalculations.js";
+import { isCountedShare } from "../utils/shareAcceptance.js";
 import { getDebtDirection } from "../utils/debtDirection.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import {
@@ -30,6 +31,9 @@ export async function createSettlementRequest(
   });
   if (!debt) throw notFound("Debt");
 
+  if (!isCountedShare(debt)) {
+    throw new HttpError(400, "This share has not been accepted");
+  }
   const direction = getDebtDirection(debt);
   if (!direction || direction.debtorUserId !== userId) {
     throw notFound("Debt");

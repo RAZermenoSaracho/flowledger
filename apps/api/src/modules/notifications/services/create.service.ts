@@ -34,3 +34,35 @@ export async function createNotifications(
 
   await tx.notification.createMany({ data });
 }
+
+/**
+ * Like {@link createNotifications}, but keeps at most one unread notification per recipient, shared expense and type:
+ * an unread one of the same key is deleted first, and within the batch the last wins. Notifications without
+ * `metadata.sharedExpenseId` are created as-is.
+ */
+export async function createDedupedNotifications(tx: NotificationClient, notifications: NotificationInput[]) {
+  const sharedExpenseIdOf = (n: NotificationInput) => {
+    const id = (n.metadata as { sharedExpenseId?: unknown } | undefined)?.sharedExpenseId;
+    return typeof id === "string" ? id : null;
+  };
+  const latest = new Map<string, NotificationInput>();
+  const plain: NotificationInput[] = [];
+  for (const n of notifications) {
+    const sharedExpenseId = sharedExpenseIdOf(n);
+    if (!sharedExpenseId || !n.userId) plain.push(n);
+    else latest.set(`${n.userId}|${n.type}|${sharedExpenseId}`, n);
+  }
+  const deduped = [...latest.values()];
+
+  for (const n of deduped) {
+    await tx.notification.deleteMany({
+      where: {
+        userId: n.userId!,
+        type: n.type,
+        readAt: null,
+        metadata: { path: ["sharedExpenseId"], equals: sharedExpenseIdOf(n)! }
+      }
+    });
+  }
+  await createNotifications(tx, [...plain, ...deduped]);
+}

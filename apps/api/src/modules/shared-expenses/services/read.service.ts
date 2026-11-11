@@ -1,13 +1,15 @@
-import type { SharedExpenseInput } from "@flowledger/shared";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { assertAllowedQueryFields } from "../../../db/sieveFieldGuard.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import type {
   SharedExpenseListRecord,
-  SharedExpensesQueryInput
+  SharedExpensesQueryInput,
+  SharingParticipantInput
 } from "../types/sharedExpenses.types.js";
 import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
+import { redactGroupForNonMembers } from "../utils/groupVisibility.js";
 import { withVisibleTransaction } from "../utils/transactionVisibility.js";
 import { assertNoBlockedInvitees } from "../../users/services/read.service.js";
 
@@ -44,70 +46,50 @@ export async function assertOwnedGroupTransaction(userId: string, transactionId:
   if (!transaction.groupId) throw badRequest("Shared expenses can only be created for group transactions");
 }
 
-/** Validates participant input (no owner, no user blocked in either direction with the owner (400 "This user can't be invited."), group-split participants must be app users and group members) and fills in each registered participant's current display name. */
+/**
+ * Validates participant input for any shared transaction (Group or not): no owner, no duplicate app user, no new
+ * app user blocked in either direction with the owner (400 "This user can't be invited."), every app user exists.
+ * Users in `existingUserIds` skip the block check so re-saving an existing share is never refused. Returns the
+ * input with `participantName` filled: `@username` snapshot for app users, `manualName` for manual ones.
+ */
 export async function normalizeSharedExpenseParticipants(
   ownerUserId: string,
-  participants: SharedExpenseInput["participants"] = [],
-  groupId?: string | null
+  participants: SharingParticipantInput[] = [],
+  options: {
+    client?: Pick<Prisma.TransactionClient, "user" | "userBlock">;
+    existingUserIds?: Set<string>;
+  } = {}
 ) {
-  const participantUserIds = Array.from(
-    new Set(
-      participants.map((participant) => participant.userId).filter(Boolean)
-    )
-  ) as string[];
+  const client = options.client ?? prisma;
+  const userIds = participants.flatMap((participant) => (participant.userId ? [participant.userId] : []));
 
-  if (participantUserIds.includes(ownerUserId)) {
-    throw new HttpError(
-      400,
-      "Shared transaction participants cannot include the owner"
-    );
+  if (userIds.includes(ownerUserId)) {
+    throw new HttpError(400, "Shared transaction participants cannot include the owner");
+  }
+  if (new Set(userIds).size !== userIds.length) {
+    throw new HttpError(400, "A participant can only be added once");
   }
 
-  if (groupId && participants.some((participant) => !participant.userId)) {
-    throw new HttpError(400, "Group split participants must be app users");
-  }
+  await assertNoBlockedInvitees(
+    ownerUserId,
+    userIds.filter((id) => !options.existingUserIds?.has(id)),
+    client
+  );
 
-  if (participantUserIds.length === 0) {
-    return participants;
-  }
-
-  await assertNoBlockedInvitees(ownerUserId, participantUserIds);
-
-  if (groupId) {
-    const groupMemberCount = await prisma.groupMember.count({
-      where: {
-        groupId,
-        userId: { in: participantUserIds }
-      }
-    });
-
-    if (groupMemberCount !== participantUserIds.length) {
-      throw new HttpError(
-        400,
-        "Group split participants must be group members"
-      );
-    }
-  }
-
-  const users = await prisma.user.findMany({
-    where: { id: { in: participantUserIds } },
-    select: { id: true, username: true }
-  });
-  const usersById = new Map(users.map((user) => [user.id, user]));
-
-  if (users.length !== participantUserIds.length) {
+  const users = userIds.length
+    ? await client.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true } })
+    : [];
+  const usernames = new Map(users.map((user) => [user.id, user.username]));
+  if (users.length !== userIds.length) {
     throw new HttpError(400, "One or more participants do not exist");
   }
 
-  return participants.map((participant) => {
-    if (!participant.userId) return participant;
-
-    const user = usersById.get(participant.userId);
-    return {
-      ...participant,
-      participantName: user ? `@${user.username}` : participant.participantName
-    };
-  });
+  return participants.map((participant) => ({
+    ...participant,
+    participantName: participant.userId
+      ? `@${usernames.get(participant.userId)}`
+      : (participant.manualName ?? "")
+  }));
 }
 
 // DSQL can't express `participants: { some: { userId } }` (a to-many
@@ -145,7 +127,7 @@ function parseSharedExpensesQueryParam(raw: string | undefined) {
   return decoded as SharedExpensesQueryInput;
 }
 
-/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query; non-owners get the public transaction fields only. */
+/** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query; non-owners get the public transaction fields only, with `groupId` nulled when they are not in that Group. */
 export async function listSharedExpenses(
   userId: string,
   rawQuery: string | undefined
@@ -169,7 +151,10 @@ export async function listSharedExpenses(
       owner: { select: publicUserSelect }
     }
   });
-  return publicizeUsers(result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId)));
+  return redactGroupForNonMembers(
+    userId,
+    publicizeUsers(result.data.map((sharedExpense) => withVisibleTransaction(sharedExpense, userId)))
+  );
 }
 
 /** Fetches one shared expense, throwing if it doesn't exist or `userId` is neither its owner nor a participant; non-owners get the public transaction fields only. */
@@ -190,5 +175,5 @@ export async function getSharedExpenseById(userId: string, sharedExpenseId: stri
   });
   if (!sharedExpense) throw notFound("Shared expense");
 
-  return publicizeUsers(withVisibleTransaction(sharedExpense, userId));
+  return redactGroupForNonMembers(userId, publicizeUsers(withVisibleTransaction(sharedExpense, userId)));
 }

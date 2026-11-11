@@ -185,15 +185,15 @@ describe("MCP group tools", () => {
 
     const before = await counts();
     expect((await call(a.write, "create_shared_expense", { transactionId: personal.id, title: "t", participants: [participant(b.userId, 50)] })).isError).toBe(true);
-    expect((await call(a.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(c.userId, 50)] })).isError).toBe(true);
     expect((await call(b.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(b.userId, 50)] })).isError).toBe(true);
     expect(await counts()).toEqual(before);
 
     const created = await call(a.write, "create_shared_expense", { transactionId, title: "Dinner", participants: [participant(b.userId, 40)] });
     expect(created.isError).toBeFalsy();
     sharedExpenseId = created.structuredContent!.sharedExpense.id;
-    expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_added" } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_invited" } })).toBe(1);
     debtId = (await prisma.sharedExpenseParticipant.findFirstOrThrow({ where: { sharedExpenseId, userId: b.userId } })).id;
+    expect((await request(app).post(`/shared-expenses/${sharedExpenseId}/accept`).set(bearer(b.jwt))).status).toBe(200);
 
     expect((await call(c.read, "list_shared_expenses")).structuredContent).toEqual({ sharedExpenses: [], total: 0 });
     expect((await call(c.read, "list_shared_expenses", { id: sharedExpenseId })).isError).toBe(true);

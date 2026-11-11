@@ -9,7 +9,11 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { postSharedExpense } from "./controllers/create.controller.js";
 import { deleteSharedExpenseController } from "./controllers/delete.controller.js";
 import { getSharedExpense, getSharedExpenses } from "./controllers/read.controller.js";
-import { putSharedExpense } from "./controllers/update.controller.js";
+import {
+  postAcceptSharedExpense,
+  postRejectSharedExpense,
+  putSharedExpense
+} from "./controllers/update.controller.js";
 
 /** Express router mounted at `/shared-expenses`. */
 export const sharedExpensesRouter = Router();
@@ -31,3 +35,5 @@ sharedExpensesRouter.put(
   asyncHandler(putSharedExpense)
 );
 sharedExpensesRouter.delete("/:id", asyncHandler(deleteSharedExpenseController));
+sharedExpensesRouter.post("/:id/accept", asyncHandler(postAcceptSharedExpense));
+sharedExpensesRouter.post("/:id/reject", asyncHandler(postRejectSharedExpense));

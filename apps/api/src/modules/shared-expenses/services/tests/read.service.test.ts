@@ -63,69 +63,65 @@ describe("normalizeSharedExpenseParticipants", () => {
     prismaMock.userBlock.findMany.mockResolvedValue([{ blockerId: "user-2", blockedId: "owner-1" }] as never);
 
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "user-2", participantName: "Friend", shareAmount: 50 }
-      ] as never)
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
     ).rejects.toMatchObject({ statusCode: 400, message: "This user can't be invited." });
   });
 
-  it("returns participants unchanged when none reference a userId", async () => {
-    const participants = [{ participantName: "Cash Friend", shareAmount: 50 }];
-    const result = await normalizeSharedExpenseParticipants(
-      "owner-1",
-      participants as never
-    );
-    expect(result).toEqual(participants);
+  it("does not re-check blocks for users already on the shared expense", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "friend" }] as never);
+
+    await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }], {
+      existingUserIds: new Set(["user-2"])
+    });
+
+    expect(prismaMock.userBlock.findMany).not.toHaveBeenCalled();
+  });
+
+  it("names manual participants by manualName without touching the database", async () => {
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ manualName: "Cash Friend", share: 50 }]);
+    expect(result).toEqual([{ manualName: "Cash Friend", share: 50, participantName: "Cash Friend" }]);
+    expect(prismaMock.user.findMany).not.toHaveBeenCalled();
   });
 
   it("throws a 400 when a participant is the owner themself", async () => {
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "owner-1", participantName: "Me", shareAmount: 50 }
-      ] as never)
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "owner-1", share: 50 }])
     ).rejects.toThrow("Shared transaction participants cannot include the owner");
   });
 
-  it("throws a 400 when a group split includes a non-app-user participant", async () => {
+  it("throws a 400 when the same app user is listed twice", async () => {
     await expect(
-      normalizeSharedExpenseParticipants(
-        "owner-1",
-        [{ participantName: "Cash Friend", shareAmount: 50 }] as never,
-        "group-1"
-      )
-    ).rejects.toThrow("Group split participants must be app users");
+      normalizeSharedExpenseParticipants("owner-1", [
+        { userId: "user-2", share: 10 },
+        { userId: "user-2", share: 20 }
+      ])
+    ).rejects.toThrow("A participant can only be added once");
   });
 
-  it("throws a 400 when a group-split participant isn't a member of the group", async () => {
-    prismaMock.groupMember.count.mockResolvedValue(0);
+  it("allows non-Group users and manual participants (universal sharing)", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "outsider" }] as never);
 
-    await expect(
-      normalizeSharedExpenseParticipants(
-        "owner-1",
-        [{ userId: "user-2", participantName: "Friend", shareAmount: 50 }] as never,
-        "group-1"
-      )
-    ).rejects.toThrow("Group split participants must be group members");
+    const result = await normalizeSharedExpenseParticipants("owner-1", [
+      { userId: "user-2", share: 10 },
+      { manualName: "Cash Friend", share: 5 }
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(prismaMock.groupMember.count).not.toHaveBeenCalled();
   });
 
   it("throws a 400 when a referenced user doesn't exist", async () => {
     prismaMock.user.findMany.mockResolvedValue([]);
 
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "user-2", participantName: "Friend", shareAmount: 50 }
-      ] as never)
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
     ).rejects.toThrow("One or more participants do not exist");
   });
 
   it("stores a username snapshot, never the name, for each registered participant", async () => {
-    prismaMock.user.findMany.mockResolvedValue([
-      { id: "user-2", username: "current" }
-    ] as never);
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "current" }] as never);
 
-    const result = await normalizeSharedExpenseParticipants("owner-1", [
-      { userId: "user-2", participantName: "Stale Name", shareAmount: 50 }
-    ] as never);
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }]);
 
     expect(result[0]).toMatchObject({ participantName: "@current" });
   });

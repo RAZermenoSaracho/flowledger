@@ -13,7 +13,7 @@ let prisma: typeof import("../../db/prisma.js").prisma;
 type Actor = Awaited<ReturnType<typeof createAuthedUser>>;
 const as = (u: Actor, req: request.Test) => req.set("Authorization", `Bearer ${u.token}`);
 
-async function shareExpense(owner: Actor, participant: Actor) {
+async function shareExpense(owner: Actor, participant: Actor, accept = false) {
   const category = await as(owner, request(app).post("/categories")).send({ name: "Dinner", type: "expense" });
   const transaction = await as(owner, request(app).post("/transactions")).send({
     name: "Dinner",
@@ -27,6 +27,13 @@ async function shareExpense(owner: Actor, participant: Actor) {
     }
   });
   expect(transaction.status).toBe(201);
+  if (accept) {
+    const accepted = await as(
+      participant,
+      request(app).post(`/shared-expenses/${transaction.body.transaction.sharedExpense.id}/accept`)
+    );
+    expect(accepted.status).toBe(200);
+  }
   return { categoryId: category.body.category.id as string, transactionId: transaction.body.transaction.id as string };
 }
 
@@ -50,7 +57,7 @@ describe("public identity across modules", () => {
     const added = await as(owner, request(app).post(`/groups/${groupId}/members`)).send({ userId: friend.user.id });
     expect(added.status).toBe(201);
 
-    const { categoryId } = await shareExpense(owner, friend);
+    const { categoryId } = await shareExpense(owner, friend, true);
     const account = await as(friend, request(app).post("/accounts")).send({ name: "Cash", type: "cash" });
     const friendCategory = await as(friend, request(app).post("/categories")).send({ name: "Debts", type: "expense" });
     const debts = await as(friend, request(app).get("/debts"));
@@ -90,7 +97,7 @@ describe("public identity across modules", () => {
   it("shows Name (@username) only in username_and_name mode and keeps relationships through a rename", async () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app, { name: "Visible Name" });
-    await shareExpense(owner, friend);
+    await shareExpense(owner, friend, true);
     await as(friend, request(app).patch("/users/me")).send({
       name: "Visible Name",
       email: friend.user.email,

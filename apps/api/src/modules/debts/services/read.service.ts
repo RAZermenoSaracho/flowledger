@@ -4,6 +4,8 @@ import { roundMoney } from "../../currencies/utils/roundMoney.js";
 import { balanceDebt } from "../utils/debtCalculations.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import { isDebtRelevantToUser } from "../utils/debtDirection.js";
+import { isCountedShare } from "../utils/shareAcceptance.js";
+import { redactGroupForNonMembers } from "../../shared-expenses/utils/groupVisibility.js";
 import { buildPersonBalances } from "../utils/personBalances.js";
 import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 
@@ -30,7 +32,12 @@ async function withPreferredCurrencyOutstandingAmounts<
   );
 }
 
-/** Lists the user's debts split into owed-to-me/i-owe/settled, plus pending and approved settlement requests, with outstanding amounts converted to their preferred currency. */
+/**
+ * Lists the user's debts split into owed-to-me/i-owe/settled (accepted shares only), plus `awaitingAcceptance`
+ * (proposed, both sides), `rejectedShares` (owner only), and pending and approved settlement requests, with
+ * outstanding amounts converted to their preferred currency. Every row carries `acceptance`; `groupId` is nulled
+ * for shared expenses of Groups the viewer is not in.
+ */
 export async function listDebts(userId: string) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
@@ -95,16 +102,21 @@ export async function listDebts(userId: string) {
       user.preferredCurrency
     );
 
-  const iOwe = withBalances.filter(
+  const counted = withBalances.filter(isCountedShare);
+  const iOwe = counted.filter(
     (debt) => debt.debtorUserId === userId && debt.outstandingAmount > 0
   );
-  const owedToMe = withBalances.filter(
+  const owedToMe = counted.filter(
     (debt) => debt.creditorUserId === userId && debt.outstandingAmount > 0
   );
 
-  return {
+  return redactGroupForNonMembers(userId, {
     iOwe,
     owedToMe,
+    awaitingAcceptance: withBalances.filter((debt) => debt.acceptance === "proposed"),
+    rejectedShares: withBalances.filter(
+      (debt) => debt.acceptance === "rejected" && debt.sharedExpense.ownerUserId === userId
+    ),
     balances: buildPersonBalances(userId, owedToMe, iOwe),
     pendingSettlementRequests,
     approvedSettlementRequests: approvedSettlementRequests.map(
@@ -113,6 +125,6 @@ export async function listDebts(userId: string) {
         sharedExpenseParticipant: approvedSettlementRequestDebts[index]
       })
     ),
-    settledDebts: withBalances.filter((debt) => debt.outstandingAmount === 0)
-  };
+    settledDebts: counted.filter((debt) => debt.outstandingAmount === 0)
+  });
 }

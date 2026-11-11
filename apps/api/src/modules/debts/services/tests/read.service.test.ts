@@ -20,6 +20,7 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     participantName: participant.name,
     shareAmount: { toNumber: () => 100 },
     paidAmount: { toNumber: () => 0 },
+    acceptance: "accepted",
     currency: "USD",
     sharedExpense: {
       ownerUserId: owner.id,
@@ -59,6 +60,54 @@ describe("listDebts", () => {
 
     expect(result.owedToMe).toHaveLength(1);
     expect(result.iOwe).toHaveLength(0);
+  });
+
+  it("lists a proposed share as awaiting acceptance for both sides and keeps it out of the totals", async () => {
+    setupBaseMocks();
+    prismaMock.sharedExpenseParticipant.findMany.mockResolvedValue([
+      debtRow({ acceptance: "proposed" })
+    ] as never);
+
+    for (const viewer of ["owner-1", "participant-1"]) {
+      const result = await listDebts(viewer);
+      expect(result.awaitingAcceptance).toHaveLength(1);
+      expect(result.owedToMe).toHaveLength(0);
+      expect(result.iOwe).toHaveLength(0);
+      expect(result.balances).toHaveLength(0);
+    }
+  });
+
+  it("shows a rejected share to the owner only and never counts it", async () => {
+    setupBaseMocks();
+    prismaMock.sharedExpenseParticipant.findMany.mockResolvedValue([
+      debtRow({ acceptance: "rejected" })
+    ] as never);
+
+    const ownerView = await listDebts("owner-1");
+    const participantView = await listDebts("participant-1");
+
+    expect(ownerView.rejectedShares).toHaveLength(1);
+    expect(ownerView.owedToMe).toHaveLength(0);
+    expect(participantView.rejectedShares).toHaveLength(0);
+    expect(participantView.iOwe).toHaveLength(0);
+  });
+
+  it("nulls groupId on a shared expense whose Group the participant is not in", async () => {
+    setupBaseMocks();
+    prismaMock.groupMember.findMany.mockResolvedValue([]);
+    prismaMock.sharedExpenseParticipant.findMany.mockResolvedValue([
+      debtRow({
+        sharedExpense: {
+          ownerUserId: owner.id,
+          owner,
+          transaction: { type: "expense", groupId: "group-1" }
+        }
+      })
+    ] as never);
+
+    const result = await listDebts("participant-1");
+
+    expect(result.iOwe[0]?.sharedExpense.transaction).toMatchObject({ groupId: null });
   });
 
   it("classifies the same expense debt as iOwe for the participant (debtor)", async () => {

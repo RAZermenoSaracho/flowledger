@@ -39,8 +39,8 @@ describe("deleteTransaction", () => {
       sharedExpense: {
         id: "se-1",
         participants: [
-          { id: "p1", settlementRequests: [{ id: "sr-1" }] },
-          { id: "p2", settlementRequests: [] }
+          { id: "p1", participantName: "@a", paidAmount: { toNumber: () => 0 }, settlementRequests: [{ id: "sr-1", status: "rejected", amount: { toNumber: () => 1 } }] },
+          { id: "p2", participantName: "@b", paidAmount: { toNumber: () => 0 }, settlementRequests: [] }
         ]
       }
     } as never);
@@ -59,5 +59,20 @@ describe("deleteTransaction", () => {
     };
     // transactionId + sharedExpenseId + 2 participants + 1 settlement request
     expect(deleteManyArgs.where.OR).toHaveLength(5);
+  });
+
+  it.each([
+    ["a payment", { paidAmount: { toNumber: () => 5 }, settlementRequests: [] }],
+    ["a pending settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "pending", amount: { toNumber: () => 5 } }] }],
+    ["an approved settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "approved", amount: { toNumber: () => 5 } }] }]
+  ])("is blocked with 400 by %s and deletes nothing", async (_label, overrides) => {
+    prismaMock.transaction.findFirst.mockResolvedValue({
+      id: "txn-1",
+      sharedExpense: { id: "se-1", participants: [{ id: "p1", participantName: "@friend", ...overrides }] }
+    } as never);
+    prismaMock.$transaction.mockClear();
+
+    await expect(deleteTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

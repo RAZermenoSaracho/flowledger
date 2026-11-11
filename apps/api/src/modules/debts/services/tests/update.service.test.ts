@@ -57,6 +57,7 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     currency: "USD",
     shareAmount: { toNumber: () => 100 },
     paidAmount: { toNumber: () => 0 },
+    acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
       title: "Dinner",
@@ -114,6 +115,16 @@ describe("settleDebtDirectly", () => {
           ]
         }
       })
+    );
+  });
+
+  it("throws a 400 when the share has not been accepted", async () => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
+      debtRow({ acceptance: "proposed" }) as never
+    );
+
+    await expect(settleDebtDirectly("owner-1", "debt-1")).rejects.toThrow(
+      "This share has not been accepted"
     );
   });
 
