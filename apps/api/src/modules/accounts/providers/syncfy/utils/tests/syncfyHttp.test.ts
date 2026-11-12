@@ -24,7 +24,8 @@ vi.mock("../../../../../../config/env.js", () => ({
   env: {
     SYNCFY_API_BASE_URL: "https://api.syncfy.test",
     SYNCFY_DATA_BASE_URL: "https://data.syncfy.test",
-    SYNCFY_API_KEY: "test-api-key"
+    SYNCFY_API_KEY: "test-api-key",
+    SYNCFY_AUTO_SYNC_ENABLED: true
   }
 }));
 
@@ -213,6 +214,17 @@ describe("fetchJson", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    env.SYNCFY_AUTO_SYNC_ENABLED = true;
+  });
+
+  it("rejects with a 503 and never calls fetch while Syncfy is unavailable", async () => {
+    env.SYNCFY_AUTO_SYNC_ENABLED = false;
+    global.fetch = vi.fn() as never;
+
+    await expect(
+      fetchJson(new URL("https://data.syncfy.test/v1/x"))
+    ).rejects.toMatchObject({ statusCode: 503 });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("returns the parsed JSON body on a 2xx response", async () => {

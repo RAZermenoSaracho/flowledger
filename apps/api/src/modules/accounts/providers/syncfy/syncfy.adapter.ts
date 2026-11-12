@@ -12,6 +12,10 @@ import {
 import { getOrCreateSyncfyUserForFlowLedgerUser } from "./services/read.service.js";
 import { processSyncfyWebhookEvent } from "./services/create.service.js";
 import { markSyncfyWebhookEventFailed } from "./services/update.service.js";
+import {
+  assertSyncfyAvailable,
+  isSyncfyAvailable
+} from "./utils/syncfyAvailability.js";
 
 function buildSyncfyWidgetConfig() {
   return {
@@ -31,6 +35,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
   {
     key: "syncfy",
     displayName: "Syncfy",
+    isAvailable: isSyncfyAvailable,
 
     listConnectors: async () => [
       {
@@ -52,6 +57,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
     listInstitutions: async () => [],
 
     createUser: async ({ externalUserId }) => {
+      assertSyncfyAvailable();
       const user = await getOrCreateSyncfyUserForFlowLedgerUser(externalUserId);
 
       return {
@@ -63,6 +69,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
     },
 
     createSession: async ({ providerUserId, externalUserId }) => {
+      assertSyncfyAvailable();
       const idUser = providerUserId || externalUserId;
 
       if (!idUser) {
@@ -78,6 +85,7 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
     },
 
     createConnectionFlow: async ({ providerUserId, externalUserId }) => {
+      assertSyncfyAvailable();
       const flowLedgerUserId = providerUserId || externalUserId;
 
       if (!flowLedgerUserId) {
@@ -110,6 +118,9 @@ export const syncfyProvider: FinancialProviderAdapter<SyncfyWebhookEventInput> =
     },
 
     handleWebhook: async ({ eventId, payload }) => {
+      // Processing a verified event fetches its data from Syncfy, which spends credits; the event row stays recorded.
+      if (!isSyncfyAvailable()) return { status: "ignored" };
+
       if (!eventId) {
         throw new HttpError(400, "Syncfy webhook processing requires event id");
       }

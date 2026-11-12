@@ -40,7 +40,11 @@ function mockAccounts(accounts: Account[]) {
       HttpResponse.json({ currencies: [], fiat: [], crypto: [] })
     ),
     http.get(`${API_URL}/providers/connectors`, () =>
-      HttpResponse.json({ connectors: [] })
+      HttpResponse.json({
+        connectors: [
+          { provider: "syncfy", connectorId: "c1", title: "Bank", description: "d", country: "US", category: "bank", coverageLabel: "Popular" }
+        ]
+      })
     ),
     http.get(`${API_URL}/providers/accounts`, () =>
       HttpResponse.json({ accounts: [] })

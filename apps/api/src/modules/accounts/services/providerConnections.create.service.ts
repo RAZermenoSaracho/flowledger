@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
+import { assertProviderAvailable } from "../utils/providerAvailability.js";
 import { getProvider } from "../utils/providerRegistry.js";
 import {
   findSelectedConnector,
@@ -16,12 +17,13 @@ import {
   providerAccountSummary
 } from "../utils/providerAccountMetadata.js";
 
-/** Starts a provider connection flow for the requested institution (or bare connector, when no institution catalog entry is selected), throwing 404/501 if unavailable or unconfigured. */
+/** Starts a provider connection flow for the requested institution (or bare connector, when no institution catalog entry is selected), throwing 503 if the provider is switched off, or 404/501 if not offered or unconfigured. */
 export async function createConnection(
   userId: string,
   body: { institutionId?: string; provider?: string }
 ) {
   const { institutionId, provider: providerKey } = body;
+  if (providerKey) assertProviderAvailable(getProvider(providerKey));
   const institution = institutionId
     ? findSelectedInstitution(await listAvailableInstitutions(), {
         institutionId,

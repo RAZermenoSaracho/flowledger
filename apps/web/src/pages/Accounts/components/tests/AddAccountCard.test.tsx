@@ -251,4 +251,48 @@ describe("AddAccountCard", () => {
 
     expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
   });
+
+  it("keeps the sync option visible but aria-disabled with a tooltip, and makes no provider calls, when no connectors are available", async () => {
+    mockBaseline();
+    const providerCalls = vi.fn();
+    server.use(
+      http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] })),
+      http.post(`${API_URL}/providers/connections`, () => {
+        providerCalls();
+        return HttpResponse.json({});
+      }),
+      http.get(`${API_URL}/providers/accounts`, () => {
+        providerCalls();
+        return HttpResponse.json({ accounts: [] });
+      })
+    );
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+    const syncCard = screen.getByRole("button", { name: /Sync accounts/ });
+    await waitFor(() => expect(syncCard).toHaveAttribute("aria-disabled", "true"));
+    expect(syncCard).toHaveTextContent("Bank connections are temporarily disabled.");
+    expect(syncCard).not.toHaveTextContent(/provider widget will open/);
+
+    await user.click(syncCard);
+    expect(screen.getByText("Add account")).toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Bank synchronization is temporarily unavailable."
+    );
+    expect(syncCard).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+    expect(providerCalls).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Manual account/ })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("keeps the sync option enabled when connectors exist", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).not.toHaveAttribute("aria-disabled"));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
 });

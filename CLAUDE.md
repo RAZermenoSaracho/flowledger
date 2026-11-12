@@ -62,7 +62,7 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_CALLBACK_URL` | Google OAuth |
 | `SYNCFY_API_KEY` | Syncfy API key (optional; disables Syncfy if absent) |
 | `SYNCFY_WEBHOOK_SIGNATURE_KEY` | HMAC key for webhook signature verification; required when `SYNCFY_API_KEY` is set |
-| `SYNCFY_AUTO_SYNC_ENABLED` | Enable background auto-sync scheduler |
+| `SYNCFY_AUTO_SYNC_ENABLED` | Global Syncfy availability switch: when false, all Syncfy operations (connect, resync, webhook processing, scheduler) are disabled; see `docs/PROVIDER_SYNC.md` |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | Scheduler interval (default `60`) |
 
 ---

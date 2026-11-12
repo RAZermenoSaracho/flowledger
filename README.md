@@ -296,7 +296,7 @@ Provider variables:
 
 Syncfy auto-sync variables:
 
-- SYNCFY_AUTO_SYNC_ENABLED (`true`/`1` enable; `false`/`0`/empty disable; other values fail startup)
+- SYNCFY_AUTO_SYNC_ENABLED (global Syncfy switch: connect, resync, webhooks and scheduler; `true`/`1` enable; `false`/`0`/empty disable; other values fail startup)
 - SYNCFY_AUTO_SYNC_INTERVAL_MINUTES
 - SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS
 - SYNCFY_AUTO_SYNC_CONCURRENCY

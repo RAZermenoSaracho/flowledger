@@ -146,3 +146,27 @@ describe("listAvailableConnectors", () => {
     expect(result).toEqual([{ provider: "syncfy" }]);
   });
 });
+
+describe("unavailable providers", () => {
+  beforeEach(() => listProvidersMock.mockReset());
+
+  it("excludes institutions and connectors of a provider whose isAvailable returns false", async () => {
+    listProvidersMock.mockReturnValue([
+      {
+        isAvailable: () => false,
+        listInstitutions: vi.fn().mockResolvedValue([{ institutionId: "off" }]),
+        listConnectors: vi.fn().mockResolvedValue([{ provider: "off" }])
+      },
+      {
+        isAvailable: () => true,
+        listInstitutions: vi.fn().mockResolvedValue([{ institutionId: "on" }]),
+        listConnectors: vi.fn().mockResolvedValue([{ provider: "on" }])
+      }
+    ] as never);
+
+    await expect(listAvailableInstitutions()).resolves.toEqual([
+      { institutionId: "on" }
+    ]);
+    await expect(listAvailableConnectors()).resolves.toEqual([{ provider: "on" }]);
+  });
+});
