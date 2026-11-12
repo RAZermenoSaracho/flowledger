@@ -88,7 +88,7 @@ describe("toSettlementRequestSearchRow", () => {
       sharedExpenseParticipantId: "debt-1",
       debtorUserId: "user-2",
       creditorUserId: "user-1",
-      amount: 50,
+      amount: "50",
       status: "pending",
       note: "Paying you back",
       debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },

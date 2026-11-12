@@ -20,7 +20,7 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: "tx-1",
     name: "Groceries",
-    amount: 42.5,
+    amount: "42.5",
     executionCurrency: "USD",
     exchangeRate: 1,
     amountInPreferredCurrency: 42.5,
@@ -45,7 +45,7 @@ function makeImportedTransaction(
     providerAccountId: "pa-1",
     providerTransactionId: "raw-1",
     description: "Coffee shop",
-    amount: -5.5,
+    amount: "-5.5",
     currency: "USD",
     transactionDate: "2024-01-15T00:00:00.000Z",
     status: "pending",

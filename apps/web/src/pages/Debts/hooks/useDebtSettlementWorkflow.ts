@@ -9,6 +9,7 @@ import type {
   SettlementApprovalDraft,
   SettlementDraft
 } from "../types/debts.types";
+import { amountPrecisionError } from "../../../utils/currency";
 import { availableSettlementAmount } from "../utils/debtDisplay";
 
 /** State and handlers for creating settlement requests and approving/rejecting incoming ones. */
@@ -37,7 +38,8 @@ export function useDebtSettlementWorkflow({
 
   function settlementRequestBody(draft: SettlementDraft) {
     return {
-      amount: Number(draft.amount),
+      amount: draft.amount.trim(),
+      ...(draft.accountAmount.trim() ? { accountAmount: draft.accountAmount.trim() } : {}),
       accountId: draft.accountId,
       categoryId: draft.categoryId,
       note: draft.note.trim() || null,
@@ -47,6 +49,7 @@ export function useDebtSettlementWorkflow({
 
   function approvalBody(draft: SettlementApprovalDraft) {
     return {
+      ...(draft.accountAmount.trim() ? { accountAmount: draft.accountAmount.trim() } : {}),
       accountId: draft.accountId,
       categoryId: draft.categoryId,
       expenseOffsetCategoryId: draft.expenseOffsetCategoryId || null
@@ -202,6 +205,7 @@ export function useDebtSettlementWorkflow({
         ?.categoryId ?? "";
 
     return {
+      accountAmount: "",
       accountId: accounts[0]?.id ?? "",
       categoryId: incomeCategories[0]?.id ?? "",
       expenseOffsetCategoryId: expenseOffsetCategories.some(
@@ -225,6 +229,7 @@ export function useDebtSettlementWorkflow({
       ...current,
       [request.id]: {
         ...(current[request.id] ?? defaultApprovalDraftFor(request)),
+        ...(field === "accountId" ? { accountAmount: "" } : {}),
         [field]: value
       }
     }));
@@ -238,6 +243,7 @@ export function useDebtSettlementWorkflow({
         : "";
     return {
       amount: String(availableSettlementAmount(debt)),
+      accountAmount: "",
       accountId: accounts[0]?.id ?? "",
       categoryId: originalCategoryId || (privateExpenseCategories[0]?.id ?? ""),
       note: "",
@@ -252,7 +258,13 @@ export function useDebtSettlementWorkflow({
   function isSettlementDraftComplete(debt: Debt) {
     const draft = draftFor(debt);
     const amount = Number(draft.amount);
+    const accountCurrency = accounts.find((account) => account.id === draft.accountId)?.currency;
+    const accountAmountOk =
+      !accountCurrency ||
+      accountCurrency === debt.currency ||
+      (Number(draft.accountAmount) > 0 && !amountPrecisionError(draft.accountAmount, accountCurrency));
     return (
+      accountAmountOk &&
       Number.isFinite(amount) &&
       amount > 0 &&
       amount <= availableSettlementAmount(debt) &&
@@ -270,6 +282,7 @@ export function useDebtSettlementWorkflow({
       ...current,
       [debt.id]: {
         ...(current[debt.id] ?? defaultDraftFor(debt)),
+        ...(field === "accountId" ? { accountAmount: "" } : {}),
         [field]: value
       }
     }));

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { PublicUser } from "@flowledger/shared";
 import type { DataSieveQuery } from "datasieve";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
@@ -200,3 +201,40 @@ export interface SettlementOriginSummary {
   type: string;
   owner: PublicUser;
 }
+
+/** Merged (request over stored) financial state handed to `resolveAppliedAmounts`; stated amounts are decimal strings. */
+export type AppliedAmountsInput = {
+  type: "income" | "expense" | "transfer";
+  amount: string;
+  executionCurrency: string;
+  /** Currency of `accountId`'s account, or null/undefined when the transaction has no account. */
+  accountCurrency?: string | null;
+  /** Currency of `transferToAccountId`'s account; only meaningful for transfers. */
+  destinationCurrency?: string | null;
+  accountAmount?: string | null;
+  destinationAmount?: string | null;
+  feeAmount?: string | null;
+  feeCurrency?: string | null;
+};
+
+/** Persistable applied amounts produced by `resolveAppliedAmounts`; null where a transaction legitimately has none. */
+export type AppliedAmounts = {
+  accountAmount: Prisma.Decimal | null;
+  destinationAmount: Prisma.Decimal | null;
+  feeAmount: Prisma.Decimal | null;
+  feeCurrency: string | null;
+};
+
+/** The ten financial fields snapshotted into a `TransactionCorrection`; decimals are exact strings, `date` an ISO instant. */
+export type TransactionFinancialSnapshot = {
+  type: string | null;
+  amount: string | null;
+  executionCurrency: string | null;
+  accountId: string | null;
+  transferToAccountId: string | null;
+  accountAmount: string | null;
+  destinationAmount: string | null;
+  feeAmount: string | null;
+  feeCurrency: string | null;
+  date: string | null;
+};

@@ -79,7 +79,7 @@ export function toSettlementRequestSearchRow(
     creditorName: request.creditor?.displayName ?? "",
     creditorUsername: request.creditor?.username ?? "",
     note: request.note ?? "",
-    amount: request.amount,
+    amount: Number(request.amount),
     status: request.status
   };
 }

@@ -32,7 +32,7 @@ async function mintKey(jwt: string, allowWrite: boolean) {
 function txBody(actor: Pick<Actor, "accountId" | "categoryId">, name = "Coffee") {
   return {
     name,
-    amount: 5,
+    amount: "5",
     type: "expense",
     date: "2024-01-15",
     accountId: actor.accountId,
@@ -239,7 +239,7 @@ describe("/v1 routes", () => {
         data: Array.from({ length: 110 }, (_, i) => ({
           userId,
           name: `Bulk ${i}`,
-          amount: 1,
+          amount: 1, accountAmount: "1",
           type: "expense" as const,
           date: new Date("2024-02-01"),
           accountId: c.accountId,

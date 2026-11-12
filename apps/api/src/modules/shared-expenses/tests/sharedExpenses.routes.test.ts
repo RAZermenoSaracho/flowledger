@@ -40,7 +40,7 @@ describe("/shared-expenses routes", () => {
       request(app).post("/transactions")
     ).send({
       name: "Dinner out",
-      amount: 100,
+      amount: "100",
       type: "expense",
       date: "2024-01-15",
       categoryId: categoryResponse.body.category.id,

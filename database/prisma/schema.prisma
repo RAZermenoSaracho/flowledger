@@ -405,6 +405,7 @@ model SettlementRequest {
   note                       String?
   paymentInfo                String?
   debtorAccountId            String?
+  debtorAccountAmount        Decimal?                 @db.Decimal(30, 18)
   debtorCategoryId           String?
   creditorAccountId          String?
   creditorCategoryId         String?

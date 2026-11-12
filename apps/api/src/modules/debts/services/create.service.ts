@@ -3,6 +3,8 @@ import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
+import { resolveAppliedAmounts } from "../../transactions/utils/appliedAmounts.js";
+import { assertShareableCurrencies } from "../../shared-expenses/utils/assertions.js";
 import { debtOutstanding, pendingSettlementTotal } from "../utils/debtCalculations.js";
 import { isCountedShare } from "../utils/shareAcceptance.js";
 import { getDebtDirection } from "../utils/debtDirection.js";
@@ -14,14 +16,15 @@ import {
 import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
 /**
- * Creates a settlement request for a debt, validating direction, outstanding balance, and account/category ownership before notifying the creditor.
+ * Creates a settlement request for a debt, validating direction, currency shareability, the debtor-side applied amount (`accountAmount`, required when the account currency differs from the debt currency), outstanding balance, and account/category ownership before notifying the creditor.
  * The checks and the insert run in one Serializable transaction so concurrent requests cannot both pass them; a serialization failure is a 409 "Please retry".
  */
 export async function createSettlementRequest(
   userId: string,
   debtId: string,
   body: {
-    amount: number | string;
+    amount: string;
+    accountAmount?: string;
     accountId: string;
     categoryId?: string;
     note?: string | null;
@@ -51,7 +54,15 @@ export async function createSettlementRequest(
         const outstandingAmount = debtOutstanding(debt);
         const pendingAmount = pendingSettlementTotal(debt);
         const requestAmount = Number(body.amount);
-        await assertSettlementAccount(tx, userId, body.accountId);
+        const debtorAccount = await assertSettlementAccount(tx, userId, body.accountId);
+        assertShareableCurrencies([debt.currency, debtorAccount.currency], "amount");
+        const debtorApplied = resolveAppliedAmounts({
+          type: "expense",
+          amount: body.amount,
+          executionCurrency: debt.currency,
+          accountCurrency: debtorAccount.currency,
+          accountAmount: body.accountAmount
+        });
         await assertSettlementCategory(
           tx,
           userId,
@@ -90,8 +101,9 @@ export async function createSettlementRequest(
             sharedExpenseParticipantId: debt.id,
             debtorUserId: userId,
             creditorUserId: direction.creditorUserId,
-            amount: new Prisma.Decimal(requestAmount),
+            amount: new Prisma.Decimal(body.amount),
             debtorAccountId: body.accountId,
+            debtorAccountAmount: debtorApplied.accountAmount,
             debtorCategoryId: body.categoryId || null,
             note: body.note?.trim() || null,
             paymentInfo: body.paymentInfo?.trim() || null
@@ -156,7 +168,8 @@ export async function createBatchSettlementRequests(
   userId: string,
   requests: {
     debtId: string;
-    amount: number | string;
+    amount: string;
+    accountAmount?: string;
     accountId: string;
     categoryId?: string;
     note?: string | null;

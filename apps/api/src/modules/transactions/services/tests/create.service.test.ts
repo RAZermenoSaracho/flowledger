@@ -1,12 +1,13 @@
 import { Prisma } from "@prisma/client";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../transactionValidation.service.js", () => ({
   assertExpenseOffsetAllowed: vi.fn(),
   assertGroupRelations: vi.fn(),
   assertOwnedRelations: vi.fn(),
-  assertTransferAllowed: vi.fn()
+  assertTransferAllowed: vi.fn(),
+  findAccountCurrencies: vi.fn()
 }));
 
 vi.mock("../../../shared-expenses/services/create.service.js", () => ({
@@ -22,7 +23,10 @@ vi.mock("../importedTransactionValidation.service.js", () => ({
   clearProviderPendingNotifications: vi.fn()
 }));
 
-const { assertTransferAllowed } = await import("../transactionValidation.service.js");
+const { assertTransferAllowed, findAccountCurrencies } = await import(
+  "../transactionValidation.service.js"
+);
+const findAccountCurrenciesMock = vi.mocked(findAccountCurrencies);
 const { createSharedExpenseForTransaction } = await import(
   "../../../shared-expenses/services/create.service.js"
 );
@@ -61,6 +65,10 @@ function mockTx() {
   };
 }
 
+beforeEach(() => {
+  findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: null, destinationCurrency: null });
+});
+
 describe("createTransaction", () => {
   it("runs all validation checks before creating", async () => {
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({
@@ -78,7 +86,7 @@ describe("createTransaction", () => {
 
     await createTransaction("user-1", {
       name: "Coffee",
-      amount: 5,
+      amount: "5",
       type: "expense",
       date: "2024-01-01"
     });
@@ -106,7 +114,7 @@ describe("createTransaction", () => {
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
-    await createTransaction("user-1", { name: "Coffee", amount: 5, type: "expense", date: input });
+    await createTransaction("user-1", { name: "Coffee", amount: "5", type: "expense", date: input });
 
     const data = tx.transaction.create.mock.calls[0]?.[0].data as { date: Date };
     expect(data.date.toISOString()).toBe(expected);
@@ -128,13 +136,100 @@ describe("createTransaction", () => {
 
     await createTransaction("user-1", {
       name: "Dinner",
-      amount: 100,
+      amount: "100",
       type: "expense",
       date: "2024-01-01",
       sharedExpense: { title: "Dinner split", participants: [] }
     });
 
     expect(createSharedExpenseForTransactionMock).toHaveBeenCalled();
+  });
+});
+
+describe("createTransaction applied amounts", () => {
+  function setup() {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: "MXN" } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "USD",
+      exchangeRate: 17,
+      amountInPreferredCurrency: 1700
+    });
+    const tx = mockTx();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+    return tx;
+  }
+
+  it("persists a cross-currency transfer's stated destinationAmount and copies the source side", async () => {
+    const tx = setup();
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: "MXN" });
+
+    await createTransaction("user-1", {
+      name: "Move",
+      amount: "100",
+      type: "transfer",
+      date: "2024-01-01",
+      accountId: "acc-usd",
+      transferToAccountId: "acc-mxn",
+      destinationAmount: "1712.50"
+    });
+
+    const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal | null>;
+    expect(data.accountAmount?.toFixed()).toBe("100");
+    expect(data.destinationAmount?.toFixed()).toBe("1712.5");
+    expect(data.feeAmount).toBeNull();
+  });
+
+  it("rejects an omitted destinationAmount across currencies with a 400 naming it, storing nothing", async () => {
+    const tx = setup();
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: "MXN" });
+
+    await expect(
+      createTransaction("user-1", {
+        name: "Move",
+        amount: "100",
+        type: "transfer",
+        date: "2024-01-01",
+        accountId: "acc-usd",
+        transferToAccountId: "acc-mxn"
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { destinationAmount: expect.any(Array) } } }
+    });
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it("copies amount into accountAmount for a same-currency expense", async () => {
+    const tx = setup();
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+
+    await createTransaction("user-1", {
+      name: "Coffee",
+      amount: "5.25",
+      type: "expense",
+      date: "2024-01-01",
+      accountId: "acc-usd",
+      executionCurrency: "USD"
+    });
+
+    const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal | null>;
+    expect(data.accountAmount?.toFixed()).toBe("5.25");
+  });
+
+  it("rejects over-precise fiat without rounding", async () => {
+    setup();
+
+    await expect(
+      createTransaction("user-1", {
+        name: "Coffee",
+        amount: "5.005",
+        type: "expense",
+        date: "2024-01-01",
+        executionCurrency: "USD"
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 });
 
@@ -171,6 +266,80 @@ describe("importProviderImportedTransaction", () => {
     await expect(
       importProviderImportedTransaction({ id: "it-1", userId: "user-1" })
     ).rejects.toThrow("Category is required before importing");
+  });
+
+  describe("applied amounts", () => {
+    function setupImport(rowCurrency: string, accountCurrency: string) {
+      prismaMock.providerImportedTransaction.findFirst.mockResolvedValue({
+        id: "it-1",
+        status: "pending",
+        amount: new Prisma.Decimal("-10"),
+        categoryId: "cat-1",
+        currency: rowCurrency,
+        description: "Coffee",
+        transactionDate: new Date(),
+        providerAccount: { accountId: "acc-1", account: { currency: accountCurrency } }
+      } as never);
+      assertImportedTransactionCategoryMock.mockResolvedValue({ id: "cat-1" } as never);
+      prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: null } as never);
+      resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+        executionCurrency: rowCurrency,
+        exchangeRate: 1,
+        amountInPreferredCurrency: 10
+      });
+      const tx = {
+        providerImportedTransaction: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "it-1",
+            status: "pending",
+            amount: new Prisma.Decimal("-10"),
+            description: "Coffee",
+            transactionDate: new Date(),
+            providerAccount: { accountId: "acc-1" }
+          }),
+          update: vi.fn().mockResolvedValue({ id: "it-1" })
+        },
+        transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
+      };
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+      );
+      return tx;
+    }
+
+    it("copies the amount for the same currency", async () => {
+      const tx = setupImport("USD", "USD");
+
+      await importProviderImportedTransaction({ id: "it-1", userId: "user-1" });
+
+      const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+      expect(data.accountAmount?.toFixed()).toBe("10");
+    });
+
+    it("rejects a cross-currency import without accountAmount with a 400 naming it", async () => {
+      const tx = setupImport("USD", "MXN");
+
+      await expect(
+        importProviderImportedTransaction({ id: "it-1", userId: "user-1" })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        details: { issues: { fieldErrors: { accountAmount: expect.any(Array) } } }
+      });
+      expect(tx.transaction.create).not.toHaveBeenCalled();
+    });
+
+    it("persists the stated accountAmount for a cross-currency import", async () => {
+      const tx = setupImport("USD", "MXN");
+
+      await importProviderImportedTransaction({
+        id: "it-1",
+        userId: "user-1",
+        accountAmount: "171.25"
+      });
+
+      const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+      expect(data.accountAmount?.toFixed()).toBe("171.25");
+    });
   });
 
   it("creates the transaction, marks the row processed, and clears pending notifications", async () => {
@@ -231,6 +400,35 @@ describe("importProviderImportedTransaction", () => {
 });
 
 describe("batchImportProviderImportedTransactions", () => {
+  beforeEach(() => {
+    prismaMock.providerAccount.findMany.mockResolvedValue([]);
+  });
+
+  it("rejects a cross-currency row up front, importing nothing", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      {
+        id: "it-1",
+        status: "pending",
+        amount: new Prisma.Decimal("-1"),
+        currency: "USD",
+        categoryId: "cat-1",
+        providerAccountRefId: "pa-1"
+      }
+    ] as never);
+    prismaMock.providerAccount.findMany.mockResolvedValue([
+      { id: "pa-1", account: { currency: "MXN" } }
+    ] as never);
+
+    await expect(
+      batchImportProviderImportedTransactions("user-1", {
+        selection: { mode: "ids", ids: ["it-1"] }
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      details: { errors: [{ id: "it-1", message: expect.stringContaining("import this row individually with accountAmount") }] }
+    });
+  });
+
   it("throws a 400 collecting errors for every invalid row, importing nothing", async () => {
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1", status: "processed", amount: new Prisma.Decimal("-1") },

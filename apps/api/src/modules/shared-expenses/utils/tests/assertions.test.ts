@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
+  assertShareableCurrencies,
   assertShareableTransaction,
   validateSharedExpenseParticipants
 } from "../assertions.js";
@@ -46,5 +47,17 @@ describe("validateSharedExpenseParticipants", () => {
         { shareAmount: 60 } as never
       ])
     ).toThrow("Participant shares cannot exceed the transaction amount");
+  });
+});
+
+describe("assertShareableCurrencies", () => {
+  it("accepts MXN, USD and JPY, ignoring null entries", () => {
+    expect(() => assertShareableCurrencies(["MXN", "USD", "JPY", null, undefined])).not.toThrow();
+  });
+
+  it.each(["BTC", "KWD"])("rejects %s with the sharing message and a field error", (currency) => {
+    expect(() => assertShareableCurrencies(["MXN", currency])).toThrow(
+      "Sharing is only supported for fiat currencies with up to 2 decimals"
+    );
   });
 });

@@ -8,6 +8,7 @@ import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import type { SettlementDraft } from "../types/debts.types";
 import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
+import { AccountAmountField } from "./AccountAmountField";
 import { DebtTable } from "./DebtTable";
 import { EmptyState } from "./EmptyState";
 
@@ -206,6 +207,16 @@ export function PersonDebtDetail({
                       </option>
                     ))}
                   </SelectField>
+                  <AccountAmountField
+                    accounts={accounts}
+                    accountId={draft.accountId}
+                    currency={debt.currency}
+                    amount={draft.amount}
+                    value={draft.accountAmount}
+                    onChange={(value) =>
+                      updateDraft(debt, "accountAmount", value)
+                    }
+                  />
                   <SelectField
                     label="Category"
                     value={draft.categoryId}

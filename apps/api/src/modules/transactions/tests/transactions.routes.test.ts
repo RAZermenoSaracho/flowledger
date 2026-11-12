@@ -40,7 +40,7 @@ describe("/transactions routes", () => {
 
     const createResponse = await auth(request(app).post("/transactions")).send({
       name: "Groceries",
-      amount: 42.5,
+      amount: "42.5",
       type: "expense",
       date: "2024-01-15",
       accountId: accountResponse.body.account.id,
@@ -64,7 +64,7 @@ describe("/transactions routes", () => {
 
     const updateResponse = await auth(
       request(app).put(`/transactions/${transactionId}`)
-    ).send({ amount: 50 });
+    ).send({ amount: "50" });
     expect(updateResponse.status).toBe(200);
 
     const deleteResponse = await auth(
@@ -79,7 +79,7 @@ describe("/transactions routes", () => {
 
     const bare = await auth(request(app).post("/transactions")).send({
       name: "Bare",
-      amount: 1,
+      amount: "1",
       type: "expense",
       date: "2026-11-05"
     });
@@ -88,7 +88,7 @@ describe("/transactions routes", () => {
 
     const offset = await auth(request(app).post("/transactions")).send({
       name: "Offset",
-      amount: 1,
+      amount: "1",
       type: "expense",
       date: "2026-11-05T14:30:00-06:00"
     });
@@ -204,7 +204,7 @@ describe("/transactions routes", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         name: "Bad transfer",
-        amount: 10,
+        amount: "10",
         type: "transfer",
         date: "2024-01-15",
         accountId,

@@ -41,7 +41,7 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     sharedExpenseParticipantId: "debt-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    amount: 50,
+    amount: "50",
     status: "pending",
     debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     sharedExpenseParticipant: makeDebt(),

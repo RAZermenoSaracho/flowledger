@@ -24,6 +24,43 @@ describe("updateAccount", () => {
   });
 });
 
+describe("updateAccount currency lock", () => {
+  it("rejects a currency change while a transaction references the account, naming currency", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", currency: "USD" } as never);
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "txn-1" } as never);
+
+    await expect(updateAccount("user-1", "acc-1", { currency: "MXN" })).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { currency: [expect.any(String)] } } }
+    });
+    expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { OR: [{ accountId: "acc-1" }, { transferToAccountId: "acc-1" }] }
+      })
+    );
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+  });
+
+  it("allows a currency change on an unused account", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", currency: "USD" } as never);
+    prismaMock.transaction.findFirst.mockResolvedValue(null);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { currency: "MXN" });
+
+    expect(prismaMock.account.update).toHaveBeenCalled();
+  });
+
+  it("does not check transactions when the currency is unchanged", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", currency: "USD" } as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { currency: "USD" });
+
+    expect(prismaMock.transaction.findFirst).not.toHaveBeenCalled();
+  });
+});
+
 describe("archiveAccount", () => {
   it("marks the account archived with a timestamp", async () => {
     prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1" } as never);

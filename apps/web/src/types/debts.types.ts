@@ -8,7 +8,7 @@ export type SettlementRequest = {
   sharedExpenseParticipantId: string;
   debtorUserId: string;
   creditorUserId: string;
-  amount: number;
+  amount: string;
   status: SettlementStatus;
   note?: string | null;
   paymentInfo?: string | null;

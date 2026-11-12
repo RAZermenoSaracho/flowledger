@@ -79,7 +79,7 @@ export function DashboardPage() {
                         : "font-semibold text-coral dark:text-orange-300"
                   }
                 >
-                  {money.format(transaction.amount)}
+                  {money.format(Number(transaction.amount))}
                 </span>
               </div>
             ))}

@@ -7,7 +7,11 @@ import { deleteSharedTransactionData } from "../../transactions/utils/sharedTran
 import { userLabel, publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 import { HttpError } from "../../../utils/httpError.js";
 import type { SharingInput } from "../types/sharedExpenses.types.js";
-import { assertShareableTransaction, validateSharedExpenseParticipants } from "../utils/assertions.js";
+import {
+  assertShareableCurrencies,
+  assertShareableTransaction,
+  validateSharedExpenseParticipants
+} from "../utils/assertions.js";
 import {
   assertNoSettlementActivity,
   assertNotSettled,
@@ -26,6 +30,7 @@ type SharedTransaction = {
   amount: Prisma.Decimal;
   type: "income" | "expense" | "transfer";
   executionCurrency: string;
+  accountId?: string | null;
 };
 
 type NormalizedParticipant = Awaited<ReturnType<typeof normalizeSharedExpenseParticipants>>[number];
@@ -79,6 +84,11 @@ export async function applySharedExpenseToTransaction(
   }
 
   if (!existing && !input) return null;
+
+  const accountCurrency = transaction.accountId
+    ? (await tx.account.findUnique({ where: { id: transaction.accountId }, select: { currency: true } }))?.currency
+    : null;
+  assertShareableCurrencies([transaction.executionCurrency, accountCurrency]);
   const requested = input?.enabled ? input.participants : undefined;
   const existingUserIds = new Set(
     (existing?.participants ?? []).flatMap((participant) => (participant.userId ? [participant.userId] : []))

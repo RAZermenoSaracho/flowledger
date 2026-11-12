@@ -41,7 +41,7 @@ const rows = (sharedExpenseId: string, userId: string) =>
 
 const requestSettlement = (user: Actor, debtId: string, amount: number) =>
   as(user, request(app).post(`/debts/${debtId}/settlement-request`)).send({
-    amount,
+    amount: String(amount),
     accountId: user.accountId,
     categoryId: user.expenseCategoryId
   });
@@ -81,7 +81,7 @@ describe("settled allocations and additional allocation lines", () => {
   it("lets Ana accept and fully settle her 1200 allocation", async () => {
     const created = await as(owner, request(app).post("/transactions")).send({
       name: "Trip",
-      amount: 3000,
+      amount: "3000",
       type: "expense",
       date: "2024-01-15",
       accountId: owner.accountId,

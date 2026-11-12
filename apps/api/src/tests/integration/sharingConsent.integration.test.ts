@@ -17,7 +17,7 @@ async function unsharedExpense(owner: Actor, amount = 100) {
   const category = await as(owner, request(app).post("/categories")).send({ name: "Dinner", type: "expense" });
   const transaction = await as(owner, request(app).post("/transactions")).send({
     name: "Dinner",
-    amount,
+    amount: String(amount),
     type: "expense",
     date: "2024-01-15",
     categoryId: category.body.category.id
@@ -99,7 +99,7 @@ describe("sharing conversion and consent", () => {
     const category = await as(friend, request(app).post("/categories")).send({ name: "Debts", type: "expense" });
     const debtId = (await participantRow(transactionId, friend.user.id)).id;
     const early = await as(friend, request(app).post(`/debts/${debtId}/settlement-request`)).send({
-      amount: 10,
+      amount: "10",
       accountId: account.body.account.id,
       categoryId: category.body.category.id
     });

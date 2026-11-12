@@ -148,6 +148,50 @@ describe("applySharedExpenseToTransaction - create", () => {
   });
 });
 
+describe("applySharedExpenseToTransaction - shareable currencies", () => {
+  const sharing = { enabled: true, title: "Split", participants: [{ userId: "user-2", share: 10 }] };
+
+  it.each(["BTC", "KWD"])("rejects creating a share on a %s transaction", async (currency) => {
+    await expect(
+      applySharedExpenseToTransaction(tx, "owner-1", transaction({ executionCurrency: currency }), "expense", sharing)
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(tx.sharedExpense.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a share when the transaction's account currency is not shareable", async () => {
+    tx.account.findUnique.mockResolvedValue({ currency: "BTC" } as never);
+
+    await expect(
+      applySharedExpenseToTransaction(tx, "owner-1", transaction({ accountId: "acc-btc" }), "expense", sharing)
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Sharing is only supported for fiat currencies with up to 2 decimals"
+    });
+  });
+
+  it("rejects editing an existing share once its transaction is in a non-shareable currency", async () => {
+    existingSharedExpense([row()]);
+
+    await expect(
+      applySharedExpenseToTransaction(tx, "owner-1", transaction({ executionCurrency: "BTC" }), "expense", sharing)
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("accepts MXN on an MXN account", async () => {
+    tx.account.findUnique.mockResolvedValue({ currency: "MXN" } as never);
+
+    await expect(
+      applySharedExpenseToTransaction(
+        tx,
+        "owner-1",
+        transaction({ executionCurrency: "MXN", accountId: "acc-mxn" }),
+        "expense",
+        sharing
+      )
+    ).resolves.toBeDefined();
+  });
+});
+
 describe("applySharedExpenseToTransaction - disable", () => {
   it("removes the shared expense and notifies app-user participants", async () => {
     existingSharedExpense([row()]);

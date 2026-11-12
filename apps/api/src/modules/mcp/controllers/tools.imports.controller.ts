@@ -74,7 +74,7 @@ export function registerImportedWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "import_imported_transactions",
     {
-      description: `Create real transactions from pending bank imports (the same as the web app's Import). Each row needs a category (set earlier or passed as categoryId, applied to every row) of the matching type. The imports cannot be undone except by deleting the created transactions. You MUST obtain explicit user confirmation before calling.${BATCH_NOTE} Rows are validated up front; the creation loop itself is sequential and not wrapped in one database transaction.`,
+      description: `Create real transactions from pending bank imports (the same as the web app's Import). Each row needs a category (set earlier or passed as categoryId, applied to every row) of the matching type. A row whose currency differs from its account's cannot be batch-imported (it needs an accountAmount, a decimal string, via the web import). The imports cannot be undone except by deleting the created transactions. You MUST obtain explicit user confirmation before calling.${BATCH_NOTE} Rows are validated up front; the creation loop itself is sequential and not wrapped in one database transaction.`,
       inputSchema: importImportedToolSchema.shape,
       annotations: { destructiveHint: false, idempotentHint: false }
     },

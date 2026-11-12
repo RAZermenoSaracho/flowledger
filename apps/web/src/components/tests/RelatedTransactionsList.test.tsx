@@ -13,7 +13,7 @@ function tx(id: string, name: string): Transaction {
   return {
     id,
     name,
-    amount: 12.5,
+    amount: "12.5",
     executionCurrency: "USD",
     exchangeRate: 1,
     amountInPreferredCurrency: 12.5,

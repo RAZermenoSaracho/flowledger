@@ -16,6 +16,7 @@ import {
 import type { Transaction } from "../../types/transactions.types";
 import { formatMoney } from "../../utils/currency";
 import { formatTransactionDate, transactionDateNowInputValue } from "../../utils/dateTime";
+import { CrossCurrencyRecord } from "./components/CrossCurrencyRecord";
 import { TransactionDetailsFields } from "./components/TransactionDetailsFields";
 import { hasRelatedRecords, TransactionRelatedTab } from "./components/TransactionRelatedTab";
 import { hasRelatedSettlements, TransactionSettlementsTab } from "./components/TransactionSettlementsTab";
@@ -108,7 +109,7 @@ export function TransactionDetailPage() {
       : draft;
   }, [initial, transaction, prefillKey, accounts]);
 
-  const draft = useTransactionForm({ initial, original: transaction });
+  const draft = useTransactionForm({ initial, original: transaction, accounts });
 
   const appliedPrefillKey = useRef<string | null>(null);
   const applyPrefill = draft.update;
@@ -203,6 +204,7 @@ export function TransactionDetailPage() {
         headerExtra={
           transaction ? (
             <>
+              <CrossCurrencyRecord transaction={transaction} />
               {needsClassification(transaction) ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
                   {transaction.type === "transfer"

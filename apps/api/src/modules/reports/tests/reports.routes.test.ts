@@ -55,7 +55,7 @@ describe("/reports routes", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         name: "Paycheck",
-        amount: 1000,
+        amount: "1000",
         type: "income",
         date: "2024-01-15",
         categoryId
@@ -85,7 +85,7 @@ describe("/reports routes", () => {
         .set("Authorization", `Bearer ${token}`)
         .send({
           name: "Boundary",
-          amount: 100,
+          amount: "100",
           type: "income",
           date: "2026-06-01T03:00:00.000Z"
         });
@@ -135,7 +135,7 @@ describe("/reports routes", () => {
       await request(app)
         .post("/accounts")
         .set("Authorization", `Bearer ${owner.token}`)
-        .send({ name: "Main", type: "checking", currency: "USD", initialBalance: 500 });
+        .send({ name: "Main", type: "checking", currency: "USD", initialBalance: "500" });
 
       const mine = await request(app)
         .get("/reports/financial-overview")

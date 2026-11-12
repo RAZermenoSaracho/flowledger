@@ -13,7 +13,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 0,
+    initialBalance: "0",
     isArchived: false,
     createdAt: "",
     updatedAt: "",
@@ -87,6 +87,7 @@ function baseProps(overrides: Partial<Parameters<typeof PersonDebtDetail>[0]> = 
     isActing: false,
     draftFor: (debt: Debt) => ({
       amount: String(debt.outstandingAmount),
+      accountAmount: "",
       accountId: "acc-1",
       categoryId: "cat-1",
       note: "",

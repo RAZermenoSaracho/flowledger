@@ -22,7 +22,7 @@ async function createSharedExpenseDebt(owner: { token: string }, participant: { 
     .set("Authorization", `Bearer ${owner.token}`)
     .send({
       name: "Dinner out",
-      amount: 100,
+      amount: "100",
       type: "expense",
       date: "2024-01-15",
       categoryId,
@@ -96,7 +96,7 @@ describe("/debts and /settlements routes", () => {
       .post(`/debts/${debtId}/settlement-request`)
       .set("Authorization", `Bearer ${participant.token}`)
       .send({
-        amount: 50,
+        amount: "50",
         accountId: debtorAccount.body.account.id,
         categoryId: debtorCategory.body.category.id
       });
@@ -148,7 +148,7 @@ describe("/debts and /settlements routes", () => {
       .post(`/debts/${debtId}/settlement-request`)
       .set("Authorization", `Bearer ${participant.token}`)
       .send({
-        amount: 50,
+        amount: "50",
         accountId: debtorAccount.body.account.id,
         categoryId: debtorCategory.body.category.id
       });

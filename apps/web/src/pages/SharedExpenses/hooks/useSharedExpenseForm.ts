@@ -48,7 +48,7 @@ export function useSharedExpenseForm() {
     0
   );
   const remainingAmount = selectedTransaction
-    ? selectedTransaction.amount - participantShareTotal
+    ? Number(selectedTransaction.amount) - participantShareTotal
     : 0;
   const sharesExceedTransactionAmount = Boolean(
     selectedTransaction && remainingAmount < 0

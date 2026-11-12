@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { WhereInput } from "datasieve";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
@@ -33,14 +34,14 @@ const accountInclude = {
 } as const;
 
 async function withPreferredCurrencyBalances<
-  TAccount extends { currency: string; currentBalance: number }
+  TAccount extends { currency: string; currentBalance: Prisma.Decimal }
 >(accounts: TAccount[], preferredCurrency: string | null) {
   return Promise.all(
     accounts.map(async (account) => {
       if (!preferredCurrency || account.currency === preferredCurrency) {
         return {
           ...account,
-          currentBalanceInPreferredCurrency: account.currentBalance
+          currentBalanceInPreferredCurrency: account.currentBalance.toNumber()
         };
       }
 
@@ -48,7 +49,7 @@ async function withPreferredCurrencyBalances<
       return {
         ...account,
         currentBalanceInPreferredCurrency: roundMoney(
-          account.currentBalance * rate
+          account.currentBalance.toNumber() * rate
         )
       };
     })
@@ -166,7 +167,8 @@ export async function listAccounts(userId: string, rawQuery: string | undefined)
         accountId: true,
         transferToAccountId: true,
         type: true,
-        amount: true
+        accountAmount: true,
+        destinationAmount: true
       }
     })
   ]);

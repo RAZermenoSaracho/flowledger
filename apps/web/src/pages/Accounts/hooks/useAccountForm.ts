@@ -21,7 +21,7 @@ export function useAccountForm(account: Account | null) {
         type: account.type,
         identifier: account.identifier ?? "",
         currency: account.currency,
-        initialBalance: String(account.initialBalance ?? 0)
+        initialBalance: account.initialBalance ?? "0"
       },
     [account]
   );
@@ -36,7 +36,7 @@ export function useAccountForm(account: Account | null) {
         if (key === "identifier")
           body.identifier = values.identifier.trim() || null;
         else if (key === "initialBalance")
-          body.initialBalance = Number(values.initialBalance);
+          body.initialBalance = values.initialBalance;
         else if (key === "name") body.name = values.name.trim();
         else if (key === "type") body.type = values.type;
         else body.currency = values.currency;

@@ -180,7 +180,7 @@ describe("DebtsPage", () => {
       sharedExpenseParticipantId: "debt-1",
       debtorUserId: "user-2",
       creditorUserId: "user-1",
-      amount: 50,
+      amount: "50",
       status: "pending",
       sharedExpenseParticipant: makeDebt(),
       createdAt: "",

@@ -11,7 +11,19 @@ export function draftFromTransaction(transaction: Transaction): TransactionDraft
   const shared = transaction.sharedExpense;
   return {
     name: transaction.name,
-    amount: String(transaction.amount),
+    amount: transaction.amount,
+    accountAmount:
+      transaction.account && transaction.account.currency !== transaction.executionCurrency
+        ? (transaction.accountAmount ?? "")
+        : "",
+    destinationAmount:
+      transaction.type === "transfer" &&
+      transaction.transferToAccount &&
+      transaction.transferToAccount.currency !== transaction.executionCurrency
+        ? (transaction.destinationAmount ?? "")
+        : "",
+    feeAmount: transaction.feeAmount ?? "",
+    feeCurrency: transaction.feeCurrency ?? "",
     executionCurrency: transaction.executionCurrency,
     type: transaction.type,
     date: transactionDateInputValue(transaction),
@@ -47,6 +59,10 @@ export function newTransactionDraft(
   return {
     name: "",
     amount: "",
+    accountAmount: "",
+    destinationAmount: "",
+    feeAmount: "",
+    feeCurrency: "",
     executionCurrency: currency,
     type: "expense",
     date: now,

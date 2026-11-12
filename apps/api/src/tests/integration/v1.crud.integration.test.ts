@@ -31,7 +31,7 @@ async function mintKey(jwt: string, allowWrite: boolean) {
   return { key: res.body.key as string, id: res.body.apiKey.id as string };
 }
 function txBody(actor: Pick<Actor, "accountId" | "categoryId">, name = "Coffee") {
-  return { name, amount: 5, type: "expense", date: "2024-01-15", accountId: actor.accountId, categoryId: actor.categoryId };
+  return { name, amount: "5", type: "expense", date: "2024-01-15", accountId: actor.accountId, categoryId: actor.categoryId };
 }
 async function createActor(): Promise<Actor> {
   const { token: jwt, user } = await createAuthedUser(app);
@@ -72,12 +72,12 @@ async function write(actor: Actor, method: "post" | "put" | "delete", path: stri
   return res;
 }
 async function seedTransaction(actor: Actor, name: string) {
-  return prisma.transaction.create({ data: { userId: actor.userId, name, amount: 5, amountInPreferredCurrency: 5,
+  return prisma.transaction.create({ data: { userId: actor.userId, name, amount: 5, accountAmount: "5", amountInPreferredCurrency: 5,
     type: "expense", date: new Date("2024-01-15"), accountId: actor.accountId, categoryId: actor.categoryId } });
 }
 function importedRow(actor: Actor, index: number) {
   return { userId: actor.userId, provider: "test", providerCredentialId: actor.userId, providerAccountId: actor.accountId,
-    providerTransactionId: `${actor.userId}-${index}`, description: `Import ${index}`, amount: 1, currency: "USD",
+    providerTransactionId: `${actor.userId}-${index}`, description: `Import ${index}`, amount: "1", currency: "USD",
     transactionDate: new Date("2024-01-15"), rawData: {} };
 }
 
@@ -229,7 +229,7 @@ describe("/v1 CRUD integration", () => {
       const c = await createActor();
       const second = await request(app).post("/accounts").set(bearer(c.jwt)).send({ name: "Second", type: "checking" });
       const secondId = second.body.account.id as string;
-      const transfer = await prisma.transaction.create({ data: { userId: c.userId, name: "Move", amount: 10,
+      const transfer = await prisma.transaction.create({ data: { userId: c.userId, name: "Move", amount: 10, accountAmount: "10", destinationAmount: "10",
         amountInPreferredCurrency: 10, type: "transfer", date: new Date("2024-01-16"), accountId: c.accountId, transferToAccountId: secondId } });
 
       await write(c, "delete", `/v1/accounts/${c.accountId}`, {}, 204);
@@ -280,19 +280,19 @@ describe("/v1 CRUD integration", () => {
       const balances = async () => {
         const res = await request(app).get("/v1/accounts").set(bearer(a.readKey));
         expect(res.status).toBe(200);
-        return (res.body.accounts as { id: string; currentBalance: number }[])
+        return (res.body.accounts as { id: string; currentBalance: string }[])
           .filter((account) => [a.accountId, destination.id].includes(account.id))
           .map(({ id, currentBalance }) => ({ id, balance: currentBalance })).sort((x, y) => x.id.localeCompare(y.id));
       };
       const beforeBalances = await balances();
       const beforeAccounts = await prisma.account.findMany({ orderBy: { id: "asc" } });
       const beforeTransactions = await prisma.transaction.findMany({ orderBy: { id: "asc" } });
-      const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Transfer", amount: 20,
+      const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Transfer", amount: 20, accountAmount: "20", destinationAmount: "20",
         amountInPreferredCurrency: 20, type: "transfer", date: new Date("2024-01-15"),
         accountId: a.accountId, transferToAccountId: destination.id } });
       const during = await balances();
-      expect(during.find((row) => row.id === a.accountId)!.balance).toBe(Number(beforeBalances.find((row) => row.id === a.accountId)!.balance) - 20);
-      expect(during.find((row) => row.id === destination.id)!.balance).toBe(Number(beforeBalances.find((row) => row.id === destination.id)!.balance) + 20);
+      expect(during.find((row) => row.id === a.accountId)!.balance).toBe(String(Number(beforeBalances.find((row) => row.id === a.accountId)!.balance) - 20));
+      expect(during.find((row) => row.id === destination.id)!.balance).toBe(String(Number(beforeBalances.find((row) => row.id === destination.id)!.balance) + 20));
       await write(a, "delete", `/v1/transactions/${tx.id}`, {}, 204);
       expect(await balances()).toEqual(beforeBalances);
       expect(await prisma.account.findMany({ orderBy: { id: "asc" } })).toEqual(beforeAccounts);

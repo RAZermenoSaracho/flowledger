@@ -3,13 +3,33 @@ import { describe, expect, it } from "vitest";
 import { publicUser, serialize } from "../serialize.js";
 
 describe("serialize", () => {
-  it("converts a Prisma Decimal to a plain number", () => {
+  it("renders a Decimal under a native amount key as an exact string", () => {
     const result = serialize({ amount: new Prisma.Decimal("42.50") });
-    expect(result).toEqual({ amount: 42.5 });
-    expect(typeof result.amount).toBe("number");
+    expect(result).toEqual({ amount: "42.5" });
   });
 
-  it("converts nested Decimals inside arrays and objects", () => {
+  it("keeps every digit and never uses an exponent", () => {
+    const result = serialize({
+      amount: new Prisma.Decimal("0.000000000000000001"),
+      accountAmount: new Prisma.Decimal("1.234567890123456789"),
+      debtorAccountAmount: new Prisma.Decimal("7.25"),
+      destinationAmount: new Prisma.Decimal("100000000000"),
+      feeAmount: new Prisma.Decimal("0.5"),
+      initialBalance: new Prisma.Decimal("-3"),
+      currentBalance: new Prisma.Decimal("1e-18")
+    });
+    expect(result).toEqual({
+      amount: "0.000000000000000001",
+      accountAmount: "1.234567890123456789",
+      debtorAccountAmount: "7.25",
+      destinationAmount: "100000000000",
+      feeAmount: "0.5",
+      initialBalance: "-3",
+      currentBalance: "0.000000000000000001"
+    });
+  });
+
+  it("converts native keys nested inside arrays and objects", () => {
     const result = serialize({
       transactions: [
         { amount: new Prisma.Decimal("10") },
@@ -17,7 +37,20 @@ describe("serialize", () => {
       ]
     });
     expect(result).toEqual({
-      transactions: [{ amount: 10 }, { amount: -5.25 }]
+      transactions: [{ amount: "10" }, { amount: "-5.25" }]
+    });
+  });
+
+  it("keeps every other Decimal a number", () => {
+    const result = serialize({
+      amountInPreferredCurrency: new Prisma.Decimal("42.5"),
+      shareAmount: new Prisma.Decimal("10"),
+      exchangeRate: new Prisma.Decimal("17.25")
+    });
+    expect(result).toEqual({
+      amountInPreferredCurrency: 42.5,
+      shareAmount: 10,
+      exchangeRate: 17.25
     });
   });
 
@@ -33,7 +66,7 @@ describe("serialize", () => {
     });
     expect(result).toEqual({
       createdAt: "2024-01-15T00:00:00.000Z",
-      amount: 10
+      amount: "10"
     });
   });
 });

@@ -60,8 +60,8 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
         accountId: true,
         transferToAccountId: true,
         type: true,
-        amount: true,
-        executionCurrency: true
+        accountAmount: true,
+        destinationAmount: true
       }
     }),
     prisma.sharedExpenseParticipant.findMany({
@@ -78,7 +78,7 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   }));
   const active = balances.filter(({ account }) => !account.isArchived);
 
-  if (balances.some(({ account, balance }) => account.isArchived && balance !== 0)) {
+  if (balances.some(({ account, balance }) => account.isArchived && !balance.isZero())) {
     disclosures.add("archived_balance_excluded");
   }
   if (active.some(({ account }) => account.type === "investment")) {
@@ -87,21 +87,9 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   if (active.some(({ account }) => account.providerAccounts.length > 0)) {
     disclosures.add("synced_balances");
   }
-  const currencyOf = new Map(accounts.map((a) => [a.id, a.currency]));
-  if (
-    transactions.some((t) =>
-      t.accountId && currencyOf.has(t.accountId)
-        ? t.executionCurrency !== currencyOf.get(t.accountId) ||
-          (t.transferToAccountId !== null &&
-            currencyOf.get(t.transferToAccountId) !== currencyOf.get(t.accountId))
-        : false
-    )
-  ) {
-    disclosures.add("cross_currency_effects");
-  }
 
   const accountResults = await Promise.allSettled(
-    active.map(({ account, balance }) => convert(balance, account.currency, currency))
+    active.map(({ account, balance }) => convert(balance.toNumber(), account.currency, currency))
   );
   let accountsTotal = 0;
   accountResults.forEach((result, index) => {

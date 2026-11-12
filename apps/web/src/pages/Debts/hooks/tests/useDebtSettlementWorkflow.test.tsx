@@ -25,7 +25,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 0,
+    initialBalance: "0",
     isArchived: false,
     createdAt: "",
     updatedAt: "",
@@ -82,7 +82,7 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     sharedExpenseParticipantId: "debt-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    amount: 50,
+    amount: "50",
     status: "pending",
     sharedExpenseParticipant: makeDebt(),
     createdAt: "",
@@ -281,8 +281,68 @@ describe("useDebtSettlementWorkflow — mutations", () => {
       await result.current.submitSettlement({ preventDefault: () => {} } as React.FormEvent, debt);
     });
 
-    expect(postedBody).toMatchObject({ amount: 100, accountId: "acc-1" });
+    expect(postedBody).toMatchObject({ amount: "100", accountId: "acc-1" });
     expect(result.current.selectedDebtIds.has(debt.id)).toBe(false);
+  });
+
+  it("submitSettlement sends accountAmount as a string when the account currency differs", async () => {
+    let postedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(`${API_URL}/debts/debt-1/settlement-request`, async ({ request }) => {
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ settlementRequest: makeRequest() });
+      })
+    );
+    const { result } = renderWorkflow({ accounts: [makeAccount({ id: "acc-mxn", currency: "MXN" })] });
+    const debt = makeDebt();
+    act(() => result.current.updateDraft(debt, "accountId", "acc-mxn"));
+    expect(result.current.isSettlementDraftComplete(debt)).toBe(false);
+    act(() => result.current.updateDraft(debt, "accountAmount", "1700.5"));
+    expect(result.current.isSettlementDraftComplete(debt)).toBe(true);
+
+    await act(async () => {
+      await result.current.submitSettlement({ preventDefault: () => {} } as React.FormEvent, debt);
+    });
+
+    expect(postedBody).toMatchObject({ amount: "100", accountAmount: "1700.5", accountId: "acc-mxn" });
+  });
+
+  it("omits accountAmount when the account currency matches the debt", async () => {
+    let postedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(`${API_URL}/debts/debt-1/settlement-request`, async ({ request }) => {
+        postedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ settlementRequest: makeRequest() });
+      })
+    );
+    const { result } = renderWorkflow();
+    await act(async () => {
+      await result.current.submitSettlement({ preventDefault: () => {} } as React.FormEvent, makeDebt());
+    });
+    expect(postedBody).not.toHaveProperty("accountAmount");
+  });
+
+  it("clears accountAmount when the account changes, and approval sends it as a string", async () => {
+    let approvedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(`${API_URL}/settlements/sr-1/approve`, async ({ request }) => {
+        approvedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({});
+      })
+    );
+    const { result } = renderWorkflow({ accounts: [makeAccount(), makeAccount({ id: "acc-mxn", currency: "MXN" })] });
+    const request = makeRequest();
+    act(() => result.current.updateApprovalDraft(request, "accountAmount", "85"));
+    act(() => result.current.updateApprovalDraft(request, "accountId", "acc-mxn"));
+    expect(result.current.approvalDraftFor(request).accountAmount).toBe("");
+    act(() => result.current.updateApprovalDraft(request, "accountAmount", "850.25"));
+    await act(async () => {
+      await result.current.approveSettlement.mutateAsync({
+        settlementId: "sr-1",
+        draft: result.current.approvalDraftFor(request)
+      });
+    });
+    expect(approvedBody).toMatchObject({ accountId: "acc-mxn", accountAmount: "850.25" });
   });
 
   it("submitBatchSettlement is a no-op when nothing is selected", async () => {

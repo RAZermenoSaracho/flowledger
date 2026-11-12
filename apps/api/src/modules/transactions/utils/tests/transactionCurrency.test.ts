@@ -13,6 +13,18 @@ describe("resolveTransactionCurrencyFields", () => {
     getExchangeRateMock.mockReset();
   });
 
+  it("values a decimal-string amount for the preferred currency", async () => {
+    getExchangeRateMock.mockResolvedValue(17);
+
+    const result = await resolveTransactionCurrencyFields({
+      executionCurrency: "USD",
+      amount: "100.5",
+      preferredCurrency: "MXN"
+    });
+
+    expect(result.amountInPreferredCurrency).toBe(1708.5);
+  });
+
   it("normalizes currency codes to uppercase and converts using preferredCurrency", async () => {
     getExchangeRateMock.mockResolvedValue(2);
 

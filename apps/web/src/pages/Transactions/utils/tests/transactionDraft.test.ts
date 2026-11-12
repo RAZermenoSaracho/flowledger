@@ -11,7 +11,7 @@ import {
 const transaction = {
   id: "tx-1",
   name: "Groceries",
-  amount: 42.5,
+  amount: "42.5",
   executionCurrency: "USD",
   type: "expense",
   date: "2026-05-31T21:33:15.979Z",
@@ -33,6 +33,10 @@ describe("transaction draft helpers", () => {
     expect(draftFromTransaction(transaction)).toEqual({
       name: "Groceries",
       amount: "42.5",
+      accountAmount: "",
+      destinationAmount: "",
+      feeAmount: "",
+      feeCurrency: "",
       executionCurrency: "USD",
       type: "expense",
       date: "2026-05-31T15:33",

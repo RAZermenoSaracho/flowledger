@@ -25,7 +25,8 @@ export async function postImportedTransactionImport(
   const importedTransaction = await importProviderImportedTransaction({
     id: importedTransactionId,
     userId: req.user!.id,
-    categoryId: req.body.categoryId
+    categoryId: req.body.categoryId,
+    accountAmount: req.body.accountAmount
   });
 
   res.status(201).json({ importedTransaction: serialize(importedTransaction) });

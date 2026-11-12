@@ -30,6 +30,9 @@ CREATE INDEX "TransactionCorrection_userId_transactionId_createdAt_idx" ON "Tran
 -- AddForeignKey
 ALTER TABLE "TransactionCorrection" ADD CONSTRAINT "TransactionCorrection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- AlterTable
+ALTER TABLE "SettlementRequest" ADD COLUMN "debtorAccountAmount" DECIMAL(30,18);
+
 UPDATE "Transaction" SET "accountAmount" = "amount"
   WHERE "accountId" IS NOT NULL AND "accountAmount" IS NULL;
 

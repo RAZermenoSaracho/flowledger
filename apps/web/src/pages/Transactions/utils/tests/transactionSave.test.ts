@@ -15,7 +15,7 @@ const API_URL = "http://localhost:4000";
 const stored = {
   id: "tx-1",
   name: "Groceries",
-  amount: 42.5,
+  amount: "42.5",
   executionCurrency: "USD",
   type: "expense",
   date: "2026-05-31T21:33:15.979Z",
@@ -37,6 +37,27 @@ describe("transaction save", () => {
     ...overrides
   });
 
+  describe("buildCreateBody", () => {
+    it("sends native amounts as exact decimal strings", () => {
+      const body = buildCreateBody({
+        ...newTransactionDraft("BTC", "2026-11-05T21:07"),
+        name: "Coffee",
+        amount: "1.234567890123456789",
+        accountAmount: "0.5",
+        destinationAmount: "",
+        feeAmount: "0.000000000000000001",
+        feeCurrency: "BTC"
+      });
+      expect(body).toMatchObject({
+        amount: "1.234567890123456789",
+        accountAmount: "0.5",
+        feeAmount: "0.000000000000000001",
+        feeCurrency: "BTC"
+      });
+      expect(body).not.toHaveProperty("destinationAmount");
+    });
+  });
+
   describe("buildUpdateBody", () => {
     it("sends only changed fields and leaves date out when untouched", () => {
       expect(buildUpdateBody(draft({ notes: "hi" }), ["notes"], stored)).toEqual({ notes: "hi" });
@@ -55,8 +76,42 @@ describe("transaction save", () => {
     it("turns empty ids into null and numbers into numbers", () => {
       expect(buildUpdateBody(draft({ categoryId: "", amount: "7" }), ["categoryId", "amount"], stored)).toEqual({
         categoryId: null,
-        amount: 7
+        amount: "7"
       });
+    });
+
+    it("restates the applied amounts and fee as strings when a coupled field changes", () => {
+      const cross = draft({
+        amount: "100.5",
+        accountAmount: "1700.25",
+        destinationAmount: "1650",
+        feeAmount: "2",
+        feeCurrency: "USD"
+      });
+      expect(buildUpdateBody(cross, ["amount"], stored)).toEqual({
+        amount: "100.5",
+        accountAmount: "1700.25",
+        destinationAmount: "1650",
+        feeAmount: "2",
+        feeCurrency: "USD"
+      });
+    });
+
+    it("omits empty applied amounts so equal currencies stay server-copied", () => {
+      expect(buildUpdateBody(draft({ amount: "9" }), ["amount"], stored)).toEqual({ amount: "9" });
+    });
+
+    it("sends a fee only with its currency", () => {
+      expect(buildUpdateBody(draft({ feeAmount: "2", feeCurrency: "" }), ["feeAmount"], stored)).toEqual({});
+    });
+
+    it("clears a stored fee with nulls, and only when one existed", () => {
+      const withFee = { ...stored, feeAmount: "2", feeCurrency: "USD" } as Transaction;
+      expect(buildUpdateBody(draft({ feeAmount: "", feeCurrency: "" }), ["feeAmount"], withFee)).toEqual({
+        feeAmount: null,
+        feeCurrency: null
+      });
+      expect(buildUpdateBody(draft({ feeAmount: "", feeCurrency: "" }), ["feeAmount"], stored)).toEqual({});
     });
 
     it("sends the type-coupled fields with a type change", () => {
@@ -143,7 +198,7 @@ describe("transaction save", () => {
       const body = buildCreateBody({ ...fresh, name: "Dinner", amount: "10", notes: "" });
       expect(body).toMatchObject({
         name: "Dinner",
-        amount: 10,
+        amount: "10",
         type: "expense",
         date: "2026-11-05T20:30:00.000Z",
         accountId: null,

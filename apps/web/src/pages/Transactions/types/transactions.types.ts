@@ -27,11 +27,16 @@ export type ParticipantDraft = {
 /**
  * Draft state of the Transaction Form View, for new and existing transactions alike. Money and
  * date fields are raw input strings (`date` is a `datetime-local` value); empty strings mean "none".
+ * `accountAmount` / `destinationAmount` hold the applied amounts only while their currency coupling shows them, and `feeAmount` / `feeCurrency` the optional fee; all are empty strings otherwise.
  * `isShared`, `sharedTitle` and `participants` are the sharing state, saved with the same request as the other fields.
  */
 export type TransactionDraft = {
   name: string;
   amount: string;
+  accountAmount: string;
+  destinationAmount: string;
+  feeAmount: string;
+  feeCurrency: string;
   executionCurrency: string;
   type: "income" | "expense" | "transfer";
   date: string;

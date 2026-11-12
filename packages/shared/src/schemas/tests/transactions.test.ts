@@ -316,6 +316,12 @@ describe("transaction applied amounts and fee", () => {
     );
   });
 
+  it("accepts null feeAmount and feeCurrency on update to clear a fee", () => {
+    expect(updateTransactionSchema.safeParse({ feeAmount: null, feeCurrency: null }).success).toBe(true);
+    expect(updateTransactionSchema.safeParse({ feeAmount: "1", feeCurrency: "USD" }).success).toBe(true);
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeAmount: null, feeCurrency: null }).success).toBe(false);
+  });
+
   it("rejects numeric amounts and over-precise strings", () => {
     expect(transactionSchema.safeParse({ ...baseIncome, amount: 1000 }).success).toBe(false);
     expect(updateTransactionSchema.safeParse({ amount: 5 }).success).toBe(false);

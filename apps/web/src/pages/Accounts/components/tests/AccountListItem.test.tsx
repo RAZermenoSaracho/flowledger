@@ -10,8 +10,8 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 500,
-    currentBalance: 500,
+    initialBalance: "500",
+    currentBalance: "500",
     isArchived: false,
     source: "manual",
     createdAt: "2024-01-01T00:00:00.000Z",
@@ -54,7 +54,7 @@ describe("AccountListItem", () => {
   });
 
   it("shows a negative balance in the negative color", () => {
-    renderItem(makeAccount({ currentBalance: -50 }));
+    renderItem(makeAccount({ currentBalance: "-50" }));
     expect(screen.getByText(/FlowLedger balance -\$50\.00/)).toHaveClass(
       "text-coral"
     );

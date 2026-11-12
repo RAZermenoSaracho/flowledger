@@ -66,7 +66,7 @@ async function createActor(): Promise<Actor> {
   const tx = await request(app)
     .post("/transactions")
     .set(bearer)
-    .send({ name: "Seed", amount: 5, type: "expense", date: "2024-01-15", accountId, categoryId });
+    .send({ name: "Seed", amount: "5", type: "expense", date: "2024-01-15", accountId, categoryId });
   const readKey = (await mintKey(user, false)).key;
   const writeKey = (await mintKey(user, true)).key;
   return {
@@ -317,7 +317,7 @@ describe("MCP personal CRUD tools", () => {
         .send({ name: "Second", type: "checking" });
       const transfer = await call(a.write, "create_transaction", {
         name: "Move",
-        amount: 10,
+        amount: "10",
         type: "transfer",
         date: "2024-03-01",
         accountId: a.accountId,

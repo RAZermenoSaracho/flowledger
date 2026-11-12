@@ -236,7 +236,7 @@ export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "request_settlement",
     {
-      description: `Ask a creditor to confirm a payment for one of the user's debts (debtor only; the debt must be outstanding and have no pending request). Notifies the creditor, who must approve it themselves; nothing is moved until then.${RETRY_NOTE}`,
+      description: `Ask a creditor to confirm a payment for one of the user's debts (debtor only; the debt must be outstanding and have no pending request). Notifies the creditor, who must approve it themselves; nothing is moved until then. amount is a decimal string. Only fiat currencies with up to 2 decimals can be settled.${RETRY_NOTE}`,
       inputSchema: requestSettlementToolSchema.shape
     },
     async (args) =>

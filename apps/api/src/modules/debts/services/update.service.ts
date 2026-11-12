@@ -3,6 +3,8 @@ import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
+import { resolveAppliedAmounts } from "../../transactions/utils/appliedAmounts.js";
+import { assertShareableCurrencies } from "../../shared-expenses/utils/assertions.js";
 import { resolveTransactionCurrencyFields } from "../../transactions/utils/transactionCurrency.js";
 import {
   balanceDebt,
@@ -16,7 +18,6 @@ import {
   isSettlementDirectionCurrent
 } from "../utils/debtDirection.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
-import { convertSettlementAmount } from "../utils/settlementCurrency.js";
 import {
   assertSettlementAccount,
   assertSettlementCategory,
@@ -133,6 +134,7 @@ export async function approveSettlement(
   settlementRequestId: string,
   body: {
     accountId: string;
+    accountAmount?: string;
     categoryId: string;
     expenseOffsetCategoryId?: string | null;
   }
@@ -284,27 +286,34 @@ export async function approveSettlement(
         select: { preferredCurrency: true }
       })
     ]);
-    const [debtorAmount, creditorAmount] = await Promise.all([
-      convertSettlementAmount(
-        approvedRequest.amount,
-        debtCurrency,
-        debtorAccount.currency
-      ),
-      convertSettlementAmount(
-        approvedRequest.amount,
-        debtCurrency,
-        creditorAccount.currency
-      )
-    ]);
+    assertShareableCurrencies(
+      [debtCurrency, debtorAccount.currency, creditorAccount.currency],
+      "amount"
+    );
+    const settlementAmount = approvedRequest.amount.toFixed();
+    const debtorApplied = resolveAppliedAmounts({
+      type: "expense",
+      amount: settlementAmount,
+      executionCurrency: debtCurrency,
+      accountCurrency: debtorAccount.currency,
+      accountAmount: approvedRequest.debtorAccountAmount?.toFixed()
+    });
+    const creditorApplied = resolveAppliedAmounts({
+      type: "income",
+      amount: settlementAmount,
+      executionCurrency: debtCurrency,
+      accountCurrency: creditorAccount.currency,
+      accountAmount: body.accountAmount
+    });
     const [debtorCurrencyFields, creditorCurrencyFields] = await Promise.all([
       resolveTransactionCurrencyFields({
-        executionCurrency: debtorAccount.currency,
-        amount: debtorAmount,
+        executionCurrency: debtCurrency,
+        amount: approvedRequest.amount,
         preferredCurrency: debtorUser.preferredCurrency
       }),
       resolveTransactionCurrencyFields({
-        executionCurrency: creditorAccount.currency,
-        amount: creditorAmount,
+        executionCurrency: debtCurrency,
+        amount: approvedRequest.amount,
         preferredCurrency: creditorUser.preferredCurrency
       })
     ]);
@@ -319,8 +328,9 @@ export async function approveSettlement(
       data: {
         userId: approvedRequest.debtorUserId,
         name: transactionName,
-        amount: debtorAmount,
+        amount: approvedRequest.amount,
         ...debtorCurrencyFields,
+        ...debtorApplied,
         type: "expense",
         date: transactionDate,
         accountId: settlementRequest.debtorAccountId,
@@ -335,8 +345,9 @@ export async function approveSettlement(
       data: {
         userId: approvedRequest.creditorUserId,
         name: transactionName,
-        amount: creditorAmount,
+        amount: approvedRequest.amount,
         ...creditorCurrencyFields,
+        ...creditorApplied,
         type: "income",
         accountId: body.accountId,
         categoryId: body.categoryId,
@@ -438,6 +449,7 @@ export async function approveBatchSettlements(
   approvals: {
     settlementRequestId: string;
     accountId: string;
+    accountAmount?: string;
     categoryId: string;
     expenseOffsetCategoryId?: string | null;
   }[]

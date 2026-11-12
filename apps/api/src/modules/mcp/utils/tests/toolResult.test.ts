@@ -9,9 +9,14 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("ok", () => {
   it("returns identical structured content and JSON text, converting Decimals", () => {
-    const result = ok({ amount: new Prisma.Decimal("12.5") });
-    expect(result.structuredContent).toEqual({ amount: 12.5 });
-    expect(result.content).toEqual([{ type: "text", text: '{"amount":12.5}' }]);
+    const result = ok({
+      amount: new Prisma.Decimal("12.5"),
+      amountInPreferredCurrency: new Prisma.Decimal("12.5")
+    });
+    expect(result.structuredContent).toEqual({ amount: "12.5", amountInPreferredCurrency: 12.5 });
+    expect(result.content).toEqual([
+      { type: "text", text: '{"amount":"12.5","amountInPreferredCurrency":12.5}' }
+    ]);
     expect(result.isError).toBeUndefined();
   });
 });

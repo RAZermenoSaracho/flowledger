@@ -1,11 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { Prisma } from "@prisma/client";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../transactionValidation.service.js", () => ({
   assertExpenseOffsetAllowed: vi.fn(),
   assertGroupRelations: vi.fn(),
   assertOwnedRelations: vi.fn(),
-  assertTransferAllowed: vi.fn()
+  assertTransferAllowed: vi.fn(),
+  findAccountCurrencies: vi.fn()
 }));
 
 vi.mock("../../../shared-expenses/services/apply.service.js", () => ({
@@ -28,6 +30,8 @@ vi.mock("../../utils/importedTransactionQuery.js", async (importOriginal) => {
   return { ...actual, resolveImportedTransactionSelectionIds: vi.fn() };
 });
 
+const { findAccountCurrencies } = await import("../transactionValidation.service.js");
+const findAccountCurrenciesMock = vi.mocked(findAccountCurrencies);
 const { applySharedExpenseToTransaction } = await import(
   "../../../shared-expenses/services/apply.service.js"
 );
@@ -72,8 +76,13 @@ function existingTransaction(overrides: Record<string, unknown> = {}) {
     categoryId: "cat-1",
     expenseOffsetCategoryId: null,
     executionCurrency: "USD",
-    amount: { toNumber: () => 100 },
-    exchangeRate: { toNumber: () => 1 },
+    amount: new Prisma.Decimal("100"),
+    exchangeRate: new Prisma.Decimal("1"),
+    accountAmount: new Prisma.Decimal("100"),
+    destinationAmount: null,
+    feeAmount: null,
+    feeCurrency: null,
+    date: new Date("2026-11-05T00:00:00.000Z"),
     sharedExpense: null,
     ...overrides
   };
@@ -84,17 +93,22 @@ function mockTx(overrides: Record<string, unknown> = {}) {
     transaction: {
       update: vi.fn().mockResolvedValue({ id: "txn-1", type: "expense", amount: 50 })
     },
+    transactionCorrection: { create: vi.fn() },
     sharedExpense: { updateMany: vi.fn() },
     ...overrides
   };
 }
+
+beforeEach(() => {
+  findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+});
 
 describe("updateTransaction", () => {
   it("throws a 404 when not owned by the user", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue(null);
 
     await expect(
-      updateTransaction("user-1", "txn-1", { amount: 50 })
+      updateTransaction("user-1", "txn-1", { amount: "50" })
     ).rejects.toThrow("Transaction not found");
   });
 
@@ -114,7 +128,7 @@ describe("updateTransaction", () => {
     const shared = (...shares: number[]) =>
       existingTransaction({
         sharedExpense: {
-          participants: shares.map((s) => ({ shareAmount: { toNumber: () => s } }))
+          participants: shares.map((s) => ({ shareAmount: new Prisma.Decimal(s) }))
         }
       }) as never;
 
@@ -122,7 +136,7 @@ describe("updateTransaction", () => {
       prismaMock.transaction.findFirst.mockResolvedValue(shared(60, 30));
 
       await expect(
-        updateTransaction("user-1", "txn-1", { amount: 89.99 })
+        updateTransaction("user-1", "txn-1", { amount: "89.99" })
       ).rejects.toMatchObject({
         statusCode: 400,
         details: { issues: { fieldErrors: { amount: [expect.any(String)] } } }
@@ -136,7 +150,7 @@ describe("updateTransaction", () => {
         (arg as (tx: unknown) => unknown)(tx)
       );
 
-      await updateTransaction("user-1", "txn-1", { amount: 90 });
+      await updateTransaction("user-1", "txn-1", { amount: "90" });
 
       expect(tx.transaction.update).toHaveBeenCalled();
     });
@@ -148,7 +162,7 @@ describe("updateTransaction", () => {
         (arg as (tx: unknown) => unknown)(tx)
       );
 
-      await updateTransaction("user-1", "txn-1", { amount: 1 });
+      await updateTransaction("user-1", "txn-1", { amount: "1" });
 
       expect(tx.transaction.update).toHaveBeenCalled();
     });
@@ -163,7 +177,7 @@ describe("updateTransaction", () => {
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
-    await updateTransaction("user-1", "txn-1", { amount: 50 });
+    await updateTransaction("user-1", "txn-1", { amount: "50" });
 
     expect(resolveTransactionCurrencyFieldsMock).not.toHaveBeenCalled();
     expect(tx.transaction.update).toHaveBeenCalledWith(
@@ -219,7 +233,7 @@ describe("updateTransaction", () => {
       typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
     );
 
-    await updateTransaction("user-1", "txn-1", { executionCurrency: "MXN" });
+    await updateTransaction("user-1", "txn-1", { executionCurrency: "MXN", accountAmount: "1700" });
 
     expect(resolveTransactionCurrencyFieldsMock).toHaveBeenCalled();
   });
@@ -250,12 +264,12 @@ describe("updateTransaction", () => {
     it("does not pre-reject a lowered amount when the same request resends the shares", async () => {
       prismaMock.transaction.findFirst.mockResolvedValue(
         existingTransaction({
-          sharedExpense: { id: "se-1", participants: [{ shareAmount: { toNumber: () => 90 }, settlementRequests: [] }] }
+          sharedExpense: { id: "se-1", participants: [{ shareAmount: new Prisma.Decimal(90), settlementRequests: [] }] }
         }) as never
       );
       useTx(mockTx());
 
-      await expect(updateTransaction("user-1", "txn-1", { amount: 50, sharedExpense: sharing })).resolves.toBeDefined();
+      await expect(updateTransaction("user-1", "txn-1", { amount: "50", sharedExpense: sharing })).resolves.toBeDefined();
     });
 
     it("re-applies sharing when the amount of a shared transaction changes", async () => {
@@ -264,7 +278,7 @@ describe("updateTransaction", () => {
       );
       useTx(mockTx());
 
-      await updateTransaction("user-1", "txn-1", { amount: 75 });
+      await updateTransaction("user-1", "txn-1", { amount: "75" });
 
       expect(applySharedExpenseMock).toHaveBeenCalledWith(expect.anything(), "user-1", expect.anything(), "expense", undefined);
     });
@@ -298,6 +312,153 @@ describe("updateTransaction", () => {
 
       await expect(updateTransaction("user-1", "txn-1", { sharedExpense: { enabled: false } })).rejects.toThrow("blocked");
     });
+  });
+});
+
+describe("updateTransaction applied amounts and corrections", () => {
+  const useTx = (tx: unknown) =>
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+  const crossCurrencyTransfer = () =>
+    existingTransaction({
+      type: "transfer",
+      transferToAccountId: "acc-2",
+      destinationAmount: new Prisma.Decimal("1700")
+    }) as never;
+
+  beforeEach(() => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: "MXN" });
+  });
+
+  it("rejects an amount change on a cross-currency transfer that does not restate destinationAmount", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(crossCurrencyTransfer());
+    const tx = mockTx();
+    useTx(tx);
+
+    await expect(updateTransaction("user-1", "txn-1", { amount: "90" })).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { destinationAmount: expect.any(Array) } } }
+    });
+    expect(tx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it("persists a restated destinationAmount and records one correction with exact strings", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(crossCurrencyTransfer());
+    const tx = mockTx({
+      transaction: {
+        update: vi.fn().mockResolvedValue({
+          id: "txn-1",
+          type: "transfer",
+          amount: new Prisma.Decimal("100"),
+          executionCurrency: "USD",
+          accountId: "acc-1",
+          transferToAccountId: "acc-2",
+          accountAmount: new Prisma.Decimal("100"),
+          destinationAmount: new Prisma.Decimal("1690"),
+          feeAmount: null,
+          feeCurrency: null,
+          date: new Date("2026-11-05T00:00:00.000Z")
+        })
+      }
+    });
+    useTx(tx);
+
+    await updateTransaction("user-1", "txn-1", { destinationAmount: "1690" });
+
+    const data = tx.transaction.update.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+    expect(data.destinationAmount?.toFixed()).toBe("1690");
+    expect(tx.transactionCorrection.create).toHaveBeenCalledTimes(1);
+    const row = tx.transactionCorrection.create.mock.calls[0]?.[0].data as {
+      action: string;
+      userId: string;
+      transactionId: string;
+      previous: { destinationAmount: string };
+      corrected: { destinationAmount: string };
+    };
+    expect(row).toMatchObject({ action: "update", userId: "user-1", transactionId: "txn-1" });
+    expect(row.previous.destinationAmount).toBe("1700");
+    expect(row.corrected.destinationAmount).toBe("1690");
+  });
+
+  it("re-resolves a same-currency edit by copying the new amount", async () => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    const tx = mockTx();
+    useTx(tx);
+
+    await updateTransaction("user-1", "txn-1", { amount: "42.5" });
+
+    const data = tx.transaction.update.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+    expect(data.accountAmount?.toFixed()).toBe("42.5");
+  });
+
+  it("validates the merged fee state on update", async () => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    useTx(mockTx());
+
+    await expect(updateTransaction("user-1", "txn-1", { feeAmount: "1" })).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { feeCurrency: expect.any(Array) } } }
+    });
+  });
+
+  it("clears a stored fee with nulls and records a correction", async () => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+    prismaMock.transaction.findFirst.mockResolvedValue(
+      existingTransaction({ feeAmount: new Prisma.Decimal("2"), feeCurrency: "USD" }) as never
+    );
+    const tx = mockTx({ transaction: { update: vi.fn().mockResolvedValue(existingTransaction()) } });
+    useTx(tx);
+
+    await updateTransaction("user-1", "txn-1", { feeAmount: null, feeCurrency: null });
+
+    const data = tx.transaction.update.mock.calls[0]?.[0].data as Record<string, unknown>;
+    expect(data.feeAmount).toBeNull();
+    expect(data.feeCurrency).toBeNull();
+    expect(tx.transactionCorrection.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects clearing only one half of a stored fee", async () => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+    prismaMock.transaction.findFirst.mockResolvedValue(
+      existingTransaction({ feeAmount: new Prisma.Decimal("2"), feeCurrency: "USD" }) as never
+    );
+    useTx(mockTx());
+
+    await expect(updateTransaction("user-1", "txn-1", { feeAmount: null })).rejects.toMatchObject({
+      statusCode: 400
+    });
+  });
+
+  it("writes no correction for a description-only edit", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    const tx = mockTx({
+      transaction: {
+        update: vi.fn().mockResolvedValue(existingTransaction({ name: "Renamed" }))
+      }
+    });
+    useTx(tx);
+
+    await updateTransaction("user-1", "txn-1", { name: "Renamed" });
+
+    expect(tx.transactionCorrection.create).not.toHaveBeenCalled();
+    expect(findAccountCurrenciesMock).not.toHaveBeenCalled();
+  });
+
+  it("fails the update when the correction row cannot be written", async () => {
+    findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+    const tx = mockTx({
+      transaction: {
+        update: vi.fn().mockResolvedValue(existingTransaction({ amount: new Prisma.Decimal("5") }))
+      },
+      transactionCorrection: { create: vi.fn().mockRejectedValue(new Error("insert failed")) }
+    });
+    useTx(tx);
+
+    await expect(updateTransaction("user-1", "txn-1", { amount: "5" })).rejects.toThrow("insert failed");
   });
 });
 

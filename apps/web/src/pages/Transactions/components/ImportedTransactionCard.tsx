@@ -8,9 +8,8 @@ import type { ImportedTransactionCardProps } from "../types/transactions.types";
 export function importedTransactionType(
   transaction: ProviderImportedTransaction
 ) {
-  if (transaction.amount < 0) return "expense" as const;
-  if (transaction.amount > 0) return "income" as const;
-  return null;
+  if (!/[1-9]/.test(transaction.amount)) return null;
+  return transaction.amount.startsWith("-") ? ("expense" as const) : ("income" as const);
 }
 
 function providerAccountMetadataValue(
@@ -125,7 +124,7 @@ export function ImportedTransactionCard({
         <div className="md:text-right">
           <p
             className={`font-semibold ${
-              transaction.amount >= 0
+              !transaction.amount.startsWith("-")
                 ? "text-pine dark:text-emerald-300"
                 : "text-coral dark:text-orange-300"
             }`}

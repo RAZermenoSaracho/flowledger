@@ -6,8 +6,6 @@ const DISCLOSURE_TEXT: Record<FinancialOverviewDisclosure, string> = {
   archived_balance_excluded: "An archived account with a balance is excluded from net worth.",
   rates_missing: "Some items have no exchange rate and are excluded.",
   past_month_current_rates: "Last month's amounts in other currencies are converted at current rates.",
-  cross_currency_effects:
-    "Cross-currency transfers or transactions in a currency other than their account's can affect net worth.",
   investment_recorded_balance: "Investment accounts count at recorded balance, not market value.",
   synced_balances: "Synced account balances come from recorded transactions and may differ from the bank."
 };

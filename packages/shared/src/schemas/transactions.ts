@@ -155,7 +155,12 @@ export const updateTransactionSharedExpenseSchema = z.discriminatedUnion("enable
 export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
   .partial()
-  .extend({ sharedExpense: updateTransactionSharedExpenseSchema.optional() });
+  .extend({
+    // null clears the stored fee; feeAmount and feeCurrency must then be cleared together (checked against the merged state by the API).
+    feeAmount: decimalAmountSchema.nullable().optional(),
+    feeCurrency: currencyCodeSchema.nullable().optional(),
+    sharedExpense: updateTransactionSharedExpenseSchema.optional()
+  });
 
 // The /transactions and /transactions/summary endpoints accept a single
 // JSON-encoded query-string parameter (a DataSieveQuery<TransactionRecord>
