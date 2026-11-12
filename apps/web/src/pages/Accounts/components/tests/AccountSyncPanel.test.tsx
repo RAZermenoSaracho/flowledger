@@ -43,6 +43,7 @@ function baseProps(overrides: Partial<Parameters<typeof AccountSyncPanel>[0]> = 
   return {
     account: makeAccount(),
     resyncMessages: {},
+    isSyncAvailable: true,
     isStartingCredentialFlow: false,
     onResync: vi.fn(),
     onReconnect: vi.fn(),
@@ -170,5 +171,21 @@ describe("AccountSyncPanel", () => {
     expect(
       screen.getByText("Could not start the selected Syncfy credential flow.")
     ).toBeInTheDocument();
+  });
+
+  it("hides Resync/Reconnect and shows the unavailable notice when sync is unavailable", () => {
+    renderWithProviders(
+      <AccountSyncPanel
+        {...baseProps({
+          isSyncAvailable: false,
+          account: makeAccount({ sync: [makeSync({ requiresManualReconnect: true })] })
+        })}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Resync" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reconnect" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Reconnect required")).not.toBeInTheDocument();
+    expect(screen.getByText("Bank synchronization is currently unavailable.")).toBeInTheDocument();
+    expect(screen.getByText("Test Bank", { exact: false })).toBeInTheDocument();
   });
 });

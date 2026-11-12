@@ -7,6 +7,7 @@ import { formatDateTime, formatStatus } from "../utils/accountDisplay";
 export function AccountSyncPanel({
   account,
   resyncMessages,
+  isSyncAvailable,
   isStartingCredentialFlow,
   onResync,
   onReconnect,
@@ -14,6 +15,8 @@ export function AccountSyncPanel({
 }: {
   account: Account;
   resyncMessages: Record<string, string>;
+  /** False when the sync's provider is disabled by the operator; actions are replaced by a notice. */
+  isSyncAvailable: boolean;
   isStartingCredentialFlow: boolean;
   onResync: (syncId: string) => void;
   onReconnect: (syncId: string) => void;
@@ -39,7 +42,7 @@ export function AccountSyncPanel({
                   Connection {formatStatus(sync.connectionStatus)}
                 </span>
               ) : null}
-              {sync.requiresManualReconnect ? (
+              {sync.requiresManualReconnect && isSyncAvailable ? (
                 <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800 dark:bg-orange-950 dark:text-orange-200">
                   Reconnect required
                 </span>
@@ -102,29 +105,35 @@ export function AccountSyncPanel({
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isStartingCredentialFlow || account.isArchived}
-              onClick={() => onResync(sync.id)}
-            >
-              Resync
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={
-                isStartingCredentialFlow ||
-                account.isArchived ||
-                !sync.provider ||
-                !sync.providerCredentialId
-              }
-              onClick={() => onReconnect(sync.id)}
-            >
-              Reconnect
-            </Button>
-          </div>
+          {isSyncAvailable ? (
+            <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isStartingCredentialFlow || account.isArchived}
+                onClick={() => onResync(sync.id)}
+              >
+                Resync
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={
+                  isStartingCredentialFlow ||
+                  account.isArchived ||
+                  !sync.provider ||
+                  !sync.providerCredentialId
+                }
+                onClick={() => onReconnect(sync.id)}
+              >
+                Reconnect
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Bank synchronization is currently unavailable.
+            </p>
+          )}
         </div>
       ))}
 

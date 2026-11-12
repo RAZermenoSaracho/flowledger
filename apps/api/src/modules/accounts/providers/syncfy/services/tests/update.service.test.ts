@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { env } from "../../../../../../config/env.js";
 import { prismaMock } from "../../../../../../tests/helpers/prismaMock.js";
+
+vi.mock("../../../../../../config/env.js", () => ({
+  env: {
+    SYNCFY_API_BASE_URL: "https://api.syncfy.test",
+    SYNCFY_DATA_BASE_URL: "https://data.syncfy.test",
+    SYNCFY_API_KEY: "test-api-key",
+    SYNCFY_AUTO_SYNC_ENABLED: true
+  }
+}));
 
 vi.mock("../create.service.js", () => ({
   processSyncfyCredentialRefresh: vi.fn()
@@ -44,6 +54,23 @@ const processedResult = {
 
 beforeEach(() => {
   processSyncfyCredentialRefreshMock.mockReset();
+  env.SYNCFY_AUTO_SYNC_ENABLED = true;
+});
+
+describe("Syncfy unavailable", () => {
+  it("resyncSyncfyConnection and resyncSyncfyCredential reject with a 503 before touching the database", async () => {
+    env.SYNCFY_AUTO_SYNC_ENABLED = false;
+
+    await expect(
+      resyncSyncfyConnection({ userId: "user-1", connectionId: "conn-1" })
+    ).rejects.toMatchObject({ statusCode: 503 });
+    await expect(
+      resyncSyncfyCredential({ userId: "user-1", providerCredentialId: "cred-1" })
+    ).rejects.toMatchObject({ statusCode: 503 });
+
+    expect(prismaMock.providerConnection.findFirst).not.toHaveBeenCalled();
+    expect(processSyncfyCredentialRefreshMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("resyncSyncfyConnection", () => {

@@ -9,6 +9,9 @@ import { formatMoney } from "../../../utils/currency";
 import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { useAccountProviderSync } from "../hooks/useAccountProviderSync";
 
+const BANK_SYNC_UNAVAILABLE_MESSAGE =
+  "Bank synchronization is currently unavailable.";
+
 /** Form card for creating a new manual account. */
 export function AddAccountCard({
   sync
@@ -21,6 +24,9 @@ export function AddAccountCard({
   }
 
   if (!sync.isFormOpen) return null;
+
+  const isSyncUnavailable =
+    sync.connectorsQuery.isSuccess && !sync.isBankSyncAvailable;
 
   return (
     <Card>
@@ -57,13 +63,15 @@ export function AddAccountCard({
           </button>
           <button
             type="button"
-            className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
+            className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
+            disabled={isSyncUnavailable}
             onClick={() => sync.setAddMode("sync")}
           >
             <p className="font-semibold">Sync accounts</p>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Choose a provider. The provider widget will open so you can
-              select and connect your institution securely.
+              {isSyncUnavailable
+                ? BANK_SYNC_UNAVAILABLE_MESSAGE
+                : "Choose a provider. The provider widget will open so you can select and connect your institution securely."}
             </p>
           </button>
         </div>
@@ -176,7 +184,13 @@ export function AddAccountCard({
 
           {sync.connectorsQuery.isError ? (
             <p className="text-sm text-coral dark:text-orange-300">
-              Connection options are unavailable.
+              Connection options could not be loaded.
+            </p>
+          ) : null}
+
+          {isSyncUnavailable ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {BANK_SYNC_UNAVAILABLE_MESSAGE}
             </p>
           ) : null}
 

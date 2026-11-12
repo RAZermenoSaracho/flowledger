@@ -1,6 +1,7 @@
 import { prisma } from "../../../../../db/prisma.js";
 import { HttpError } from "../../../../../utils/httpError.js";
 import type { SyncfyProcessingSummary, SyncfyResyncSummary } from "../types/syncfy.types.js";
+import { assertSyncfyAvailable } from "../utils/syncfyAvailability.js";
 import { getJsonObject, wait, withTimeout } from "../utils/syncfyHttp.js";
 import {
   getSyncfyRefreshMetadata,
@@ -132,6 +133,7 @@ export async function resyncSyncfyConnection(input: {
   timeoutMs?: number;
   retryDelaysMs?: readonly number[];
 }): Promise<SyncfyResyncSummary> {
+  assertSyncfyAvailable();
   const connection = await prisma.providerConnection.findFirst({
     where: {
       id: input.connectionId,
@@ -268,6 +270,7 @@ export async function resyncSyncfyCredential(input: {
   timeoutMs?: number;
   retryDelaysMs?: readonly number[];
 }): Promise<SyncfyResyncSummary> {
+  assertSyncfyAvailable();
   const connection = await prisma.providerConnection.findFirst({
     where: {
       userId: input.userId,

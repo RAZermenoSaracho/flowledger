@@ -154,6 +154,18 @@ When storing endpoint paths in `ProviderConnection.rawData.syncfyRefreshMetadata
 
 ---
 
+## Availability gate
+
+Syncfy is available only when `SYNCFY_AUTO_SYNC_ENABLED` is true **and** `SYNCFY_API_KEY` is set (`providers/syncfy/utils/syncfyAvailability.ts`, exposed as the adapter's `isAvailable`). While unavailable:
+
+- `GET /providers/connectors` / `/providers/institutions` omit Syncfy; the web Accounts screens use the empty connector list to disable "Sync accounts" and replace Resync/Reconnect with "Bank synchronization is currently unavailable."
+- Connect, reconnect, credential refresh, and connection/account resync return `503 "Bank synchronization is currently unavailable"` before any Syncfy call or Syncfy DB write.
+- Verified webhooks are still HMAC-checked and recorded, but the adapter returns `ignored` instead of fetching event data.
+- `fetchJson` (the single outbound Syncfy HTTP helper) refuses every request as a backstop, so no caller can spend credits.
+- Already-imported accounts, provider metadata, imported transactions and balances stay readable and untouched.
+
+Generic code reads availability only through `accounts/utils/providerAvailability.ts` (`isProviderAvailable`). That is the extension point for future per-user Premium eligibility (`isAvailable() && isUserEligible(...)`); there is no entitlement check today.
+
 ## Auto-sync scheduler
 
 Located: `apps/api/src/modules/accounts/providers/syncfy/syncfyAutoSyncScheduler.ts`
@@ -164,7 +176,7 @@ The scheduler is created and started in `server.ts` on boot.
 
 | Env var | Default | Description |
 |---|---|---|
-| `SYNCFY_AUTO_SYNC_ENABLED` | `false` | Master switch for the background scheduler only (manual resync and webhooks are unaffected). `true`/`1` enable; `false`/`0`/empty/unset disable (case-insensitive); any other value fails startup |
+| `SYNCFY_AUTO_SYNC_ENABLED` | `false` | Global availability switch for the whole Syncfy integration (see "Availability gate" below), including this scheduler. `true`/`1` enable; `false`/`0`/empty/unset disable (case-insensitive); any other value fails startup |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | `60` | How often to run |
 | `SYNCFY_AUTO_SYNC_JOB_TIMEOUT_MS` | `120000` (2 min) | Per-job timeout |
 | `SYNCFY_AUTO_SYNC_CONCURRENCY` | `1` | Jobs processed in parallel |

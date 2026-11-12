@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
+vi.mock("../../../../config/env.js", () => ({
+  env: { SYNCFY_AUTO_SYNC_ENABLED: false, SYNCFY_API_KEY: undefined }
+}));
+
 vi.mock("../../utils/institutionCatalog.js", () => ({
   filterInstitutions: vi.fn(),
   listAvailableConnectors: vi.fn(),
@@ -136,5 +140,27 @@ describe("listProviderAccounts", () => {
 
     const [account] = await listProviderAccounts("user-1", {});
     expect(account?.name).toBe("Checking");
+  });
+});
+
+describe("with Syncfy unavailable", () => {
+  it("still returns stored connection status and provider accounts", async () => {
+    prismaMock.providerConnection.findFirst.mockResolvedValue({
+      id: "conn-1",
+      provider: "syncfy",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      _count: { accounts: 1, importedTransactions: 2 }
+    } as never);
+    prismaMock.providerWebhookEvent.findFirst.mockResolvedValue(null);
+    prismaMock.providerAccount.findMany.mockResolvedValue([]);
+    prismaMock.providerAccount.count.mockResolvedValue(0);
+
+    await expect(getConnectionStatus("user-1", "conn-1")).resolves.toMatchObject({
+      id: "conn-1",
+      accountsCount: 1
+    });
+    await expect(listProviderAccounts("user-1", {})).resolves.toBeDefined();
   });
 });

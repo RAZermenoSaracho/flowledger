@@ -15,9 +15,16 @@ let app: Express;
 // per describe block doesn't give each block a fresh connection; it just
 // leaves later blocks talking to whichever container the first import
 // bound to, which earlier blocks' own afterAll may have already stopped.
+let env: typeof import("../../../config/env.js").env;
+
 beforeAll(async () => {
+  // Pinned before env.ts loads (dotenv never overrides an existing var outside production) so the developer's .env can't decide which Syncfy path runs.
+  process.env.SYNCFY_AUTO_SYNC_ENABLED = "true";
+  process.env.SYNCFY_API_KEY ??= "test-syncfy-key";
+  process.env.SYNCFY_WEBHOOK_SIGNATURE_KEY ??= "test-syncfy-signature-key";
   await startTestDatabase();
   ({ app } = await import("../../../app.js"));
+  ({ env } = await import("../../../config/env.js"));
 }, 120_000);
 
 afterAll(async () => {
@@ -86,6 +93,34 @@ describe("/providers routes", () => {
     expect(response.body.connectors).toEqual(
       expect.arrayContaining([expect.objectContaining({ provider: "syncfy" })])
     );
+  });
+});
+
+describe("/providers routes with Syncfy switched off", () => {
+  it("hides connectors and refuses a new connection with 503, while accounts stay readable", async () => {
+    const { token } = await createAuthedUser(app);
+    const auth = { Authorization: `Bearer ${token}` };
+    env.SYNCFY_AUTO_SYNC_ENABLED = false;
+
+    try {
+      const connectors = await request(app).get("/providers/connectors").set(auth);
+      expect(connectors.status).toBe(200);
+      expect(connectors.body.connectors).toEqual([]);
+
+      const connection = await request(app)
+        .post("/providers/connections")
+        .set(auth)
+        .send({ provider: "syncfy" });
+      expect(connection.status).toBe(503);
+      expect(connection.body.message).toBe(
+        "Bank synchronization is currently unavailable"
+      );
+
+      const accounts = await request(app).get("/accounts").set(auth);
+      expect(accounts.status).toBe(200);
+    } finally {
+      env.SYNCFY_AUTO_SYNC_ENABLED = true;
+    }
   });
 });
 

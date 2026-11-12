@@ -251,4 +251,30 @@ describe("AddAccountCard", () => {
 
     expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
   });
+
+  it("disables the sync option with a notice when no connectors are available", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] }))
+    );
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).toBeDisabled());
+    expect(screen.getByText("Bank synchronization is currently unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Manual account/ })).not.toBeDisabled();
+  });
+
+  it("keeps the sync option enabled when connectors exist", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "Open form" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).not.toBeDisabled());
+    expect(screen.queryByText("Bank synchronization is currently unavailable.")).not.toBeInTheDocument();
+  });
 });

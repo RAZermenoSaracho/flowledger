@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { HttpError } from "../../../../utils/httpError.js";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../../providers/syncfy/services/update.service.js", () => ({
@@ -122,5 +123,34 @@ describe("resyncProviderAccount", () => {
     expect(resyncSyncfyConnectionMock).toHaveBeenCalledWith(
       expect.objectContaining({ connectionId: "conn-1" })
     );
+  });
+});
+
+describe("when Syncfy is unavailable", () => {
+  const unavailable = new HttpError(503, "Bank synchronization is currently unavailable");
+
+  it("propagates the 503 from the Syncfy resync services for a connection, credential and provider account", async () => {
+    prismaMock.providerConnection.findFirst.mockResolvedValue({
+      id: "conn-1",
+      provider: "syncfy"
+    } as never);
+    prismaMock.providerAccount.findFirst.mockResolvedValue({
+      id: "pa-1",
+      provider: "syncfy",
+      connection: { id: "conn-1" }
+    } as never);
+    getManualSyncfyRefreshRetryDelaysMsMock.mockReturnValue([0]);
+    resyncSyncfyConnectionMock.mockRejectedValue(unavailable);
+    resyncSyncfyCredentialMock.mockRejectedValue(unavailable);
+
+    await expect(resyncConnection("user-1", "conn-1")).rejects.toMatchObject({
+      statusCode: 503
+    });
+    await expect(refreshSyncfyCredential("user-1", "cred-1")).rejects.toMatchObject({
+      statusCode: 503
+    });
+    await expect(resyncProviderAccount("user-1", "pa-1")).rejects.toMatchObject({
+      statusCode: 503
+    });
   });
 });
