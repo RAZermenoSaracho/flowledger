@@ -272,6 +272,8 @@ describe("AddAccountCard", () => {
     await user.click(screen.getByRole("button", { name: "Open form" }));
     const syncCard = screen.getByRole("button", { name: /Sync accounts/ });
     await waitFor(() => expect(syncCard).toHaveAttribute("aria-disabled", "true"));
+    expect(syncCard).toHaveTextContent("Bank connections are temporarily disabled.");
+    expect(syncCard).not.toHaveTextContent(/provider widget will open/);
 
     await user.click(syncCard);
     expect(screen.getByText("Add account")).toBeInTheDocument();

@@ -70,8 +70,9 @@ export function AddAccountCard({
               >
                 <p className="font-semibold">Sync accounts</p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Choose a provider. The provider widget will open so you can
-                  select and connect your institution securely.
+                  {isSyncUnavailable
+                    ? "Bank connections are temporarily disabled."
+                    : "Choose a provider. The provider widget will open so you can select and connect your institution securely."}
                 </p>
               </button>
             )}

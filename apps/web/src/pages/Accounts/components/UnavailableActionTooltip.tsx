@@ -75,7 +75,7 @@ export function UnavailableActionTooltip({
         id={tooltipId}
         role="tooltip"
         hidden={!isOpen}
-        className={`pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[16rem] -translate-x-1/2 rounded-md bg-slate-900 px-3 py-1.5 text-center text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900`}
+        className={`pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-max max-w-[16rem] rounded-md bg-slate-900 px-3 py-1.5 text-center text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900`}
       >
         {BANK_SYNC_UNAVAILABLE_TOOLTIP}
       </span>
