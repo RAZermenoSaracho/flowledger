@@ -209,11 +209,17 @@ describe("consent and blocking tools", () => {
   it.each([["accept_shared_expense", "accepted"], ["reject_shared_expense", "rejected"]])("%s uses the caller and audits once", async (name, acceptance) => {
     vi.mocked(respondToSharedExpense).mockResolvedValue({ id: "s1" } as never);
     expect((await run(name, { id: "s1" })).structuredContent).toEqual({ sharedExpense: { id: "s1" } });
-    expect(respondToSharedExpense).toHaveBeenCalledWith("u1", "s1", acceptance);
+    expect(respondToSharedExpense).toHaveBeenCalledWith("u1", "s1", acceptance, undefined);
     expect(auditLog).toHaveBeenCalledTimes(1);
     expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ op: `mcp.${name}`, status: 200 }));
     expect(readOnly.has(name)).toBe(false);
     expect(respondToSharedExpense).toHaveBeenCalledTimes(1);
+  });
+  it("passes the optional participantId through to a single allocation", async () => {
+    vi.mocked(respondToSharedExpense).mockClear();
+    vi.mocked(respondToSharedExpense).mockResolvedValue({ id: "s1" } as never);
+    await run("accept_shared_expense", { id: "s1", participantId: "p2" });
+    expect(respondToSharedExpense).toHaveBeenCalledWith("u1", "s1", "accepted", "p2");
   });
   it.each(["accept_shared_expense", "reject_shared_expense", "block_user", "unblock_user"])("%s refuses a forced read-only call and audits once", async (name) => {
     const handlers = new Map<string, Handler>();

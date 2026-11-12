@@ -47,6 +47,7 @@ export type SharingInput =
 export type GuardParticipant = {
   id: string;
   participantName: string;
+  acceptance: string;
   shareAmount: { toNumber(): number };
   paidAmount: { toNumber(): number };
   settlementRequests: { status: string; amount: { toNumber(): number } }[];

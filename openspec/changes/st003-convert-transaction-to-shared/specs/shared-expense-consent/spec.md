@@ -117,3 +117,15 @@ The participant SHALL accept or reject from the Debts "awaiting acceptance" list
 #### Scenario: User isolation
 - **WHEN** user A opens another user's invitation id
 - **THEN** the result is not found
+
+### Requirement: Settled allocations and additional allocation lines
+
+An allocation that is accepted and fully paid SHALL be immutable (share, user, direction, acceptance, removal) and SHALL accept no new settlement request. A share with payments or a pending settlement request SHALL NOT be raised; extra amounts SHALL be added as an additional allocation line for the same user, allowed only when every existing line of that user has payment activity, starting `proposed`. Accept and reject SHALL accept an optional `participantId` to answer one line; without it every proposed line of the caller on that expense is answered.
+
+#### Scenario: Edit a settled allocation
+- **WHEN** the owner changes the share of, or removes, a settled allocation
+- **THEN** the response is 400 and nothing changes
+
+#### Scenario: Additional line rejected alone
+- **WHEN** a participant rejects one additional line with its `participantId`
+- **THEN** only that line becomes `rejected` and the settled line and debts are unchanged

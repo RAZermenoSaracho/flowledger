@@ -65,3 +65,9 @@ Verification note for 7.1–7.2: implementation and unit checks complete (127 te
 - [x] 10.3 Save and clear own-profile nickname; search exact username first, then case-insensitive username/nickname prefixes with existing exclusions and limits.
 - [x] 10.4 Add Profile Public nickname draft field, helper text and null clearing; keep public API and MCP preference writes unchanged.
 - [x] 10.5 Add targeted schema, API and web tests and update identity/search documentation and specifications.
+
+## 11. Financial invariants
+
+- [x] 11.1 Settled allocations (accepted and fully paid) are immutable; shares with payment activity cannot be raised; extra amounts use additional allocation lines (participant `id` in sharing input, per-line consent via optional `participantId` on web, /v1 and MCP accept/reject).
+- [x] 11.2 Settlement creation runs Serializable (409 "Please retry"); approval and direct settle use compare-and-set (409).
+- [x] 11.3 Unit and Docker integration tests (`settledAllocations.integration.test.ts`) cover the guards, line matching and concurrency.

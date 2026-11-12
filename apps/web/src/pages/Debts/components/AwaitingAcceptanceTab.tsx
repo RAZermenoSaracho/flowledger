@@ -48,7 +48,7 @@ function InvitationRow({
           <Button
             type="button"
             disabled={disabled}
-            onClick={() => respond({ kind: "accept", sharedExpenseId: sharedExpense.id })}
+            onClick={() => respond({ kind: "accept", sharedExpenseId: sharedExpense.id, participantId: debt.id })}
           >
             Accept
           </Button>
@@ -56,7 +56,7 @@ function InvitationRow({
             type="button"
             variant="secondary"
             disabled={disabled}
-            onClick={() => respond({ kind: "reject", sharedExpenseId: sharedExpense.id })}
+            onClick={() => respond({ kind: "reject", sharedExpenseId: sharedExpense.id, participantId: debt.id })}
           >
             Reject
           </Button>
@@ -68,7 +68,8 @@ function InvitationRow({
               respond({
                 kind: "rejectAndBlock",
                 sharedExpenseId: sharedExpense.id,
-                ownerUserId: sharedExpense.ownerUserId
+                ownerUserId: sharedExpense.ownerUserId,
+                participantId: debt.id
               })
             }
           >

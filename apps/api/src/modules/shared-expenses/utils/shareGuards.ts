@@ -39,6 +39,8 @@ export function assertNoSettlementActivity(participants: GuardParticipant[], act
 /** Throws 400 on `type` when the transaction type changes (expense/income flip or to transfer) while a payment or pending request exists. */
 export function assertTypeChangeAllowed(participants: GuardParticipant[], previousType: string, nextType: string) {
   if (previousType === nextType) return;
+  const settled = participants.find(isSettledAllocation);
+  if (settled) assertNotSettled(settled, "type");
   const blocking = participants.find(
     (participant) => participant.paidAmount.toNumber() > 0 || pendingRequestAmount(participant) > 0
   );
@@ -50,24 +52,51 @@ export function assertTypeChangeAllowed(participants: GuardParticipant[], previo
   }
 }
 
-/** Throws 400 on `field` when `participant`'s share is fully paid and `nextShare` differs, or when `nextShare` is below paid plus pending requests. */
+/** Whether an allocation is accepted and fully paid: from then on it is immutable and extra amounts need a new allocation. */
+export function isSettledAllocation(participant: Pick<GuardParticipant, "acceptance" | "shareAmount" | "paidAmount">) {
+  return (
+    participant.acceptance === "accepted" &&
+    cents(participant.paidAmount.toNumber()) >= cents(participant.shareAmount.toNumber())
+  );
+}
+
+/** Throws the 400 for any attempt to change or remove a settled allocation (see {@link isSettledAllocation}). */
+export function assertNotSettled(participant: GuardParticipant, field: string) {
+  if (isSettledAllocation(participant)) {
+    throw fieldError(
+      field,
+      `${participant.participantName}'s allocation is fully settled and can't be changed; add an additional allocation instead.`
+    );
+  }
+}
+
+/**
+ * Throws 400 on `field` when `participant` is settled and `nextShare` differs, when `nextShare` is below paid plus
+ * pending requests, or when it raises a share that already has payment activity (extra amounts need a new allocation).
+ */
 export function assertShareEditable(participant: GuardParticipant, nextShare: number, field: string) {
   const current = participant.shareAmount.toNumber();
   if (cents(nextShare) === cents(current)) return;
+  assertNotSettled(participant, field);
   const paid = participant.paidAmount.toNumber();
-  if (paid >= current) {
-    throw fieldError(field, `${participant.participantName}'s share is fully paid and cannot be changed.`);
-  }
-  if (cents(nextShare) < cents(paid + pendingRequestAmount(participant))) {
+  const pending = pendingRequestAmount(participant);
+  if (cents(nextShare) < cents(paid + pending)) {
     throw fieldError(
       field,
       `${participant.participantName}'s share cannot be below what was paid plus pending settlement requests.`
     );
   }
+  if (cents(nextShare) > cents(current) && (paid > 0 || pending > 0)) {
+    throw fieldError(
+      field,
+      `${participant.participantName}'s share already has payments or pending settlement requests; add an additional allocation for the extra amount.`
+    );
+  }
 }
 
-/** Throws 400 on `field` unless the participant has `paidAmount = 0` and no pending request. */
+/** Throws 400 on `field` unless the participant is not settled, has `paidAmount = 0` and no pending request. */
 export function assertRemovable(participant: GuardParticipant, field: string) {
+  assertNotSettled(participant, field);
   if (participant.paidAmount.toNumber() > 0 || pendingRequestAmount(participant) > 0) {
     throw fieldError(
       field,

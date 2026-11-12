@@ -70,7 +70,7 @@ The MCP server SHALL register for every credential: `list_groups`, `list_shared_
 
 ### Requirement: Consent and blocking tools
 
-MCP SHALL register `accept_shared_expense` and `reject_shared_expense` (id), `block_user` and `unblock_user` (userId) only for credentials holding `write`, and `list_blocked_users` for every credential, each using the same service, validation and errors as the web, acting only as the credential's user and emitting one `mcp.<tool>` audit line per write. Descriptions SHALL state that they affect other users.
+MCP SHALL register `accept_shared_expense` and `reject_shared_expense` (id, optional participantId to answer one allocation line), `block_user` and `unblock_user` (userId) only for credentials holding `write`, and `list_blocked_users` for every credential, each using the same service, validation and errors as the web, acting only as the credential's user and emitting one `mcp.<tool>` audit line per write. Descriptions SHALL state that they affect other users.
 
 #### Scenario: Accept
 - **WHEN** a participant's write credential calls `accept_shared_expense` on a proposed share

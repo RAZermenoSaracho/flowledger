@@ -12,14 +12,14 @@ export async function putSharedExpense(req: Request, res: Response) {
   res.json({ sharedExpense: serialize(sharedExpense) });
 }
 
-/** Accepts the caller's own proposed share of the shared expense in `req.params.id`. */
+/** Accepts the caller's own proposed share(s) (optional body `participantId` narrows to one allocation) of the shared expense in `req.params.id`. */
 export async function postAcceptSharedExpense(req: Request, res: Response) {
-  const sharedExpense = await respondToSharedExpense(req.user!.id, req.params.id!, "accepted");
+  const sharedExpense = await respondToSharedExpense(req.user!.id, req.params.id!, "accepted", req.body?.participantId);
   res.json({ sharedExpense: serialize(sharedExpense) });
 }
 
-/** Rejects the caller's own proposed share of the shared expense in `req.params.id`. */
+/** Rejects the caller's own proposed share(s) (optional body `participantId` narrows to one allocation) of the shared expense in `req.params.id`. */
 export async function postRejectSharedExpense(req: Request, res: Response) {
-  const sharedExpense = await respondToSharedExpense(req.user!.id, req.params.id!, "rejected");
+  const sharedExpense = await respondToSharedExpense(req.user!.id, req.params.id!, "rejected", req.body?.participantId);
   res.json({ sharedExpense: serialize(sharedExpense) });
 }

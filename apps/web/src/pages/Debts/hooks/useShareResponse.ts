@@ -6,12 +6,12 @@ const INVALIDATED = ["debts", "notifications", "shared-expenses", "blocks"];
 
 /** The three ways a participant answers a proposed share. */
 export type ShareResponse =
-  | { kind: "accept"; sharedExpenseId: string }
-  | { kind: "reject"; sharedExpenseId: string }
-  | { kind: "rejectAndBlock"; sharedExpenseId: string; ownerUserId: string };
+  | { kind: "accept"; sharedExpenseId: string; participantId?: string }
+  | { kind: "reject"; sharedExpenseId: string; participantId?: string }
+  | { kind: "rejectAndBlock"; sharedExpenseId: string; ownerUserId: string; participantId?: string };
 
 /**
- * Answers a proposed share: accept, reject, or reject and then block the owner. The reject runs
+ * Answers a proposed share (one allocation line when `participantId` is set, else all the caller's proposed lines): accept, reject, or reject and then block the owner. The reject runs
  * first because blocking would reject the share itself and make a second reject fail. Every
  * answer refetches debts, notifications, shared expenses and the block list. `respond` resolves
  * once the answer is stored; a failure leaves `error` set and the list unchanged.
@@ -20,9 +20,9 @@ export function useShareResponse() {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (response: ShareResponse) => {
-      if (response.kind === "accept") await acceptSharedExpense(response.sharedExpenseId);
+      if (response.kind === "accept") await acceptSharedExpense(response.sharedExpenseId, response.participantId);
       else {
-        await rejectSharedExpense(response.sharedExpenseId);
+        await rejectSharedExpense(response.sharedExpenseId, response.participantId);
         if (response.kind === "rejectAndBlock") await blockUser(response.ownerUserId);
       }
     },

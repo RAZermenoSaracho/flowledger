@@ -46,10 +46,12 @@ function existingSharedExpense(participants: unknown[]) {
 }
 
 const sent = () => notifyMock.mock.calls.flatMap((call) => call[1]);
-const participantUpdate = () => tx.sharedExpenseParticipant.update.mock.calls[0]?.[0];
+const participantUpdate = () => tx.sharedExpenseParticipant.updateMany.mock.calls[0]?.[0];
 
 beforeEach(() => {
   tx = mockDeep<PrismaClient>();
+  tx.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 });
+  tx.sharedExpenseParticipant.deleteMany.mockResolvedValue({ count: 1 });
   notifyMock.mockReset();
   deleteDataMock.mockReset();
   tx.user.findUniqueOrThrow.mockResolvedValue({
@@ -209,7 +211,7 @@ describe("applySharedExpenseToTransaction - consent rules", () => {
     existingSharedExpense([row()]);
     await edit([{ id: "p1", userId: "user-2", share: 40 }], { title: "New title" });
 
-    expect(tx.sharedExpenseParticipant.update).not.toHaveBeenCalled();
+    expect(tx.sharedExpenseParticipant.updateMany).not.toHaveBeenCalled();
     expect(tx.sharedExpense.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ title: "New title" }) }));
     expect(sent()).toHaveLength(0);
   });
@@ -221,7 +223,7 @@ describe("applySharedExpenseToTransaction - consent rules", () => {
       { type: "income", previous: "expense" }
     );
 
-    expect(tx.sharedExpenseParticipant.update).toHaveBeenCalledTimes(1);
+    expect(tx.sharedExpenseParticipant.updateMany).toHaveBeenCalledTimes(1);
     expect(participantUpdate()).toMatchObject({ where: { id: "p1" }, data: { acceptance: "proposed" } });
   });
 
@@ -236,7 +238,7 @@ describe("applySharedExpenseToTransaction - consent rules", () => {
     existingSharedExpense([row({ acceptance: "rejected" })]);
     await edit([{ id: "p1", userId: "user-2", share: 40 }]);
 
-    expect(tx.sharedExpenseParticipant.update).not.toHaveBeenCalled();
+    expect(tx.sharedExpenseParticipant.updateMany).not.toHaveBeenCalled();
     expect(sent()).toHaveLength(0);
   });
 
@@ -274,7 +276,9 @@ describe("applySharedExpenseToTransaction - diff and guards", () => {
     expect(tx.sharedExpenseParticipant.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: "user-3", acceptance: "proposed" }) })
     );
-    expect(tx.sharedExpenseParticipant.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["p1"] } } });
+    expect(tx.sharedExpenseParticipant.deleteMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "p1" })
+    });
     expect(sent().map((n) => [n.userId, n.type])).toEqual([
       ["user-3", "shared_expense_invited"],
       ["user-2", "shared_expense_updated"]
@@ -293,7 +297,7 @@ describe("applySharedExpenseToTransaction - diff and guards", () => {
   it("locks a fully paid share", async () => {
     existingSharedExpense([row({ paidAmount: D(40), status: "paid" })]);
 
-    await expect(edit([{ id: "p1", userId: "user-2", share: 50 }])).rejects.toThrow("fully paid");
+    await expect(edit([{ id: "p1", userId: "user-2", share: 50 }])).rejects.toThrow("fully settled");
   });
 
   it.each([
@@ -334,10 +338,141 @@ describe("applySharedExpenseToTransaction - diff and guards", () => {
   it("never writes payment fields from client input", async () => {
     existingSharedExpense([row({ paidAmount: D(10), status: "partial" })]);
 
-    await edit([{ id: "p1", userId: "user-2", share: 60, paidAmount: 0, status: "pending" }]);
+    await edit([{ id: "p1", userId: "user-2", share: 30, paidAmount: 0, status: "pending" }]);
 
     const data = participantUpdate()?.data as Record<string, unknown>;
     expect(data).not.toHaveProperty("paidAmount");
     expect(data.status).toBe("partial");
+  });
+});
+
+describe("applySharedExpenseToTransaction - allocation lines", () => {
+  const edit = (participants: object[]) =>
+    applySharedExpenseToTransaction(tx, "owner-1", transaction(), "expense", {
+      enabled: true,
+      participants: participants as never
+    });
+  const paidLine = (overrides: Record<string, unknown> = {}) => row({ paidAmount: D(10), status: "partial", ...overrides });
+  const created = () => tx.sharedExpenseParticipant.create.mock.calls.map((call) => call[0].data);
+
+  beforeEach(() => {
+    tx.sharedExpenseParticipant.create.mockImplementation((async ({ data }: { data: Record<string, unknown> }) => ({
+      id: "new-row",
+      shareAmount: D(Number(data.shareAmount)),
+      ...data
+    })) as never);
+  });
+
+  it("matches by id, and rejects an id that does not match the given user", async () => {
+    existingSharedExpense([row()]);
+    await expect(edit([{ id: "p1", userId: "user-3", share: 40 }])).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects a manual-name input that carries an app user's participant id", async () => {
+    existingSharedExpense([row()]);
+    await expect(edit([{ id: "p1", participantName: "Cash", share: 40 }])).rejects.toThrow(
+      "Participant id does not match the given user"
+    );
+  });
+
+  it("guards a share change against settlement requests created after the read", async () => {
+    existingSharedExpense([row({ settlementRequests: [{ id: "sr-1", status: "pending", amount: D(5) }] })]);
+    await edit([{ id: "p1", userId: "user-2", share: 30 }]);
+    expect(participantUpdate()?.where).toMatchObject({
+      settlementRequests: { none: { status: "pending", id: { notIn: ["sr-1"] } } }
+    });
+  });
+
+  it("matches an id-less input to the user's only row", async () => {
+    existingSharedExpense([row()]);
+    await edit([{ userId: "user-2", share: 50 }]);
+    expect(participantUpdate()?.where).toMatchObject({ id: "p1" });
+    expect(created()).toHaveLength(0);
+  });
+
+  it("requires a participant id when the user has several rows", async () => {
+    existingSharedExpense([paidLine(), paidLine({ id: "p2" })]);
+    await expect(edit([{ userId: "user-2", share: 10 }])).rejects.toThrow("participant id required");
+  });
+
+  it("adds a proposed line once every existing row of the user has payment activity", async () => {
+    existingSharedExpense([paidLine()]);
+    await edit([
+      { id: "p1", userId: "user-2", share: 40 },
+      { userId: "user-2", share: 20 }
+    ]);
+    expect(created()).toMatchObject([{ userId: "user-2", acceptance: "proposed" }]);
+    expect(sent()).toMatchObject([{ type: "shared_expense_invited", userId: "user-2" }]);
+  });
+
+  it("also adds a line when the id-less input comes before the id-carrying one", async () => {
+    existingSharedExpense([paidLine()]);
+    await edit([
+      { userId: "user-2", share: 20 },
+      { id: "p1", userId: "user-2", share: 40 }
+    ]);
+    expect(created()).toHaveLength(1);
+  });
+
+  it("refuses a new line while an existing row of that user has no payment activity", async () => {
+    existingSharedExpense([row()]);
+    await expect(
+      edit([
+        { id: "p1", userId: "user-2", share: 40 },
+        { userId: "user-2", share: 20 }
+      ])
+    ).rejects.toThrow("Edit the existing allocation");
+  });
+
+  it("rejects the same id twice", async () => {
+    existingSharedExpense([row()]);
+    await expect(
+      edit([
+        { id: "p1", userId: "user-2", share: 20 },
+        { id: "p1", userId: "user-2", share: 20 }
+      ])
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects a settled allocation being edited, removed or reassigned", async () => {
+    existingSharedExpense([row({ paidAmount: D(40), status: "paid" }), row({ id: "p2", userId: null, participantName: "Cash" })]);
+    await expect(edit([{ id: "p1", userId: "user-2", share: 41 }, { id: "p2", manualName: "Cash", share: 10 }])).rejects.toThrow(
+      "fully settled"
+    );
+    await expect(edit([{ id: "p2", manualName: "Cash", share: 10 }])).rejects.toThrow("fully settled");
+    expect(tx.sharedExpenseParticipant.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses to raise a share that already has a payment", async () => {
+    existingSharedExpense([paidLine()]);
+    await expect(edit([{ id: "p1", userId: "user-2", share: 50 }])).rejects.toThrow("additional allocation");
+  });
+
+  it("keeps a settled allocation untouched when only another one changes", async () => {
+    existingSharedExpense([row({ paidAmount: D(40), status: "paid" }), row({ id: "p2", userId: "user-3", participantName: "@carlos" })]);
+    tx.user.findMany.mockResolvedValue([
+      { id: "user-2", username: "friend" },
+      { id: "user-3", username: "carlos" }
+    ] as never);
+    await edit([
+      { id: "p1", userId: "user-2", share: 40 },
+      { id: "p2", userId: "user-3", share: 30 }
+    ]);
+    expect(tx.sharedExpenseParticipant.updateMany.mock.calls.map((call) => call[0].where)).toMatchObject([{ id: "p2" }]);
+  });
+
+  it("throws 409 when the guarded update or delete matches no row (concurrent change)", async () => {
+    existingSharedExpense([row()]);
+    tx.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 0 });
+    await expect(edit([{ id: "p1", userId: "user-2", share: 30 }])).rejects.toMatchObject({ statusCode: 409 });
+    expect(tx.sharedExpenseParticipant.updateMany.mock.calls[0]?.[0].where).toMatchObject({ id: "p1", paidAmount: D(0) });
+
+    existingSharedExpense([row(), row({ id: "p2", userId: null, participantName: "Cash" })]);
+    tx.sharedExpenseParticipant.deleteMany.mockResolvedValue({ count: 0 });
+    await expect(edit([{ id: "p1", userId: "user-2", share: 40 }])).rejects.toMatchObject({ statusCode: 409 });
+    expect(tx.sharedExpenseParticipant.deleteMany.mock.calls[0]![0]!.where).toMatchObject({
+      id: "p2",
+      settlementRequests: { none: { status: "pending" } }
+    });
   });
 });

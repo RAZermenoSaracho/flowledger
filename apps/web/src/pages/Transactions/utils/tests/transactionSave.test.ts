@@ -104,6 +104,31 @@ describe("transaction save", () => {
       });
     });
 
+    it("sends each line of one user as its own entry, ids only on persisted lines", () => {
+      const line = (draftId: string, id: string | undefined, share: string) => ({
+        draftId,
+        ...(id ? { id } : {}),
+        userId: "u2",
+        participantName: "Sam",
+        source: "app" as const,
+        shareAmount: share
+      });
+      const body = buildUpdateBody(
+        draft({ isShared: true, participants: [line("p1", "p1", "20"), line("tmp", undefined, "5")] }),
+        ["participants"],
+        stored
+      );
+      expect(body).toEqual({
+        sharedExpense: {
+          enabled: true,
+          participants: [
+            { id: "p1", userId: "u2", share: 20 },
+            { userId: "u2", share: 5 }
+          ]
+        }
+      });
+    });
+
     it("sends enabled:false when sharing is turned off", () => {
       expect(buildUpdateBody(draft({ isShared: false }), ["isShared", "participants"], stored)).toEqual({
         sharedExpense: { enabled: false }

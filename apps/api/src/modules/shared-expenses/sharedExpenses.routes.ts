@@ -1,4 +1,5 @@
 import {
+  respondSharedExpenseSchema,
   sharedExpensesQueryParamSchema,
   sharedExpenseSchema,
   updateSharedExpenseSchema
@@ -35,5 +36,5 @@ sharedExpensesRouter.put(
   asyncHandler(putSharedExpense)
 );
 sharedExpensesRouter.delete("/:id", asyncHandler(deleteSharedExpenseController));
-sharedExpensesRouter.post("/:id/accept", asyncHandler(postAcceptSharedExpense));
-sharedExpensesRouter.post("/:id/reject", asyncHandler(postRejectSharedExpense));
+sharedExpensesRouter.post("/:id/accept", validate(respondSharedExpenseSchema), asyncHandler(postAcceptSharedExpense));
+sharedExpensesRouter.post("/:id/reject", validate(respondSharedExpenseSchema), asyncHandler(postRejectSharedExpense));

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../apply.service.js", () => ({
@@ -95,28 +95,35 @@ describe("updateSharedExpense", () => {
 });
 
 describe("respondToSharedExpense", () => {
-  const participantRow = (acceptance = "proposed") => ({
-    id: "p1",
+  const participantRow = (acceptance = "proposed", id = "p1") => ({
+    id,
     acceptance,
     sharedExpenseId: "se-1",
     sharedExpense: { ownerUserId: "owner-1", title: "Dinner", transactionId: "txn-1" },
     user: { id: "user-2", username: "friend", name: "Friend", identityVisibility: "username_only" }
   });
+  const rows = (...found: ReturnType<typeof participantRow>[]) =>
+    prismaMock.sharedExpenseParticipant.findMany.mockResolvedValue(found as never);
+
+  beforeEach(() => {
+    notifyMock.mockClear();
+    prismaMock.sharedExpenseParticipant.updateMany.mockReset();
+    getByIdMock.mockResolvedValue({ id: "se-1" } as never);
+  });
 
   it("is scoped by sharedExpenseId and the caller, so the owner or a stranger gets 404", async () => {
-    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(null);
+    rows();
 
     await expect(respondToSharedExpense("owner-1", "se-1", "accepted")).rejects.toMatchObject({ statusCode: 404 });
-    expect(prismaMock.sharedExpenseParticipant.findFirst).toHaveBeenCalledWith(
+    expect(prismaMock.sharedExpenseParticipant.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { sharedExpenseId: "se-1", userId: "owner-1" } })
     );
     expect(prismaMock.sharedExpenseParticipant.updateMany).not.toHaveBeenCalled();
   });
 
   it("accepts a proposed share and notifies the owner", async () => {
-    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(participantRow() as never);
+    rows(participantRow());
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 });
-    getByIdMock.mockResolvedValue({ id: "se-1" } as never);
 
     await respondToSharedExpense("user-2", "se-1", "accepted");
 
@@ -130,21 +137,47 @@ describe("respondToSharedExpense", () => {
   });
 
   it("rejects a proposed share and notifies the owner", async () => {
-    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(participantRow() as never);
+    rows(participantRow());
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 });
-    getByIdMock.mockResolvedValue({ id: "se-1" } as never);
 
     await respondToSharedExpense("user-2", "se-1", "rejected");
 
     expect(notifyMock.mock.calls.at(-1)?.[1]).toMatchObject([{ type: "shared_expense_rejected" }]);
   });
 
+  it("answers only the given participantId and leaves the caller's other rows alone", async () => {
+    rows(participantRow("proposed", "p2"));
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 });
+
+    await respondToSharedExpense("user-2", "se-1", "rejected", "p2");
+
+    expect(prismaMock.sharedExpenseParticipant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sharedExpenseId: "se-1", userId: "user-2", id: "p2" } })
+    );
+    expect(prismaMock.sharedExpenseParticipant.updateMany).toHaveBeenCalledTimes(1);
+    expect(notifyMock.mock.calls[0]?.[1]).toMatchObject([{ metadata: { participantId: "p2" } }]);
+  });
+
+  it("without participantId answers every proposed row and skips the already answered ones", async () => {
+    rows(participantRow("accepted", "p1"), participantRow("proposed", "p2"), participantRow("proposed", "p3"));
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 });
+
+    await respondToSharedExpense("user-2", "se-1", "accepted");
+
+    expect(prismaMock.sharedExpenseParticipant.updateMany.mock.calls.map((call) => call[0].where)).toMatchObject([
+      { id: "p2" },
+      { id: "p3" }
+    ]);
+    expect(notifyMock.mock.calls[0]?.[1]).toHaveLength(2);
+  });
+
   it.each(["accepted", "rejected"])("returns 400 and changes nothing when the share is already %s", async (state) => {
-    notifyMock.mockClear();
-    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(participantRow(state) as never);
+    rows(participantRow(state));
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(respondToSharedExpense("user-2", "se-1", "accepted")).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.sharedExpenseParticipant.updateMany).not.toHaveBeenCalled();
+    await expect(respondToSharedExpense("user-2", "se-1", "accepted", "p1")).rejects.toMatchObject({ statusCode: 400 });
     expect(notifyMock).not.toHaveBeenCalled();
   });
 });

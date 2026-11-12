@@ -24,6 +24,8 @@ import {
 } from "./settlementValidation.service.js";
 import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
+const cents = (value: number) => Math.round(value * 100);
+
 /** Marks a shared expense `settled` once none of its participants have an unpaid balance. */
 export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
   const remainingParticipants = await prisma.sharedExpenseParticipant.count({
@@ -67,12 +69,13 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
       throw new HttpError(400, "Debt is already settled");
     }
 
-    const updatedDebt = await tx.sharedExpenseParticipant.update({
+    const paidClaim = await tx.sharedExpenseParticipant.updateMany({
+      where: { id: debt.id, paidAmount: debt.paidAmount },
+      data: { paidAmount: debt.shareAmount, status: "paid" }
+    });
+    if (paidClaim.count !== 1) throw new HttpError(409, "The debt changed while settling; please retry");
+    const updatedDebt = await tx.sharedExpenseParticipant.findUniqueOrThrow({
       where: { id: debt.id },
-      data: {
-        paidAmount: debt.shareAmount,
-        status: "paid"
-      },
       include: debtInclude
     });
 
@@ -179,17 +182,27 @@ export async function approveSettlement(
     const paidAmount = debt.paidAmount.toNumber() + amount;
     const status = participantStatus(debt.shareAmount.toNumber(), paidAmount);
 
-    const updatedDebt = await tx.sharedExpenseParticipant.update({
+    const approvedAt = new Date();
+    const requestClaim = await tx.settlementRequest.updateMany({
+      where: { id: settlementRequest.id, status: "pending" },
+      data: { status: "approved", approvedAt }
+    });
+    if (requestClaim.count !== 1) throw new HttpError(409, "Settlement request was already resolved");
+    if (cents(paidAmount) > cents(debt.shareAmount.toNumber())) {
+      throw new HttpError(400, "Settlement request exceeds the current outstanding balance");
+    }
+    const paidClaim = await tx.sharedExpenseParticipant.updateMany({
+      where: { id: debt.id, paidAmount: debt.paidAmount },
+      data: { paidAmount: new Prisma.Decimal(paidAmount), status }
+    });
+    if (paidClaim.count !== 1) throw new HttpError(409, "The debt changed while approving; please retry");
+    const updatedDebt = await tx.sharedExpenseParticipant.findUniqueOrThrow({
       where: { id: debt.id },
-      data: {
-        paidAmount: new Prisma.Decimal(paidAmount),
-        status
-      },
       include: debtInclude
     });
     const approvedRequest = await tx.settlementRequest.update({
       where: { id: settlementRequest.id },
-      data: { status: "approved", approvedAt: new Date() },
+      data: { status: "approved", approvedAt },
       include: {
         debtor: { select: publicUserSelect },
         creditor: { select: publicUserSelect },

@@ -138,8 +138,11 @@ describe("transaction draft helpers", () => {
       source: "app" as const,
       shareAmount: "10"
     };
-    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid" })).toBe(
+    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid", acceptance: "accepted" })).toBe(
       true
+    );
+    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid", acceptance: "proposed" })).toBe(
+      false
     );
     expect(isShareLocked({ ...row, paidAmount: 4, status: "partial" })).toBe(
       false

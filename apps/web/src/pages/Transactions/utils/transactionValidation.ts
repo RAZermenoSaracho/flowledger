@@ -48,6 +48,8 @@ export function validateTransactionDraft(draft: TransactionDraft): FormErrors {
     draft.participants.forEach((participant, index) => {
       if (!(Number(participant.shareAmount) > 0)) {
         errors[`participants.${index}.shareAmount`] = "Enter a share above 0";
+      } else if (Number(participant.shareAmount) < (participant.paidAmount ?? 0)) {
+        errors[`participants.${index}.shareAmount`] = "A share cannot be lower than what was paid";
       }
     });
     const over = sumParticipantShares(draft.participants) - amount;

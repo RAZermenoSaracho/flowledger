@@ -73,7 +73,7 @@ Balance = `initialBalance + (sum of above)`, computed in the account's own nativ
 
 `TransactionRelation` links two transactions. Currently used only for `settlement_payment` — pairs the debtor and creditor settlement transactions. These links make settlement transactions queryable as a group and filter them from the "normal" transaction view.
 
-**Related transactions.** `GET /transactions/:id` does not expose `TransactionRelation` rows (they point at the counterparty's transaction). It returns `relatedTransactions` and `settlementOrigin`, derived from the `SettlementRequest` chain and always scoped to the caller: an original shared expense lists the caller's own settlement transactions (one per settled participant); a settlement lists its original expense when the caller owns it, otherwise only a non-navigable `settlementOrigin` summary (title, total, currency, date, owner as public user). The viewed transaction itself and the counterparty's settlement transaction are never included.
+**Related transactions.** `GET /transactions/:id` does not expose `TransactionRelation` rows (they point at the counterparty's transaction). It returns `relatedSettlements`, `relatedTransactions` and `settlementOrigin`, derived from the `SettlementRequest` chain and always scoped to the caller. An original shared expense the caller owns lists `relatedSettlements`: every settlement request of its participants (pending, rejected and approved, oldest first) with the counterparty as a public user, amount, status and dates, and `transaction` set only to the caller's own settlement transaction (null while unapproved). A settlement lists its original expense in `relatedTransactions` when the caller owns it (and an empty `relatedSettlements`), otherwise only a non-navigable `settlementOrigin` summary (title, total, currency, date, owner as public user). The viewed transaction itself and the counterparty's transaction are never included.
 
 ---
 
@@ -115,8 +115,12 @@ The owner's transaction update can convert, edit or disable sharing atomically. 
 
 The same guards apply to transaction updates/deletes and legacy shared-expense updates/deletes, with 400 field-addressable errors:
 
-- A share cannot fall below paid amount plus pending settlement amounts; fully paid shares are locked.
+- A share cannot fall below paid amount plus pending settlement amounts.
+- A settled allocation (accepted and fully paid) is immutable: no change of share, user, direction or acceptance, no removal, no new settlement request. Add an additional allocation instead.
+- A share with a payment or pending request cannot be raised; the extra amount goes in an additional allocation line.
+- Additional allocation lines: participant input may carry the row `id`. An id-less app-user input matches the user's only row; with several rows it needs an `id` (400 "participant id required"). A new line for a user who already has rows is allowed only when every existing row has payment activity (else 400 "Edit the existing allocation instead"). New lines start `proposed` with their own invitation. Accept/reject takes an optional `participantId`; without it all of the caller's proposed lines are answered.
 - Removing a participant requires zero payments and no pending request.
+- Concurrency: settlement request creation runs in a Serializable transaction (conflict gives 409 "Please retry"); approval and direct settle use compare-and-set updates (409 on a concurrent change). Database uniqueness of one pending request per debt is not enforced without a migration.
 - Disabling sharing or deleting requires no payments or pending/approved settlements.
 - Expense/income direction changes and conversion to transfer are blocked by payments or pending requests; transfers cannot be shared.
 - Allocated shares cannot exceed the transaction amount.

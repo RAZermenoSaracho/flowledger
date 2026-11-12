@@ -44,12 +44,12 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
 function trackCalls() {
   const calls: string[] = [];
   server.use(
-    http.post(`${API_URL}/shared-expenses/se-1/accept`, () => {
-      calls.push("accept");
+    http.post(`${API_URL}/shared-expenses/se-1/accept`, async ({ request }) => {
+      calls.push(`accept:${((await request.json()) as { participantId: string }).participantId}`);
       return HttpResponse.json({});
     }),
-    http.post(`${API_URL}/shared-expenses/se-1/reject`, () => {
-      calls.push("reject");
+    http.post(`${API_URL}/shared-expenses/se-1/reject`, async ({ request }) => {
+      calls.push(`reject:${((await request.json()) as { participantId: string }).participantId}`);
       return HttpResponse.json({});
     }),
     http.post(`${API_URL}/users/blocks`, async ({ request }) => {
@@ -83,21 +83,28 @@ describe("AwaitingAcceptanceTab", () => {
     const calls = trackCalls();
     renderTab();
     await userEvent.click(screen.getByRole("button", { name: "Accept" }));
-    await waitFor(() => expect(calls).toEqual(["accept"]));
+    await waitFor(() => expect(calls).toEqual(["accept:p1"]));
+  });
+
+  it("answers only the line whose card was clicked when a user has two proposed lines", async () => {
+    const calls = trackCalls();
+    renderTab({ awaiting: [makeDebt({ id: "p1" }), makeDebt({ id: "p2" })] });
+    await userEvent.click(screen.getAllByRole("button", { name: "Accept" })[1]!);
+    await waitFor(() => expect(calls).toEqual(["accept:p2"]));
   });
 
   it("rejects without blocking", async () => {
     const calls = trackCalls();
     renderTab();
     await userEvent.click(screen.getByRole("button", { name: "Reject" }));
-    await waitFor(() => expect(calls).toEqual(["reject"]));
+    await waitFor(() => expect(calls).toEqual(["reject:p1"]));
   });
 
   it("rejects first and then blocks the owner", async () => {
     const calls = trackCalls();
     renderTab();
     await userEvent.click(screen.getByRole("button", { name: "Reject and block" }));
-    await waitFor(() => expect(calls).toEqual(["reject", "block:owner-1"]));
+    await waitFor(() => expect(calls).toEqual(["reject:p1", "block:owner-1"]));
   });
 
   it("shows the failure and keeps the buttons when a response fails", async () => {

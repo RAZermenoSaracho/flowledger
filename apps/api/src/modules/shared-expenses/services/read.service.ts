@@ -42,7 +42,7 @@ export async function assertOwnedSharingTransaction(userId: string, transactionI
 }
 
 /**
- * Validates participant input for any shared transaction (Group or not): no owner, no duplicate app user, no new
+ * Validates participant input for any shared transaction (Group or not): no owner, no duplicate app user among rows without an `id` (extra allocation lines carry the row `id`; `applySharedExpenseToTransaction` enforces the rest), no new
  * app user blocked in either direction with the owner (400 "This user can't be invited."), every app user exists.
  * Users in `existingUserIds` skip the block check so re-saving an existing share is never refused. Returns the
  * input with `participantName` filled: `@username` snapshot for app users, `manualName` for manual ones.
@@ -61,7 +61,10 @@ export async function normalizeSharedExpenseParticipants(
   if (userIds.includes(ownerUserId)) {
     throw new HttpError(400, "Shared transaction participants cannot include the owner");
   }
-  if (new Set(userIds).size !== userIds.length) {
+  const idlessUserIds = participants.flatMap((participant) =>
+    participant.userId && !participant.id ? [participant.userId] : []
+  );
+  if (new Set(idlessUserIds).size !== idlessUserIds.length) {
     throw new HttpError(400, "A participant can only be added once");
   }
 
@@ -71,11 +74,12 @@ export async function normalizeSharedExpenseParticipants(
     client
   );
 
-  const users = userIds.length
-    ? await client.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true } })
+  const uniqueUserIds = [...new Set(userIds)];
+  const users = uniqueUserIds.length
+    ? await client.user.findMany({ where: { id: { in: uniqueUserIds } }, select: { id: true, username: true } })
     : [];
   const usernames = new Map(users.map((user) => [user.id, user.username]));
-  if (users.length !== userIds.length) {
+  if (users.length !== uniqueUserIds.length) {
     throw new HttpError(400, "One or more participants do not exist");
   }
 

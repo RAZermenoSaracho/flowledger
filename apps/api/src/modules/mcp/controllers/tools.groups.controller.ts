@@ -1,7 +1,7 @@
 import {
   addGroupMemberToolSchema,
   blockUserSchema,
-  transactionIdToolSchema,
+  respondSharedExpenseToolSchema,
   createGroupCategoryToolSchema,
   groupCategorySchema,
   groupSchema,
@@ -104,11 +104,11 @@ export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
 
   for (const [name, acceptance] of [["accept_shared_expense", "accepted"], ["reject_shared_expense", "rejected"]] as const) {
     server.registerTool(name, {
-      description: `${acceptance === "accepted" ? "Accept" : "Reject"} the caller's proposed share by shared expense id. Affects another user: notifies the owner.`,
-      inputSchema: transactionIdToolSchema.shape
+      description: `${acceptance === "accepted" ? "Accept" : "Reject"} the caller's proposed share by shared expense id; pass participantId to answer one allocation only, otherwise every proposed allocation of the caller on it. Affects another user: notifies the owner.`,
+      inputSchema: respondSharedExpenseToolSchema.shape
     }, (args) => runWrite(auth, `mcp.${name}`, args.id, async () => {
-      const { id } = transactionIdToolSchema.parse(args);
-      const sharedExpense = await respondToSharedExpense(userId, id, acceptance);
+      const { id, participantId } = respondSharedExpenseToolSchema.parse(args);
+      const sharedExpense = await respondToSharedExpense(userId, id, acceptance, participantId);
       return { data: { sharedExpense }, resourceId: id, status: 200 };
     }));
   }

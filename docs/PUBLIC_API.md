@@ -71,7 +71,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | POST | `/debts/:id/settlement-request` | write | `201`; debtor only; notifies the creditor |
 | POST | `/settlements/:id/approve`, `/settlements/:id/reject` | write | creditor only while pending; approve writes both users' transactions (REST only, no MCP tool) |
 
-| POST | `/shared-expenses/:id/accept`, `/shared-expenses/:id/reject` | write | respond only to your proposed share; 404 for other callers, 400 for an already answered share; notifies owner |
+| POST | `/shared-expenses/:id/accept`, `/shared-expenses/:id/reject` | write | respond only to your proposed share; optional body `{ participantId }` answers one allocation line only, otherwise every proposed line of yours on that expense; 404 for other callers, 400 for an already answered share; notifies owner (MCP `accept_shared_expense`/`reject_shared_expense` take the same optional `participantId`) |
 | GET | `/users/blocks` | read | `{ blocks }`, only your blocks with public identities |
 | POST | `/users/blocks` | write | `{ userId }`, 201 `{ block }`; idempotent, 400 for self/unknown user |
 | DELETE | `/users/blocks/:userId` | write | 204; idempotent; rejected shares stay rejected |

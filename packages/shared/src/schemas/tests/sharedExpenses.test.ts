@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  respondSharedExpenseSchema,
   sharedExpenseParticipantSchema,
   sharedExpenseSchema,
   sharedExpensesQueryParamSchema,
@@ -95,5 +96,18 @@ describe("updateSharedExpenseSchema", () => {
 describe("sharedExpensesQueryParamSchema", () => {
   it("accepts an empty object", () => {
     expect(sharedExpensesQueryParamSchema.safeParse({}).success).toBe(true);
+  });
+});
+
+describe("respondSharedExpenseSchema", () => {
+  it("accepts an optional participantId and defaults an empty body", () => {
+    expect(respondSharedExpenseSchema.parse({ participantId: "p1" })).toEqual({ participantId: "p1" });
+    expect(respondSharedExpenseSchema.parse(undefined)).toEqual({});
+    expect(respondSharedExpenseSchema.safeParse({ participantId: "" }).success).toBe(false);
+    expect(respondSharedExpenseSchema.safeParse({ other: 1 }).success).toBe(false);
+  });
+
+  it("lets a legacy participant carry an existing row id", () => {
+    expect(sharedExpenseParticipantSchema.parse({ id: "p1", participantName: "Ana", shareAmount: 10 })).toMatchObject({ id: "p1" });
   });
 });

@@ -11,7 +11,7 @@ export function legacyParticipantsToSharing(
 ): SharingParticipantInput[] {
   return participants.map((participant) =>
     participant.userId
-      ? { userId: participant.userId, share: participant.shareAmount }
-      : { manualName: participant.participantName, share: participant.shareAmount }
+      ? { id: participant.id, userId: participant.userId, share: participant.shareAmount }
+      : { id: participant.id, manualName: participant.participantName, share: participant.shareAmount }
   );
 }

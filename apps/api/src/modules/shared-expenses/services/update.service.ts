@@ -43,43 +43,51 @@ export async function updateSharedExpense(userId: string, sharedExpenseId: strin
 }
 
 /**
- * The participant `userId` accepts or rejects their own `proposed` share. Scoped by `sharedExpenseId` and `userId`,
- * so the owner and other users get 404; a share that is not `proposed` gets 400. Notifies the owner.
+ * The participant `userId` accepts or rejects their own `proposed` allocations of a shared expense. With
+ * `participantId` only that allocation is answered (it must be the caller's, else 404; not `proposed`, else 400);
+ * without it every `proposed` allocation of the caller on that expense is answered (none, 400). Scoped by
+ * `sharedExpenseId` and `userId`, so the owner and other users get 404. Notifies the owner once per allocation.
  * @returns the shared expense as the participant sees it.
  */
 export async function respondToSharedExpense(
   userId: string,
   sharedExpenseId: string,
-  decision: "accepted" | "rejected"
+  decision: "accepted" | "rejected",
+  participantId?: string
 ) {
-  const participant = await prisma.$transaction(async (tx) => {
-    const row = await tx.sharedExpenseParticipant.findFirst({
-      where: { sharedExpenseId, userId },
+  await prisma.$transaction(async (tx) => {
+    const rows = await tx.sharedExpenseParticipant.findMany({
+      where: { sharedExpenseId, userId, ...(participantId ? { id: participantId } : {}) },
       include: {
         sharedExpense: { select: { ownerUserId: true, title: true, transactionId: true } },
         user: { select: publicUserSelect }
-      }
+      },
+      orderBy: { createdAt: "asc" }
     });
-    if (!row) throw notFound("Shared expense");
+    if (rows.length === 0) throw notFound("Shared expense");
+    const targets = participantId ? rows : rows.filter((row) => row.acceptance === "proposed");
+    if (targets.length === 0) throw new HttpError(400, `This share is already ${rows[0]!.acceptance}`);
 
-    const changed = await tx.sharedExpenseParticipant.updateMany({
-      where: { id: row.id, userId, acceptance: "proposed" },
-      data: { acceptance: decision }
-    });
-    if (changed.count === 0) throw new HttpError(400, `This share is already ${row.acceptance}`);
+    for (const row of targets) {
+      const changed = await tx.sharedExpenseParticipant.updateMany({
+        where: { id: row.id, userId, acceptance: "proposed" },
+        data: { acceptance: decision }
+      });
+      if (changed.count === 0) throw new HttpError(400, `This share is already ${row.acceptance}`);
+    }
 
-    await createDedupedNotifications(tx, [
-      {
+    await createDedupedNotifications(
+      tx,
+      targets.map((row) => ({
         userId: row.sharedExpense.ownerUserId,
         senderUserId: userId,
-        type: decision === "accepted" ? "shared_expense_accepted" : "shared_expense_rejected",
+        type: decision === "accepted" ? ("shared_expense_accepted" as const) : ("shared_expense_rejected" as const),
         title: decision === "accepted" ? "Share accepted" : "Share rejected",
         message: `${userLabel(row.user!)} ${decision === "accepted" ? "accepted" : "rejected"} their share of ${row.sharedExpense.title}.`,
         metadata: { sharedExpenseId, transactionId: row.sharedExpense.transactionId, participantId: row.id }
-      }
-    ]);
-    return row;
+      }))
+    );
   });
 
-  return getSharedExpenseById(userId, participant.sharedExpenseId);
+  return getSharedExpenseById(userId, sharedExpenseId);
 }

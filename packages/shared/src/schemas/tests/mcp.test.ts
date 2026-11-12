@@ -3,6 +3,7 @@ import {
   exchangeRateToolSchema,
   importedIdsToolSchema,
   importImportedToolSchema,
+  respondSharedExpenseToolSchema,
   markNotificationsReadInputSchema,
   publicBatchImportedSchema,
   publicBatchImportImportedSchema,
@@ -172,5 +173,13 @@ describe("imported review schemas", () => {
     expect(markNotificationsReadInputSchema.safeParse({}).success).toBe(false);
     expect(markNotificationsReadInputSchema.safeParse({ id: "n", all: true }).success).toBe(false);
     expect(markNotificationsReadInputSchema.safeParse({ all: false }).success).toBe(false);
+  });
+});
+
+describe("respondSharedExpenseToolSchema", () => {
+  it("requires the shared expense id and allows an optional participantId", () => {
+    expect(respondSharedExpenseToolSchema.parse({ id: "se1", participantId: "p1" })).toEqual({ id: "se1", participantId: "p1" });
+    expect(respondSharedExpenseToolSchema.safeParse({ participantId: "p1" }).success).toBe(false);
+    expect(respondSharedExpenseToolSchema.safeParse({ id: "se1", extra: true }).success).toBe(false);
   });
 });

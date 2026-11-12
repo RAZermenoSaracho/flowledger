@@ -52,6 +52,27 @@ describe("validateTransactionDraft", () => {
       expect(validateTransactionDraft(valid({ isShared: true })).participants).toMatch(/at least one/);
     });
 
+    it("validates two lines of the same user independently, by row", () => {
+      const line = (draftId: string, shareAmount: string, paidAmount?: number) => ({
+        draftId,
+        userId: "u2",
+        participantName: "Sam",
+        source: "app" as const,
+        shareAmount,
+        paidAmount
+      });
+      const errors = validateTransactionDraft(
+        valid({ isShared: true, participants: [line("a", "10", 10), line("b", "")] })
+      );
+      expect(errors["participants.0.shareAmount"]).toBeUndefined();
+      expect(errors["participants.1.shareAmount"]).toBeDefined();
+      expect(
+        validateTransactionDraft(valid({ isShared: true, participants: [line("a", "5", 10)] }))[
+          "participants.0.shareAmount"
+        ]
+      ).toMatch(/lower than what was paid/);
+    });
+
     it("needs positive shares", () => {
       const errors = validateTransactionDraft(
         valid({ isShared: true, participants: [row("a", "10"), row("b", "")] }));

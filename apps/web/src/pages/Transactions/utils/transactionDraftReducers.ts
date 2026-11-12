@@ -4,7 +4,7 @@ import type { Group } from "../../../types/groups.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft, TransactionDraft } from "../types/transactions.types";
 import { formatPublicUser } from "../../../utils/publicUser";
-import { isShareLocked } from "./transactionDraft";
+import { canAddAllocation, isShareLocked } from "./transactionDraft";
 
 function toShare(value: number) {
   return (Math.round(value * 100) / 100).toFixed(2);
@@ -141,13 +141,30 @@ export function splitEqually(draft: TransactionDraft): TransactionDraft {
   };
 }
 
-/** Adds any app user as a participant with an empty share (sharing is not limited to Group members), ignoring duplicates. */
+/**
+ * Adds any app user as a participant with an empty share (sharing is not limited to Group members).
+ * A user who already has lines gets an additional allocation line only when all their lines have
+ * payments (`canAddAllocation`); otherwise the draft is returned unchanged.
+ */
 export function addUserParticipant(draft: TransactionDraft, user: PublicUser): TransactionDraft {
-  if (draft.participants.some((participant) => participant.userId === user.id)) return draft;
+  if (!canAddAllocation(draft.participants, user.id)) return draft;
   const participant: ParticipantDraft = {
     draftId: crypto.randomUUID(),
     userId: user.id,
     participantName: formatPublicUser(user),
+    source: "app",
+    shareAmount: ""
+  };
+  return { ...draft, participants: [...draft.participants, participant] };
+}
+
+/** Appends an additional allocation line for `line`'s user, allowed only under the `canAddAllocation` rule. */
+export function addAllocationLine(draft: TransactionDraft, line: ParticipantDraft): TransactionDraft {
+  if (!line.userId || !canAddAllocation(draft.participants, line.userId)) return draft;
+  const participant: ParticipantDraft = {
+    draftId: crypto.randomUUID(),
+    userId: line.userId,
+    participantName: line.participantName,
     source: "app",
     shareAmount: ""
   };

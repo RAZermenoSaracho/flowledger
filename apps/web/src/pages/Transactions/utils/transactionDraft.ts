@@ -70,9 +70,16 @@ export function sumParticipantShares(participants: ParticipantDraft[]): number {
   }, 0);
 }
 
-/** Whether a stored participant's share is fully paid (server `status` is `paid`), so the server rejects any change to it. Judged by status, not by the editable input. */
+/** Whether a stored line is settled (accepted and fully paid), so the server rejects any change to it. Judged by stored status, not by the editable input. */
 export function isShareLocked(participant: ParticipantDraft): boolean {
-  return participant.status === "paid";
+  return participant.status === "paid" && participant.acceptance === "accepted";
+}
+
+/** Whether `userId` may get another allocation line: no line yet, or every existing line has a payment. */
+export function canAddAllocation(participants: ParticipantDraft[], userId: string): boolean {
+  return participants
+    .filter((participant) => participant.userId === userId)
+    .every((participant) => (participant.paidAmount ?? 0) > 0);
 }
 
 /** Whether a participant may be removed from the draft: stored rows with a payment cannot be (the server also rejects pending settlement requests). */

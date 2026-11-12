@@ -17,11 +17,13 @@ import type {
   TransactionDraft
 } from "../types/transactions.types";
 import {
+  canAddAllocation,
   canRemoveParticipant,
   isShareLocked,
   sumParticipantShares
 } from "../utils/transactionDraft";
 import {
+  addAllocationLine,
   addManualParticipant,
   addUserParticipant,
   removeParticipant,
@@ -64,6 +66,7 @@ export function TransactionSharingTab({
 }) {
   const [userSearch, setUserSearch] = useState("");
   const [manualName, setManualName] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const { values } = draft;
   const search = userSearch.trim();
   const usersQuery = useQuery({
@@ -182,6 +185,11 @@ export function TransactionSharingTab({
               </Button>
             </div>
           </div>
+          {notice ? (
+            <p role="status" className={mutedClassName}>
+              {notice}
+            </p>
+          ) : null}
           {search.length > 0 && search.length < 3 ? (
             <p className={mutedClassName}>
               Type at least 3 characters to search.
@@ -205,9 +213,16 @@ export function TransactionSharingTab({
                       variant="secondary"
                       className="w-full sm:w-auto"
                       onClick={() => {
-                        draft.update((current) =>
-                          addUserParticipant(current, user)
-                        );
+                        if (canAddAllocation(values.participants, user.id)) {
+                          draft.update((current) =>
+                            addUserParticipant(current, user)
+                          );
+                          setNotice(null);
+                        } else {
+                          setNotice(
+                            `${formatPublicUser(user)} is already a participant. Edit their share, or add an additional allocation once they have paid.`
+                          );
+                        }
                         setUserSearch("");
                       }}
                     >
@@ -235,18 +250,48 @@ export function TransactionSharingTab({
               {
                 key: "name",
                 header: "Participant",
-                cell: (participant) => (
-                  <div>
-                    <p className="font-semibold">
-                      {participant.participantName}
-                    </p>
-                    <p className={mutedClassName}>
-                      {participant.source === "app"
-                        ? "App user"
-                        : "Manual participant"}
-                    </p>
-                  </div>
-                )
+                cell: (participant) => {
+                  const lines = values.participants.filter(
+                    (other) =>
+                      participant.userId && other.userId === participant.userId
+                  );
+                  const lineNumber = lines.indexOf(participant) + 1;
+                  const canAdd =
+                    Boolean(participant.id) &&
+                    Boolean(participant.userId) &&
+                    (participant.paidAmount ?? 0) > 0 &&
+                    canAddAllocation(
+                      values.participants,
+                      participant.userId as string
+                    );
+                  return (
+                    <div>
+                      <p className="font-semibold">
+                        {participant.participantName}
+                      </p>
+                      <p className={mutedClassName}>
+                        {participant.source === "app"
+                          ? lineNumber > 1
+                            ? "Additional allocation"
+                            : "App user"
+                          : "Manual participant"}
+                      </p>
+                      {canAdd ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() =>
+                            draft.update((current) =>
+                              addAllocationLine(current, participant)
+                            )
+                          }
+                        >
+                          Add allocation
+                        </Button>
+                      ) : null}
+                    </div>
+                  );
+                }
               },
               {
                 key: "share",
@@ -254,32 +299,55 @@ export function TransactionSharingTab({
                 align: "right",
                 cell: (participant) => {
                   const index = values.participants.indexOf(participant);
+                  const settled = isShareLocked(participant);
+                  const hasPaid = (participant.paidAmount ?? 0) > 0;
+                  const original =
+                    transaction?.sharedExpense?.participants.find(
+                      (stored) => stored.id === participant.id
+                    );
                   return (
-                    <EditableField
-                      label="Share"
-                      hideLabel
-                      error={
-                        draft.fieldErrors[`participants.${index}.shareAmount`]
-                      }
-                    >
-                      <input
-                        className={editableControlClassName}
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        disabled={isShareLocked(participant)}
-                        value={participant.shareAmount}
-                        onChange={(event) =>
-                          draft.update((current) =>
-                            setParticipantShare(
-                              current,
-                              participant.draftId,
-                              event.target.value
-                            )
-                          )
+                    <>
+                      <EditableField
+                        label="Share"
+                        hideLabel
+                        error={
+                          draft.fieldErrors[`participants.${index}.shareAmount`]
                         }
-                      />
-                    </EditableField>
+                      >
+                        <input
+                          className={editableControlClassName}
+                          type="number"
+                          step="0.01"
+                          min={hasPaid ? participant.paidAmount : "0.01"}
+                          max={
+                            hasPaid && original
+                              ? original.shareAmount
+                              : undefined
+                          }
+                          disabled={settled}
+                          value={participant.shareAmount}
+                          onChange={(event) =>
+                            draft.update((current) =>
+                              setParticipantShare(
+                                current,
+                                participant.draftId,
+                                event.target.value
+                              )
+                            )
+                          }
+                        />
+                      </EditableField>
+                      {settled ? (
+                        <span className={`block ${mutedClassName}`}>
+                          Fully settled — add an additional allocation to change
+                          the amount.
+                        </span>
+                      ) : hasPaid ? (
+                        <span className={`block ${mutedClassName}`}>
+                          Can be lowered to the paid amount, not increased.
+                        </span>
+                      ) : null}
+                    </>
                   );
                 }
               },
@@ -304,8 +372,8 @@ export function TransactionSharingTab({
                         <span>
                           {responseLabel(participant)}
                           {isShareLocked(participant) ? (
-                            <span className={`block ${mutedClassName}`}>
-                              Fully paid, locked
+                            <span className="mt-1 block w-fit rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">
+                              Settled
                             </span>
                           ) : null}
                         </span>

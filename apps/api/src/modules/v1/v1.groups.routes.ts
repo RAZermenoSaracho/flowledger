@@ -1,4 +1,5 @@
 import {
+  respondSharedExpenseSchema,
   apiUserSearchQuerySchema,
   blockUserSchema,
   blockedUserParamsSchema,
@@ -137,5 +138,5 @@ v1GroupsRouter.post(
 v1GroupsRouter.get("/users/blocks", requireScope("read"), asyncHandler(getBlocks));
 v1GroupsRouter.post("/users/blocks", auditV1Write("user.block"), requireScope("write"), validate(blockUserSchema), asyncHandler(postBlock));
 v1GroupsRouter.delete("/users/blocks/:userId", auditV1Write("user.unblock"), requireScope("write"), validate(blockedUserParamsSchema, "params"), asyncHandler(deleteBlock));
-v1GroupsRouter.post("/shared-expenses/:id/accept", auditV1Write("sharedExpense.accept"), requireScope("write"), asyncHandler(postAcceptSharedExpense));
-v1GroupsRouter.post("/shared-expenses/:id/reject", auditV1Write("sharedExpense.reject"), requireScope("write"), asyncHandler(postRejectSharedExpense));
+v1GroupsRouter.post("/shared-expenses/:id/accept", auditV1Write("sharedExpense.accept"), requireScope("write"), validate(respondSharedExpenseSchema), asyncHandler(postAcceptSharedExpense));
+v1GroupsRouter.post("/shared-expenses/:id/reject", auditV1Write("sharedExpense.reject"), requireScope("write"), validate(respondSharedExpenseSchema), asyncHandler(postRejectSharedExpense));

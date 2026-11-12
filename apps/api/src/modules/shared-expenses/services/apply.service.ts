@@ -10,10 +10,12 @@ import type { SharingInput } from "../types/sharedExpenses.types.js";
 import { assertShareableTransaction, validateSharedExpenseParticipants } from "../utils/assertions.js";
 import {
   assertNoSettlementActivity,
+  assertNotSettled,
   assertRemovable,
   assertShareEditable,
   assertTypeChangeAllowed,
-  fieldError
+  fieldError,
+  hasSettlementActivity
 } from "../utils/shareGuards.js";
 import { normalizeSharedExpenseParticipants } from "./read.service.js";
 
@@ -97,6 +99,8 @@ export async function applySharedExpenseToTransaction(
 
   if (!existing) {
     const participants = normalized ?? [];
+    const newUserIds = participants.flatMap((participant) => (participant.userId ? [participant.userId] : []));
+    if (new Set(newUserIds).size !== newUserIds.length) throw new HttpError(400, "A participant can only be added once");
     validateSharedExpenseParticipants(
       transaction.amount,
       participants.map((participant) => ({ shareAmount: participant.share }))
@@ -140,24 +144,55 @@ export async function applySharedExpenseToTransaction(
   const matchedIds = new Set<string>();
   const desired: { row: Row | null; input: NormalizedParticipant | null; share: number; index: number }[] = [];
   if (normalized) {
-    normalized.forEach((participant, index) => {
-      const byId = participant.id ? existing.participants.find((candidate) => candidate.id === participant.id) : undefined;
-      if (participant.id && !byId) {
+    const claim = (row: Row) => {
+      if (matchedIds.has(row.id)) throw new HttpError(400, "A participant can only be added once");
+      matchedIds.add(row.id);
+    };
+    const rowFor: (Row | null)[] = normalized.map((participant, index) => {
+      if (!participant.id) return null;
+      const byId = existing.participants.find((candidate) => candidate.id === participant.id);
+      if (!byId) {
         throw fieldError(`sharedExpense.participants.${index}.id`, "Participant does not belong to this shared expense");
       }
-      const row =
-        byId ??
-        (participant.userId
-          ? existing.participants.find((candidate) => candidate.userId === participant.userId)
-          : existing.participants.find(
-              (candidate) =>
-                !candidate.userId && candidate.participantName === participant.participantName && !matchedIds.has(candidate.id)
-            ));
-      if (row) {
-        if (matchedIds.has(row.id)) throw new HttpError(400, "A participant can only be added once");
-        matchedIds.add(row.id);
+      if ((participant.userId ?? null) !== byId.userId) {
+        throw fieldError(`sharedExpense.participants.${index}.id`, "Participant id does not match the given user");
       }
-      desired.push({ row: row ?? null, input: participant, share: Number(participant.share), index });
+      if (!participant.userId && participant.manualName && !byId.userId && byId.participantName !== participant.participantName) {
+        assertNotSettled(byId, `sharedExpense.participants.${index}.id`);
+      }
+      claim(byId);
+      return byId;
+    });
+    const newLinesPerUser = new Map<string, number>();
+    normalized.forEach((participant, index) => {
+      let row = rowFor[index] ?? null;
+      if (!row && participant.userId) {
+        const userRows = existing.participants.filter((candidate) => candidate.userId === participant.userId);
+        if (userRows.length > 1 && !userRows.every((candidate) => matchedIds.has(candidate.id))) {
+          throw fieldError(`sharedExpense.participants.${index}.id`, "participant id required");
+        }
+        if (userRows.length === 1 && !matchedIds.has(userRows[0]!.id)) row = userRows[0]!;
+        else if (userRows.length > 0) {
+          if (!userRows.every(hasSettlementActivity)) {
+            throw fieldError(
+              `sharedExpense.participants.${index}.share`,
+              "Edit the existing allocation instead of adding another one for the same user."
+            );
+          }
+        }
+        const lines = (newLinesPerUser.get(participant.userId) ?? 0) + (row ? 0 : 1);
+        newLinesPerUser.set(participant.userId, lines);
+        if (lines > 1) throw new HttpError(400, "A participant can only be added once");
+        if (row) claim(row);
+      } else if (!row && !participant.userId) {
+        row =
+          existing.participants.find(
+            (candidate) =>
+              !candidate.userId && candidate.participantName === participant.participantName && !matchedIds.has(candidate.id)
+          ) ?? null;
+        if (row) claim(row);
+      }
+      desired.push({ row, input: participant, share: Number(participant.share), index });
     });
   } else {
     existing.participants.forEach((row, index) =>
@@ -209,14 +244,29 @@ export async function applySharedExpenseToTransaction(
       else if (row.acceptance === "rejected" && amountChanged) acceptance = "proposed";
     }
     if (amountChanged || acceptance !== row.acceptance) {
-      await tx.sharedExpenseParticipant.update({
-        where: { id: row.id },
+      const updated = await tx.sharedExpenseParticipant.updateMany({
+        where: {
+          id: row.id,
+          paidAmount: row.paidAmount,
+          acceptance: row.acceptance,
+          ...(amountChanged
+            ? {
+                settlementRequests: {
+                  none: {
+                    status: "pending",
+                    id: { notIn: row.settlementRequests.filter((request) => request.status === "pending").map((request) => request.id) }
+                  }
+                }
+              }
+            : {})
+        },
         data: {
           shareAmount: new Prisma.Decimal(entry.share),
           status: participantStatus(entry.share, row.paidAmount.toNumber()),
           acceptance
         }
       });
+      if (updated.count !== 1) throw changedWhileEditing();
     }
     if (row.userId && acceptance === "proposed" && row.acceptance !== "proposed") {
       notifications.push({
@@ -232,11 +282,30 @@ export async function applySharedExpenseToTransaction(
 
   removals.forEach((row, index) => assertRemovable(row, `sharedExpense.participants.removed.${index}`));
   if (removals.length > 0) {
-    const removedUserIds = removals.flatMap((row) => (row.userId ? [row.userId] : []));
-    await tx.sharedExpenseParticipant.deleteMany({ where: { id: { in: removals.map((row) => row.id) } } });
+    const remainingUserIds = new Set(
+      desired.flatMap((entry) => {
+        const userId = entry.row?.userId ?? entry.input?.userId;
+        return userId ? [userId] : [];
+      })
+    );
+    const removedUserIds = [
+      ...new Set(removals.flatMap((row) => (row.userId && !remainingUserIds.has(row.userId) ? [row.userId] : [])))
+    ];
+    const retainedUserRemovals = removals.filter((row) => row.userId && remainingUserIds.has(row.userId));
+    for (const row of removals) {
+      const deleted = await tx.sharedExpenseParticipant.deleteMany({
+        where: { id: row.id, paidAmount: row.paidAmount, settlementRequests: { none: { status: "pending" } } }
+      });
+      if (deleted.count !== 1) throw changedWhileEditing();
+    }
     await tx.notification.deleteMany({
       where: { userId: { in: removedUserIds }, metadata: { path: ["sharedExpenseId"], equals: existing.id } }
     });
+    for (const row of retainedUserRemovals) {
+      await tx.notification.deleteMany({
+        where: { userId: row.userId!, metadata: { path: ["participantId"], equals: row.id } }
+      });
+    }
     removedUserIds.forEach((userId) =>
       notifications.push({
         userId,
@@ -257,6 +326,10 @@ export async function applySharedExpenseToTransaction(
   return publicizeUsers(
     await tx.sharedExpense.findUniqueOrThrow({ where: { id: existing.id }, include: sharedExpenseResponseInclude })
   );
+}
+
+function changedWhileEditing() {
+  return new HttpError(409, "This shared expense changed while you were editing; please reload");
 }
 
 async function removeSharedExpense(

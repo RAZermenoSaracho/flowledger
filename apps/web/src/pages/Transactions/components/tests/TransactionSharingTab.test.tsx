@@ -152,7 +152,13 @@ describe("TransactionSharingTab", () => {
 
   const stored = (participants: TransactionDraft["participants"], overrides: Partial<TransactionDraft> = {}) => ({
     initial: draft({ participants, ...overrides }),
-    transaction: { sharedExpense: { id: "se1", title: "Dinner" } } as unknown as Transaction
+    transaction: {
+      sharedExpense: {
+        id: "se1",
+        title: "Dinner",
+        participants: participants.map((p) => ({ id: p.id, shareAmount: Number(p.shareAmount) }))
+      }
+    } as unknown as Transaction
   });
   const stub = (id: string, extra: Partial<TransactionDraft["participants"][number]> = {}) => ({
     draftId: id,
@@ -187,11 +193,52 @@ describe("TransactionSharingTab", () => {
 
     expect(screen.getAllByLabelText("Share")[0]).toBeDisabled();
     expect(screen.getAllByLabelText("Share")[1]).toBeEnabled();
-    expect(screen.getByText("Fully paid, locked")).toBeInTheDocument();
+    expect(screen.getByText("Settled")).toBeInTheDocument();
+    expect(screen.getByText(/Fully settled/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
     const toggle = screen.getByRole("checkbox", { name: "Shared transaction" });
     expect(toggle).toBeDisabled();
     expect(toggle).toHaveAccessibleDescription(/cannot be turned off/);
+  });
+
+  it("lists two lines of one user separately and offers Add allocation on a paid line", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Harness
+        {...stored([
+          stub("a", { userId: "u9", participantName: "@sam", paidAmount: 20, status: "paid", acceptance: "accepted" })
+        ])}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add allocation" }));
+
+    expect(screen.getAllByText("@sam")).toHaveLength(2);
+    expect(screen.getByText("Additional allocation")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Share")[0]).toBeDisabled();
+    expect(screen.getAllByLabelText("Share")[1]).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Add allocation" })).not.toBeInTheDocument();
+  });
+
+  it("does not offer Add allocation for a user with no payment", () => {
+    renderWithProviders(<Harness {...stored([stub("sam")])} />);
+    expect(screen.queryByRole("button", { name: "Add allocation" })).not.toBeInTheDocument();
+  });
+
+  it("blocks adding an unpaid existing user from search and explains why", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(`${API_URL}/users/search`, () =>
+        HttpResponse.json({ users: [{ id: "user-sam", username: "sam", displayName: "Sam" }] })
+      )
+    );
+    renderWithProviders(<Harness {...stored([stub("sam")])} />);
+
+    await user.type(screen.getByLabelText("Find app user"), "sam");
+    await user.click(await screen.findByRole("button", { name: "Add app user" }));
+
+    expect(await screen.findByText(/already a participant/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Share")).toHaveLength(1);
   });
 
   it("allows turning sharing off when nobody has paid", async () => {

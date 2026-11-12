@@ -5,6 +5,7 @@ import type { Group } from "../../../../types/groups.types";
 import type { TransactionDraft } from "../../types/transactions.types";
 import { newTransactionDraft } from "../transactionDraft";
 import {
+  addAllocationLine,
   addManualParticipant,
   addUserParticipant,
   changeAmount,
@@ -153,6 +154,30 @@ describe("participants", () => {
     expect(addManualParticipant(base(), "  ").participants).toEqual([]);
   });
 
+  it("adds a second line for a paid user with a fresh temp key, and blocks it for an unpaid user", () => {
+    const sam = { id: "u2", username: "sam", displayName: "Sam" } as never;
+    const stored = (paidAmount: number) =>
+      base({
+        participants: [
+          { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "10", paidAmount }
+        ]
+      });
+
+    const unpaid = stored(0);
+    expect(addUserParticipant(unpaid, sam)).toBe(unpaid);
+    expect(addAllocationLine(unpaid, unpaid.participants[0]!)).toBe(unpaid);
+
+    const paid = stored(10);
+    const viaSearch = addUserParticipant(paid, sam).participants;
+    const viaRow = addAllocationLine(paid, paid.participants[0]!).participants;
+    for (const rows of [viaSearch, viaRow]) {
+      expect(rows).toHaveLength(2);
+      expect(rows[1]).toMatchObject({ userId: "u2", shareAmount: "" });
+      expect(rows[1]!.id).toBeUndefined();
+      expect(rows[1]!.draftId).not.toBe("p1");
+    }
+  });
+
   it("edits a share and removes a row", () => {
     const draft = addManualParticipant(addManualParticipant(base(), "A"), "B");
     const [a, b] = draft.participants;
@@ -165,7 +190,7 @@ describe("participants", () => {
     const draft = addManualParticipant(addManualParticipant(base({ amount: "90" }), "A"), "B");
     const locked = {
       ...draft,
-      participants: [{ ...draft.participants[0]!, shareAmount: "50", paidAmount: 50, status: "paid" as const }, draft.participants[1]!]
+      participants: [{ ...draft.participants[0]!, shareAmount: "50", paidAmount: 50, status: "paid" as const, acceptance: "accepted" as const }, draft.participants[1]!]
     };
     expect(splitEqually(locked).participants.map((p) => p.shareAmount)).toEqual(["50", "30.00"]);
   });

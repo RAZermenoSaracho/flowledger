@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   assertNoSettlementActivity,
+  assertNotSettled,
   assertRemovable,
   assertShareEditable,
   assertTypeChangeAllowed,
+  isSettledAllocation,
   pendingRequestAmount
 } from "../shareGuards.js";
 
 const D = (value: number) => ({ toNumber: () => value });
 const participant = (overrides: Record<string, unknown> = {}) =>
-  ({ id: "p1", participantName: "@friend", shareAmount: D(40), paidAmount: D(0), settlementRequests: [], ...overrides }) as never;
+  ({ id: "p1", participantName: "@friend", shareAmount: D(40), paidAmount: D(0), acceptance: "accepted", settlementRequests: [], ...overrides }) as never;
 
 describe("pendingRequestAmount", () => {
   it("sums only pending requests", () => {
@@ -39,6 +41,20 @@ describe("assertNoSettlementActivity", () => {
   });
 });
 
+describe("isSettledAllocation", () => {
+  it("needs acceptance and a fully paid share", () => {
+    expect(isSettledAllocation(participant({ paidAmount: D(40) }))).toBe(true);
+    expect(isSettledAllocation(participant({ paidAmount: D(39.99) }))).toBe(false);
+    expect(isSettledAllocation(participant({ paidAmount: D(40), acceptance: "proposed" }))).toBe(false);
+    expect(isSettledAllocation(participant({ paidAmount: D(40), acceptance: "rejected" }))).toBe(false);
+  });
+
+  it("assertNotSettled throws only for a settled allocation", () => {
+    expect(() => assertNotSettled(participant({ paidAmount: D(40) }), "f")).toThrow("add an additional allocation");
+    expect(() => assertNotSettled(participant({ paidAmount: D(10) }), "f")).not.toThrow();
+  });
+});
+
 describe("assertTypeChangeAllowed", () => {
   it("allows an unchanged type and a change with no activity", () => {
     expect(() => assertTypeChangeAllowed([participant({ paidAmount: D(5) })], "expense", "expense")).not.toThrow();
@@ -60,8 +76,18 @@ describe("assertShareEditable", () => {
     expect(() => assertShareEditable(participant({ paidAmount: D(40) }), 40, "f")).not.toThrow();
   });
 
-  it("locks a fully paid share", () => {
-    expect(() => assertShareEditable(participant({ paidAmount: D(40) }), 50, "f")).toThrow("fully paid");
+  it("locks a settled allocation against any change", () => {
+    expect(() => assertShareEditable(participant({ paidAmount: D(40) }), 50, "f")).toThrow("fully settled");
+    expect(() => assertShareEditable(participant({ paidAmount: D(40) }), 30, "f")).toThrow("fully settled");
+  });
+
+  it("refuses to raise a share that has a payment or pending request, and allows raising an untouched one", () => {
+    expect(() => assertShareEditable(participant({ paidAmount: D(10) }), 50, "f")).toThrow("additional allocation");
+    expect(() =>
+      assertShareEditable(participant({ settlementRequests: [{ status: "pending", amount: D(5) }] }), 50, "f")
+    ).toThrow("additional allocation");
+    expect(() => assertShareEditable(participant(), 50, "f")).not.toThrow();
+    expect(() => assertShareEditable(participant({ paidAmount: D(10) }), 30, "f")).not.toThrow();
   });
 
   it("requires the share to stay at or above paid plus pending", () => {
@@ -72,6 +98,10 @@ describe("assertShareEditable", () => {
 });
 
 describe("assertRemovable", () => {
+  it("blocks a settled allocation with the settled message", () => {
+    expect(() => assertRemovable(participant({ paidAmount: D(40) }), "f")).toThrow("fully settled");
+  });
+
   it("allows an untouched participant and blocks a paid or pending one", () => {
     expect(() => assertRemovable(participant(), "f")).not.toThrow();
     expect(() => assertRemovable(participant({ paidAmount: D(1) }), "f")).toThrow();

@@ -32,7 +32,16 @@ describe("accept and reject controllers", () => {
     await postAcceptSharedExpense(mockRequest({ params: { id: "se-1" } }), mockResponse());
     await postRejectSharedExpense(mockRequest({ params: { id: "se-1" } }), mockResponse());
 
-    expect(respondToSharedExpense).toHaveBeenNthCalledWith(1, "user-1", "se-1", "accepted");
-    expect(respondToSharedExpense).toHaveBeenNthCalledWith(2, "user-1", "se-1", "rejected");
+    expect(respondToSharedExpense).toHaveBeenNthCalledWith(1, "user-1", "se-1", "accepted", undefined);
+    expect(respondToSharedExpense).toHaveBeenNthCalledWith(2, "user-1", "se-1", "rejected", undefined);
+  });
+
+  it("forwards body.participantId", async () => {
+    vi.mocked(respondToSharedExpense).mockClear();
+    vi.mocked(respondToSharedExpense).mockResolvedValue({ id: "se-1" } as never);
+
+    await postRejectSharedExpense(mockRequest({ params: { id: "se-1" }, body: { participantId: "p2" } }), mockResponse());
+
+    expect(respondToSharedExpense).toHaveBeenCalledWith("user-1", "se-1", "rejected", "p2");
   });
 });

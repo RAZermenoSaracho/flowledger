@@ -145,7 +145,9 @@ describe("settleDebtDirectly", () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow() as never
     );
-    prismaMock.sharedExpenseParticipant.update.mockResolvedValue(
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
       debtRow({ paidAmount: { toNumber: () => 100 }, status: "paid" }) as never
     );
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
@@ -271,7 +273,9 @@ describe("approveSettlement", () => {
     prismaMock.settlementRequest.findFirst.mockResolvedValue(
       pendingSettlementRequest() as never
     );
-    prismaMock.sharedExpenseParticipant.update.mockResolvedValue(
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
       debtRow() as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
@@ -287,7 +291,9 @@ describe("approveSettlement", () => {
     prismaMock.settlementRequest.findFirst.mockResolvedValue(
       pendingSettlementRequest() as never
     );
-    prismaMock.sharedExpenseParticipant.update.mockResolvedValue(
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
       debtRow({ paidAmount: { toNumber: () => 50 } }) as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
@@ -345,7 +351,9 @@ describe("approveBatchSettlements", () => {
     prismaMock.settlementRequest.findFirst.mockResolvedValue(
       pendingSettlementRequest() as never
     );
-    prismaMock.sharedExpenseParticipant.update.mockResolvedValue(
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
       debtRow({ paidAmount: { toNumber: () => 50 } }) as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
@@ -380,5 +388,36 @@ describe("approveBatchSettlements", () => {
     ]);
 
     expect(results).toHaveLength(1);
+  });
+});
+
+describe("compare-and-set guards", () => {
+  it("settleDebtDirectly throws 409 when the paid amount changed under it", async () => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(debtRow() as never);
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(settleDebtDirectly("owner-1", "debt-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.settlementRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("approveSettlement throws 409 when the request was already resolved", async () => {
+    prismaMock.settlementRequest.findFirst.mockResolvedValue(pendingSettlementRequest() as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      approveSettlement("owner-1", "sr-1", { accountId: "a", categoryId: "c" })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.sharedExpenseParticipant.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("approveSettlement throws 409 when paidAmount no longer matches what was read", async () => {
+    prismaMock.settlementRequest.findFirst.mockResolvedValue(pendingSettlementRequest() as never);
+    prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
+    prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      approveSettlement("owner-1", "sr-1", { accountId: "a", categoryId: "c" })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.transaction.create).not.toHaveBeenCalled();
   });
 });
