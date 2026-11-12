@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { publicUserSelect } from "../../../users/utils/publicUser.js";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import {
-  assertOwnedGroupTransaction,
+  assertOwnedSharingTransaction,
   getOwnedTransaction,
   getSharedExpenseById,
   listSharedExpenses,
@@ -30,89 +31,99 @@ describe("getOwnedTransaction", () => {
   });
 });
 
-describe("assertOwnedGroupTransaction", () => {
+describe("assertOwnedSharingTransaction", () => {
   it("scopes the lookup by owner and 404s for a missing or foreign transaction", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue(null);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 404 });
     expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "txn-1", userId: "user-1" } })
     );
   });
 
-  it("400s for a transaction without a group", async () => {
+  it("allows an owned transaction without a group", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ groupId: null } as never);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).rejects.toMatchObject({ statusCode: 400 });
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).resolves.toBeUndefined();
   });
 
   it("passes for an owned group transaction", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ groupId: "g1" } as never);
 
-    await expect(assertOwnedGroupTransaction("user-1", "txn-1")).resolves.toBeUndefined();
+    await expect(assertOwnedSharingTransaction("user-1", "txn-1")).resolves.toBeUndefined();
   });
 });
 
 describe("normalizeSharedExpenseParticipants", () => {
-  it("returns participants unchanged when none reference a userId", async () => {
-    const participants = [{ participantName: "Cash Friend", shareAmount: 50 }];
-    const result = await normalizeSharedExpenseParticipants(
-      "owner-1",
-      participants as never
-    );
-    expect(result).toEqual(participants);
+  beforeEach(() => {
+    prismaMock.userBlock.findMany.mockResolvedValue([]);
+  });
+
+  it("rejects an invitee blocked in either direction with the generic message", async () => {
+    prismaMock.userBlock.findMany.mockResolvedValue([{ blockerId: "user-2", blockedId: "owner-1" }] as never);
+
+    await expect(
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
+    ).rejects.toMatchObject({ statusCode: 400, message: "This user can't be invited." });
+  });
+
+  it("does not re-check blocks for users already on the shared expense", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "friend" }] as never);
+
+    await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }], {
+      existingUserIds: new Set(["user-2"])
+    });
+
+    expect(prismaMock.userBlock.findMany).not.toHaveBeenCalled();
+  });
+
+  it("names manual participants by manualName without touching the database", async () => {
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ manualName: "Cash Friend", share: 50 }]);
+    expect(result).toEqual([{ manualName: "Cash Friend", share: 50, participantName: "Cash Friend" }]);
+    expect(prismaMock.user.findMany).not.toHaveBeenCalled();
   });
 
   it("throws a 400 when a participant is the owner themself", async () => {
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "owner-1", participantName: "Me", shareAmount: 50 }
-      ] as never)
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "owner-1", share: 50 }])
     ).rejects.toThrow("Shared transaction participants cannot include the owner");
   });
 
-  it("throws a 400 when a group split includes a non-app-user participant", async () => {
+  it("throws a 400 when the same app user is listed twice", async () => {
     await expect(
-      normalizeSharedExpenseParticipants(
-        "owner-1",
-        [{ participantName: "Cash Friend", shareAmount: 50 }] as never,
-        "group-1"
-      )
-    ).rejects.toThrow("Group split participants must be app users");
+      normalizeSharedExpenseParticipants("owner-1", [
+        { userId: "user-2", share: 10 },
+        { userId: "user-2", share: 20 }
+      ])
+    ).rejects.toThrow("A participant can only be added once");
   });
 
-  it("throws a 400 when a group-split participant isn't a member of the group", async () => {
-    prismaMock.groupMember.count.mockResolvedValue(0);
+  it("allows non-Group users and manual participants (universal sharing)", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "outsider" }] as never);
 
-    await expect(
-      normalizeSharedExpenseParticipants(
-        "owner-1",
-        [{ userId: "user-2", participantName: "Friend", shareAmount: 50 }] as never,
-        "group-1"
-      )
-    ).rejects.toThrow("Group split participants must be group members");
+    const result = await normalizeSharedExpenseParticipants("owner-1", [
+      { userId: "user-2", share: 10 },
+      { manualName: "Cash Friend", share: 5 }
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(prismaMock.groupMember.count).not.toHaveBeenCalled();
   });
 
   it("throws a 400 when a referenced user doesn't exist", async () => {
     prismaMock.user.findMany.mockResolvedValue([]);
 
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "user-2", participantName: "Friend", shareAmount: 50 }
-      ] as never)
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
     ).rejects.toThrow("One or more participants do not exist");
   });
 
-  it("fills in each registered participant's current display name", async () => {
-    prismaMock.user.findMany.mockResolvedValue([
-      { id: "user-2", name: "Current Name" }
-    ] as never);
+  it("stores a username snapshot, never the name, for each registered participant", async () => {
+    prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "current" }] as never);
 
-    const result = await normalizeSharedExpenseParticipants("owner-1", [
-      { userId: "user-2", participantName: "Stale Name", shareAmount: 50 }
-    ] as never);
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }]);
 
-    expect(result[0]).toMatchObject({ participantName: "Current Name" });
+    expect(result[0]).toMatchObject({ participantName: "@current" });
   });
 });
 
@@ -151,7 +162,7 @@ describe("listSharedExpenses", () => {
     ).rejects.toThrow("Invalid shared-expenses query: not valid JSON");
   });
 
-  it("includes the owner's id/name alongside the transaction and participants", async () => {
+  it("includes the public owner and participant users alongside the transaction", async () => {
     prismaMock.sharedExpense.findMany.mockResolvedValue([{ id: "se-1" }] as never);
     prismaMock.sharedExpense.count.mockResolvedValue(1);
 
@@ -161,8 +172,8 @@ describe("listSharedExpenses", () => {
       expect.objectContaining({
         include: {
           transaction: true,
-          participants: true,
-          owner: { select: { id: true, name: true } }
+          participants: { include: { user: { select: publicUserSelect } } },
+          owner: { select: publicUserSelect }
         }
       })
     );
@@ -186,7 +197,7 @@ describe("getSharedExpenseById", () => {
     });
   });
 
-  it("includes the owner's id/name alongside the transaction and participants", async () => {
+  it("includes the public owner and participant users alongside the transaction", async () => {
     prismaMock.sharedExpense.findFirst.mockResolvedValue({ id: "se-1" } as never);
 
     await getSharedExpenseById("user-1", "se-1");
@@ -195,8 +206,8 @@ describe("getSharedExpenseById", () => {
       expect.objectContaining({
         include: {
           transaction: true,
-          participants: true,
-          owner: { select: { id: true, name: true } }
+          participants: { include: { user: { select: publicUserSelect } } },
+          owner: { select: publicUserSelect }
         }
       })
     );

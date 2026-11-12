@@ -70,8 +70,7 @@ export function BalancesTab({
                   }
                   subtitle={
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {balance.person?.email ? `${balance.person.email} · ` : ""}
-                      They owe {formatMoney(balance.theyOweMeTotal, summaryCurrency)}{" "}
+                                            They owe {formatMoney(balance.theyOweMeTotal, summaryCurrency)}{" "}
                       · You owe{" "}
                       {formatMoney(balance.iOweThemTotal, summaryCurrency)}
                     </p>

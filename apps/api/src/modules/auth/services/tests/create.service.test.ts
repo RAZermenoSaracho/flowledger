@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
@@ -71,6 +72,23 @@ describe("issueRefreshToken cleanup", () => {
   });
 });
 
+describe("registerUser username collisions", () => {
+  it("retries with a new username on a username unique violation", async () => {
+    vi.mocked(bcrypt.hash).mockResolvedValue("h" as never);
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.user.create
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { target: ["username"] } })
+      )
+      .mockResolvedValueOnce({ id: "user-1", email: "a@example.com" } as never);
+    prismaMock.refreshToken.create.mockResolvedValue({} as never);
+
+    await registerUser({ name: "A", email: "a@example.com", password: "longenough" });
+
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("registerUser", () => {
   it("throws a 409 when the email is already registered", async () => {
     prismaMock.user.findUnique.mockResolvedValue({ id: "existing" } as never);
@@ -98,7 +116,10 @@ describe("registerUser", () => {
     expect(bcrypt.hash).toHaveBeenCalledWith("longenough", 12);
     expect(prismaMock.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ passwordHash: "hashed-password" })
+        data: expect.objectContaining({
+          passwordHash: "hashed-password",
+          username: expect.stringMatching(/^user_[a-z0-9]{12}$/)
+        })
       })
     );
     expect(result.user).toMatchObject({ id: "user-1" });

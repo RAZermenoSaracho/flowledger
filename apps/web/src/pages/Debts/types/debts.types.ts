@@ -15,4 +15,4 @@ export type SettlementApprovalDraft = {
 };
 
 /** Which tab of the debts page is active. */
-export type DebtsTab = "balances" | "pending" | "settled" | "sharedExpenses";
+export type DebtsTab = "balances" | "pending" | "settled" | "sharedExpenses" | "awaiting";

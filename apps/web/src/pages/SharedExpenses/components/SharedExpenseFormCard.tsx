@@ -6,6 +6,7 @@ import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
 import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { useSharedExpenseForm } from "../hooks/useSharedExpenseForm";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 /** Create/edit form card for a shared expense, including participant split management. */
 export function SharedExpenseFormCard({
@@ -84,7 +85,7 @@ export function SharedExpenseFormCard({
           label="Find app user"
           value={form.userSearch}
           onChange={(event) => form.setUserSearch(event.target.value)}
-          placeholder="Search by name or email"
+          placeholder="Search by username or nickname"
         />
         <div className="grid gap-2 md:col-span-2">
           {form.trimmedUserSearch.length > 0 && form.trimmedUserSearch.length < 3 ? (
@@ -104,10 +105,7 @@ export function SharedExpenseFormCard({
                   className="flex flex-col justify-between gap-2 rounded-md border border-slate-200 p-2 text-sm dark:border-slate-800 sm:flex-row sm:items-center"
                 >
                   <div>
-                    <p className="font-medium">{user.name}</p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      {user.email}
-                    </p>
+                    <p className="font-medium">{formatPublicUser(user)}</p>
                   </div>
                   <Button
                     type="button"
@@ -153,9 +151,7 @@ export function SharedExpenseFormCard({
                 <p className="font-semibold">{participant.participantName}</p>
                 <p className="text-slate-500 dark:text-slate-400">
                   {participant.source === "app"
-                    ? `App user${
-                        participant.email ? ` · ${participant.email}` : ""
-                      }`
+                    ? "App user"
                     : "Manual participant"}
                 </p>
               </div>

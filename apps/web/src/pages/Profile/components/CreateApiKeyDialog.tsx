@@ -1,5 +1,5 @@
 import type { CreateApiKeyInput } from "@flowledger/shared";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "../../../components/ModalDialog";
 import { CreateApiKeyForm } from "./CreateApiKeyForm";
 
 /**

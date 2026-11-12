@@ -1,12 +1,14 @@
 import { oauthContextQuerySchema, oauthDecisionSchema } from "@flowledger/shared";
 import { metadataHandler } from "@modelcontextprotocol/sdk/server/auth/handlers/metadata.js";
 import { createOAuthMetadata, mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
+import cors from "cors";
 import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { postDecision } from "./controllers/create.controller.js";
 import { deleteOAuthGrant } from "./controllers/delete.controller.js";
-import { getContext, getOAuthGrants } from "./controllers/read.controller.js";
+import { getContext, getMuseClientDocument, getOAuthGrants } from "./controllers/read.controller.js";
+import { MUSE_CLIENT_DOCUMENT_PATH } from "./utils/hostedClients.js";
 import { oauthServerProvider } from "./utils/oauthProvider.js";
 import { issuerUrl, mcpResourceUrl } from "./utils/tokens.js";
 
@@ -24,7 +26,7 @@ oauthGrantsRouter.delete("/:id", asyncHandler(deleteOAuthGrant));
 
 /**
  * Builds the authorization-server router for the app root: our metadata (SDK defaults overridden for
- * public clients, CIMD and RFC 9207) and both protected-resource paths, then the SDK's `/authorize`,
+ * public clients, CIMD and RFC 9207), both protected-resource paths and the hosted Muse client document (open CORS, like the metadata, so the web app can show its Client ID), then the SDK's `/authorize`,
  * `/token` and `/revoke`. Evaluated lazily so the issuer is read from the validated env at mount time.
  */
 export function createOAuthServerRouter() {
@@ -53,6 +55,7 @@ export function createOAuthServerRouter() {
   router.use("/.well-known/oauth-authorization-server", metadataHandler(authServerMetadata));
   router.use("/.well-known/oauth-protected-resource/mcp", metadataHandler(resourceMetadata));
   router.use("/.well-known/oauth-protected-resource", metadataHandler(resourceMetadata));
+  router.get(MUSE_CLIENT_DOCUMENT_PATH, cors(), getMuseClientDocument);
   router.use(
     mcpAuthRouter({
       provider: oauthServerProvider,

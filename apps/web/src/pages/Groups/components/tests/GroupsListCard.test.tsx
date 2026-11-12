@@ -20,65 +20,22 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
 }
 
 describe("GroupsListCard", () => {
-  it("renders each group's name, member/category counts", () => {
+  it("renders each group as a card linking to its detail view", () => {
     renderWithProviders(
       <GroupsListCard
         onQueryChange={vi.fn()}
         onAddGroup={vi.fn()}
         visibleGroups={[makeGroup()]}
-        selectedGroupId={null}
-        onSelectGroup={vi.fn()}
+        currentUserId="user-1"
       />
     );
 
     expect(screen.getByText("Roommates")).toBeInTheDocument();
-    expect(screen.getByText("1 members · 1 categories")).toBeInTheDocument();
-  });
-
-  it("marks an archived group with a badge", () => {
-    renderWithProviders(
-      <GroupsListCard
-        onQueryChange={vi.fn()}
-        onAddGroup={vi.fn()}
-        visibleGroups={[makeGroup({ isArchived: true })]}
-        selectedGroupId={null}
-        onSelectGroup={vi.fn()}
-      />
+    expect(screen.getByText(/1 members · 1 categories/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Roommates/ })).toHaveAttribute(
+      "href",
+      "/groups/group-1"
     );
-
-    expect(screen.getByText("Archived")).toBeInTheDocument();
-  });
-
-  it("calls onSelectGroup when a group button is clicked", async () => {
-    const user = userEvent.setup();
-    const onSelectGroup = vi.fn();
-    renderWithProviders(
-      <GroupsListCard
-        onQueryChange={vi.fn()}
-        onAddGroup={vi.fn()}
-        visibleGroups={[makeGroup()]}
-        selectedGroupId={null}
-        onSelectGroup={onSelectGroup}
-      />
-    );
-
-    await user.click(screen.getByText("Roommates"));
-
-    expect(onSelectGroup).toHaveBeenCalledWith("group-1");
-  });
-
-  it("highlights the selected group", () => {
-    renderWithProviders(
-      <GroupsListCard
-        onQueryChange={vi.fn()}
-        onAddGroup={vi.fn()}
-        visibleGroups={[makeGroup()]}
-        selectedGroupId="group-1"
-        onSelectGroup={vi.fn()}
-      />
-    );
-
-    expect(document.getElementById("group-group-1")).toHaveClass("border-pine");
   });
 
   it("shows 'No groups found.' when the list is empty", () => {
@@ -87,8 +44,7 @@ describe("GroupsListCard", () => {
         onQueryChange={vi.fn()}
         onAddGroup={vi.fn()}
         visibleGroups={[]}
-        selectedGroupId={null}
-        onSelectGroup={vi.fn()}
+        currentUserId="user-1"
       />
     );
 
@@ -103,8 +59,7 @@ describe("GroupsListCard", () => {
         onQueryChange={vi.fn()}
         onAddGroup={onAddGroup}
         visibleGroups={[]}
-        selectedGroupId={null}
-        onSelectGroup={vi.fn()}
+        currentUserId="user-1"
       />
     );
 

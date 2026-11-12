@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildPersonBalances } from "../personBalances.js";
 
-const owner = { id: "owner-1", name: "Owner", email: "owner@example.com" };
-const friend = { id: "friend-1", name: "Friend", email: "friend@example.com" };
+const owner = { id: "owner-1", username: "owner", displayName: null };
+const friend = { id: "friend-1", username: "friend", displayName: null };
 
 function debt(overrides: Partial<Parameters<typeof buildPersonBalances>[1][number]>) {
   return {
     id: "debt-1",
     userId: friend.id,
-    participantName: friend.name,
+    participantName: "@friend",
     debtorUserId: friend.id,
     creditorUserId: owner.id,
     outstandingAmount: 100,
@@ -55,8 +55,7 @@ describe("buildPersonBalances", () => {
   it("keeps separate counterparties as separate balance entries", () => {
     const anotherFriend = {
       id: "friend-2",
-      name: "Another",
-      email: "another@example.com"
+      username: "another", displayName: null
     };
 
     const balances = buildPersonBalances(
@@ -66,7 +65,7 @@ describe("buildPersonBalances", () => {
         debt({
           id: "debt-2",
           userId: anotherFriend.id,
-          participantName: anotherFriend.name,
+          participantName: "@another",
           debtorUserId: anotherFriend.id,
           user: anotherFriend
         })
@@ -80,11 +79,10 @@ describe("buildPersonBalances", () => {
   });
 
   it("sorts by absolute net balance descending", () => {
-    const bigDebtor = { id: "big-1", name: "Big", email: "big@example.com" };
+    const bigDebtor = { id: "big-1", username: "big", displayName: null };
     const smallDebtor = {
       id: "small-1",
-      name: "Small",
-      email: "small@example.com"
+      username: "small", displayName: null
     };
 
     const balances = buildPersonBalances(
@@ -131,5 +129,16 @@ describe("buildPersonBalances", () => {
 
     expect(balance?.fallbackName).toBe("Cash Friend");
     expect(balance?.person).toBeNull();
+  });
+
+  it("labels the counterparty by username, adding the display name only when public", () => {
+    const named = { id: "n-1", username: "nina", displayName: "Nina" };
+    const [balance] = buildPersonBalances(
+      owner.id,
+      [debt({ userId: named.id, debtorUserId: named.id, participantName: "stale", user: named })],
+      []
+    );
+    expect(balance?.person).toEqual(named);
+    expect(balance?.fallbackName).toBe("Nina (@nina)");
   });
 });

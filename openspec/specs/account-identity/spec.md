@@ -67,7 +67,7 @@ Changing an account's email SHALL require the current password, and SHALL atomic
 
 ### Requirement: Authentication endpoints are rate limited
 
-Login, registration, refresh, password change, and email change SHALL reject excess attempts with 429 and a JSON message. One source repeatedly failing against one email SHALL NOT lock that account for other sources.
+Login, registration, refresh, password change, and email change SHALL reject excess attempts with 429 and a JSON message. The user search and username availability endpoints SHALL be limited per authenticated user with 429 and a JSON message. One source repeatedly failing against one email SHALL NOT lock that account for other sources.
 
 #### Scenario: Repeated failed logins
 - **WHEN** one source exceeds 10 failed logins for one email within 15 minutes
@@ -80,6 +80,10 @@ Login, registration, refresh, password change, and email change SHALL reject exc
 #### Scenario: Refresh limited
 - **WHEN** refresh returns 429
 - **THEN** the client keeps the session and retries later, because only a 401 ends a session
+
+#### Scenario: Search and availability limited
+- **WHEN** one user exceeds the search or username-availability limit
+- **THEN** further calls return 429 and other users are unaffected
 
 ### Requirement: Session routes reject foreign origins
 
@@ -100,3 +104,19 @@ Login SHALL do equivalent password-hashing work whether or not the email exists 
 #### Scenario: Unknown email
 - **WHEN** login is attempted for an unknown email or a password-less account
 - **THEN** a password hash comparison is still performed, and the response matches a wrong-password response
+
+### Requirement: Owner manages public nickname
+
+The own-profile update SHALL accept optional, non-unique, nullable nickname through the shared schema. Nickname SHALL be trimmed, 1–40 characters when set, reject controls and leading `@`, and clear to null on blank input. Own-profile reads SHALL return nickname. Nickname SHALL be public and searchable regardless of private name visibility, with username always shown alongside. Existing identity privacy and rate limits SHALL remain unchanged.
+
+#### Scenario: Set and clear nickname
+- **WHEN** an owner saves Sunny and later clears the Public nickname field
+- **THEN** the profile returns Sunny and later null, and other users see the updated public label
+
+#### Scenario: Duplicate nickname
+- **WHEN** two owners save Sunny
+- **THEN** both succeed, and discovery distinguishes them by username
+
+#### Scenario: Private account name
+- **WHEN** an owner with username_only visibility sets a nickname
+- **THEN** nickname is public and searchable while private name remains hidden and unsearchable

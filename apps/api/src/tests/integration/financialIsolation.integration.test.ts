@@ -303,6 +303,7 @@ describe("financial data isolation", () => {
         type: transactionType,
         sharedExpense: { title: "Split", participants: [{ userId: who.userId, participantName: "P", shareAmount: 40 }] }
       });
+      await send(who.token, { method: "post", path: `/shared-expenses/${tx.sharedExpense!.id}/accept` });
       const debt = await prisma.sharedExpenseParticipant.findFirstOrThrow({ where: { sharedExpenseId: tx.sharedExpense!.id } });
       return { accountId, tx, sharedExpenseId: tx.sharedExpense!.id, debtId: debt.id };
     }
@@ -392,7 +393,7 @@ describe("financial data isolation", () => {
       const strangerRead = await send(stranger.token, { method: "get", path: `/groups/${group.id}` });
       const missingRead = await send(stranger.token, { method: "get", path: "/groups/does-not-exist" });
       expect(strangerRead.body).toEqual(missingRead.body);
-      expect(strangerRead.status).toBe(400);
+      expect(strangerRead.status).toBe(404);
 
       const ok = await send(owner.token, adminActions[0]!);
       expect(ok.status).toBe(200);

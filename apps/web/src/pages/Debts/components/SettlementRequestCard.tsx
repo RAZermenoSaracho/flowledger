@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { SettlementRequest } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 /** Card displaying one settlement request's amount, note, and status. */
 export function SettlementRequestCard({
@@ -45,7 +46,7 @@ export function SettlementRequestCard({
               {debt?.sharedExpense.title ?? "Settlement request"}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {request.debtor?.name ?? "Debtor"} requested{" "}
+              {request.debtor ? formatPublicUser(request.debtor) : "Debtor"} requested{" "}
               {formatMoney(request.amount, debt?.currency ?? "USD")}
             </p>
           </div>

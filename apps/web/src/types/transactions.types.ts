@@ -1,3 +1,4 @@
+import type { PublicUser } from "./users.types";
 import type { TransactionType } from "@flowledger/shared";
 import type { Account } from "./accounts.types";
 import type { Category } from "./categories.types";
@@ -30,6 +31,46 @@ export type Transaction = {
   sharedExpense?: SharedExpense | null;
   /** Set when imported from a provider; `transactionDate` is the provider's original value. */
   providerImportedTransaction?: { transactionDate: string } | null;
+  /** The viewer-owned original expense when this transaction is a settlement. */
+  relatedTransactions?: RelatedTransaction[];
+  /** Every settlement request of an original expense's participants, oldest first. */
+  relatedSettlements?: RelatedSettlement[];
+  /** For a participant's settlement: summary of the shared expense it settles; not navigable. */
+  settlementOrigin?: SettlementOrigin | null;
+};
+
+/** The viewer-owned original expense of the viewed settlement. */
+export type RelatedTransaction = {
+  id: string;
+  description: string;
+  amount: number;
+  currency: string;
+  date: string;
+  type: string;
+  relation: "origin";
+};
+
+/** A settlement request on the viewed original expense; `transaction` is only the viewer's own settlement transaction, null while unapproved. */
+export type RelatedSettlement = {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  approvedAt: string | null;
+  counterparty: PublicUser;
+  participantId: string;
+  transaction: { id: string; description: string; date: string; type: string } | null;
+};
+
+/** What a participant may see of the shared expense behind their settlement. */
+export type SettlementOrigin = {
+  title: string;
+  amount: number;
+  currency: string;
+  date: string;
+  type: string;
+  owner: PublicUser;
 };
 
 /** Review status of a provider-imported transaction. */
@@ -94,3 +135,6 @@ export type DataSieveMeta = {
   hasPrevious: boolean;
   executionTime: number;
 };
+
+/** Record a related transactions list is scoped to. */
+export type RelatedTransactionsScope = { field: "accountId" | "groupId"; value: string };

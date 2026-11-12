@@ -1,5 +1,6 @@
 import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 /** Shared expense title for a debt. */
 export function debtTitle(debt: Debt) {
@@ -8,14 +9,16 @@ export function debtTitle(debt: Debt) {
 
 /** Display name of the debt's non-owner participant, falling back to the stored participant name. */
 export function participantName(debt: Debt) {
-  return debt.user?.name ?? debt.participantName;
+  return debt.user ? formatPublicUser(debt.user) : debt.participantName;
 }
 
 /** Display name of whichever party (owner or participant) on the debt matches the given user id. */
 export function partyName(debt: Debt, userId?: string | null) {
   if (!userId) return undefined;
   if (userId === debt.sharedExpense.ownerUserId)
-    return debt.sharedExpense.owner?.name;
+    return debt.sharedExpense.owner
+      ? formatPublicUser(debt.sharedExpense.owner)
+      : undefined;
   if (userId === debt.userId) return participantName(debt);
   if (
     !debt.userId &&
@@ -49,7 +52,9 @@ export function otherParty(debt: Debt, viewerUserId?: string | null) {
 
 /** Display name for a `PersonBalance`, falling back to its stored name. */
 export function displayPerson(balance: PersonBalance) {
-  return balance.person?.name ?? balance.fallbackName;
+  return balance.person
+    ? formatPublicUser(balance.person)
+    : balance.fallbackName;
 }
 
 /** "income split" or "expense split" label for the transaction a debt originated from. */

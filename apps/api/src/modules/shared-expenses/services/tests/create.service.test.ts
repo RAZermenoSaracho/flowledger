@@ -1,171 +1,90 @@
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
-vi.mock("../../../notifications/services/create.service.js", () => ({
-  createNotifications: vi.fn()
+vi.mock("../apply.service.js", () => ({
+  applySharedExpenseToTransaction: vi.fn()
 }));
 
 vi.mock("../read.service.js", () => ({
-  getOwnedTransaction: vi.fn(),
-  normalizeSharedExpenseParticipants: vi.fn()
+  getOwnedTransaction: vi.fn()
 }));
 
-const { createNotifications } = await import(
-  "../../../notifications/services/create.service.js"
-);
-const { getOwnedTransaction, normalizeSharedExpenseParticipants } = await import(
-  "../read.service.js"
-);
-const createNotificationsMock = vi.mocked(createNotifications);
+const { applySharedExpenseToTransaction } = await import("../apply.service.js");
+const { getOwnedTransaction } = await import("../read.service.js");
+const applyMock = vi.mocked(applySharedExpenseToTransaction);
 const getOwnedTransactionMock = vi.mocked(getOwnedTransaction);
-const normalizeSharedExpenseParticipantsMock = vi.mocked(
-  normalizeSharedExpenseParticipants
-);
 
-const {
-  createSharedExpense,
-  createSharedExpenseForTransaction,
-  notifySharedExpenseParticipants
-} = await import("../create.service.js");
+const { createSharedExpense, createSharedExpenseForTransaction } = await import("../create.service.js");
 
-function mockTx() {
-  return {
-    sharedExpense: {
-      create: vi.fn().mockResolvedValue({
-        id: "se-1",
-        title: "Dinner",
-        transactionId: "txn-1",
-        transaction: { type: "expense", groupId: null },
-        participants: []
-      })
-    }
-  };
-}
-
-describe("notifySharedExpenseParticipants", () => {
-  it("skips participants with no userId (manual/unregistered)", async () => {
-    const tx = {};
-    await notifySharedExpenseParticipants(
-      tx as never,
-      "owner-1",
-      { id: "se-1", title: "Dinner", transactionId: "txn-1", transaction: { type: "expense" } },
-      [{ id: "p1", userId: null, participantName: "Cash Friend", shareAmount: { toNumber: () => 50 } as never }]
-    );
-
-    expect(createNotificationsMock).toHaveBeenCalledWith(tx, []);
-  });
-
-  it("only sends the 'added' notification for a transfer (no debt direction)", async () => {
-    const tx = {};
-    await notifySharedExpenseParticipants(
-      tx as never,
-      "owner-1",
-      { id: "se-1", title: "Trip", transactionId: "txn-1", transaction: { type: "transfer" } },
-      [{ id: "p1", userId: "user-2", participantName: "Friend", shareAmount: { toNumber: () => 50 } as never }]
-    );
-
-    const notifications = createNotificationsMock.mock.calls[0]?.[1];
-    expect(notifications).toHaveLength(1);
-    expect(notifications?.[0]).toMatchObject({ type: "shared_expense_added" });
-  });
-
-  it("sends added + debt-owes/owed notifications for an expense split", async () => {
-    const tx = {};
-    await notifySharedExpenseParticipants(
-      tx as never,
-      "owner-1",
-      { id: "se-1", title: "Dinner", transactionId: "txn-1", transaction: { type: "expense" } },
-      [{ id: "p1", userId: "user-2", participantName: "Friend", shareAmount: { toNumber: () => 50 } as never }]
-    );
-
-    const notifications = createNotificationsMock.mock.calls[0]?.[1];
-    expect(notifications?.map((n) => n.type)).toEqual([
-      "shared_expense_added",
-      "debt_owes_money",
-      "debt_owed_money"
-    ]);
-    expect(notifications?.[1]).toMatchObject({ userId: "user-2" });
-    expect(notifications?.[2]).toMatchObject({ userId: "owner-1" });
-  });
-});
+const transactionRow = {
+  id: "txn-1",
+  amount: { toNumber: () => 100 },
+  name: "Dinner",
+  groupId: null,
+  type: "expense" as const,
+  executionCurrency: "USD"
+};
 
 describe("createSharedExpenseForTransaction", () => {
   it("throws a 400 for a transfer transaction", async () => {
-    const tx = mockTx();
-
     await expect(
       createSharedExpenseForTransaction(
-        tx as never,
+        {} as never,
         "owner-1",
-        { id: "txn-1", amount: 100 as never, name: "Move", groupId: null, type: "transfer", executionCurrency: "USD" },
+        { ...transactionRow, type: "transfer" } as never,
         { title: "x", status: "open", participants: [] } as never
       )
-    ).rejects.toThrow(
-      "Shared transactions are only supported for income and expense transactions"
-    );
+    ).rejects.toThrow("Shared transactions are only supported for income and expense transactions");
   });
 
-  it("creates the shared expense with participants and notifies them", async () => {
-    const tx = mockTx();
-    normalizeSharedExpenseParticipantsMock.mockResolvedValue([
-      { userId: "user-2", participantName: "Friend", shareAmount: 50, paidAmount: 0, status: "pending" }
-    ] as never);
+  it("maps legacy participants to the sharing shape and drops payment fields", async () => {
+    applyMock.mockResolvedValue({ id: "se-1" } as never);
 
-    await createSharedExpenseForTransaction(
-      tx as never,
-      "owner-1",
-      {
-        id: "txn-1",
-        amount: { toNumber: () => 100 } as never,
-        name: "Dinner",
-        groupId: null,
-        type: "expense",
-        executionCurrency: "USD"
-      },
-      { title: "Dinner split", status: "open", participants: [] } as never
-    );
+    await createSharedExpenseForTransaction({} as never, "owner-1", transactionRow as never, {
+      title: "Dinner split",
+      status: "open",
+      participants: [
+        { userId: "user-2", participantName: "Stale", shareAmount: 50, paidAmount: 50, status: "paid" },
+        { participantName: "Cash Friend", shareAmount: 10, paidAmount: 0, status: "pending" }
+      ]
+    });
 
-    expect(tx.sharedExpense.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ transactionId: "txn-1", ownerUserId: "owner-1" })
-      })
-    );
-    expect(createNotificationsMock).toHaveBeenCalled();
+    expect(applyMock).toHaveBeenCalledWith({}, "owner-1", transactionRow, "expense", {
+      enabled: true,
+      title: "Dinner split",
+      participants: [
+        { userId: "user-2", share: 50 },
+        { manualName: "Cash Friend", share: 10 }
+      ]
+    });
   });
 });
 
 describe("createSharedExpense", () => {
+  const input = { transactionId: "txn-1", title: "Dinner split", status: "open", participants: [] } as never;
+
   it("throws a 400 when the transaction doesn't resolve", async () => {
     getOwnedTransactionMock.mockResolvedValue(null);
 
-    await expect(
-      createSharedExpense("user-1", { transactionId: "missing", title: "x", status: "open", participants: [] } as never)
-    ).rejects.toThrow("Transaction is required");
+    await expect(createSharedExpense("user-1", input)).rejects.toThrow("Transaction is required");
   });
 
-  it("creates the shared expense inside a transaction when the transaction resolves", async () => {
-    getOwnedTransactionMock.mockResolvedValue({
-      id: "txn-1",
-      amount: { toNumber: () => 100 },
-      name: "Dinner",
-      groupId: null,
-      type: "expense",
-      executionCurrency: "USD"
-    } as never);
-    normalizeSharedExpenseParticipantsMock.mockResolvedValue([] as never);
-    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-      typeof arg === "function"
-        ? (arg as (tx: unknown) => unknown)(mockTx())
-        : Promise.resolve(arg)
-    );
+  it("returns 409 when the transaction is already shared", async () => {
+    getOwnedTransactionMock.mockResolvedValue(transactionRow as never);
+    prismaMock.sharedExpense.findUnique.mockResolvedValue({ id: "se-1" } as never);
 
-    const result = await createSharedExpense("user-1", {
-      transactionId: "txn-1",
-      title: "Dinner split",
-      status: "open",
-      participants: []
-    } as never);
+    await expect(createSharedExpense("user-1", input)).rejects.toMatchObject({
+      statusCode: 409,
+      message: "This transaction is already shared"
+    });
+    expect(applyMock).not.toHaveBeenCalled();
+  });
 
-    expect(result).toMatchObject({ id: "se-1" });
+  it("creates the shared expense inside a transaction when none exists", async () => {
+    getOwnedTransactionMock.mockResolvedValue(transactionRow as never);
+    prismaMock.sharedExpense.findUnique.mockResolvedValue(null);
+    applyMock.mockResolvedValue({ id: "se-1" } as never);
+
+    expect(await createSharedExpense("user-1", input)).toMatchObject({ id: "se-1" });
   });
 });

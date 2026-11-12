@@ -45,11 +45,13 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/auth/oauth/callback` | `OAuthCallbackPage` | No |
 | `/` (index) | `DashboardPage` | Yes |
 | `/transactions` | `TransactionsPage` | Yes |
-| `/transactions/:id` | `TransactionDetailPage` | Yes |
-| `/transactions/:id/edit` | `TransactionEditPage` | Yes |
+| `/transactions/new` | `TransactionDetailPage` (unsaved draft, optional prefill query params) | Yes |
+| `/transactions/:id` | `TransactionDetailPage` (editable Form View) | Yes |
+| `/transactions/:id/edit` | redirects to `/transactions/:id` | Yes |
 | `/accounts` | `AccountsPage` | Yes |
 | `/categories` | `CategoriesPage` | Yes |
 | `/groups` | `GroupsPage` | Yes |
+| `/groups/:id` | `GroupDetailPage` | Yes |
 | `/debts` | `DebtsPage` | Yes |
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |
@@ -200,8 +202,7 @@ Every page lives in its own folder under `src/pages/`, named for the module (`Pa
 pages/<Name>/
   <Name>Page.tsx          the page component, exported as a named export (PascalCase)
   <OtherPage>.tsx          additional top-level pages that belong to the same module
-                            (e.g. Transactions/ also holds TransactionDetailPage.tsx
-                            and TransactionEditPage.tsx)
+                            (e.g. Transactions/ also holds TransactionDetailPage.tsx)
   components/              UI pieces extracted from this page that are specific to it —
                             not reused by any other page module
   hooks/                   stateful logic (state + mutations + queries) extracted from
@@ -245,6 +246,10 @@ is usage, not potential:
 Current shared components living in `src/components/`: `Card`, `Button`, `FormField` (TextInput/SelectField/TextArea), `RecordCard` (list-row layout with mobile three-dot actions), `SearchBar`/`FilterBuilder` (the query-building UI), `AddRecordButton`, `PageHeader` (title+action row above a full-width `SearchBar`), `ActionMenu`. A new component belongs here only once a second page module actually needs it — see the bar above; don't add to this list preemptively.
 
 **Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
+
+### Shared Form View
+
+Editable record views (Profile now; Accounts, Transactions, Groups next) use `src/hooks/useFormDraft.ts` (the only draft/dirty/validate/batch-save/`beforeunload` state machine), `src/components/FormView.tsx` (header with always-visible compact Save/Discard, inline save error, Ctrl/Cmd+S, URL-driven tabs), `src/components/EditableField.tsx` (an always-rendered control with a dirty marker, plus a read-only variant) and `src/components/RelatedList.tsx` (table at `sm`+, stacked rows below, render-prop cells). Their types live in `src/types/common.types.ts`. Rules: there is no Edit button or edit mode (the input is the field), Save/Discard live in the `FormView` header (no bottom bar), and shared files name no model and import nothing from `pages/`. A new editable record view must adopt these instead of hand-writing draft state; its page-local hook is only an adapter supplying `initial`, `validate` and `save`.
 
 ### Adding a new page
 

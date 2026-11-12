@@ -6,53 +6,68 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import { getToken } from "../../../../services/auth.client";
 import { API_URL, baseUser, mockBaseline } from "../../tests/profileFixtures";
+import { FormView } from "../../../../components/FormView";
+import { GeneralTab } from "../GeneralTab";
 import { ProfileHeader } from "../ProfileHeader";
 import { useProfileDetails } from "../../hooks/useProfileDetails";
 
-function HeaderHarness() {
-  return <ProfileHeader profile={useProfileDetails()} />;
+function HeaderHarness({ withGeneral = true }: { withGeneral?: boolean }) {
+  const profile = useProfileDetails();
+  return (
+    <FormView
+      title="Profile"
+      draft={profile.draft}
+      onSave={profile.onSave}
+      headerExtra={<ProfileHeader profile={profile} />}
+    >
+      {withGeneral ? <GeneralTab profile={profile} /> : null}
+    </FormView>
+  );
 }
 
-const render = () => renderWithProviders(<HeaderHarness />, { withAuth: true });
+const render = (withGeneral = true) =>
+  renderWithProviders(<HeaderHarness withGeneral={withGeneral} />, {
+    withAuth: true
+  });
 
 describe("ProfileHeader", () => {
-  it("shows 'Loading...' before the profile resolves", () => {
+  it("renders disabled empty inputs before the profile resolves", () => {
     mockBaseline();
     render();
-    expect(screen.getAllByText("Loading...").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByLabelText("Name")).toHaveValue("");
   });
 
   it("renders identity details with initials and without account summary fields", async () => {
     mockBaseline();
-    render();
-    expect(
-      await screen.findByRole("button", { name: /Edit Name: Jane Doe/ })
-    ).toBeInTheDocument();
-    expect(screen.getByText("jane@example.com")).toBeInTheDocument();
+    render(false);
+    expect(await screen.findByLabelText("Name")).toHaveValue("Jane Doe");
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
     expect(screen.queryByText("Not set")).not.toBeInTheDocument();
     expect(screen.queryByText("Member since")).not.toBeInTheDocument();
     expect(screen.getByText("JD")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Edit Profile" })
+      screen.queryByRole("button", { name: /^Edit/ })
     ).not.toBeInTheDocument();
   });
 
-  it("enters edit mode on click, shows Save/Cancel only when dirty, and Cancel restores", async () => {
+  it("edits directly, shows Save/Cancel only when dirty, and Cancel restores", async () => {
     mockBaseline();
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Name/ }));
     const input = await screen.findByLabelText("Name");
-    await waitFor(() => expect(input).toHaveFocus());
+    await waitFor(() => expect(input).toHaveValue("Jane Doe"));
     expect(
       screen.queryByRole("button", { name: "Save" })
     ).not.toBeInTheDocument();
-    await user.type(input, "x");
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(
-      await screen.findByRole("button", { name: /Edit Name: Jane Doe/ })
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Cancel" })
+    ).not.toBeInTheDocument();
+    await user.type(input, "x");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe");
     expect(
       screen.queryByRole("button", { name: "Save" })
     ).not.toBeInTheDocument();
@@ -62,11 +77,11 @@ describe("ProfileHeader", () => {
     mockBaseline();
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Name/ }));
-    await user.type(await screen.findByLabelText("Name"), "x{Escape}");
-    expect(
-      await screen.findByRole("button", { name: /Edit Name: Jane Doe/ })
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe")
+    );
+    await user.type(screen.getByLabelText("Name"), "x{Escape}");
+    expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe");
     expect(
       screen.queryByRole("button", { name: "Save" })
     ).not.toBeInTheDocument();
@@ -76,15 +91,15 @@ describe("ProfileHeader", () => {
     mockBaseline();
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Email/ }));
     const input = await screen.findByLabelText("Email");
+    await waitFor(() => expect(input).toHaveValue("jane@example.com"));
     await user.clear(input);
     await user.type(input, "nope");
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter a valid email address"
     );
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("valid email");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   it("saves the existing payload and updates the display", async () => {
@@ -98,22 +113,24 @@ describe("ProfileHeader", () => {
     );
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Name/ }));
     const input = await screen.findByLabelText("Name");
+    await waitFor(() => expect(input).toHaveValue("Jane Doe"));
     await user.clear(input);
     await user.type(input, "Jane Roe");
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(
-      await screen.findByRole("button", { name: /Edit Name: Jane Roe/ })
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Roe")
+    );
     expect(body).toEqual({
       name: "Jane Roe",
       email: "jane@example.com",
       preferredCurrency: null
     });
-    expect(
-      screen.queryByRole("button", { name: "Save" })
-    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Save" })
+      ).not.toBeInTheDocument()
+    );
   });
 
   it("asks for the current password on an email change, then replaces the token and saves the rest", async () => {
@@ -133,39 +150,56 @@ describe("ProfileHeader", () => {
     );
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Email/ }));
     const input = await screen.findByLabelText("Email");
+    await waitFor(() => expect(input).toHaveValue("jane@example.com"));
     await user.clear(input);
     await user.type(input, "new@example.com");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(profileBody).toBeUndefined();
     await user.type(await screen.findByLabelText("Current password"), "secret");
     await user.click(screen.getByRole("button", { name: "Change email" }));
-    await waitFor(() => expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument());
-    expect(emailBody).toEqual({ email: "new@example.com", currentPassword: "secret" });
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("Current password")
+      ).not.toBeInTheDocument()
+    );
+    expect(emailBody).toEqual({
+      email: "new@example.com",
+      currentPassword: "secret"
+    });
     expect(profileBody).toMatchObject({ email: "new@example.com" });
     expect(getToken()).toBe("new-tok");
-    expect(await screen.findByText("new@example.com")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Email")).toHaveValue("new@example.com")
+    );
+    expect(
+      screen.queryByRole("button", { name: "Save" })
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the dialog open and shows the server message when the email is taken", async () => {
     mockBaseline();
     server.use(
       http.patch(`${API_URL}/auth/email`, () =>
-        HttpResponse.json({ message: "Email already registered" }, { status: 409 })
+        HttpResponse.json(
+          { message: "Email already registered" },
+          { status: 409 }
+        )
       )
     );
     const user = userEvent.setup();
     render();
-    await user.click(await screen.findByRole("button", { name: /Edit Email/ }));
     const input = await screen.findByLabelText("Email");
+    await waitFor(() => expect(input).toHaveValue("jane@example.com"));
     await user.clear(input);
     await user.type(input, "taken@example.com");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await user.type(await screen.findByLabelText("Current password"), "secret");
     await user.click(screen.getByRole("button", { name: "Change email" }));
     const dialog = screen.getByRole("dialog");
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Email already registered");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Email already registered"
+    );
   });
 
   it("previews a chosen avatar and uploads it on Save; beforeunload only while dirty", async () => {
@@ -185,7 +219,9 @@ describe("ProfileHeader", () => {
     const add = vi.spyOn(window, "addEventListener");
     const user = userEvent.setup();
     const { container } = render();
-    await screen.findByRole("button", { name: /Edit Name/ });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Jane Doe")
+    );
     expect(add.mock.calls.some(([t]) => t === "beforeunload")).toBe(false);
     await user.upload(
       screen.getByLabelText("Profile picture file"),

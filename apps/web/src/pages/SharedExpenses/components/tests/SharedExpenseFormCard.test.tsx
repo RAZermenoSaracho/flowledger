@@ -143,7 +143,7 @@ describe("SharedExpenseFormCard", () => {
     mockBaseline();
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-2", name: "Jane", email: "jane@example.com" }] })
+        HttpResponse.json({ users: [{ id: "user-2", username: "jane", displayName: "Jane" }] })
       )
     );
     const user = userEvent.setup();
@@ -152,10 +152,10 @@ describe("SharedExpenseFormCard", () => {
     await user.click(screen.getByRole("button", { name: "Open form" }));
     await user.type(screen.getByLabelText("Find app user"), "jane");
 
-    await waitFor(() => expect(screen.getByText("jane@example.com")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Jane (@jane)")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Add app user" }));
 
-    expect(screen.getByText(/App user · jane@example.com/)).toBeInTheDocument();
+    expect(screen.getByText(/App user/)).toBeInTheDocument();
   });
 
   it("shows 'No app users found.' when the search returns nothing", async () => {

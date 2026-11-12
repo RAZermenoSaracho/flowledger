@@ -3,6 +3,7 @@ import type { DataSieveQuery, WhereInput } from "datasieve";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
+import { MAX_TRANSACTION_PAGE_SIZE } from "./boundedPagination.js";
 import { HttpError } from "../../../utils/httpError.js";
 import type {
   ImportedTransactionRecord,
@@ -30,7 +31,9 @@ export const importedTransactionInclude = {
 } satisfies Prisma.ProviderImportedTransactionInclude;
 
 /** datasieve engine for resolving which imported-transaction ids match a `where` tree — see `resolveImportedTransactionIds`. */
-const importedTransactionsSieve = createSieve(prisma.providerImportedTransaction);
+const importedTransactionsSieve = createSieve(prisma.providerImportedTransaction, {
+  maxPageSize: MAX_TRANSACTION_PAGE_SIZE
+});
 
 /**
  * Raw-Prisma OR-clause for the free-text "search" virtual field: substring
@@ -193,13 +196,15 @@ async function expandImportedVirtualConditions(
  * {@link expandImportedVirtualConditions}), in `sort` order. Used both by
  * the list endpoint and by batch action "select all filtered" resolution,
  * so a batch action always operates on exactly what the list currently
- * shows for the same filter.
+ * shows for the same filter. With `pagination`, `ids` is that page only and
+ * `total` the full match count; without it `ids` is every match.
  */
 export async function resolveImportedTransactionIds(
   userId: string,
   rawWhere: RawWhereNode | undefined,
-  sort?: DataSieveQuery<ImportedTransactionRecord>["sort"]
-): Promise<string[]> {
+  sort?: DataSieveQuery<ImportedTransactionRecord>["sort"],
+  pagination?: DataSieveQuery<ImportedTransactionRecord>["pagination"]
+): Promise<{ ids: string[]; total: number }> {
   const cache: ImportedSearchIdsCache = new Map();
   const expandedWhere = await expandImportedVirtualConditions(rawWhere, userId, cache);
   const userCondition: WhereInput<ImportedTransactionRecord> = {
@@ -211,9 +216,11 @@ export async function resolveImportedTransactionIds(
 
   const result = await importedTransactionsSieve.query<ImportedTransactionRecord>({
     where,
-    sort
+    sort,
+    pagination
   });
-  return (result.data as { id: string }[]).map((row) => row.id);
+  const ids = (result.data as { id: string }[]).map((row) => row.id);
+  return { ids, total: pagination ? (result.meta.total ?? ids.length) : ids.length };
 }
 
 /**
@@ -236,7 +243,7 @@ export async function resolveImportedTransactionSelectionIds(
     return rows.map((row) => row.id);
   }
 
-  return resolveImportedTransactionIds(userId, selection.where);
+  return (await resolveImportedTransactionIds(userId, selection.where)).ids;
 }
 
 /** Derives a `Transaction.type` from an imported transaction's signed amount; throws if the amount is exactly zero (not a valid transaction to import). */

@@ -1,3 +1,4 @@
+import { publicUserSelect } from "../../../users/utils/publicUser.js";
 import { describe, expect, it } from "vitest";
 import { groupInclude, groupListInclude } from "../groupInclude.js";
 
@@ -15,7 +16,7 @@ describe("groupInclude", () => {
     const include = groupInclude("user-1");
 
     expect(include.members).toEqual({
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: publicUserSelect } },
       orderBy: { createdAt: "asc" }
     });
   });
@@ -39,7 +40,7 @@ describe("groupListInclude", () => {
     const include = groupListInclude();
 
     expect(include.members.include).toEqual({
-      user: { select: { id: true, name: true, email: true } }
+      user: { select: publicUserSelect }
     });
   });
 });

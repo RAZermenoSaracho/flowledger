@@ -1,9 +1,10 @@
-import { reportFiltersSchema } from "@flowledger/shared";
+import { financialOverviewQuerySchema, reportFiltersSchema } from "@flowledger/shared";
 import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import {
   getByCategory,
+  getFinancialOverviewHandler,
   getMonthlyCashflow,
   getSummary
 } from "./controllers/read.controller.js";
@@ -27,4 +28,10 @@ reportsRouter.get(
   "/monthly-cashflow",
   validate(reportFiltersSchema, "query"),
   asyncHandler(getMonthlyCashflow)
+);
+
+reportsRouter.get(
+  "/financial-overview",
+  validate(financialOverviewQuerySchema, "query"),
+  asyncHandler(getFinancialOverviewHandler)
 );

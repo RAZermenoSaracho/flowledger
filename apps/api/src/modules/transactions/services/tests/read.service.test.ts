@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 /**
@@ -43,6 +43,7 @@ describe("getTransactionById", () => {
 
   it("includes only the provider transactionDate of the linked import", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ id: "txn-1" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([]);
 
     await getTransactionById("user-1", "txn-1");
 
@@ -56,10 +57,168 @@ describe("getTransactionById", () => {
 
   it("returns the transaction with its relations", async () => {
     prismaMock.transaction.findFirst.mockResolvedValue({ id: "txn-1" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([]);
 
     expect(await getTransactionById("user-1", "txn-1")).toMatchObject({
       id: "txn-1"
     });
+  });
+});
+
+describe("getTransactionById related transactions", () => {
+  const tx = (id: string, userId: string) => ({
+    id, userId, name: `T ${id}`, amount: 10, executionCurrency: "USD", type: "expense", date: new Date("2026-01-01")
+  });
+  const expenseOf = (ownerTx: ReturnType<typeof tx>) => ({
+    transactionId: ownerTx.id,
+    title: "Dinner",
+    totalAmount: 30,
+    transaction: ownerTx,
+    owner: { id: "a", username: "alice", nickname: null, name: "Alice", identityVisibility: "username_only" }
+  });
+  const user = (id: string, username: string) => ({ id, username, nickname: null, name: username, identityVisibility: "username_only" });
+  const request = (over: Record<string, unknown>) => ({
+    id: "req-1",
+    status: "approved",
+    amount: 30,
+    createdAt: new Date("2026-01-02"),
+    approvedAt: new Date("2026-01-03"),
+    sharedExpenseParticipantId: "part-1",
+    debtorUserId: "b",
+    creditorUserId: "a",
+    debtor: user("b", "bob"),
+    creditor: user("a", "alice"),
+    debtorTransaction: tx("deb-b", "b"),
+    creditorTransaction: tx("cred-a", "a"),
+    ...over
+  });
+
+  it("never loads TransactionRelation rows and scopes the settlement query to the caller", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "o" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([]);
+
+    const result = await getTransactionById("a", "o");
+
+    const include = (prismaMock.transaction.findFirst.mock.calls[0]?.[0] as { include: object }).include;
+    expect(include).not.toHaveProperty("relations");
+    expect(include).not.toHaveProperty("relatedBy");
+    expect(JSON.stringify(prismaMock.settlementRequest.findMany.mock.calls[0]?.[0])).toContain('"ownerUserId":"a"');
+    expect(result).toMatchObject({ relatedTransactions: [], relatedSettlements: [], settlementOrigin: null });
+  });
+
+  it("lists every request of an original, pending ones included, with the counterparty and only the viewer's own transaction", async () => {
+    const original = tx("o", "a");
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "o" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([
+      request({ sharedExpenseParticipant: { sharedExpense: expenseOf(original) } }),
+      request({
+        id: "req-2",
+        status: "pending",
+        approvedAt: null,
+        creditorTransaction: null,
+        debtorTransaction: null,
+        debtorUserId: "c",
+        debtor: user("c", "carol"),
+        sharedExpenseParticipantId: "part-2",
+        sharedExpenseParticipant: { sharedExpense: expenseOf(original) }
+      })
+    ] as never);
+
+    const result = await getTransactionById("a", "o");
+
+    expect(result.relatedTransactions).toEqual([]);
+    expect(result.settlementOrigin).toBeNull();
+    expect(result.relatedSettlements).toEqual([
+      expect.objectContaining({
+        id: "req-1",
+        status: "approved",
+        amount: 30,
+        participantId: "part-1",
+        counterparty: { id: "b", username: "bob", nickname: null, displayName: null },
+        transaction: { id: "cred-a", description: "T cred-a", date: new Date("2026-01-01"), type: "expense" }
+      }),
+      expect.objectContaining({
+        id: "req-2",
+        status: "pending",
+        approvedAt: null,
+        counterparty: { id: "c", username: "carol", nickname: null, displayName: null },
+        transaction: null
+      })
+    ]);
+    expect(JSON.stringify(result.relatedSettlements)).not.toContain("deb-b");
+  });
+
+  it("lists the original as a navigable origin row and no settlements when the viewer owns it", async () => {
+    const original = tx("o", "a");
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "cred-a" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([
+      request({ sharedExpenseParticipant: { sharedExpense: expenseOf(original) } })
+    ] as never);
+
+    const result = await getTransactionById("a", "cred-a");
+
+    expect(result.relatedTransactions.map((row) => [row.id, row.relation])).toEqual([["o", "origin"]]);
+    expect(result.relatedSettlements).toEqual([]);
+  });
+
+  it("gives a participant only a non-navigable origin summary without ids or owner-private data", async () => {
+    const original = { ...tx("o", "a"), accountId: "acc-secret", notes: "secret" };
+    prismaMock.transaction.findFirst.mockResolvedValue({ id: "deb-b" } as never);
+    prismaMock.settlementRequest.findMany.mockResolvedValue([
+      request({ sharedExpenseParticipant: { sharedExpense: expenseOf(original) } })
+    ] as never);
+
+    const result = await getTransactionById("b", "deb-b");
+
+    expect(result.relatedTransactions).toEqual([]);
+    expect(result.relatedSettlements).toEqual([]);
+    expect(result.settlementOrigin).toEqual({
+      title: "Dinner",
+      amount: 30,
+      currency: "USD",
+      date: original.date,
+      type: "expense",
+      owner: { id: "a", username: "alice", nickname: null, displayName: null }
+    });
+    const json = JSON.stringify(result);
+    expect(json).not.toContain("cred-a");
+    expect(json).not.toContain("acc-secret");
+    expect(json).not.toContain('"o"');
+  });
+});
+
+describe("getTransactionById participants", () => {
+  beforeEach(() => {
+    prismaMock.settlementRequest.findMany.mockResolvedValue([]);
+  });
+
+  it("loads only public user columns and returns the live label instead of a stored real name", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue({
+      id: "txn-1",
+      sharedExpense: {
+        participants: [
+          {
+            participantName: "Real Name",
+            user: { id: "u2", username: "friend", name: "Real Name", identityVisibility: "username_only" }
+          }
+        ]
+      }
+    } as never);
+
+    const result = await getTransactionById("user-1", "txn-1");
+
+    const call = prismaMock.transaction.findFirst.mock.calls[0]?.[0] as {
+      include: { sharedExpense: { include: { participants: { include: { user: { select: object } } } } } };
+    };
+    expect(call.include.sharedExpense.include.participants.include.user.select).toEqual({
+      id: true,
+      username: true,
+      nickname: true,
+      name: true,
+      identityVisibility: true
+    });
+    expect(result.sharedExpense?.participants[0]?.participantName).toBe("@friend");
+    expect(JSON.stringify(result)).not.toContain("Real Name");
   });
 });
 
@@ -76,7 +235,7 @@ describe("getImportedTransactionsPendingCount", () => {
 
 describe("listImportedTransactions", () => {
   it("returns an empty list without a hydration query when no ids match", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue([]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: [], total: 0 });
     prismaMock.providerImportedTransaction.count.mockResolvedValue(0);
 
     const result = await listImportedTransactions("user-1", undefined);
@@ -86,7 +245,7 @@ describe("listImportedTransactions", () => {
   });
 
   it("hydrates and orders imported transactions to match the resolved id order", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue(["it-2", "it-1"]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-2", "it-1"], total: 2 });
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1" },
       { id: "it-2" }
@@ -103,7 +262,7 @@ describe("listImportedTransactions", () => {
   });
 
   it("drops an id from the ordered list if its row can't be found", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue(["it-1", "it-missing"]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-1", "it-missing"], total: 2 });
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1" }
     ] as never);
@@ -112,6 +271,29 @@ describe("listImportedTransactions", () => {
     const result = await listImportedTransactions("user-1", undefined);
 
     expect(result.importedTransactions).toEqual([{ id: "it-1" }]);
+  });
+});
+
+describe("listImportedTransactions — pagination", () => {
+  it("forwards pagination and reports the resolver's full total for a page", async () => {
+    const pagination = { kind: "offset", page: 2, pageSize: 1 };
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-2"], total: 7 });
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([{ id: "it-2" }] as never);
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(3);
+
+    const result = await listImportedTransactions(
+      "user-1",
+      JSON.stringify({ pagination })
+    );
+
+    expect(resolveImportedTransactionIdsMock).toHaveBeenCalledWith(
+      "user-1",
+      undefined,
+      expect.anything(),
+      pagination
+    );
+    expect(result).toMatchObject({ total: 7, pendingCount: 3 });
+    expect(result.importedTransactions).toHaveLength(1);
   });
 });
 

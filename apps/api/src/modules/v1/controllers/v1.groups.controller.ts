@@ -4,7 +4,7 @@ import { serialize } from "../../../utils/serialize.js";
 import { getMemberGroup } from "../../groups/services/read.service.js";
 import { createSharedExpense } from "../../shared-expenses/services/create.service.js";
 import {
-  assertOwnedGroupTransaction,
+  assertOwnedSharingTransaction,
   listSharedExpenses
 } from "../../shared-expenses/services/read.service.js";
 
@@ -18,12 +18,9 @@ export async function getV1SharedExpenses(req: Request, res: Response) {
   res.json({ sharedExpenses: serialize(data), total });
 }
 
-/**
- * `POST /v1/shared-expenses`: creates a shared expense for a group transaction the caller owns and notifies its participants.
- * Unlike the web route, a non-group transaction is refused (400) so participants are always group members.
- */
+/** Creates a shared expense on any owned transaction, proposing app-user shares and notifying participants. */
 export async function postV1SharedExpense(req: Request, res: Response) {
-  await assertOwnedGroupTransaction(req.user!.id, req.body.transactionId);
+  await assertOwnedSharingTransaction(req.user!.id, req.body.transactionId);
   const sharedExpense = await createSharedExpense(req.user!.id, req.body);
   res.status(201).json({ sharedExpense: serialize(sharedExpense) });
 }

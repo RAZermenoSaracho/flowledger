@@ -44,3 +44,23 @@ export function optionalArraySchema<T extends z.ZodTypeAny>(itemSchema: T) {
     }, z.array(itemSchema).optional())
     .transform((value) => value?.filter((item) => item !== ""));
 }
+
+/** DataSieve list pagination: numbered pages (`offset`) or a keyset cursor (`cursor`). Sizes are positive integers; the API additionally clamps them to a per-list maximum. */
+export const listPaginationSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("offset"),
+    page: z.number().int().min(1),
+    pageSize: z.number().int().min(1)
+  }),
+  z.object({
+    kind: z.literal("cursor"),
+    cursor: z.string().optional(),
+    take: z.number().int().min(1),
+    direction: z.enum(["forward", "backward"]).optional()
+  })
+]);
+
+/** DataSieve list sort: an ordered array of `{ field, direction? }` keys. */
+export const listSortSchema = z.array(
+  z.object({ field: z.string().min(1), direction: z.enum(["asc", "desc"]).optional() })
+);

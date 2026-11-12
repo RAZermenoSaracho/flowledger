@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../../../tests/helpers/prismaMock.js";
 
@@ -280,6 +281,7 @@ describe("handleGoogleCallback", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           email: "new@example.com",
+          username: expect.stringMatching(/^user_[a-z0-9]{12}$/),
           authAccounts: {
             create: expect.objectContaining({
               provider: "google",
@@ -289,6 +291,38 @@ describe("handleGoogleCallback", () => {
         })
       })
     );
+  });
+
+  it("retries the whole transaction with a new username when the generated one collides", async () => {
+    verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
+    parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+    exchangeGoogleCodeMock.mockResolvedValue({} as never);
+    verifyGoogleIdentityMock.mockResolvedValue({
+      providerAccountId: "google-sub-3",
+      email: "dup@example.com",
+      name: "Dup",
+      picture: undefined
+    });
+    issueRefreshTokenMock.mockResolvedValue({ token: "r", expiresAt: new Date(), persistent: true });
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x", meta: { target: ["username"] } })
+      )
+      .mockResolvedValue({ id: "user-new", email: "dup@example.com", avatarUrl: null });
+    const tx = {
+      userAuthAccount: { findUnique: vi.fn().mockResolvedValue(null) },
+      user: { findFirst: vi.fn().mockResolvedValue(null), create }
+    };
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    await handleGoogleCallback({ state: "state-token", cookieHeader: "x", code: "auth-code" });
+
+    expect(create).toHaveBeenCalledTimes(2);
+    const usernames = create.mock.calls.map((c) => c[0].data.username);
+    expect(usernames[0]).not.toBe(usernames[1]);
   });
 
   describe("link mode", () => {

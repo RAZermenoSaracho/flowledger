@@ -101,11 +101,11 @@ describe("MCP group tools", () => {
     await stopTestDatabase();
   });
 
-  it("lists the group read tools for read keys and all ten for write keys, without approval tools", async () => {
+  it("lists the group read tools for read keys and four reads and twelve writes for write keys, without approval tools", async () => {
     const readNames = (await a.read.listTools()).tools.map((t) => t.name);
     const writeTools = (await a.write.listTools()).tools;
-    const groupTools = ["list_groups", "list_shared_expenses", "search_users"];
-    const groupWrites = ["create_group", "update_group", "set_group_archived", "remove_group_member", "create_shared_expense", "request_settlement", "add_group_member", "create_group_category"];
+    const groupTools = ["list_groups", "list_shared_expenses", "search_users", "list_blocked_users"];
+    const groupWrites = ["accept_shared_expense", "reject_shared_expense", "block_user", "unblock_user", "create_group", "update_group", "set_group_archived", "remove_group_member", "create_shared_expense", "request_settlement", "add_group_member", "create_group_category"];
 
     expect(readNames).toEqual(expect.arrayContaining(groupTools));
     for (const name of groupWrites) {
@@ -113,7 +113,7 @@ describe("MCP group tools", () => {
       expect(writeTools.map((t) => t.name)).toContain(name);
     }
     const all = writeTools.map((t) => t.name).join(" ");
-    expect(all).not.toMatch(/approve|reject|settle_debt|delete_group|update_shared_expense|delete_shared_expense/);
+    expect(all).not.toMatch(/approve_settlement|reject_settlement|settle_debt|delete_group|update_shared_expense|delete_shared_expense/);
     expect(writeTools.find((t) => t.name === "remove_group_member")!.annotations).toMatchObject({ destructiveHint: true });
     for (const name of ["create_shared_expense", "request_settlement", "remove_group_member", "add_group_member"]) {
       expect(writeTools.find((t) => t.name === name)!.description).toMatch(/notif|Affects another user/i);
@@ -123,6 +123,10 @@ describe("MCP group tools", () => {
   it("refuses every write tool for a read key and changes nothing", async () => {
     const before = await counts();
     for (const [name, args] of [
+      ["accept_shared_expense", { id: "x" }],
+      ["reject_shared_expense", { id: "x" }],
+      ["block_user", { userId: "x" }],
+      ["unblock_user", { userId: "x" }],
       ["create_group", { name: "Nope" }],
       ["update_group", { id: "x", name: "Nope" }],
       ["set_group_archived", { id: "x", archived: true }],
@@ -173,7 +177,7 @@ describe("MCP group tools", () => {
     expect(viaTool).toEqual(viaRest);
   });
 
-  it("creates shared expenses only on group transactions with member participants", async () => {
+  it("creates shared expenses on personal and group transactions", async () => {
     const personal = await prisma.transaction.create({
       data: { userId: a.userId, name: "Solo", amount: 50, amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: a.accountId }
     });
@@ -183,17 +187,26 @@ describe("MCP group tools", () => {
     const transactionId = tx.body.transaction.id as string;
     const participant = (userId: string, shareAmount: number) => ({ userId, participantName: "P", shareAmount });
 
+    const universal = await call(a.write, "create_shared_expense", { transactionId: personal.id, title: "t", participants: [participant(c.userId, 50)] });
+    expect(universal.isError).toBeFalsy();
+    const personalShareId = universal.structuredContent!.sharedExpense.id;
+    const awaiting = (await call(c.read, "list_debts")).structuredContent!;
+    expect(awaiting.awaitingAcceptance).toHaveLength(1);
+    expect(awaiting.iOwe).toHaveLength(0);
+    expect((await call(c.write, "reject_shared_expense", { id: personalShareId })).isError).toBeFalsy();
+    await request(app).delete(`/transactions/${personal.id}`).set(bearer(a.jwt)).expect(204);
+    await prisma.notification.deleteMany({ where: { userId: c.userId } });
     const before = await counts();
-    expect((await call(a.write, "create_shared_expense", { transactionId: personal.id, title: "t", participants: [participant(b.userId, 50)] })).isError).toBe(true);
-    expect((await call(a.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(c.userId, 50)] })).isError).toBe(true);
+
     expect((await call(b.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(b.userId, 50)] })).isError).toBe(true);
     expect(await counts()).toEqual(before);
 
     const created = await call(a.write, "create_shared_expense", { transactionId, title: "Dinner", participants: [participant(b.userId, 40)] });
     expect(created.isError).toBeFalsy();
     sharedExpenseId = created.structuredContent!.sharedExpense.id;
-    expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_added" } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_invited" } })).toBe(1);
     debtId = (await prisma.sharedExpenseParticipant.findFirstOrThrow({ where: { sharedExpenseId, userId: b.userId } })).id;
+    expect((await call(b.write, "accept_shared_expense", { id: sharedExpenseId })).isError).toBeFalsy();
 
     expect((await call(c.read, "list_shared_expenses")).structuredContent).toEqual({ sharedExpenses: [], total: 0 });
     expect((await call(c.read, "list_shared_expenses", { id: sharedExpenseId })).isError).toBe(true);
@@ -201,6 +214,33 @@ describe("MCP group tools", () => {
     expect(asB.structuredContent!.total).toBe(1);
     const viaRest = (await request(app).get("/v1/shared-expenses").set(bearer(b.readKey))).body;
     expect(asB.structuredContent).toEqual(viaRest);
+  });
+
+  it("matches REST for blocks and own identity, and blocks invitations without changing accepted debt", async () => {
+    expect((await call(c.write, "block_user", { userId: a.userId })).isError).toBeFalsy();
+    const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Blocked", amount: 10, amountInPreferredCurrency: 10, type: "expense", date: new Date(), accountId: a.accountId, groupId } });
+    const args = { transactionId: tx.id, title: "Blocked", participants: [{ userId: c.userId, participantName: "C", shareAmount: 5 }] };
+    const refused = await call(a.write, "create_shared_expense", args);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0]!.text).toContain("This user can't be invited.");
+    expect((await request(app).post("/v1/shared-expenses").set(bearer(a.writeKey)).send(args)).status).toBe(400);
+    const blocks = (await call(c.read, "list_blocked_users")).structuredContent;
+    expect(blocks).toEqual((await request(app).get("/v1/users/blocks").set(bearer(c.readKey))).body);
+    expect(Object.keys(blocks!.blocks[0].user).sort()).toEqual(["displayName", "id", "nickname", "username"]);
+    expect((await call(c.write, "unblock_user", { userId: a.userId })).isError).toBeFalsy();
+    expect((await call(c.read, "list_blocked_users")).structuredContent).toEqual({ blocks: [] });
+    const shared = (await call(a.write, "create_shared_expense", args)).structuredContent!.sharedExpense;
+    expect(shared.participants[0].acceptance).toBe("proposed");
+    const visible = (await call(c.read, "list_shared_expenses", { id: shared.id })).structuredContent!.sharedExpense;
+    expect(visible.transaction.groupId).toBeNull();
+    expect(visible.transaction.accountId).toBeUndefined();
+    expect(visible.owner).toMatchObject({ id: a.userId, username: expect.any(String), nickname: null, displayName: null });
+    expect((await request(app).get(`/v1/groups/${groupId}`).set(bearer(c.readKey))).status).toBe(404);
+    await request(app).delete(`/transactions/${tx.id}`).set(bearer(a.jwt)).expect(204);
+    const profile = (await call(a.read, "get_profile")).structuredContent!;
+    expect(profile).toEqual((await request(app).get("/v1/me").set(bearer(a.readKey))).body);
+    expect(profile.user).toMatchObject({ username: expect.any(String), identityVisibility: "username_only", email: expect.any(String) });
+    expect((await call(b.read, "list_debts")).structuredContent).toEqual((await request(app).get("/v1/debts").set(bearer(b.readKey))).body);
   });
 
   it("lets only the debtor request a settlement, once, leaving approval to REST", async () => {
@@ -233,16 +273,20 @@ describe("MCP group tools", () => {
 
   it("searches users with caps, adds members and creates group categories as admin only, matching REST", async () => {
     const { user: target } = await createAuthedUser(app, { name: "Mcp Findable" });
-    for (let i = 0; i < 11; i++) await createAuthedUser(app, { name: `Mcpcap ${i}` });
+    await prisma.user.update({ where: { id: target.id }, data: { username: "mcp_findable" } });
+    for (let i = 0; i < 11; i++) {
+      const { user } = await createAuthedUser(app, { name: `Mcpcap ${i}` });
+      await prisma.user.update({ where: { id: user.id }, data: { username: `mcpcap_${i}` } });
+    }
     const g = (await call(a.write, "create_group", { name: "McpAdds" })).structuredContent!.group.id as string;
     await request(app).post(`/groups/${g}/members`).set(bearer(a.jwt)).send({ userId: b.userId }).expect(201);
 
     expect((await call(a.read, "search_users", { q: "mc" })).isError).toBe(true);
     expect((await call(a.read, "search_users", { q: "mcpcap", limit: 11 })).isError).toBe(true);
-    const found = await call(a.read, "search_users", { q: "Mcp Find" });
-    expect(found.structuredContent).toEqual({ users: [{ id: target.id, name: "Mcp Findable", email: target.email }] });
+    const found = await call(a.read, "search_users", { q: "Mcp_Find" });
+    expect(found.structuredContent).toEqual({ users: [{ id: target.id, username: "mcp_findable", nickname: null, displayName: null }] });
     expect((await call(a.read, "search_users", { q: "mcpcap" })).structuredContent!.users).toHaveLength(10);
-    const viaRest = (await request(app).get("/v1/users/search?q=Mcp%20Find").set(bearer(a.readKey))).body;
+    const viaRest = (await request(app).get("/v1/users/search?q=Mcp_Find").set(bearer(a.readKey))).body;
     expect(found.structuredContent).toEqual(viaRest);
 
     const before = await counts();

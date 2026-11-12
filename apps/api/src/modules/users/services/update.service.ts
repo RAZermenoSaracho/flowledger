@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError } from "../../../utils/httpError.js";
 import { hashRefreshToken } from "../../auth/utils/tokens.js";
+import { isUsernameConflict } from "../utils/generateUsername.js";
 import { imageExtension } from "../utils/imageExtension.js";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +27,10 @@ const avatarContentTypes = new Set([
   "image/gif"
 ]);
 
-/** Updates a user's name and preferred currency. Rejects a differing email, which only {@link updateEmail} can change. */
+/**
+ * Updates a user's name, public nickname, preferred currency, username and identity visibility. Rejects a differing email, which only {@link updateEmail} can change.
+ * @throws 409 addressed to `username` when another user holds it; the unique constraint decides concurrent claims.
+ */
 export async function updateProfile(
   userId: string,
   input: UpdateUserProfileInput
@@ -37,15 +41,29 @@ export async function updateProfile(
     throw new HttpError(400, "Email can only be changed with your current password");
   }
 
-  return prisma.user.update({
-    where: { id: userId },
-    data: {
-      name: input.name,
-      ...(input.preferredCurrency !== undefined
-        ? { preferredCurrency: input.preferredCurrency }
-        : {})
+  try {
+    return await prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: input.name,
+        ...(input.nickname !== undefined ? { nickname: input.nickname } : {}),
+        ...(input.preferredCurrency !== undefined
+          ? { preferredCurrency: input.preferredCurrency }
+          : {}),
+        ...(input.username !== undefined ? { username: input.username } : {}),
+        ...(input.identityVisibility !== undefined
+          ? { identityVisibility: input.identityVisibility }
+          : {})
+      }
+    });
+  } catch (error) {
+    if (isUsernameConflict(error)) {
+      throw new HttpError(409, "Username is already taken", {
+        issues: { formErrors: [], fieldErrors: { username: ["Username is already taken"] } }
+      });
     }
-  });
+    throw error;
+  }
 }
 
 /** Validates and writes an uploaded avatar image to disk, then points the user's `avatarUrl` at it. */

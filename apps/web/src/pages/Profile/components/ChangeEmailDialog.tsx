@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "../../../components/Button";
 import { TextInput } from "../../../components/FormField";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "../../../components/ModalDialog";
 
 /**
  * Modal that asks for the current password before an email change is saved. Mount it only while open

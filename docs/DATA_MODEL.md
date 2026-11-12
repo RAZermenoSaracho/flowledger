@@ -29,6 +29,7 @@ Core user record. All user-owned data cascades on delete.
 |---|---|---|
 | `id` | String (cuid) | PK |
 | `name` | String | Display name |
+| `nickname` | String? | Optional public, non-unique, searchable nickname (1–40 trimmed characters); null when cleared; no controls or leading @ |
 | `email` | String | Unique, used for login |
 | `passwordHash` | String? | Null for OAuth-only users |
 | `avatarUrl` | String? | URL to avatar image |
@@ -192,7 +193,7 @@ Key constraints:
 - `expenseOffsetCategoryId` only allowed on income transactions. Used for settlement payments received that offset an expense.
 - `sharedExpense` (one-to-one optional): transaction can have an attached shared expense.
 
-Relations: `relations` / `relatedBy` (TransactionRelation), `sharedExpense`, `debtorSettlementRequest`, `creditorSettlementRequest`, `providerImportedTransaction`
+Relations: `relations` / `relatedBy` (TransactionRelation, not exposed by the read API; see DOMAIN_LOGIC), `sharedExpense`, `debtorSettlementRequest`, `creditorSettlementRequest`, `providerImportedTransaction`
 
 ---
 

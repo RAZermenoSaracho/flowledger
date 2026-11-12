@@ -10,7 +10,7 @@ import {
 // NOT run in this sandbox (no Docker) — see docs/TESTING.md.
 let app: Express;
 
-async function createSharedExpenseDebt(owner: { token: string }, participantUserId: string) {
+async function createSharedExpenseDebt(owner: { token: string }, participant: { token: string; user: { id: string } }) {
   const categoryResponse = await request(app)
     .post("/categories")
     .set("Authorization", `Bearer ${owner.token}`)
@@ -29,10 +29,14 @@ async function createSharedExpenseDebt(owner: { token: string }, participantUser
       sharedExpense: {
         title: "Dinner split",
         participants: [
-          { userId: participantUserId, participantName: "Friend", shareAmount: 50 }
+          { userId: participant.user.id, participantName: "Friend", shareAmount: 50 }
         ]
       }
     });
+
+  await request(app)
+    .post(`/shared-expenses/${transactionResponse.body.transaction.sharedExpense.id}/accept`)
+    .set("Authorization", `Bearer ${participant.token}`);
 
   return transactionResponse.body.transaction;
 }
@@ -56,7 +60,7 @@ describe("/debts and /settlements routes", () => {
     const owner = await createAuthedUser(app);
     const participant = await createAuthedUser(app);
 
-    await createSharedExpenseDebt(owner, participant.user.id);
+    await createSharedExpenseDebt(owner, participant);
 
     const ownerDebts = await request(app)
       .get("/debts")
@@ -72,7 +76,7 @@ describe("/debts and /settlements routes", () => {
   it("runs a full settlement-request -> approve flow, creating the settlement transactions", async () => {
     const owner = await createAuthedUser(app);
     const participant = await createAuthedUser(app);
-    await createSharedExpenseDebt(owner, participant.user.id);
+    await createSharedExpenseDebt(owner, participant);
 
     const participantDebts = await request(app)
       .get("/debts")
@@ -124,7 +128,7 @@ describe("/debts and /settlements routes", () => {
   it("rejects a pending settlement request", async () => {
     const owner = await createAuthedUser(app);
     const participant = await createAuthedUser(app);
-    await createSharedExpenseDebt(owner, participant.user.id);
+    await createSharedExpenseDebt(owner, participant);
 
     const participantDebts = await request(app)
       .get("/debts")

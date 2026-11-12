@@ -9,16 +9,29 @@ import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js"
 // stub client store here; its SSRF behaviour has its own unit tests.
 const CID = "https://app.example/client.json";
 const REDIRECT = "https://app.example/cb";
+const MUSE_REDIRECT = "https://agent.meta.ai/api/hatch/oauth/callback";
+// The CIMD fetch is stubbed; the hosted Muse document is served by the real route and returned as fetched.
 vi.mock("../../modules/oauth/providers/cimd/services/read.service.js", () => ({
-  getCimdClient: async (id: string) =>
-    id === CID
+  getCimdClient: async (id: string) => {
+    const { museClientDocument, museClientId } = await import("../../modules/oauth/utils/hostedClients.js");
+    if (id === museClientId()) return museClientDocument();
+    if (id === "https://grok.com/oauth/mcp-client.json") {
+      return {
+        client_id: id,
+        client_name: "Grok",
+        redirect_uris: ["https://grok.com/connectors-oauth-exchange-code/"],
+        token_endpoint_auth_method: "none"
+      };
+    }
+    return id === CID
       ? {
           client_id: CID,
           client_name: "Test App",
           redirect_uris: ["https://app.example/cb", "http://localhost/callback"],
           token_endpoint_auth_method: "none"
         }
-      : undefined
+      : undefined;
+  }
 }));
 
 let app: Express;
@@ -196,6 +209,114 @@ describe("MCP OAuth server", () => {
     const code = new URL(decision.body.redirectUrl).searchParams.get("code")!;
     const ok = await token({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: loopback, resource });
     expect(ok.status).toBe(200);
+  });
+
+  it("serves the Muse client document and runs Muse's code, token, refresh and revoke only through its exact callback", async () => {
+    const museCid = `${issuer}/oauth/clients/meta-muse.json`;
+    const doc = await request(app).get("/oauth/clients/meta-muse.json");
+    expect(doc.status).toBe(200);
+    expect(doc.headers["access-control-allow-origin"]).toBe("*");
+    expect(doc.body).toMatchObject({ client_id: museCid, redirect_uris: [MUSE_REDIRECT], token_endpoint_auth_method: "none" });
+
+    const user = await createAuthedUser(app);
+    const { verifier, challenge } = pkce();
+    const muse = { client_id: museCid, redirect_uri: MUSE_REDIRECT };
+    for (const redirect_uri of [
+      `${MUSE_REDIRECT}/extra`,
+      `${MUSE_REDIRECT}?next=x`,
+      MUSE_REDIRECT.replace("https:", "http:"),
+      "https://agent.meta.ai.evil.example/api/hatch/oauth/callback",
+      REDIRECT
+    ]) {
+      const rejected = await authorize(challenge, { ...muse, redirect_uri });
+      expect(rejected.status, redirect_uri).toBe(400);
+      expect(rejected.headers.location, redirect_uri).toBeUndefined();
+    }
+    expect((await authorize(challenge, { client_id: CID, redirect_uri: MUSE_REDIRECT })).status).toBe(400);
+
+    const res = await authorize(challenge, muse);
+    expect(res.status).toBe(302);
+    const req = new URL(res.headers.location!).searchParams.get("req")!;
+    const ctx = await request(app).get("/oauth/authorize/context").query({ req }).set("Authorization", `Bearer ${user.token}`);
+    expect(ctx.body.client).toEqual({ name: "Meta AI Muse", redirectHost: "agent.meta.ai" });
+    const url = new URL((await decide(user, req)).body.redirectUrl);
+    expect(`${url.origin}${url.pathname}`).toBe(MUSE_REDIRECT);
+    expect(url.searchParams.get("state")).toBe("xyz");
+    expect(url.searchParams.get("iss")).toBe(issuer);
+
+    const museToken = (body: Json) => request(app).post("/token").type("form").send({ client_id: museCid, ...body });
+    const issued = await museToken({
+      grant_type: "authorization_code",
+      code: url.searchParams.get("code"),
+      code_verifier: verifier,
+      redirect_uri: MUSE_REDIRECT,
+      resource
+    });
+    expect(issued.status).toBe(200);
+    expect(issued.body.scope).toBe("read");
+    expect((await mcp(issued.body.access_token)).status).toBe(200);
+    expect((await token({ grant_type: "refresh_token", refresh_token: issued.body.refresh_token, resource })).status).toBe(400);
+
+    const rotated = await museToken({ grant_type: "refresh_token", refresh_token: issued.body.refresh_token, resource });
+    expect(rotated.status).toBe(200);
+    expect((await mcp(rotated.body.access_token)).status).toBe(200);
+
+    const revoked = await request(app).post("/revoke").type("form").send({ client_id: museCid, token: rotated.body.refresh_token });
+    expect(revoked.status).toBe(200);
+    expect((await mcp(rotated.body.access_token)).status).toBe(401);
+  });
+
+  it("gives an OAuth write grant (Grok-shaped client) full MCP CRUD on the user's own data and a read grant none", async () => {
+    const grok = { client_id: "https://grok.com/oauth/mcp-client.json", redirect_uri: "https://grok.com/connectors-oauth-exchange-code/" };
+    async function grokToken(user: AuthedUser, allowWrite: boolean) {
+      const { verifier, challenge } = pkce();
+      const res = await authorize(challenge, grok);
+      const req = new URL(res.headers.location!).searchParams.get("req")!;
+      const code = new URL((await decide(user, req, { allowWrite })).body.redirectUrl).searchParams.get("code");
+      const issued = await request(app).post("/token").type("form").send({
+        ...grok,
+        grant_type: "authorization_code",
+        code,
+        code_verifier: verifier,
+        resource
+      });
+      expect(issued.status).toBe(200);
+      return issued.body as { access_token: string; scope: string };
+    }
+    const rpc = async (accessToken: string, method: string, params: Json = {}) => {
+      const res = await request(app)
+        .post("/mcp")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .set("Accept", "application/json, text/event-stream")
+        .send({ jsonrpc: "2.0", id: 1, method, params });
+      const text = res.text.includes("data:") ? res.text.split("data:").at(-1)! : res.text;
+      return JSON.parse(text).result as Json;
+    };
+    const tool = (accessToken: string, name: string, args: Json = {}) => rpc(accessToken, "tools/call", { name, arguments: args });
+
+    const user = await createAuthedUser(app);
+    const other = await createAuthedUser(app);
+    const write = await grokToken(user, true);
+    expect(write.scope).toBe("read write");
+    const names = ((await rpc(write.access_token, "tools/list")).tools as { name: string }[]).map((t) => t.name);
+    expect(names).toHaveLength(45);
+    expect(names).toEqual(expect.arrayContaining(["create_transaction", "update_transaction", "delete_transaction", "search_transactions"]));
+
+    const created = await tool(write.access_token, "create_transaction", { name: "Grok coffee", amount: 4.5, type: "expense", date: "2024-03-10" });
+    const id = created.structuredContent.transaction.id as string;
+    expect((await tool(write.access_token, "get_transaction", { id })).structuredContent.transaction.name).toBe("Grok coffee");
+    expect((await tool(write.access_token, "update_transaction", { id, name: "Grok latte" })).structuredContent.transaction.name).toBe("Grok latte");
+
+    const otherWrite = await grokToken(other, true);
+    expect(await tool(otherWrite.access_token, "update_transaction", { id, name: "Hacked" })).toMatchObject({ isError: true });
+
+    const read = await grokToken(user, false);
+    expect(read.scope).toBe("read");
+    expect((await rpc(read.access_token, "tools/list")).tools).toHaveLength(16);
+    expect((await tool(read.access_token, "delete_transaction", { id })).isError).toBe(true);
+
+    expect((await tool(write.access_token, "delete_transaction", { id })).isError).toBeUndefined();
+    expect(await prisma.transaction.findUnique({ where: { id } })).toBeNull();
   });
 
   it("rejects tampered or foreign consent requests and non-session credentials", async () => {

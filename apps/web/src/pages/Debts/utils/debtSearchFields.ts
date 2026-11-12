@@ -16,7 +16,7 @@ import { debtDescription, debtTitle, displayPerson, statusLabel } from "./debtDi
 /** Flat, plain-object view of a `PersonBalance`'s searchable/filterable fields — see file header. */
 export type BalanceSearchRow = {
   personName: string;
-  personEmail: string;
+  personUsername: string;
   recordTitles: string;
   netBalance: number;
   theyOweMeTotal: number;
@@ -27,7 +27,7 @@ export type BalanceSearchRow = {
 export function toBalanceSearchRow(balance: PersonBalance): BalanceSearchRow {
   return {
     personName: displayPerson(balance),
-    personEmail: balance.person?.email ?? "",
+    personUsername: balance.person?.username ?? "",
     recordTitles: [...balance.theyOweMe, ...balance.iOweThem]
       .map((debt) => debtTitle(debt))
       .join(" "),
@@ -43,7 +43,7 @@ export const balanceSearchFields: SearchFieldConfig[] = [
     name: "search",
     label: "Search",
     type: "string",
-    expandsToFields: ["personName", "personEmail", "recordTitles"]
+    expandsToFields: ["personName", "personUsername", "recordTitles"]
   },
   { name: "netBalance", label: "Net balance", type: "number" },
   { name: "theyOweMeTotal", label: "They owe me", type: "number" },
@@ -58,9 +58,9 @@ export type SettlementRequestSearchRow = {
   debtTitle: string;
   transactionName: string;
   debtorName: string;
-  debtorEmail: string;
+  debtorUsername: string;
   creditorName: string;
-  creditorEmail: string;
+  creditorUsername: string;
   note: string;
   amount: number;
   status: string;
@@ -74,10 +74,10 @@ export function toSettlementRequestSearchRow(
   return {
     debtTitle: debt?.sharedExpense.title ?? "",
     transactionName: debt?.sharedExpense.transaction?.name ?? "",
-    debtorName: request.debtor?.name ?? "",
-    debtorEmail: request.debtor?.email ?? "",
-    creditorName: request.creditor?.name ?? "",
-    creditorEmail: request.creditor?.email ?? "",
+    debtorName: request.debtor?.displayName ?? "",
+    debtorUsername: request.debtor?.username ?? "",
+    creditorName: request.creditor?.displayName ?? "",
+    creditorUsername: request.creditor?.username ?? "",
     note: request.note ?? "",
     amount: request.amount,
     status: request.status
@@ -94,9 +94,9 @@ export const settlementRequestSearchFields: SearchFieldConfig[] = [
       "debtTitle",
       "transactionName",
       "debtorName",
-      "debtorEmail",
+      "debtorUsername",
       "creditorName",
-      "creditorEmail",
+      "creditorUsername",
       "note"
     ]
   },
@@ -122,9 +122,9 @@ export type SettledDebtSearchRow = {
   status: string;
   participantName: string;
   userName: string;
-  userEmail: string;
+  userUsername: string;
   ownerName: string;
-  ownerEmail: string;
+  ownerUsername: string;
   transactionName: string;
   shareAmount: number;
   paidAmount: number;
@@ -141,10 +141,10 @@ export function toSettledDebtSearchRow(
     description: debtDescription(debt, viewerUserId),
     status: statusLabel(debt),
     participantName: debt.participantName ?? "",
-    userName: debt.user?.name ?? "",
-    userEmail: debt.user?.email ?? "",
-    ownerName: debt.sharedExpense.owner?.name ?? "",
-    ownerEmail: debt.sharedExpense.owner?.email ?? "",
+    userName: debt.user?.displayName ?? "",
+    userUsername: debt.user?.username ?? "",
+    ownerName: debt.sharedExpense.owner?.displayName ?? "",
+    ownerUsername: debt.sharedExpense.owner?.username ?? "",
     transactionName: debt.sharedExpense.transaction?.name ?? "",
     shareAmount: debt.shareAmount,
     paidAmount: debt.paidAmount,
@@ -164,9 +164,9 @@ export const settledDebtSearchFields: SearchFieldConfig[] = [
       "status",
       "participantName",
       "userName",
-      "userEmail",
+      "userUsername",
       "ownerName",
-      "ownerEmail",
+      "ownerUsername",
       "transactionName"
     ]
   },

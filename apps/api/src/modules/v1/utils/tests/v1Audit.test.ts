@@ -36,7 +36,7 @@ describe("auditV1Write", () => {
     });
   });
 
-  it.each(["account", "category", "group", "sharedExpense", "settlementRequest"])("captures the created %s id from the response body", (key) => {
+  it.each(["account", "category", "group", "sharedExpense", "settlementRequest", "block"])("captures the created %s id from the response body", (key) => {
     const { res } = setup({ credential, params: {} } as never);
     res.json({ [key]: { id: "x1" } });
     res.emit("finish");
@@ -48,6 +48,13 @@ describe("auditV1Write", () => {
     res.statusCode = 404;
     res.emit("finish");
     expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ resourceId: "t1", status: 404 }));
+  });
+
+  it("captures an unblock target from params without reading the body", () => {
+    const { res } = setup({ credential, params: { userId: "u2" } } as never);
+    res.statusCode = 204;
+    res.emit("finish");
+    expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ resourceId: "u2", status: 204 }));
   });
 
   it("does not log without a credential", () => {

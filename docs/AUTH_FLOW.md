@@ -274,6 +274,19 @@ FlowLedger is an OAuth 2.1 authorization server for `/mcp` (module `apps/api/src
 - **Verification**: `verifyCredential` checks the `flo_` token against the database on every request, so revocation is immediate. `/v1` passes `kinds: ["apiKey"]` and rejects OAuth tokens.
 - **Management**: `GET /users/me/oauth-grants` and `DELETE /users/me/oauth-grants/:id` (web JWT), or the client's `/revoke`.
 - Google login accepts a same-origin relative `redirect` up to 2048 characters (the consent URL), so a logged-out user returns to the consent page.
+- **Meta AI Muse.** Muse asks for a Client ID but hosts no client document, so FlowLedger serves one at `${PUBLIC_API_URL}/oauth/clients/meta-muse.json`. It is a public client with no secret, whose only redirect is `https://agent.meta.ai/api/hatch/oauth/callback`. The document's URL is Muse's Client ID, and the normal CIMD pipeline handles it: exact redirect match, PKCE S256, consent, scopes, rotation and revocation.
+  - Values to enter for production:
+    - MCP server URL: `https://api-flowledger.razs.dev/mcp`
+    - OAuth Client ID: `https://api-flowledger.razs.dev/oauth/clients/meta-muse.json`
+    - Client secret: none (public client)
+    - Authorization URL: `https://api-flowledger.razs.dev/authorize`
+    - Token URL: `https://api-flowledger.razs.dev/token`
+    - Scopes: `read write offline_access`. FlowLedger offers "Allow changes" on the consent page only when `write` is requested. Without it, the grant is read-only.
+    - Callback: `https://agent.meta.ai/api/hatch/oauth/callback`
+  - Staging uses the same values on `api-flowledger-dev.razs.dev`.
+  - Muse connectors must be submitted on platform.muse.ai and approved by Meta before users can add them.
+  - If Muse turns out to require a client secret or dynamic registration, it cannot connect. FlowLedger supports neither by design.
+- **Grok.** Grok.com connectors are a standard CIMD client (`https://grok.com/oauth/mcp-client.json`, public, redirect `https://grok.com/connectors-oauth-exchange-code/`) and need no FlowLedger change. The xAI API's remote MCP tool sends a caller-supplied token and does no OAuth flow, so use a personal API key there (see `docs/PUBLIC_API.md`).
 
 ---
 

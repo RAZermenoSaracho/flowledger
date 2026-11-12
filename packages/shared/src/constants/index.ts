@@ -26,7 +26,28 @@ export const NOTIFICATION_TYPES = [
   "settlement_approved",
   "settlement_rejected",
   "settlement_payment_registration_needed",
-  "provider_transactions_pending"
+  "provider_transactions_pending",
+  "shared_expense_invited",
+  "shared_expense_updated",
+  "shared_expense_accepted",
+  "shared_expense_rejected"
+] as const;
+export const IDENTITY_VISIBILITIES = ["username_only", "username_and_name"] as const;
+export const SHARE_ACCEPTANCES = ["proposed", "accepted", "rejected"] as const;
+export const USERNAME_MIN_LENGTH = 3;
+export const USERNAME_MAX_LENGTH = 30;
+export const RESERVED_USERNAMES = [
+  "admin",
+  "support",
+  "flowledger",
+  "api",
+  "root",
+  "me",
+  "settings",
+  "help",
+  "system",
+  "null",
+  "undefined"
 ] as const;
 export const PLAN_TYPES = ["free", "flowledger_one"] as const;
 export const MOBILE_SIDEBAR_SIDES = ["left", "right"] as const;

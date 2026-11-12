@@ -19,7 +19,7 @@ describe("SecurityTab", () => {
     expect(screen.getByRole("heading", { name: "Personal API keys" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Connected apps" })).toBeInTheDocument();
     expect(await screen.findByText("No connected apps.")).toBeInTheDocument();
-    const summary = screen.getByText("Connect an AI client (ChatGPT, Claude Code)");
+    const summary = screen.getByText("Connect an AI client");
     expect(summary.closest("details")).not.toHaveAttribute("open");
   });
 });

@@ -30,13 +30,12 @@ export type InstitutionCategory =
   | "government"
   | "other";
 
-/** Non-sensitive user fields safe to expose to other users (e.g. group members, shared-expense participants) — never `passwordHash` or other secrets. */
+/** How any user is shown to another user: never email, phone or auth data. `displayName` is the user's name only when their visibility is `username_and_name`, else `null`. */
 export type PublicUser = {
   id: string;
-  name: string;
-  email: string;
-  createdAt: string;
-  updatedAt: string;
+  username: string;
+  nickname: string | null;
+  displayName: string | null;
 };
 
 /** Aggregate income/expense/balance totals for a reporting period, distinguishing gross amounts from amounts net of expense reimbursements/offsets. */

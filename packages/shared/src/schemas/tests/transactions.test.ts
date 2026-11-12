@@ -162,6 +162,29 @@ describe("updateTransactionSchema", () => {
     expect(updateTransactionSchema.safeParse({}).success).toBe(true);
   });
 
+  it("accepts sharedExpense as disabled or as an enabled participant list", () => {
+    expect(updateTransactionSchema.safeParse({ sharedExpense: { enabled: false } }).success).toBe(true);
+    expect(
+      updateTransactionSchema.safeParse({
+        sharedExpense: {
+          enabled: true,
+          title: "Dinner",
+          participants: [{ userId: "u1", share: 10 }, { id: "p2", manualName: "Ana", share: 5 }]
+        }
+      }).success
+    ).toBe(true);
+  });
+
+  it.each([
+    ["enabled without participants", { enabled: true, participants: [] }],
+    ["participant with both userId and manualName", { enabled: true, participants: [{ userId: "u", manualName: "A", share: 1 }] }],
+    ["participant with neither", { enabled: true, participants: [{ share: 1 }] }],
+    ["non-positive share", { enabled: true, participants: [{ userId: "u", share: 0 }] }],
+    ["missing enabled", { participants: [{ userId: "u", share: 1 }] }]
+  ])("rejects sharedExpense: %s", (_label, sharedExpense) => {
+    expect(updateTransactionSchema.safeParse({ sharedExpense }).success).toBe(false);
+  });
+
   it("does not apply the transfer superRefine (omits sharedExpense, no cross-field rules)", () => {
     expect(
       updateTransactionSchema.safeParse({ type: "transfer" }).success

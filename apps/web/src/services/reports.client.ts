@@ -1,3 +1,4 @@
+import type { FinancialOverview } from "@flowledger/shared";
 import { apiRequest } from "./api.client";
 import type {
   CashflowRow,
@@ -38,4 +39,11 @@ export function getMonthlyCashflowReport(query: ReportQuery) {
     "/reports/monthly-cashflow",
     { query: { ...query, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } }
   );
+}
+
+/** Fetches estimated net worth and last-month savings rate, using the device's timezone to pick the month. */
+export function getFinancialOverview() {
+  return apiRequest<FinancialOverview>("/reports/financial-overview", {
+    query: { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+  });
 }

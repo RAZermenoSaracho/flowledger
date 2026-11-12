@@ -12,6 +12,9 @@ import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import type {
   ImportedTransactionsQueryInput,
+  RelatedSettlementRow,
+  RelatedTransactionRow,
+  SettlementOriginSummary,
   TransactionRecord,
   TransactionsQueryInput
 } from "../types/transactions.types.js";
@@ -19,9 +22,12 @@ import {
   importedTransactionInclude,
   resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
-import { boundedPagination } from "../utils/boundedPagination.js";
+import { publicUserSelect, publicizeUsers, toPublicUser } from "../../users/utils/publicUser.js";
+import { boundedPagination, MAX_TRANSACTION_PAGE_SIZE } from "../utils/boundedPagination.js";
 
-const transactionsSieve = createSieve(prisma.transaction);
+const transactionsSieve = createSieve(prisma.transaction, {
+  maxPageSize: MAX_TRANSACTION_PAGE_SIZE
+});
 
 // The one facet DSQL can't express yet: "does this transaction have a
 // related-transaction row of type settlement_payment" needs a to-many
@@ -285,14 +291,113 @@ export async function getTransactionById(userId: string, id: string) {
       expenseOffsetCategory: true,
       group: true,
       providerImportedTransaction: { select: { transactionDate: true } },
-      relations: { include: { relatedTransaction: true } },
-      relatedBy: { include: { transaction: true } },
-      sharedExpense: { include: { participants: true } }
+      sharedExpense: { include: { participants: { include: { user: { select: publicUserSelect } } } } }
     }
   });
 
   if (!transaction) throw notFound("Transaction");
-  return transaction;
+  return publicizeUsers({ ...transaction, ...(await loadRelatedTransactions(userId, id)) });
+}
+
+const relatedTransactionSelect = {
+  id: true,
+  userId: true,
+  name: true,
+  amount: true,
+  executionCurrency: true,
+  type: true,
+  date: true
+} as const;
+
+/**
+ * Derives the Related tabs from the SettlementRequest chain, never from `TransactionRelation` (whose rows point at
+ * the counterparty's transaction). Everything returned is scoped to `userId`: an original expense lists every
+ * settlement request of its participants (with only the viewer's own settlement transaction); a settlement lists its
+ * original only when the viewer owns it, otherwise a non-navigable {@link SettlementOriginSummary}.
+ */
+async function loadRelatedTransactions(
+  userId: string,
+  id: string
+): Promise<{
+  relatedTransactions: RelatedTransactionRow[];
+  relatedSettlements: RelatedSettlementRow[];
+  settlementOrigin: SettlementOriginSummary | null;
+}> {
+  const requests = await prisma.settlementRequest.findMany({
+    where: {
+      OR: [
+        { debtorTransactionId: id, debtorUserId: userId },
+        { creditorTransactionId: id, creditorUserId: userId },
+        { sharedExpenseParticipant: { sharedExpense: { transactionId: id, ownerUserId: userId } } }
+      ]
+    },
+    orderBy: { createdAt: "asc" },
+    include: {
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
+      debtorTransaction: { select: relatedTransactionSelect },
+      creditorTransaction: { select: relatedTransactionSelect },
+      sharedExpenseParticipant: {
+        include: {
+          sharedExpense: {
+            include: { transaction: { select: relatedTransactionSelect }, owner: { select: publicUserSelect } }
+          }
+        }
+      }
+    }
+  });
+
+  const origins = new Map<string, RelatedTransactionRow>();
+  const settlements = new Map<string, RelatedSettlementRow>();
+  let settlementOrigin: SettlementOriginSummary | null = null;
+
+  for (const request of requests) {
+    const expense = request.sharedExpenseParticipant.sharedExpense;
+    if (expense.transactionId === id) {
+      const viewerIsCreditor = request.creditorUserId === userId;
+      const own = viewerIsCreditor ? request.creditorTransaction : request.debtorTransaction;
+      settlements.set(request.id, {
+        id: request.id,
+        status: request.status,
+        amount: Number(request.amount),
+        currency: request.sharedExpenseParticipant.currency,
+        createdAt: request.createdAt,
+        approvedAt: request.approvedAt,
+        counterparty: toPublicUser(viewerIsCreditor ? request.debtor : request.creditor),
+        participantId: request.sharedExpenseParticipantId,
+        transaction:
+          own && own.userId === userId && own.id !== id
+            ? { id: own.id, description: own.name, date: own.date, type: own.type }
+            : null
+      });
+    } else if (expense.transaction.userId === userId) {
+      const tx = expense.transaction;
+      origins.set(tx.id, {
+        id: tx.id,
+        description: tx.name,
+        amount: Number(tx.amount),
+        currency: tx.executionCurrency,
+        date: tx.date,
+        type: tx.type,
+        relation: "origin"
+      });
+    } else {
+      settlementOrigin = {
+        title: expense.title,
+        amount: Number(expense.totalAmount),
+        currency: expense.transaction.executionCurrency,
+        date: expense.transaction.date,
+        type: expense.transaction.type,
+        owner: toPublicUser(expense.owner)
+      };
+    }
+  }
+
+  return {
+    relatedTransactions: [...origins.values()],
+    relatedSettlements: [...settlements.values()],
+    settlementOrigin
+  };
 }
 
 function parseImportedTransactionsQueryParam(raw: string | undefined) {
@@ -337,10 +442,11 @@ export async function listImportedTransactions(
   rawQuery: string | undefined
 ) {
   const input = parseImportedTransactionsQueryParam(rawQuery);
-  const ids = await resolveImportedTransactionIds(
+  const { ids, total } = await resolveImportedTransactionIds(
     userId,
     input.where,
-    input.sort ?? [{ field: "transactionDate", direction: "desc" }]
+    input.sort ?? [{ field: "transactionDate", direction: "desc" }],
+    input.pagination
   );
 
   const [importedTransactions, pendingCount] = await Promise.all([
@@ -350,7 +456,7 @@ export async function listImportedTransactions(
     })
   ]);
 
-  return { importedTransactions, total: ids.length, pendingCount };
+  return { importedTransactions, total, pendingCount };
 }
 
 /** Counts `userId`'s imported transactions still awaiting review. */

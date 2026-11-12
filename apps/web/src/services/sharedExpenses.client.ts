@@ -7,6 +7,7 @@ export type { SortDirection };
 
 /** Participant payload shape for creating or updating a shared expense. */
 export type SharedExpenseParticipantInput = {
+  id?: string;
   userId?: string | null;
   participantName: string;
   shareAmount: number;
@@ -54,4 +55,20 @@ export function updateSharedExpense(
     `/shared-expenses/${sharedExpenseId}`,
     { method: "PUT", body }
   );
+}
+
+/** Accepts the caller's proposed share of a shared expense: the single line `participantId`, or every proposed line when omitted. */
+export function acceptSharedExpense(sharedExpenseId: string, participantId?: string) {
+  return apiRequest<unknown>(`/shared-expenses/${encodeURIComponent(sharedExpenseId)}/accept`, {
+    method: "POST",
+    ...(participantId ? { body: { participantId } } : {})
+  });
+}
+
+/** Rejects the caller's proposed share of a shared expense: the single line `participantId`, or every proposed line when omitted. */
+export function rejectSharedExpense(sharedExpenseId: string, participantId?: string) {
+  return apiRequest<unknown>(`/shared-expenses/${encodeURIComponent(sharedExpenseId)}/reject`, {
+    method: "POST",
+    ...(participantId ? { body: { participantId } } : {})
+  });
 }

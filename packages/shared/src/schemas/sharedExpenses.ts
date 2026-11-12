@@ -3,6 +3,7 @@ import { PARTICIPANT_STATUSES, SHARED_EXPENSE_STATUSES } from "../constants/inde
 import { moneySchema } from "./common.js";
 
 export const sharedExpenseParticipantSchema = z.object({
+  id: z.string().min(1).optional(),
   userId: z.string().min(1).optional().nullable(),
   participantName: z.string().trim().min(1).max(120),
   shareAmount: moneySchema.positive(),
@@ -21,6 +22,9 @@ export const updateSharedExpenseSchema = sharedExpenseSchema.partial().extend({
   participants: z.array(sharedExpenseParticipantSchema).optional()
 });
 
+/** Body of `POST /shared-expenses/:id/accept|reject`: `participantId` targets one allocation; omitted, every proposed allocation of the caller on that expense. */
+export const respondSharedExpenseSchema = z.object({ participantId: z.string().min(1).optional() }).strict().default({});
+
 // GET /shared-expenses accepts a single JSON-encoded `query` param (DSQL
 // where/sort), same shape and rationale as transactions'/accounts' query
 // param — see apps/api's shared-expenses read.service.ts.
@@ -29,6 +33,7 @@ export const sharedExpensesQueryParamSchema = z.object({
 });
 
 export type SharedExpenseInput = z.infer<typeof sharedExpenseSchema>;
+export type RespondSharedExpenseInput = z.infer<typeof respondSharedExpenseSchema>;
 export type UpdateSharedExpenseInput = z.infer<typeof updateSharedExpenseSchema>;
 export type SharedExpensesQueryParam = z.infer<
   typeof sharedExpensesQueryParamSchema

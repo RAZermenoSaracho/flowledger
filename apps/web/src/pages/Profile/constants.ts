@@ -5,6 +5,7 @@ export const PROFILE_TABS: { id: ProfileTabId; label: string }[] = [
   { id: "general", label: "General" },
   { id: "preferences", label: "Preferences" },
   { id: "security", label: "Security & API" },
+  { id: "blocked", label: "Blocked users" },
   { id: "subscription", label: "Subscription" }
 ];
 

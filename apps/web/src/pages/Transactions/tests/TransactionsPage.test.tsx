@@ -110,23 +110,29 @@ beforeEach(() => {
 });
 
 describe("TransactionsPage", () => {
-  it("defaults to the Transactions tab, listing transactions with the create form closed", async () => {
+  it("defaults to the Transactions tab, listing transactions", async () => {
     mockBaseline();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
     await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    expect(screen.queryByRole("heading", { name: "Add transaction" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "New transaction" })).not.toBeInTheDocument();
   });
 
-  it("opens the create-transaction form via the AddRecordButton", async () => {
+  it("opens the new-transaction route via the AddRecordButton", async () => {
     mockBaseline();
     const user = userEvent.setup();
-    renderWithProviders(<TransactionsPage />, { withAuth: true });
+    renderWithProviders(
+      <>
+        <TransactionsPage />
+        <LocationProbe />
+      </>,
+      { withAuth: true, route: "/transactions" }
+    );
 
     await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
     await user.click(screen.getAllByRole("button", { name: "Add transaction" })[0]!);
 
-    expect(screen.getByRole("heading", { name: "New transaction" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/transactions\/new$/);
   });
 
   it("switches to the Imported Transactions tab, showing a pending-count badge", async () => {
@@ -279,7 +285,7 @@ describe("TransactionsPage", () => {
     await waitFor(() => expect(imported).toBe(true));
   });
 
-  it("navigates to the edit page from a transaction's Edit action", async () => {
+  it("navigates to the transaction view from a transaction's Edit action", async () => {
     mockBaseline();
     const user = userEvent.setup();
     renderWithProviders(
@@ -294,6 +300,89 @@ describe("TransactionsPage", () => {
     await user.click(screen.getByRole("button", { name: "Actions for Groceries" }));
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/transactions/tx-1/edit");
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/transactions\/tx-1$/);
+  });
+});
+
+describe("TransactionsPage pagination", () => {
+  type PagedQuery = { where?: unknown; sort?: unknown; pagination: { page: number; pageSize: number } };
+
+  function mockPaged() {
+    mockBaseline();
+    const queries: PagedQuery[] = [];
+    server.use(
+      http.get(`${API_URL}/transactions`, ({ request }) => {
+        const query = JSON.parse(new URL(request.url).searchParams.get("query")!) as PagedQuery;
+        queries.push(query);
+        const { page, pageSize } = query.pagination;
+        const pageCount = Math.ceil(120 / pageSize);
+        return HttpResponse.json({
+          data: [makeTransaction({ id: `tx-${page}`, name: `Row on page ${page}` })],
+          meta: {
+            total: 120,
+            page,
+            pageSize,
+            pageCount,
+            hasNext: page < pageCount,
+            hasPrevious: page > 1,
+            executionTime: 1
+          }
+        });
+      })
+    );
+    return queries;
+  }
+
+  it("requests page 1 of 50 and shows the server total", async () => {
+    const queries = mockPaged();
+    renderWithProviders(<TransactionsPage />, { withAuth: true });
+
+    expect(await screen.findByText("Row on page 1")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 3 · 120 results")).toBeInTheDocument();
+    expect(queries.at(-1)!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
+    expect(queries.at(-1)!.sort).toEqual([{ field: "date", direction: "desc" }]);
+  });
+
+  it("pages forward, resets on a search change and applies a new page size", async () => {
+    const queries = mockPaged();
+    const user = userEvent.setup();
+    renderWithProviders(<TransactionsPage />, { withAuth: true });
+    await screen.findByText("Row on page 1");
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Row on page 2")).toBeInTheDocument();
+    expect(queries.at(-1)?.pagination.page).toBe(2);
+
+    await user.type(screen.getByPlaceholderText("Search transactions"), "rent{Enter}");
+    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(1));
+    expect(queries.at(-1)?.where).toMatchObject({ field: "name", value: "rent" });
+
+    await user.selectOptions(screen.getByLabelText("Rows per page"), "100");
+    await waitFor(() =>
+      expect(queries.at(-1)?.pagination).toEqual({ kind: "offset", page: 1, pageSize: 100 })
+    );
+  });
+
+  it("requests imported transactions 50 per page and shows the server total", async () => {
+    mockBaseline();
+    const queries: PagedQuery[] = [];
+    server.use(
+      http.get(`${API_URL}/transactions/imported`, ({ request }) => {
+        queries.push(JSON.parse(new URL(request.url).searchParams.get("query")!));
+        return HttpResponse.json({
+          importedTransactions: [makeImportedTransaction()],
+          total: 120,
+          pendingCount: 120
+        });
+      })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<TransactionsPage />, { withAuth: true, route: "/?tab=imported" });
+
+    expect(await screen.findByText("Page 1 of 3 · 120 results")).toBeInTheDocument();
+    expect(queries[0]!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(2));
   });
 });

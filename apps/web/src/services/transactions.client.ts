@@ -1,4 +1,5 @@
 import type { SortDirection, WhereNode } from "../utils/searchDomain";
+import type { OffsetPagination } from "../types/common.types";
 import { ApiError, apiRequest } from "./api.client";
 import type {
   DataSieveMeta,
@@ -15,6 +16,8 @@ export function getBatchErrors(
   const body = error.body as { errors?: { id: string; message: string }[] };
   return Array.isArray(body?.errors) ? body.errors : [];
 }
+
+export { getFieldError } from "./api.client";
 
 export type { SortDirection };
 
@@ -33,7 +36,7 @@ export type { SortDirection };
 export type TransactionsQuery = {
   where?: WhereNode;
   sort?: { field: string; direction: SortDirection }[];
-  pagination?: { kind: "offset"; page: number; pageSize: number };
+  pagination?: OffsetPagination;
 };
 
 /** Fetches transactions for a DSQL query. */
@@ -96,6 +99,7 @@ export function deleteTransaction(transactionId: string) {
 export type ImportedTransactionsQuery = {
   where?: WhereNode;
   sort?: { field: string; direction: SortDirection }[];
+  pagination?: OffsetPagination;
 };
 
 /** Explicit id list or saved-filter selection for batch imported-transaction actions. */

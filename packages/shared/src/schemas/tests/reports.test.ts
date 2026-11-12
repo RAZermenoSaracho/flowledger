@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { reportFiltersSchema } from "../reports.js";
+import {
+  financialOverviewQuerySchema,
+  financialOverviewResponseSchema,
+  reportFiltersSchema
+} from "../reports.js";
 
 describe("reportFiltersSchema", () => {
   it("accepts an empty object (all fields optional)", () => {
@@ -62,5 +66,59 @@ describe("reportFiltersSchema", () => {
     expect(
       reportFiltersSchema.safeParse({ dateFrom: "not-a-date" }).success
     ).toBe(false);
+  });
+});
+
+describe("financialOverviewQuerySchema", () => {
+  it("accepts no timeZone or a valid one", () => {
+    expect(financialOverviewQuerySchema.safeParse({}).success).toBe(true);
+    expect(financialOverviewQuerySchema.safeParse({ timeZone: "America/Mexico_City" }).success).toBe(true);
+  });
+
+  it("rejects an invalid timeZone", () => {
+    expect(financialOverviewQuerySchema.safeParse({ timeZone: "Not/AZone" }).success).toBe(false);
+  });
+});
+
+describe("financialOverviewResponseSchema", () => {
+  const netWorth = {
+    status: "ok",
+    total: 1150,
+    accounts: 1000,
+    owedToMe: 200,
+    iOwe: 50,
+    partial: false,
+    excluded: [],
+    awaitingAcceptance: 0
+  };
+
+  it("accepts a full response", () => {
+    const parsed = financialOverviewResponseSchema.safeParse({
+      currency: "USD",
+      netWorth,
+      savingsRate: { status: "ok", month: "2026-10", rate: 25, netIncome: 1000, netExpenses: 750 },
+      disclosures: ["synced_balances"]
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts an errored metric and a status-only savings rate", () => {
+    const parsed = financialOverviewResponseSchema.safeParse({
+      currency: "USD",
+      netWorth: { status: "error" },
+      savingsRate: { status: "no_data", month: "2026-10" },
+      disclosures: []
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects an unknown disclosure code", () => {
+    const parsed = financialOverviewResponseSchema.safeParse({
+      currency: "USD",
+      netWorth,
+      savingsRate: { status: "error" },
+      disclosures: ["bogus"]
+    });
+    expect(parsed.success).toBe(false);
   });
 });

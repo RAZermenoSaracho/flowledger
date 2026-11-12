@@ -21,6 +21,7 @@ const debtsMobileSubPages = [
   { tab: "balances", label: "Outstanding Balances" },
   { tab: "pending", label: "Pending Settlement Requests" },
   { tab: "settled", label: "Settled History" },
+  { tab: "awaiting", label: "Awaiting Acceptance" },
   { tab: "sharedExpenses", label: "Shared Expenses" }
 ] as const;
 

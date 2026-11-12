@@ -33,13 +33,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", name: "Jane", email: "jane@example.com" },
+      owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { name: "Dinner out", type: "expense" } as Debt["sharedExpense"]["transaction"],
       participants: [],
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z"
     },
-    user: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -50,7 +50,7 @@ describe("toBalanceSearchRow", () => {
     const debt = makeDebt();
     const balance: PersonBalance = {
       key: "user-2",
-      person: { id: "user-2", name: "Sam", email: "sam@example.com" },
+      person: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
       fallbackName: "Sam",
       theyOweMe: [debt],
       iOweThem: [],
@@ -60,8 +60,8 @@ describe("toBalanceSearchRow", () => {
     };
 
     expect(toBalanceSearchRow(balance)).toEqual({
-      personName: "Sam",
-      personEmail: "sam@example.com",
+      personName: "Sam (@sam)",
+      personUsername: "sam",
       recordTitles: "Dinner split",
       netBalance: 60,
       theyOweMeTotal: 60,
@@ -71,9 +71,9 @@ describe("toBalanceSearchRow", () => {
 });
 
 describe("balanceSearchFields", () => {
-  it("expands 'search' into personName/personEmail/recordTitles", () => {
+  it("expands 'search' into personName/personUsername/recordTitles", () => {
     const searchField = balanceSearchFields.find((field) => field.name === "search");
-    expect(searchField?.expandsToFields).toEqual(["personName", "personEmail", "recordTitles"]);
+    expect(searchField?.expandsToFields).toEqual(["personName", "personUsername", "recordTitles"]);
   });
 
   it("targets 'search' as the default field", () => {
@@ -91,8 +91,8 @@ describe("toSettlementRequestSearchRow", () => {
       amount: 50,
       status: "pending",
       note: "Paying you back",
-      debtor: { id: "user-2", name: "Sam", email: "sam@example.com" },
-      creditor: { id: "user-1", name: "Jane", email: "jane@example.com" },
+      debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
+      creditor: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       sharedExpenseParticipant: makeDebt(),
       createdAt: "2024-01-01T00:00:00.000Z",
       updatedAt: "2024-01-01T00:00:00.000Z",
@@ -105,9 +105,9 @@ describe("toSettlementRequestSearchRow", () => {
       debtTitle: "Dinner split",
       transactionName: "Dinner out",
       debtorName: "Sam",
-      debtorEmail: "sam@example.com",
+      debtorUsername: "sam",
       creditorName: "Jane",
-      creditorEmail: "jane@example.com",
+      creditorUsername: "jane",
       note: "Paying you back",
       amount: 50,
       status: "pending"
@@ -123,9 +123,9 @@ describe("toSettlementRequestSearchRow", () => {
       debtTitle: "",
       transactionName: "",
       debtorName: "",
-      debtorEmail: "",
+      debtorUsername: "",
       creditorName: "",
-      creditorEmail: "",
+      creditorUsername: "",
       note: ""
     });
   });
@@ -138,9 +138,9 @@ describe("settlementRequestSearchFields", () => {
       "debtTitle",
       "transactionName",
       "debtorName",
-      "debtorEmail",
+      "debtorUsername",
       "creditorName",
-      "creditorEmail",
+      "creditorUsername",
       "note"
     ]);
   });
@@ -160,13 +160,13 @@ describe("toSettledDebtSearchRow", () => {
     const debt = makeDebt({ outstandingAmount: 0 });
     expect(toSettledDebtSearchRow(debt, "user-2")).toEqual({
       title: "Dinner split",
-      description: "Jane · expense split · $40.00 settled of $100.00",
+      description: "Jane (@jane) · expense split · $40.00 settled of $100.00",
       status: "settled",
       participantName: "Friend",
       userName: "Sam",
-      userEmail: "sam@example.com",
+      userUsername: "sam",
       ownerName: "Jane",
-      ownerEmail: "jane@example.com",
+      ownerUsername: "jane",
       transactionName: "Dinner out",
       shareAmount: 100,
       paidAmount: 40,
@@ -184,9 +184,9 @@ describe("settledDebtSearchFields", () => {
       "status",
       "participantName",
       "userName",
-      "userEmail",
+      "userUsername",
       "ownerName",
-      "ownerEmail",
+      "ownerUsername",
       "transactionName"
     ]);
   });

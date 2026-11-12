@@ -4,14 +4,19 @@ import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
 import { debtOutstanding, pendingSettlementTotal } from "../utils/debtCalculations.js";
+import { isCountedShare } from "../utils/shareAcceptance.js";
 import { getDebtDirection } from "../utils/debtDirection.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import {
   assertSettlementAccount,
   assertSettlementCategory
 } from "./settlementValidation.service.js";
+import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
-/** Creates a settlement request for a debt, validating direction, outstanding balance, and account/category ownership before notifying the creditor. */
+/**
+ * Creates a settlement request for a debt, validating direction, outstanding balance, and account/category ownership before notifying the creditor.
+ * The checks and the insert run in one Serializable transaction so concurrent requests cannot both pass them; a serialization failure is a 409 "Please retry".
+ */
 export async function createSettlementRequest(
   userId: string,
   debtId: string,
@@ -23,111 +28,127 @@ export async function createSettlementRequest(
     paymentInfo?: string | null;
   }
 ) {
-  const debt = await prisma.sharedExpenseParticipant.findFirst({
-    where: { id: debtId, userId: { not: null } },
-    include: debtInclude
-  });
-  if (!debt) throw notFound("Debt");
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const debt = await tx.sharedExpenseParticipant.findFirst({
+          where: { id: debtId, userId: { not: null } },
+          include: debtInclude
+        });
+        if (!debt) throw notFound("Debt");
 
-  const direction = getDebtDirection(debt);
-  if (!direction || direction.debtorUserId !== userId) {
-    throw notFound("Debt");
-  }
-  if (!direction.creditorUserId) {
-    throw notFound("Debt");
-  }
-
-  const outstandingAmount = debtOutstanding(debt);
-  const pendingAmount = pendingSettlementTotal(debt);
-  const requestAmount = Number(body.amount);
-  await assertSettlementAccount(prisma, userId, body.accountId);
-  await assertSettlementCategory(
-    prisma,
-    userId,
-    body.categoryId!,
-    "expense",
-    debt.sharedExpense.transaction.groupId
-  );
-
-  if (outstandingAmount <= 0) {
-    throw new HttpError(400, "Debt is already settled");
-  }
-  if (requestAmount > outstandingAmount - pendingAmount) {
-    throw new HttpError(
-      400,
-      "Settlement request exceeds the outstanding balance"
-    );
-  }
-
-  const duplicateRequest = await prisma.settlementRequest.findFirst({
-    where: {
-      sharedExpenseParticipantId: debt.id,
-      debtorUserId: userId,
-      creditorUserId: direction.creditorUserId,
-      status: "pending"
-    }
-  });
-  if (duplicateRequest) {
-    throw new HttpError(
-      409,
-      "A pending settlement request already exists for this debt"
-    );
-  }
-
-  const settlementRequest = await prisma.settlementRequest.create({
-    data: {
-      sharedExpenseParticipantId: debt.id,
-      debtorUserId: userId,
-      creditorUserId: direction.creditorUserId,
-      amount: new Prisma.Decimal(requestAmount),
-      debtorAccountId: body.accountId,
-      debtorCategoryId: body.categoryId || null,
-      note: body.note?.trim() || null,
-      paymentInfo: body.paymentInfo?.trim() || null
-    },
-    include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
-      sharedExpenseParticipant: {
-        include: {
-          sharedExpense: {
-            include: {
-              owner: { select: { id: true, name: true, email: true } },
-              transaction: { select: publicTransactionSelect }
-            }
-          },
-          user: { select: { id: true, name: true, email: true } }
+        if (!isCountedShare(debt)) {
+          throw new HttpError(400, "This share has not been accepted");
         }
-      }
-    }
-  });
+        const direction = getDebtDirection(debt);
+        if (!direction || direction.debtorUserId !== userId) {
+          throw notFound("Debt");
+        }
+        if (!direction.creditorUserId) {
+          throw notFound("Debt");
+        }
 
-  await createNotifications(prisma, [
-    {
-      userId: settlementRequest.creditorUserId,
-      type: "settlement_requested",
-      title: "Settlement requested",
-      message: `${settlementRequest.debtor.name} requested settlement of ${moneyText(
-        settlementRequest.amount
-      )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
-      metadata: {
-        settlementRequestId: settlementRequest.id,
-        sharedExpenseId:
-          settlementRequest.sharedExpenseParticipant.sharedExpenseId,
-        participantId: settlementRequest.sharedExpenseParticipantId,
-        ...(settlementRequest.sharedExpenseParticipant.sharedExpense
-          .transaction.groupId
-          ? {
-              groupId:
-                settlementRequest.sharedExpenseParticipant.sharedExpense
-                  .transaction.groupId
+        const outstandingAmount = debtOutstanding(debt);
+        const pendingAmount = pendingSettlementTotal(debt);
+        const requestAmount = Number(body.amount);
+        await assertSettlementAccount(tx, userId, body.accountId);
+        await assertSettlementCategory(
+          tx,
+          userId,
+          body.categoryId!,
+          "expense",
+          debt.sharedExpense.transaction.groupId
+        );
+
+        if (outstandingAmount <= 0) {
+          throw new HttpError(400, "Debt is already settled");
+        }
+        if (requestAmount > outstandingAmount - pendingAmount) {
+          throw new HttpError(
+            400,
+            "Settlement request exceeds the outstanding balance"
+          );
+        }
+
+        const duplicateRequest = await tx.settlementRequest.findFirst({
+          where: {
+            sharedExpenseParticipantId: debt.id,
+            debtorUserId: userId,
+            creditorUserId: direction.creditorUserId,
+            status: "pending"
+          }
+        });
+        if (duplicateRequest) {
+          throw new HttpError(
+            409,
+            "A pending settlement request already exists for this debt"
+          );
+        }
+
+        const settlementRequest = await tx.settlementRequest.create({
+          data: {
+            sharedExpenseParticipantId: debt.id,
+            debtorUserId: userId,
+            creditorUserId: direction.creditorUserId,
+            amount: new Prisma.Decimal(requestAmount),
+            debtorAccountId: body.accountId,
+            debtorCategoryId: body.categoryId || null,
+            note: body.note?.trim() || null,
+            paymentInfo: body.paymentInfo?.trim() || null
+          },
+          include: {
+            debtor: { select: publicUserSelect },
+            creditor: { select: publicUserSelect },
+            sharedExpenseParticipant: {
+              include: {
+                sharedExpense: {
+                  include: {
+                    owner: { select: publicUserSelect },
+                    transaction: { select: publicTransactionSelect }
+                  }
+                },
+                user: { select: publicUserSelect }
+              }
             }
-          : {})
-      }
-    }
-  ]);
+          }
+        });
 
-  return settlementRequest;
+        await createNotifications(tx, [
+          {
+            userId: settlementRequest.creditorUserId,
+            senderUserId: userId,
+            type: "settlement_requested",
+            title: "Settlement requested",
+            message: `${userLabel(settlementRequest.debtor)} requested settlement of ${moneyText(
+              settlementRequest.amount
+            )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
+            metadata: {
+              settlementRequestId: settlementRequest.id,
+              sharedExpenseId:
+                settlementRequest.sharedExpenseParticipant.sharedExpenseId,
+              participantId: settlementRequest.sharedExpenseParticipantId,
+              ...(settlementRequest.sharedExpenseParticipant.sharedExpense
+                .transaction.groupId
+                ? {
+                    groupId:
+                      settlementRequest.sharedExpenseParticipant.sharedExpense
+                        .transaction.groupId
+                  }
+                : {})
+            }
+          }
+        ]);
+
+        return publicizeUsers(settlementRequest);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new HttpError(409, "Please retry");
+    }
+    throw error;
+  }
 }
 
 /** Creates a settlement request for each entry in `requests`, sequentially, reusing {@link createSettlementRequest}. */
