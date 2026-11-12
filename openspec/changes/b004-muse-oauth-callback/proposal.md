@@ -5,7 +5,7 @@
 The owner wants Meta AI Muse and Grok to use FlowLedger's MCP server (`https://api-flowledger.razs.dev/mcp`) through the same OAuth and credential infrastructure as ChatGPT and Claude.
 
 - **Muse** connectors are added through Meta's Muse Connector Platform, which requires submission and approval (platform.muse.ai, Connector guidelines §5–6 and Terms §2.1). The connection form asks for an OAuth Client ID. The public docs say nothing about Dynamic Client Registration or Client ID Metadata Documents (CIMD). Muse's callback is `https://agent.meta.ai/api/hatch/oauth/callback`. FlowLedger only accepts CIMD clients, whose `client_id` is an https URL the client hosts, so there is no Client ID to give Muse.
-- **Grok**: remote MCP is documented only for the xAI API, SDK and Speech-to-Speech API (docs.x.ai, Remote MCP Tools). The caller passes a token in the tool's `authorization` field, and no interactive OAuth flow is documented. Nothing documents custom MCP connectors in the Grok.com app. `/mcp` already accepts personal API keys (`flk_`), which are user-created, read/write scoped, expiring and revocable, so Grok needs no server change.
+- **Grok**: remote MCP is documented only for the xAI API, SDK and Speech-to-Speech API (docs.x.ai, Remote MCP Tools). The caller passes a token in the tool's `authorization` field, and no interactive OAuth flow is documented. Grok.com connectors (verified on staging) are a standard CIMD client, `https://grok.com/oauth/mcp-client.json`. `/mcp` already accepts personal API keys (`flk_`), which are user-created, read/write scoped, expiring and revocable, so Grok needs no server change.
 
 ## What Changes
 

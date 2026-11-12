@@ -281,12 +281,12 @@ FlowLedger is an OAuth 2.1 authorization server for `/mcp` (module `apps/api/src
     - Client secret: none (public client)
     - Authorization URL: `https://api-flowledger.razs.dev/authorize`
     - Token URL: `https://api-flowledger.razs.dev/token`
-    - Scopes: `read` (add `write` to allow changes; `offline_access` for refresh)
+    - Scopes: `read write offline_access`. FlowLedger offers "Allow changes" on the consent page only when `write` is requested. Without it, the grant is read-only.
     - Callback: `https://agent.meta.ai/api/hatch/oauth/callback`
   - Staging uses the same values on `api-flowledger-dev.razs.dev`.
   - Muse connectors must be submitted on platform.muse.ai and approved by Meta before users can add them.
   - If Muse turns out to require a client secret or dynamic registration, it cannot connect. FlowLedger supports neither by design.
-- **Grok (xAI API).** Remote MCP is documented only for the xAI Responses API, SDK and Speech-to-Speech API. They send a caller-supplied token and do no OAuth flow, so use a personal API key (see `docs/PUBLIC_API.md`). Grok.com has no documented custom MCP connectors.
+- **Grok.** Grok.com connectors are a standard CIMD client (`https://grok.com/oauth/mcp-client.json`, public, redirect `https://grok.com/connectors-oauth-exchange-code/`) and need no FlowLedger change. The xAI API's remote MCP tool sends a caller-supplied token and does no OAuth flow, so use a personal API key there (see `docs/PUBLIC_API.md`).
 
 ---
 
