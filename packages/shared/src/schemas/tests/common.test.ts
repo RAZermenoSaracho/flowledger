@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   currencyCodeSchema,
+  currencyFractionDigits,
+  decimalAmountSchema,
+  decimalPlaces,
+  isShareableCurrency,
   dateStringSchema,
   idSchema,
   listPaginationSchema,
@@ -162,5 +166,48 @@ describe("listPaginationSchema", () => {
     { kind: "page", page: 1 }
   ])("rejects %j", (value) => {
     expect(listPaginationSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("decimalAmountSchema", () => {
+  it("passes an 18-decimal string unchanged", () => {
+    expect(decimalAmountSchema.parse("1.234567890123456789")).toBe("1.234567890123456789");
+    expect(decimalAmountSchema.parse("-12")).toBe("-12");
+  });
+
+  it.each([4.5, "1e-7", "abc", "1234567890123", "1.1234567890123456789", "", ".5", "5."])(
+    "rejects %s",
+    (value) => {
+      expect(decimalAmountSchema.safeParse(value).success).toBe(false);
+    }
+  );
+});
+
+describe("currencyFractionDigits", () => {
+  it.each([
+    ["USD", 2],
+    ["jpy", 0],
+    ["KWD", 3],
+    ["BTC", 18]
+  ])("%s has %i digits", (code, digits) => {
+    expect(currencyFractionDigits(code)).toBe(digits);
+  });
+});
+
+describe("isShareableCurrency", () => {
+  it.each([
+    ["MXN", true],
+    ["JPY", true],
+    ["KWD", false],
+    ["BTC", false]
+  ])("%s is %s", (code, expected) => {
+    expect(isShareableCurrency(code)).toBe(expected);
+  });
+});
+
+describe("decimalPlaces", () => {
+  it("counts fraction digits", () => {
+    expect(decimalPlaces("3")).toBe(0);
+    expect(decimalPlaces("1.50")).toBe(2);
   });
 });

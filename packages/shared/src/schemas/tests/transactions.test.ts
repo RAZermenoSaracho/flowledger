@@ -15,14 +15,14 @@ import {
 
 const baseIncome = {
   name: "Paycheck",
-  amount: 1000,
+  amount: "1000",
   type: "income" as const,
   date: "2024-01-15"
 };
 
 const baseTransfer = {
   name: "Move funds",
-  amount: 100,
+  amount: "100",
   type: "transfer" as const,
   date: "2024-01-15"
 };
@@ -287,5 +287,49 @@ describe("provider imported transaction schemas", () => {
         selection: { mode: "all" }
       }).success
     ).toBe(false);
+  });
+});
+
+describe("transaction applied amounts and fee", () => {
+  const crossTransfer = {
+    ...baseTransfer,
+    accountId: "a",
+    transferToAccountId: "b",
+    destinationAmount: "1712.50"
+  };
+
+  it("accepts accountAmount, destinationAmount and a complete fee pair", () => {
+    expect(
+      transactionSchema.safeParse({
+        ...crossTransfer,
+        accountAmount: "100",
+        feeAmount: "1.5",
+        feeCurrency: "usd"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a fee amount without a fee currency and vice versa", () => {
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeAmount: "1" }).success).toBe(false);
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeCurrency: "USD" }).success).toBe(
+      false
+    );
+  });
+
+  it("rejects numeric amounts and over-precise strings", () => {
+    expect(transactionSchema.safeParse({ ...baseIncome, amount: 1000 }).success).toBe(false);
+    expect(updateTransactionSchema.safeParse({ amount: 5 }).success).toBe(false);
+    expect(
+      transactionSchema.safeParse({ ...crossTransfer, destinationAmount: 1712.5 }).success
+    ).toBe(false);
+  });
+
+  it("accepts an optional accountAmount when importing", () => {
+    expect(importProviderImportedTransactionSchema.safeParse({ accountAmount: "5.5" }).success).toBe(
+      true
+    );
+    expect(importProviderImportedTransactionSchema.safeParse({ accountAmount: 5.5 }).success).toBe(
+      false
+    );
   });
 });

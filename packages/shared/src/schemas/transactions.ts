@@ -3,7 +3,12 @@ import {
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
-import { currencyCodeSchema, dateStringSchema, moneySchema } from "./common.js";
+import {
+  currencyCodeSchema,
+  dateStringSchema,
+  decimalAmountSchema,
+  moneySchema
+} from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
 export const transactionSharedExpenseSchema = z.object({
@@ -13,7 +18,11 @@ export const transactionSharedExpenseSchema = z.object({
 
 export const baseTransactionSchema =z.object({
   name: z.string().trim().min(1).max(160),
-  amount: moneySchema,
+  amount: decimalAmountSchema,
+  accountAmount: decimalAmountSchema.optional(),
+  destinationAmount: decimalAmountSchema.optional(),
+  feeAmount: decimalAmountSchema.optional(),
+  feeCurrency: currencyCodeSchema.optional(),
   executionCurrency: currencyCodeSchema.optional(),
   type: z.enum(TRANSACTION_TYPES),
   date: dateStringSchema,
@@ -26,8 +35,23 @@ export const baseTransactionSchema =z.object({
   sharedExpense: transactionSharedExpenseSchema.optional()
 });
 
+/** Adds an issue unless `feeAmount` and `feeCurrency` are both present or both absent. */
+function requireFeePair(
+  transaction: { feeAmount?: string; feeCurrency?: string },
+  ctx: z.RefinementCtx
+) {
+  if ((transaction.feeAmount === undefined) !== (transaction.feeCurrency === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [transaction.feeAmount === undefined ? "feeAmount" : "feeCurrency"],
+      message: "feeAmount and feeCurrency must be provided together"
+    });
+  }
+}
+
 export const transactionSchema = baseTransactionSchema.superRefine(
   (transaction, ctx) => {
+    requireFeePair(transaction, ctx);
     if (transaction.type === "transfer" && transaction.sharedExpense) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -173,7 +197,8 @@ export const updateProviderImportedTransactionSchema = z.object({
 });
 
 export const importProviderImportedTransactionSchema = z.object({
-  categoryId: z.string().min(1).optional()
+  categoryId: z.string().min(1).optional(),
+  accountAmount: decimalAmountSchema.optional()
 });
 
 const importedTransactionSelectionSchema = z.discriminatedUnion("mode", [

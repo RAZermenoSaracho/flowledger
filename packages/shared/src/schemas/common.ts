@@ -22,6 +22,11 @@ export const timeZoneSchema = z.string().refine((value) => {
 
 export const moneySchema = z.coerce.number().finite();
 
+/** A native money amount as an exact decimal string: up to 12 integer and 18 fraction digits, no exponent. Numbers are rejected so no float ever carries a balance. */
+export const decimalAmountSchema = z
+  .string()
+  .regex(/^-?\d{1,12}(\.\d{1,18})?$/, "Amount must be a decimal string with at most 12 integer and 18 fraction digits");
+
 export const currencyCodeSchema = z
   .string()
   .trim()
@@ -64,3 +69,23 @@ export const listPaginationSchema = z.discriminatedUnion("kind", [
 export const listSortSchema = z.array(
   z.object({ field: z.string().min(1), direction: z.enum(["asc", "desc"]).optional() })
 );
+
+const isoCurrencies = new Set<string>(Intl.supportedValuesOf("currency"));
+
+/** Number of fraction digits in a decimal string (`"1.50"` is 2, `"3"` is 0). */
+export function decimalPlaces(value: string): number {
+  return value.split(".")[1]?.length ?? 0;
+}
+
+/** Minor-unit digits of an ISO 4217 code (USD 2, JPY 0, KWD 3); any non-ISO code (crypto) gets 18. */
+export function currencyFractionDigits(code: string): number {
+  const currency = code.toUpperCase();
+  if (!isoCurrencies.has(currency)) return 18;
+  return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits as number;
+}
+
+/** True for ISO currencies with at most 2 minor-unit digits, the only ones shared-expense and settlement `Decimal(12,2)` columns hold exactly. */
+export function isShareableCurrency(code: string): boolean {
+  return isoCurrencies.has(code.toUpperCase()) && currencyFractionDigits(code) <= 2;
+}

@@ -4,17 +4,17 @@ Start implementation only after `/opsx:apply` is authorized. Do not run any step
 
 ## 1. Shared precision contract
 
-- [ ] 1.1 Add `decimalAmountSchema`, `currencyFractionDigits` and `isShareableCurrency` to `packages/shared/src/schemas/common.ts` (D5). Verify in `schemas/tests/common.test.ts`:
+- [x] 1.1 Add `decimalAmountSchema`, `currencyFractionDigits` and `isShareableCurrency` to `packages/shared/src/schemas/common.ts` (D5). Verify in `schemas/tests/common.test.ts`:
   - string `"1.234567890123456789"` passes unchanged
   - number `4.5`, exponent `"1e-7"`, garbage and 13 integer digits are rejected
   - minor units: USD 2, JPY 0, KWD 3, BTC 18
   - shareable: MXN yes, JPY yes, KWD no, BTC no
-- [ ] 1.2 Move native amount fields to `decimalAmountSchema`. This covers the transaction, account and imported-transaction schemas and the settlement `amount`, plus a new optional settlement `accountAmount`. Add optional `accountAmount`, `destinationAmount`, `feeAmount` and `feeCurrency` to the transaction schemas, with the fee fields required together. Remove `cross_currency_effects` from the disclosure enum. Verify: `schemas/tests/{transactions,accounts,debts,reports}.test.ts` pass with the new cases.
+- [x] 1.2 Move native amount fields to `decimalAmountSchema`. This covers the transaction, account and imported-transaction schemas and the settlement `amount`, plus a new optional settlement `accountAmount`. Add optional `accountAmount`, `destinationAmount`, `feeAmount` and `feeCurrency` to the transaction schemas, with the fee fields required together. Remove `cross_currency_effects` from the disclosure enum. Verify: `schemas/tests/{transactions,accounts,debts,reports}.test.ts` pass with the new cases.
 
 ## 2. Schema and migration
 
-- [ ] 2.1 Update `schema.prisma` per D1 and D7: widen the columns, add the four nullable columns, the `TransactionCorrection` model and enum, and the `User` relation. Then `npm run prisma:generate`. Verify: `npm run typecheck` compiles against the new client.
-- [ ] 2.2 Generate the migration with `prisma migrate dev --create-only` against a scratch database, not staging or production. **APPROVAL F:** append the two fill statements from the design's Migration Plan step 3 only if F is chosen. Verify: the migration SQL holds only the expected `ALTER`, `CREATE` and approved `UPDATE` statements, and applies cleanly to a testcontainers database.
+- [x] 2.1 Update `schema.prisma` per D1 and D7: widen the columns, add the four nullable columns, the `TransactionCorrection` model and enum, and the `User` relation. Then `npm run prisma:generate`. Verify: `npm run typecheck` compiles against the new client.
+- [x] 2.2 Generate the migration with `prisma migrate dev --create-only` against a scratch database, not staging or production. **APPROVAL F:** append the two fill statements from the design's Migration Plan step 3 only if F is chosen. Verify: the migration SQL holds only the expected `ALTER`, `CREATE` and approved `UPDATE` statements, and applies cleanly to a testcontainers database.
 
 ## 3. Serialization and balance
 
