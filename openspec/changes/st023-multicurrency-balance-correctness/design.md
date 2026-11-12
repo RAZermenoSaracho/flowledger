@@ -184,7 +184,7 @@ All steps are approval-gated where marked. Nothing runs during planning.
        WHERE "type" = 'transfer' AND "transferToAccountId" IS NOT NULL AND "destinationAmount" IS NULL;
      ```
 4. **Release (`main` push, separate approval).** The deploy script runs `prisma migrate deploy`, then restarts pm2.
-5. **R only (APPROVAL R).** Run this in one transaction right after the restart. The order matters, because notification metadata is not covered by a foreign key:
+5. **R only (APPROVAL R).** Run this in one transaction right after the restart. The order matters: notification metadata has no foreign key, and settlement requests must go before transactions. This order was verified on local staging on 2026-11-12:
    ```sql
    BEGIN;
    DELETE FROM "Notification" WHERE "type" IN (
@@ -192,7 +192,9 @@ All steps are approval-gated where marked. Nothing runs during planning.
      'shared_expense_accepted','shared_expense_rejected','debt_owes_money','debt_owed_money',
      'settlement_requested','settlement_approved','settlement_rejected',
      'settlement_payment_registration_needed');
-   DELETE FROM "Transaction";  -- cascades: SharedExpense > Participant > SettlementRequest; TransactionRelation
+   DELETE FROM "SettlementRequest";  -- first: deleting it via the Transaction cascade collides with its SetNull transaction FKs
+   DELETE FROM "SharedExpense";      -- cascades SharedExpenseParticipant
+   DELETE FROM "Transaction";        -- cascades TransactionRelation
    UPDATE "ProviderImportedTransaction" SET "status" = 'pending', "transactionId" = NULL
      WHERE "status" = 'imported';
    COMMIT;
