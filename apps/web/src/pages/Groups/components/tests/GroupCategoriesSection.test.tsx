@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../../../tests/mocks/server";
 import type { Category } from "../../../../types/categories.types";
 import { useGroupCategoryManagement } from "../../hooks/useGroupCategoryManagement";
@@ -32,7 +32,6 @@ function Harness({ canManageActive }: { canManageActive: boolean }) {
   return (
     <GroupCategoriesSection
       groupId="group-1"
-      canManage={canManageActive}
       canManageActive={canManageActive}
       categoryManagement={categoryManagement}
     />
@@ -54,75 +53,78 @@ function mockCategories(categories: Category[]) {
   server.use(http.get(`${API_URL}/categories`, () => HttpResponse.json({ categories })));
 }
 
+async function openMenu(user: ReturnType<typeof userEvent.setup>, name: string, item: string) {
+  await user.click(await screen.findByRole("button", { name: `Actions for ${name}` }));
+  await user.click(screen.getByRole("menuitem", { name: item }));
+}
+
+beforeEach(() => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+});
+
 describe("GroupCategoriesSection", () => {
-  it("lists the group's categories", async () => {
-    mockCategories([makeCategory()]);
+  it("renders cards with name, type and Archived badge under the title", async () => {
+    mockCategories([makeCategory(), makeCategory({ id: "cat-2", name: "Old", isArchived: true })]);
     renderSection();
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+    expect(await screen.findByText("Groceries")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Group categories" })).toBeInTheDocument();
+    expect(screen.getAllByText("Expense")).toHaveLength(2);
+    expect(screen.getByText("Archived")).toBeInTheDocument();
   });
 
-  it("shows 'No group categories found.' when the list is empty", async () => {
+  it("shows the empty state", async () => {
     mockCategories([]);
     renderSection();
-
-    await waitFor(() =>
-      expect(screen.getByText("No group categories found.")).toBeInTheDocument()
-    );
+    expect(await screen.findByText("No group categories found.")).toBeInTheDocument();
   });
 
-  it("shows the add-category form only when canManageActive is true", async () => {
-    mockCategories([]);
-    renderSection(false);
-
-    await waitFor(() =>
-      expect(screen.getByText("No group categories found.")).toBeInTheDocument()
-    );
-    expect(screen.queryByRole("button", { name: "Add category" })).not.toBeInTheDocument();
-  });
-
-  it("adds a category via the inline form", async () => {
-    mockCategories([]);
-    let createdBody: unknown;
-    server.use(
-      http.post(`${API_URL}/groups/group-1/categories`, async ({ request }) => {
-        createdBody = await request.json();
-        return HttpResponse.json({ category: makeCategory({ name: "Rent" }) });
-      })
-    );
-    const user = userEvent.setup();
-    renderSection();
-
-    await waitFor(() =>
-      expect(screen.getByText("No group categories found.")).toBeInTheDocument()
-    );
-    await user.type(screen.getByLabelText("Category"), "Rent");
-    await user.click(screen.getByRole("button", { name: "Add category" }));
-
-    await waitFor(() => expect(createdBody).toMatchObject({ name: "Rent" }));
-  });
-
-  it("edits a category through the inline form", async () => {
-    mockCategories([makeCategory()]);
+  it("edits a card in place, leaving the others untouched", async () => {
+    mockCategories([
+      makeCategory({ id: "a", name: "Alpha" }),
+      makeCategory({ id: "b", name: "Beta" }),
+      makeCategory({ id: "c", name: "Gamma" })
+    ]);
     let updatedBody: unknown;
     server.use(
-      http.put(`${API_URL}/categories/cat-1`, async ({ request }) => {
+      http.put(`${API_URL}/categories/b`, async ({ request }) => {
         updatedBody = await request.json();
-        return HttpResponse.json({ category: makeCategory({ name: "Food" }) });
+        return HttpResponse.json({ category: makeCategory({ id: "b", name: "Food" }) });
       })
     );
     const user = userEvent.setup();
     renderSection();
 
-    await user.click(await screen.findByRole("button", { name: "Edit Groceries" }));
-    await user.clear(screen.getByLabelText("Name"));
-    await user.type(screen.getByLabelText("Name"), "Food");
+    await openMenu(user, "Beta", "Edit");
+
+    const name = screen.getByLabelText("Name");
+    const cell = name.closest("div.rounded-md")!;
+    const grid = cell.parentElement!;
+    expect(grid.children[1]).toBe(cell);
+    expect(within(grid.children[0] as HTMLElement).getByText("Alpha")).toBeInTheDocument();
+    expect(within(grid.children[2] as HTMLElement).getByText("Gamma")).toBeInTheDocument();
+
+    await user.clear(name);
+    await user.type(name, "Food");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(updatedBody).toMatchObject({ name: "Food" }));
+    await waitFor(() => expect(screen.queryByLabelText("Name")).not.toBeInTheDocument());
   });
 
-  it("archives an active category", async () => {
+  it("cancels an edit without saving", async () => {
+    mockCategories([makeCategory()]);
+    const user = userEvent.setup();
+    renderSection();
+
+    await openMenu(user, "Groceries", "Edit");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.getByText("Groceries")).toBeInTheDocument();
+  });
+
+  it("archives an active category from the menu", async () => {
     mockCategories([makeCategory()]);
     let archived = false;
     server.use(
@@ -134,21 +136,27 @@ describe("GroupCategoriesSection", () => {
     const user = userEvent.setup();
     renderSection();
 
-    await user.click(await screen.findByRole("button", { name: "Archive Groceries" }));
-
+    await openMenu(user, "Groceries", "Archive");
     await waitFor(() => expect(archived).toBe(true));
   });
 
-  it("shows Restore and an Archived badge for an archived category", async () => {
+  it("restores an archived category from the menu", async () => {
     mockCategories([makeCategory({ isArchived: true })]);
+    let restored = false;
+    server.use(
+      http.post(`${API_URL}/categories/cat-1/restore`, () => {
+        restored = true;
+        return HttpResponse.json({ category: makeCategory() });
+      })
+    );
+    const user = userEvent.setup();
     renderSection();
 
-    expect(await screen.findByRole("button", { name: "Restore Groceries" })).toBeInTheDocument();
-    expect(screen.getByText("Archived")).toBeInTheDocument();
+    await openMenu(user, "Groceries", "Restore");
+    await waitFor(() => expect(restored).toBe(true));
   });
 
   it("deletes a category after confirmation", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     mockCategories([makeCategory()]);
     let deleted = false;
     server.use(
@@ -160,16 +168,78 @@ describe("GroupCategoriesSection", () => {
     const user = userEvent.setup();
     renderSection();
 
-    await user.click(await screen.findByRole("button", { name: "Delete Groceries" }));
-
+    await openMenu(user, "Groceries", "Delete");
     await waitFor(() => expect(deleted).toBe(true));
   });
 
-  it("hides row actions when the viewer cannot manage", async () => {
+  it("creates a category through the modal and closes it", async () => {
+    mockCategories([]);
+    let createdBody: unknown;
+    server.use(
+      http.post(`${API_URL}/groups/group-1/categories`, async ({ request }) => {
+        createdBody = await request.json();
+        return HttpResponse.json({ category: makeCategory({ name: "Rent" }) });
+      })
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Add category" }));
+    const dialog = screen.getByRole("dialog", { name: "New group category" });
+    await user.type(within(dialog).getByLabelText("Name"), "Rent");
+    await user.click(within(dialog).getByRole("button", { name: "Add category" }));
+
+    await waitFor(() => expect(createdBody).toMatchObject({ name: "Rent", type: "expense" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the modal open with the error and entered values when create fails", async () => {
+    mockCategories([]);
+    server.use(
+      http.post(`${API_URL}/groups/group-1/categories`, () =>
+        HttpResponse.json({ message: "Duplicate category" }, { status: 409 })
+      )
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Add category" }));
+    const dialog = screen.getByRole("dialog", { name: "New group category" });
+    await user.type(within(dialog).getByLabelText("Name"), "Rent");
+    await user.click(within(dialog).getByRole("button", { name: "Add category" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Rent");
+  });
+
+  it("closes a pristine modal without confirming, and confirms before discarding input", async () => {
+    mockCategories([]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    renderSection();
+
+    await user.click(await screen.findByRole("button", { name: "Add category" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add category" }));
+    await user.type(screen.getByLabelText("Name"), "Rent");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(confirm).toHaveBeenCalledWith("Discard unsaved changes?");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows no menu and no + for a viewer who cannot manage", async () => {
     mockCategories([makeCategory()]);
     renderSection(false);
 
     await screen.findByText("Groceries");
-    expect(screen.queryByRole("button", { name: "Edit Groceries" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add category" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Actions for Groceries" })).not.toBeInTheDocument();
   });
 });

@@ -43,42 +43,44 @@ beforeEach(() => {
 });
 
 describe("useGroupCategoryManagement", () => {
-  it("starts with no editingCategoryId and default add-category state", () => {
+  it("starts with no editingCategoryId", () => {
     const { result } = renderCategoryManagement();
     expect(result.current.editingCategoryId).toBeNull();
-    expect(result.current.categoryType).toBe("expense");
   });
 
-  it("submitCategory adds a category to the group and refreshes", async () => {
+  it("addCategory posts to the group and refreshes", async () => {
+    let body: unknown;
     server.use(
-      http.post(`${API_URL}/groups/group-1/categories`, () =>
-        HttpResponse.json({ category: makeCategory() })
-      )
+      http.post(`${API_URL}/groups/group-1/categories`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ category: makeCategory() });
+      })
     );
     const { result, refreshSelectedGroup } = renderCategoryManagement();
 
-    act(() => result.current.setCategoryName("Groceries"));
     await act(async () => {
-      await result.current.submitCategory({ preventDefault: () => {} } as React.FormEvent);
+      await result.current.addCategory.mutateAsync({
+        name: "Groceries",
+        type: "expense",
+        color: "#176b52"
+      });
     });
 
+    expect(body).toMatchObject({ name: "Groceries" });
     expect(refreshSelectedGroup).toHaveBeenCalled();
-    expect(result.current.categoryName).toBe("");
   });
 
-  it("openCategoryEditForm/closeCategoryEditForm populate and reset edit state", () => {
+  it("openCategoryEditForm/closeCategoryEditForm select and clear the edited category", () => {
     const { result } = renderCategoryManagement();
 
-    act(() => result.current.openCategoryEditForm(makeCategory({ name: "Rent" })));
+    act(() => result.current.openCategoryEditForm(makeCategory()));
     expect(result.current.editingCategoryId).toBe("cat-1");
-    expect(result.current.editCategoryName).toBe("Rent");
 
     act(() => result.current.closeCategoryEditForm());
     expect(result.current.editingCategoryId).toBeNull();
-    expect(result.current.editCategoryName).toBe("");
   });
 
-  it("submitCategoryEdit updates the category being edited", async () => {
+  it("updateCategory saves and clears the edited category", async () => {
     let updatedBody: unknown;
     server.use(
       http.put(`${API_URL}/categories/cat-1`, async ({ request }) => {
@@ -89,32 +91,18 @@ describe("useGroupCategoryManagement", () => {
     const { result, refreshSelectedGroup } = renderCategoryManagement();
 
     act(() => result.current.openCategoryEditForm(makeCategory()));
-    act(() => result.current.setEditCategoryName("Rent"));
-
     await act(async () => {
-      await result.current.submitCategoryEdit({ preventDefault: () => {} } as React.FormEvent);
+      await result.current.updateCategory.mutateAsync({
+        id: "cat-1",
+        name: "Rent",
+        type: "expense",
+        color: "#176b52"
+      });
     });
 
     expect(updatedBody).toMatchObject({ name: "Rent" });
     expect(refreshSelectedGroup).toHaveBeenCalled();
     expect(result.current.editingCategoryId).toBeNull();
-  });
-
-  it("submitCategoryEdit is a no-op when nothing is being edited", async () => {
-    let called = false;
-    server.use(
-      http.put(`${API_URL}/categories/cat-1`, () => {
-        called = true;
-        return HttpResponse.json({ category: makeCategory() });
-      })
-    );
-    const { result } = renderCategoryManagement();
-
-    await act(async () => {
-      await result.current.submitCategoryEdit({ preventDefault: () => {} } as React.FormEvent);
-    });
-
-    expect(called).toBe(false);
   });
 
   it("confirmDeleteCategory deletes only after confirmation", async () => {
