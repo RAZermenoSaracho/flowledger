@@ -5,6 +5,7 @@ import {
   currencyFractionDigits,
   decimalAmountSchema,
   decimalPlaces,
+  exceedsCurrencyPrecision,
   isShareableCurrency,
   dateStringSchema,
   idSchema,
@@ -209,5 +210,19 @@ describe("decimalPlaces", () => {
   it("counts fraction digits", () => {
     expect(decimalPlaces("3")).toBe(0);
     expect(decimalPlaces("1.50")).toBe(2);
+  });
+});
+
+describe("exceedsCurrencyPrecision", () => {
+  it.each([
+    ["1.50", "USD", false],
+    ["1.505", "USD", true],
+    ["1.5", "JPY", true],
+    ["1.123456789012345678", "BTC", false],
+    ["123456789012", "USD", false],
+    ["1234567890123", "USD", true],
+    ["-1234567890123", "USD", true]
+  ])("%s in %s is %s", (value, currency, expected) => {
+    expect(exceedsCurrencyPrecision(value, currency)).toBe(expected);
   });
 });

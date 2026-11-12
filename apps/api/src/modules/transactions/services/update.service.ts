@@ -160,7 +160,7 @@ export async function updateTransaction(userId: string, id: string, input: Updat
   } else if (body.amount !== undefined) {
     currencyFields = {
       amountInPreferredCurrency: roundMoney(
-        new Prisma.Decimal(body.amount).toNumber() * existing.exchangeRate.toNumber()
+        new Prisma.Decimal(body.amount).times(existing.exchangeRate).toNumber()
       )
     };
   }

@@ -3,6 +3,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { Card } from "../../components/Card";
 import { getMonthlyCashflowReport, getSummaryReport } from "../../services/reports.client";
 import { listTransactions } from "../../services/transactions.client";
+import { formatMoney } from "../../utils/currency";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -79,7 +80,7 @@ export function DashboardPage() {
                         : "font-semibold text-coral dark:text-orange-300"
                   }
                 >
-                  {money.format(Number(transaction.amount))}
+                  {formatMoney(transaction.amount, transaction.executionCurrency)}
                 </span>
               </div>
             ))}

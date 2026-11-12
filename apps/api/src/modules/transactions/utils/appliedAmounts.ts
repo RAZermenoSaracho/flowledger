@@ -1,11 +1,11 @@
 import { Prisma } from "@prisma/client";
-import { currencyFractionDigits, decimalPlaces } from "@flowledger/shared";
+import { currencyFractionDigits, exceedsCurrencyPrecision } from "@flowledger/shared";
 import { fieldError } from "../../shared-expenses/utils/shareGuards.js";
 import type { AppliedAmounts, AppliedAmountsInput } from "../types/transactions.types.js";
 
 function assertPrecision(field: string, value: string, currency: string) {
   const digits = currencyFractionDigits(currency);
-  if (decimalPlaces(value) > digits) {
+  if (exceedsCurrencyPrecision(value, currency)) {
     throw fieldError(
       field,
       `${field} allows at most ${digits} decimal places for ${currency}`
@@ -106,32 +106,4 @@ export function resolveAppliedAmounts(input: AppliedAmountsInput): AppliedAmount
     feeAmount: new Prisma.Decimal(input.feeAmount!),
     feeCurrency
   };
-}
-
-/**
- * Derives display rates from persisted amounts. `effective` is `appliedAmount / amount`
- * (`appliedAmount` is `destinationAmount` for transfers, `accountAmount` otherwise).
- * `beforeFee` is null without a fee; a fee in the source currency gives
- * `appliedAmount / (amount - fee)`, a fee in the destination currency `(appliedAmount + fee) / amount`.
- */
-export function deriveRates(input: {
-  amount: Prisma.Decimal.Value;
-  appliedAmount: Prisma.Decimal.Value;
-  executionCurrency: string;
-  feeAmount?: Prisma.Decimal.Value | null;
-  feeCurrency?: string | null;
-}) {
-  const amount = new Prisma.Decimal(input.amount);
-  const applied = new Prisma.Decimal(input.appliedAmount);
-  const effective = applied.div(amount);
-  if (input.feeAmount == null || input.feeCurrency == null) {
-    return { effective, beforeFee: null };
-  }
-
-  const fee = new Prisma.Decimal(input.feeAmount);
-  const beforeFee =
-    input.feeCurrency.toUpperCase() === input.executionCurrency.toUpperCase()
-      ? applied.div(amount.minus(fee))
-      : applied.plus(fee).div(amount);
-  return { effective, beforeFee };
 }

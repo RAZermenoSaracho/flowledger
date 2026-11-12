@@ -1,4 +1,4 @@
-import { currencyFractionDigits, decimalPlaces } from "@flowledger/shared";
+import { currencyFractionDigits, exceedsCurrencyPrecision } from "@flowledger/shared";
 
 const isoCurrencies = new Set<string>(Intl.supportedValuesOf("currency"));
 const formatterCache = new Map<string, Intl.NumberFormat>();
@@ -45,7 +45,7 @@ export function formatCompactMoney(amount: number | string, currency: string): s
 /** Inline validation message when `value` has more decimals than `currency` allows (ISO minor units, 18 for crypto); `null` when it fits. Never rounds. */
 export function amountPrecisionError(value: string, currency: string): string | null {
   const allowed = currencyFractionDigits(currency);
-  if (decimalPlaces(value.trim()) <= allowed) return null;
+  if (!exceedsCurrencyPrecision(value.trim(), currency)) return null;
   return allowed === 0
     ? `${currency} amounts cannot have decimals`
     : `${currency} allows at most ${allowed} decimal places`;

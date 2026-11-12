@@ -77,6 +77,12 @@ export function decimalPlaces(value: string): number {
   return value.split(".")[1]?.length ?? 0;
 }
 
+/** True when `value` has more fraction digits than `currency` allows (`currencyFractionDigits`) or more than 12 integer digits. */
+export function exceedsCurrencyPrecision(value: string, currency: string): boolean {
+  const integerDigits = value.replace(/^-/, "").split(".")[0]!.length;
+  return decimalPlaces(value) > currencyFractionDigits(currency) || integerDigits > 12;
+}
+
 /** Minor-unit digits of an ISO 4217 code (USD 2, JPY 0, KWD 3); any non-ISO code (crypto) gets 18. */
 export function currencyFractionDigits(code: string): number {
   const currency = code.toUpperCase();

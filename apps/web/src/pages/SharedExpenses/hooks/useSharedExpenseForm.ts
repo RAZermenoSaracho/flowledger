@@ -43,12 +43,11 @@ export function useSharedExpenseForm() {
   const selectedTransaction = (transactionsQuery.data ?? []).find(
     (transaction) => transaction.id === transactionId
   );
-  const participantShareTotal = participants.reduce(
-    (sum, participant) => sum + Number(participant.shareAmount || 0),
-    0
-  );
+  const toCents = (value: string | number) => Math.round(Number(value || 0) * 100);
+  const participantShareTotal =
+    participants.reduce((sum, participant) => sum + toCents(participant.shareAmount), 0) / 100;
   const remainingAmount = selectedTransaction
-    ? Number(selectedTransaction.amount) - participantShareTotal
+    ? (toCents(selectedTransaction.amount) - toCents(participantShareTotal)) / 100
     : 0;
   const sharesExceedTransactionAmount = Boolean(
     selectedTransaction && remainingAmount < 0

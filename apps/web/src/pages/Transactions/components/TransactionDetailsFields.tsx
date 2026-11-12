@@ -19,8 +19,8 @@ import {
   selectTransferAccount
 } from "../utils/transactionDraftReducers";
 import {
-  accountAmountCurrency,
-  destinationAmountCurrency,
+  differingCurrency,
+  destinationAccountId,
   feeApplies,
   feeCurrencyOptions,
   reconcileCurrencyFields
@@ -59,8 +59,8 @@ export function TransactionDetailsFields({
   const selectedGroup = groups.find((group) => group.id === values.groupId);
   const categoryOptions = values.groupId ? (selectedGroup?.categories ?? []) : categories;
 
-  const accountCurrency = accountAmountCurrency(values, accounts);
-  const destinationCurrency = destinationAmountCurrency(values, accounts);
+  const accountCurrency = differingCurrency(values, accounts, values.accountId);
+  const destinationCurrency = differingCurrency(values, accounts, destinationAccountId(values));
   const showFee = feeApplies(values, accounts);
 
   function update(change: (current: TransactionDraft) => TransactionDraft) {

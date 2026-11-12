@@ -4,13 +4,13 @@ import type { FormErrors } from "../../../types/common.types";
 import { amountPrecisionError, formatMoney } from "../../../utils/currency";
 import type { TransactionDraft } from "../types/transactions.types";
 import { sumParticipantShares } from "./transactionDraft";
-import { accountAmountCurrency, destinationAmountCurrency, feeApplies } from "./transactionCurrencies";
+import { differingCurrency, destinationAccountId, feeApplies } from "./transactionCurrencies";
 
 /** Adds the errors of the cross-currency fields: required when their coupling shows them, precision per their own currency, and a fee's amount/currency pairing. */
 function validateAppliedAmounts(draft: TransactionDraft, accounts: Account[], errors: FormErrors) {
   const applied = [
-    ["accountAmount", accountAmountCurrency(draft, accounts)],
-    ["destinationAmount", destinationAmountCurrency(draft, accounts)]
+    ["accountAmount", differingCurrency(draft, accounts, draft.accountId)],
+    ["destinationAmount", differingCurrency(draft, accounts, destinationAccountId(draft))]
   ] as const;
   for (const [key, currency] of applied) {
     if (!currency) continue;

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Account } from "../../../../types/accounts.types";
 import { newTransactionDraft } from "../transactionDraft";
 import {
-  accountAmountCurrency,
-  destinationAmountCurrency,
+  destinationAccountId,
+  differingCurrency,
   feeApplies,
   feeCurrencyOptions,
   reconcileCurrencyFields
@@ -18,16 +18,16 @@ const draft = (overrides = {}) => ({ ...newTransactionDraft("USD", "2026-01-01T0
 
 describe("transaction currency couplings", () => {
   it("requires an account amount only when the account currency differs", () => {
-    expect(accountAmountCurrency(draft({ accountId: "mxn" }), accounts)).toBe("MXN");
-    expect(accountAmountCurrency(draft({ accountId: "usd" }), accounts)).toBeNull();
-    expect(accountAmountCurrency(draft(), accounts)).toBeNull();
+    expect(differingCurrency(draft({ accountId: "mxn" }), accounts, draft({ accountId: "mxn" }).accountId)).toBe("MXN");
+    expect(differingCurrency(draft({ accountId: "usd" }), accounts, draft({ accountId: "usd" }).accountId)).toBeNull();
+    expect(differingCurrency(draft(), accounts, draft().accountId)).toBeNull();
   });
 
   it("requires a received amount only for a transfer to a different currency", () => {
     const transfer = draft({ type: "transfer", accountId: "usd", transferToAccountId: "mxn" });
-    expect(destinationAmountCurrency(transfer, accounts)).toBe("MXN");
-    expect(destinationAmountCurrency({ ...transfer, transferToAccountId: "usd" }, accounts)).toBeNull();
-    expect(destinationAmountCurrency({ ...transfer, type: "expense" }, accounts)).toBeNull();
+    expect(differingCurrency(transfer, accounts, destinationAccountId(transfer))).toBe("MXN");
+    expect(differingCurrency(transfer, accounts, destinationAccountId({ ...transfer, transferToAccountId: "usd" }))).toBeNull();
+    expect(differingCurrency(transfer, accounts, destinationAccountId({ ...transfer, type: "expense" }))).toBeNull();
   });
 
   it("offers execution and destination currencies for the fee, and only when a currency differs", () => {

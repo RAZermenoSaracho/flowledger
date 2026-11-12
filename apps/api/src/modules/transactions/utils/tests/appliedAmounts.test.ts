@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HttpError } from "../../../../utils/httpError.js";
-import { deriveRates, resolveAppliedAmounts } from "../appliedAmounts.js";
+import { resolveAppliedAmounts } from "../appliedAmounts.js";
 
 function fieldErrorsOf(fn: () => unknown) {
   try {
@@ -232,40 +232,5 @@ describe("resolveAppliedAmounts", () => {
         resolveAppliedAmounts({ ...transfer, accountCurrency: "EUR", feeAmount: "1", feeCurrency: "EUR" })
       ).toThrow(HttpError);
     });
-  });
-});
-
-describe("deriveRates", () => {
-  it("derives the effective rate from the persisted amounts with no fee", () => {
-    const rates = deriveRates({ amount: "100", appliedAmount: "1700", executionCurrency: "USD" });
-
-    expect(rates.effective.toFixed()).toBe("17");
-    expect(rates.beforeFee).toBeNull();
-  });
-
-  it("derives the rate before a source-currency fee as applied / (amount - fee)", () => {
-    const rates = deriveRates({
-      amount: "100",
-      appliedAmount: "1666",
-      executionCurrency: "USD",
-      feeAmount: "2",
-      feeCurrency: "USD"
-    });
-
-    expect(rates.effective.toFixed()).toBe("16.66");
-    expect(rates.beforeFee?.toFixed()).toBe("17");
-  });
-
-  it("derives the rate before a destination-currency fee as (applied + fee) / amount", () => {
-    const rates = deriveRates({
-      amount: "100",
-      appliedAmount: "1666",
-      executionCurrency: "USD",
-      feeAmount: "34",
-      feeCurrency: "MXN"
-    });
-
-    expect(rates.effective.toFixed()).toBe("16.66");
-    expect(rates.beforeFee?.toFixed()).toBe("17");
   });
 });

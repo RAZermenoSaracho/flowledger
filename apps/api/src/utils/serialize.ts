@@ -43,7 +43,7 @@ function convertDecimals(value: unknown, key?: string): unknown {
   return value;
 }
 
-/** Deep-clones `value` for a response: a `Decimal` under a native amount key (`amount`, `accountAmount`, `debtorAccountAmount`, `destinationAmount`, `feeAmount`, `initialBalance`, `currentBalance`) becomes an exact decimal string; every other `Decimal` becomes a `number`. */
+/** Deep-clones `value` for a response: a `Decimal` under a `NATIVE_AMOUNT_KEYS` key becomes an exact decimal string; every other `Decimal` becomes a `number`. */
 export function serialize<T>(value: T): T {
   return JSON.parse(JSON.stringify(convertDecimals(value))) as T;
 }
