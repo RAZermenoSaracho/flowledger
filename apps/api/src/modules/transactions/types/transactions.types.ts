@@ -166,7 +166,7 @@ export type ImportedTransactionSelection =
   | { mode: "ids"; ids: string[] }
   | { mode: "filtered"; where?: RawWhereNode };
 
-/** A transaction related to the viewed one, always owned by the viewer: one of their settlements, or the original expense of their settlement. */
+/** The original expense of a settlement the viewer is looking at; only returned when the viewer owns it. */
 export interface RelatedTransactionRow {
   id: string;
   description: string;
@@ -174,8 +174,20 @@ export interface RelatedTransactionRow {
   currency: string;
   date: Date;
   type: string;
-  relation: "settlement" | "origin";
-  settlementStatus: string;
+  relation: "origin";
+}
+
+/** One settlement request of an original expense's participants. `transaction` is only the viewer's own settlement transaction, never the counterparty's. */
+export interface RelatedSettlementRow {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: Date;
+  approvedAt: Date | null;
+  counterparty: PublicUser;
+  participantId: string;
+  transaction: { id: string; description: string; date: Date; type: string } | null;
 }
 
 /** What a settling participant may see of the expense they settled: only data the shared-expense endpoints already expose to participants, never the owner's transaction id. */

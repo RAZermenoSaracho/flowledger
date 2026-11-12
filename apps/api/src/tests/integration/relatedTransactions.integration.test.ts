@@ -134,15 +134,22 @@ describe("related transactions of a shared expense", () => {
       request(app).get(`/transactions/${originalId}`)
     );
     expect(originalView.status).toBe(200);
-    const rows = originalView.body.transaction.relatedTransactions as {
-      id: string;
-      relation: string;
+    const original_ = originalView.body.transaction;
+    expect(original_.relatedTransactions).toEqual([]);
+    const settlements = original_.relatedSettlements as {
+      status: string;
+      participantId: string;
+      counterparty: { id: string };
+      transaction: { id: string } | null;
     }[];
-    expect(rows.map((r) => r.id).sort()).toEqual([...aSettlementIds].sort());
-    expect(rows.every((r) => r.relation === "settlement")).toBe(true);
-    const json = JSON.stringify(
-      originalView.body.transaction.relatedTransactions
+    expect(settlements.map((r) => r.counterparty.id).sort()).toEqual(
+      [b.user.id, c.user.id].sort()
     );
+    expect(settlements.every((r) => r.status === "approved")).toBe(true);
+    expect(settlements.map((r) => r.transaction?.id).sort()).toEqual(
+      [...aSettlementIds].sort()
+    );
+    const json = JSON.stringify(original_.relatedSettlements);
     for (const id of Object.values(settlementTransactionIds))
       expect(json).not.toContain(id);
     expect(json).not.toContain(unrelated.body.transaction.id);
@@ -154,6 +161,7 @@ describe("related transactions of a shared expense", () => {
     );
     expect(bView.status).toBe(200);
     expect(bView.body.transaction.relatedTransactions).toEqual([]);
+    expect(bView.body.transaction.relatedSettlements).toEqual([]);
     expect(bView.body.transaction.settlementOrigin).toMatchObject({
       title: "Dinner split",
       amount: 90,
@@ -178,6 +186,7 @@ describe("related transactions of a shared expense", () => {
         (r: { id: string; relation: string }) => [r.id, r.relation]
       )
     ).toEqual([[originalId, "origin"]]);
+    expect(aSettlementView.body.transaction.relatedSettlements).toEqual([]);
     expect(
       (await as(c, request(app).get(`/transactions/${originalId}`))).status
     ).toBe(404);

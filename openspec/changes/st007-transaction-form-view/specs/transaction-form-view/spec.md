@@ -79,9 +79,9 @@ Saving a transaction SHALL send `date` only when the user changed the date and t
 - **WHEN** the user at UTC-6 changes the field to June 2, 2026, 3:33 PM and saves
 - **THEN** the request sends `2026-06-02T21:33:15.979Z`
 
-### Requirement: View is organized in Details, Sharing and Related tabs
+### Requirement: View is organized in Details, Sharing, Related transactions and Related settlements tabs
 
-The view SHALL render tabs Details, Sharing and Related through the shared Form View. Switching tabs SHALL NOT discard or prompt on the draft. The Related tab SHALL list only real, viewer-scoped relationships derived server-side from the settlement chain (the viewer's own settlement transactions of an original expense; the original expense of a settlement, navigable only when the viewer owns it, otherwise a non-navigable summary) as read-only lists, SHALL never list the transaction itself or a counterparty's transaction, and SHALL be hidden when there are none. The originating imported provider record is shown in the Details tab, not Related. Extending the Sharing tab for existing transactions belongs to the `transaction-sharing-conversion` capability.
+The view SHALL render tabs Details, Sharing, Related transactions and Related settlements through the shared Form View. Switching tabs SHALL NOT discard or prompt on the draft. The Related transactions tab SHALL list, derived server-side from the settlement chain, the original expense of a settlement (navigable only when the viewer owns it, otherwise a non-navigable summary). The Related settlements tab SHALL list, on an original expense the viewer owns, every settlement request of its participants including pending and rejected ones, with the counterparty as a public user, amount, requested date and status, and a link only to the viewer's own settlement transaction once it exists. Both are read-only, SHALL never list the transaction itself or expose a counterparty's transaction, account, category, notes or payment info, and each SHALL be hidden when empty. The originating imported provider record is shown in the Details tab, not Related. Extending the Sharing tab for existing transactions belongs to the `transaction-sharing-conversion` capability.
 
 #### Scenario: Tab switch keeps the draft
 - **WHEN** the user edits the description, opens Sharing, then returns to Details
@@ -89,19 +89,19 @@ The view SHALL render tabs Details, Sharing and Related through the shared Form 
 
 #### Scenario: Related lists
 - **WHEN** the owner views an original shared expense settled by two participants
-- **THEN** the Related tab lists the owner's two settlement transactions read-only, and none of the participants' transactions
+- **THEN** the Related settlements tab lists both requests (including a pending one without a transaction link) with their counterparties, linking only the owner's own settlement transactions, and the Related transactions tab is hidden
 
 #### Scenario: Settlement shows its origin
 - **WHEN** a participant views their settlement transaction
-- **THEN** the Related tab shows a non-navigable summary of the shared expense and its owner, and not the settlement itself or the owner's transactions
+- **THEN** the Related transactions tab shows a non-navigable summary of the shared expense and its owner, and not the settlement itself or the owner's transactions
 
 #### Scenario: Imported source in Details
 - **WHEN** a transaction was imported from a provider
-- **THEN** the Details tab shows the provider date and the Related tab does not list the import
+- **THEN** the Details tab shows the provider date and the Related tabs do not list the import
 
 #### Scenario: Related hidden when empty
 - **WHEN** a transaction has no related records
-- **THEN** no Related tab is shown
+- **THEN** neither Related tab is shown
 
 ### Requirement: Legacy edit links redirect
 

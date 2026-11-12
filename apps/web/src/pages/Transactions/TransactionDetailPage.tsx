@@ -18,6 +18,7 @@ import { formatMoney } from "../../utils/currency";
 import { formatTransactionDate, transactionDateNowInputValue } from "../../utils/dateTime";
 import { TransactionDetailsFields } from "./components/TransactionDetailsFields";
 import { hasRelatedRecords, TransactionRelatedTab } from "./components/TransactionRelatedTab";
+import { hasRelatedSettlements, TransactionSettlementsTab } from "./components/TransactionSettlementsTab";
 import { TransactionSharingTab } from "./components/TransactionSharingTab";
 import { useTransactionForm } from "./hooks/useTransactionForm";
 import { draftFromTransaction, newTransactionDraft } from "./utils/transactionDraft";
@@ -161,7 +162,10 @@ export function TransactionDetailPage() {
       )
     },
     ...(transaction && hasRelatedRecords(transaction)
-      ? [{ id: "related", label: "Related", content: <TransactionRelatedTab transaction={transaction} /> }]
+      ? [{ id: "related", label: "Related transactions", content: <TransactionRelatedTab transaction={transaction} /> }]
+      : []),
+    ...(transaction && hasRelatedSettlements(transaction)
+      ? [{ id: "settlements", label: "Related settlements", content: <TransactionSettlementsTab transaction={transaction} /> }]
       : [])
   ];
 

@@ -12,6 +12,7 @@ import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import type {
   ImportedTransactionsQueryInput,
+  RelatedSettlementRow,
   RelatedTransactionRow,
   SettlementOriginSummary,
   TransactionRecord,
@@ -307,15 +308,19 @@ const relatedTransactionSelect = {
 } as const;
 
 /**
- * Derives the Related tab data from the SettlementRequest chain, never from `TransactionRelation` (whose rows
- * point at the counterparty's transaction). Everything returned is scoped to `userId`: an original expense lists
- * the viewer's own settlement transactions; a settlement lists its original only when the viewer owns it, otherwise
- * a non-navigable {@link SettlementOriginSummary}.
+ * Derives the Related tabs from the SettlementRequest chain, never from `TransactionRelation` (whose rows point at
+ * the counterparty's transaction). Everything returned is scoped to `userId`: an original expense lists every
+ * settlement request of its participants (with only the viewer's own settlement transaction); a settlement lists its
+ * original only when the viewer owns it, otherwise a non-navigable {@link SettlementOriginSummary}.
  */
 async function loadRelatedTransactions(
   userId: string,
   id: string
-): Promise<{ relatedTransactions: RelatedTransactionRow[]; settlementOrigin: SettlementOriginSummary | null }> {
+): Promise<{
+  relatedTransactions: RelatedTransactionRow[];
+  relatedSettlements: RelatedSettlementRow[];
+  settlementOrigin: SettlementOriginSummary | null;
+}> {
   const requests = await prisma.settlementRequest.findMany({
     where: {
       OR: [
@@ -326,6 +331,8 @@ async function loadRelatedTransactions(
     },
     orderBy: { createdAt: "asc" },
     include: {
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       debtorTransaction: { select: relatedTransactionSelect },
       creditorTransaction: { select: relatedTransactionSelect },
       sharedExpenseParticipant: {
@@ -338,30 +345,40 @@ async function loadRelatedTransactions(
     }
   });
 
-  const rows = new Map<string, RelatedTransactionRow>();
+  const origins = new Map<string, RelatedTransactionRow>();
+  const settlements = new Map<string, RelatedSettlementRow>();
   let settlementOrigin: SettlementOriginSummary | null = null;
-  const toRow = (
-    tx: { id: string; name: string; amount: unknown; executionCurrency: string; date: Date; type: string },
-    relation: RelatedTransactionRow["relation"],
-    settlementStatus: string
-  ): RelatedTransactionRow => ({
-    id: tx.id,
-    description: tx.name,
-    amount: Number(tx.amount),
-    currency: tx.executionCurrency,
-    date: tx.date,
-    type: tx.type,
-    relation,
-    settlementStatus
-  });
 
   for (const request of requests) {
     const expense = request.sharedExpenseParticipant.sharedExpense;
     if (expense.transactionId === id) {
-      const own = request.creditorUserId === userId ? request.creditorTransaction : request.debtorTransaction;
-      if (own && own.userId === userId && own.id !== id) rows.set(own.id, toRow(own, "settlement", request.status));
+      const viewerIsCreditor = request.creditorUserId === userId;
+      const own = viewerIsCreditor ? request.creditorTransaction : request.debtorTransaction;
+      settlements.set(request.id, {
+        id: request.id,
+        status: request.status,
+        amount: Number(request.amount),
+        currency: request.sharedExpenseParticipant.currency,
+        createdAt: request.createdAt,
+        approvedAt: request.approvedAt,
+        counterparty: toPublicUser(viewerIsCreditor ? request.debtor : request.creditor),
+        participantId: request.sharedExpenseParticipantId,
+        transaction:
+          own && own.userId === userId && own.id !== id
+            ? { id: own.id, description: own.name, date: own.date, type: own.type }
+            : null
+      });
     } else if (expense.transaction.userId === userId) {
-      rows.set(expense.transaction.id, toRow(expense.transaction, "origin", request.status));
+      const tx = expense.transaction;
+      origins.set(tx.id, {
+        id: tx.id,
+        description: tx.name,
+        amount: Number(tx.amount),
+        currency: tx.executionCurrency,
+        date: tx.date,
+        type: tx.type,
+        relation: "origin"
+      });
     } else {
       settlementOrigin = {
         title: expense.title,
@@ -374,7 +391,11 @@ async function loadRelatedTransactions(
     }
   }
 
-  return { relatedTransactions: [...rows.values()], settlementOrigin };
+  return {
+    relatedTransactions: [...origins.values()],
+    relatedSettlements: [...settlements.values()],
+    settlementOrigin
+  };
 }
 
 function parseImportedTransactionsQueryParam(raw: string | undefined) {

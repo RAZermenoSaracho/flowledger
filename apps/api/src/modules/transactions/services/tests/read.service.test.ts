@@ -76,10 +76,18 @@ describe("getTransactionById related transactions", () => {
     transaction: ownerTx,
     owner: { id: "a", username: "alice", nickname: null, name: "Alice", identityVisibility: "username_only" }
   });
+  const user = (id: string, username: string) => ({ id, username, nickname: null, name: username, identityVisibility: "username_only" });
   const request = (over: Record<string, unknown>) => ({
+    id: "req-1",
     status: "approved",
+    amount: 30,
+    createdAt: new Date("2026-01-02"),
+    approvedAt: new Date("2026-01-03"),
+    sharedExpenseParticipantId: "part-1",
     debtorUserId: "b",
     creditorUserId: "a",
+    debtor: user("b", "bob"),
+    creditor: user("a", "alice"),
     debtorTransaction: tx("deb-b", "b"),
     creditorTransaction: tx("cred-a", "a"),
     ...over
@@ -95,32 +103,52 @@ describe("getTransactionById related transactions", () => {
     expect(include).not.toHaveProperty("relations");
     expect(include).not.toHaveProperty("relatedBy");
     expect(JSON.stringify(prismaMock.settlementRequest.findMany.mock.calls[0]?.[0])).toContain('"ownerUserId":"a"');
-    expect(result).toMatchObject({ relatedTransactions: [], settlementOrigin: null });
+    expect(result).toMatchObject({ relatedTransactions: [], relatedSettlements: [], settlementOrigin: null });
   });
 
-  it("lists one own settlement row per request on an original, never the counterpart or itself", async () => {
+  it("lists every request of an original, pending ones included, with the counterparty and only the viewer's own transaction", async () => {
     const original = tx("o", "a");
     prismaMock.transaction.findFirst.mockResolvedValue({ id: "o" } as never);
     prismaMock.settlementRequest.findMany.mockResolvedValue([
       request({ sharedExpenseParticipant: { sharedExpense: expenseOf(original) } }),
       request({
-        creditorTransaction: tx("cred-a2", "a"),
-        debtorTransaction: tx("deb-c", "c"),
+        id: "req-2",
+        status: "pending",
+        approvedAt: null,
+        creditorTransaction: null,
+        debtorTransaction: null,
         debtorUserId: "c",
+        debtor: user("c", "carol"),
+        sharedExpenseParticipantId: "part-2",
         sharedExpenseParticipant: { sharedExpense: expenseOf(original) }
       })
     ] as never);
 
     const result = await getTransactionById("a", "o");
 
-    expect(result.relatedTransactions.map((row) => [row.id, row.relation])).toEqual([
-      ["cred-a", "settlement"],
-      ["cred-a2", "settlement"]
-    ]);
+    expect(result.relatedTransactions).toEqual([]);
     expect(result.settlementOrigin).toBeNull();
+    expect(result.relatedSettlements).toEqual([
+      expect.objectContaining({
+        id: "req-1",
+        status: "approved",
+        amount: 30,
+        participantId: "part-1",
+        counterparty: { id: "b", username: "bob", nickname: null, displayName: null },
+        transaction: { id: "cred-a", description: "T cred-a", date: new Date("2026-01-01"), type: "expense" }
+      }),
+      expect.objectContaining({
+        id: "req-2",
+        status: "pending",
+        approvedAt: null,
+        counterparty: { id: "c", username: "carol", nickname: null, displayName: null },
+        transaction: null
+      })
+    ]);
+    expect(JSON.stringify(result.relatedSettlements)).not.toContain("deb-b");
   });
 
-  it("lists the original as a navigable origin row when the viewer owns it", async () => {
+  it("lists the original as a navigable origin row and no settlements when the viewer owns it", async () => {
     const original = tx("o", "a");
     prismaMock.transaction.findFirst.mockResolvedValue({ id: "cred-a" } as never);
     prismaMock.settlementRequest.findMany.mockResolvedValue([
@@ -130,6 +158,7 @@ describe("getTransactionById related transactions", () => {
     const result = await getTransactionById("a", "cred-a");
 
     expect(result.relatedTransactions.map((row) => [row.id, row.relation])).toEqual([["o", "origin"]]);
+    expect(result.relatedSettlements).toEqual([]);
   });
 
   it("gives a participant only a non-navigable origin summary without ids or owner-private data", async () => {
@@ -142,6 +171,7 @@ describe("getTransactionById related transactions", () => {
     const result = await getTransactionById("b", "deb-b");
 
     expect(result.relatedTransactions).toEqual([]);
+    expect(result.relatedSettlements).toEqual([]);
     expect(result.settlementOrigin).toEqual({
       title: "Dinner",
       amount: 30,

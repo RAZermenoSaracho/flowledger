@@ -9,7 +9,7 @@ ST-005 provides the shared form foundation (`useFormDraft`, `FormView` with comp
 ## What Changes
 
 - `/transactions/:id` becomes the editable Transaction Form View on ST-005's `useFormDraft` / `FormView` / `EditableField` / `RelatedList`. No Edit button or edit mode; Save and Discard are ST-005's compact header actions.
-- Tabs: Details, Sharing and Related. ST-007 owns the shell, Details, Related (viewer-scoped settlement-chain transactions and origin summary; hidden when empty) and Sharing for new drafts. ST-003 extends Sharing for existing transactions.
+- Tabs: Details, Sharing, Related transactions and Related settlements. ST-007 owns the shell, Details, the two Related tabs (viewer-scoped, settlement-chain derived; each hidden when empty) and Sharing for new drafts. ST-003 extends Sharing for existing transactions.
 - `/transactions/:id/edit` redirects to `/transactions/:id`.
 - New `/transactions/new` opens an unsaved draft, optionally prefilled from whitelisted query params. Nothing is created until Save.
 - The list page's create entry point navigates to `/transactions/new`. The inline `TransactionFormCard` create card and the separate `TransactionEditPage` are retired, leaving one create/edit form.

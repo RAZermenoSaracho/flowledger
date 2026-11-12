@@ -812,23 +812,22 @@ describe("TransactionDetailPage (existing transaction)", () => {
 
       await loaded();
       expect(
-        screen.queryByRole("tab", { name: "Related" })
+        screen.queryByRole("tab", { name: /^Related/ })
       ).not.toBeInTheDocument();
     });
 
-    it("lists related settlement transactions in the Related tab", async () => {
+    it("lists the original expense in the Related transactions tab", async () => {
       mockBaseline({
         transaction: makeTransaction({
           relatedTransactions: [
             {
               id: "tx-2",
-              description: "Settlement tx-2",
+              description: "Original tx-2",
               amount: 10,
               currency: "USD",
               date: "2026-05-31T12:00:00.000Z",
-              type: "income",
-              relation: "settlement",
-              settlementStatus: "approved"
+              type: "expense",
+              relation: "origin"
             }
           ]
         })
@@ -837,11 +836,45 @@ describe("TransactionDetailPage (existing transaction)", () => {
       renderPage();
 
       await loaded();
-      await user.click(screen.getByRole("tab", { name: "Related" }));
+      expect(
+        screen.queryByRole("tab", { name: "Related settlements" })
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: "Related transactions" }));
 
       expect(
-        screen.getByRole("link", { name: "Settlement tx-2" })
+        screen.getByRole("link", { name: "Original tx-2" })
       ).toBeInTheDocument();
+    });
+
+    it("lists settlement requests in the Related settlements tab", async () => {
+      mockBaseline({
+        transaction: makeTransaction({
+          relatedSettlements: [
+            {
+              id: "req-1",
+              status: "pending",
+              amount: 10,
+              currency: "USD",
+              createdAt: "2026-05-31T12:00:00.000Z",
+              approvedAt: null,
+              counterparty: { id: "b", username: "bob", nickname: null, displayName: null },
+              participantId: "p-1",
+              transaction: null
+            }
+          ]
+        })
+      });
+      const user = userEvent.setup();
+      renderPage();
+
+      await loaded();
+      expect(
+        screen.queryByRole("tab", { name: "Related transactions" })
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("tab", { name: "Related settlements" }));
+
+      expect(screen.getByText("@bob")).toBeInTheDocument();
+      expect(screen.getByText("Pending")).toBeInTheDocument();
     });
   });
 

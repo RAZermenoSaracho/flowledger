@@ -28,8 +28,7 @@ const related = (
   currency: "USD",
   date: "2026-05-31T21:00:00.000Z",
   type: "income",
-  relation: "settlement",
-  settlementStatus: "approved",
+  relation: "origin",
   ...overrides
 });
 const origin = {
@@ -67,38 +66,11 @@ describe("hasRelatedRecords", () => {
 });
 
 describe("TransactionRelatedTab", () => {
-  it("links each own settlement with amount and status", () => {
+  it("links the original expense", () => {
     renderWithProviders(
       <TransactionRelatedTab
         transaction={tx({
-          relatedTransactions: [
-            related(),
-            related({ id: "tx-3", description: "Second" })
-          ]
-        })}
-      />
-    );
-    expect(screen.getByRole("link", { name: "Payback" })).toHaveAttribute(
-      "href",
-      "/transactions/tx-2"
-    );
-    expect(screen.getByRole("link", { name: "Second" })).toHaveAttribute(
-      "href",
-      "/transactions/tx-3"
-    );
-    expect(screen.getAllByText("$25.00")).toHaveLength(2);
-    expect(
-      screen.queryByRole("region", { name: "Imported from provider" })
-    ).not.toBeInTheDocument();
-  });
-
-  it("links the original expense when the viewer owns it", () => {
-    renderWithProviders(
-      <TransactionRelatedTab
-        transaction={tx({
-          relatedTransactions: [
-            related({ id: "o", description: "Dinner", relation: "origin" })
-          ]
+          relatedTransactions: [related({ id: "o", description: "Dinner" })]
         })}
       />
     );

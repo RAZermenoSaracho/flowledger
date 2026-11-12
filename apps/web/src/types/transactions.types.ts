@@ -31,13 +31,15 @@ export type Transaction = {
   sharedExpense?: SharedExpense | null;
   /** Set when imported from a provider; `transactionDate` is the provider's original value. */
   providerImportedTransaction?: { transactionDate: string } | null;
-  /** Viewer-owned transactions related through the settlement chain: own settlements of an original, or the original of a settlement. */
+  /** The viewer-owned original expense when this transaction is a settlement. */
   relatedTransactions?: RelatedTransaction[];
+  /** Every settlement request of an original expense's participants, oldest first. */
+  relatedSettlements?: RelatedSettlement[];
   /** For a participant's settlement: summary of the shared expense it settles; not navigable. */
   settlementOrigin?: SettlementOrigin | null;
 };
 
-/** A viewer-owned transaction related to the viewed one. */
+/** The viewer-owned original expense of the viewed settlement. */
 export type RelatedTransaction = {
   id: string;
   description: string;
@@ -45,8 +47,20 @@ export type RelatedTransaction = {
   currency: string;
   date: string;
   type: string;
-  relation: "settlement" | "origin";
-  settlementStatus: string;
+  relation: "origin";
+};
+
+/** A settlement request on the viewed original expense; `transaction` is only the viewer's own settlement transaction, null while unapproved. */
+export type RelatedSettlement = {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  approvedAt: string | null;
+  counterparty: PublicUser;
+  participantId: string;
+  transaction: { id: string; description: string; date: string; type: string } | null;
 };
 
 /** What a participant may see of the shared expense behind their settlement. */
