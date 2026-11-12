@@ -78,6 +78,26 @@ The Group detail view SHALL be composed from the shared Form View introduced by 
 - **WHEN** the user deletes the Group, or archives it
 - **THEN** the overview is shown
 
+### Requirement: Group detail is organized in tabs
+
+The Group detail view SHALL pass `tabs` to the shared Form View: "General" (name, description, group summary and latest transactions), "Members" and "Categories". The active tab SHALL be driven by the `?tab=` URL parameter and default to General. The draft SHALL survive tab switches, and read-only/permission rules SHALL be identical in every tab.
+
+#### Scenario: Tabs shown
+- **WHEN** a member opens `/groups/:id`
+- **THEN** the General, Members and Categories tabs are shown and General is active
+
+#### Scenario: Members tab
+- **WHEN** the user opens the Members tab
+- **THEN** the members list and member search/add are shown, and the General fields are not
+
+#### Scenario: Unsaved name survives tab switch
+- **WHEN** an admin edits the name, opens Members, and returns to General
+- **THEN** the unsaved name is still in the field
+
+#### Scenario: Non-admin in Members
+- **WHEN** a non-admin member opens the Members tab
+- **THEN** no member search/add or removal controls are shown
+
 ### Requirement: Members and categories are immediate RelatedLists
 
 The members and categories sections SHALL be ST-005 `RelatedList` components in immediate mode: each add, remove or edit is saved on its own and never becomes part of the draft. The sections SHALL stack as label/value rows below `sm`. Members SHALL be shown by public identity (`@username`, or `Name (@username)` when the user shares their name) and SHALL NOT show or fall back to an email. Member-add SHALL search by username. Public identity serialization and username search are provided by `st003-convert-transaction-to-shared`, which lands before this change; ST-024 adds no server work for them.

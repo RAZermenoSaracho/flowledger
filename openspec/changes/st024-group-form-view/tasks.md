@@ -33,3 +33,7 @@ Prerequisites: ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-c
 - [x] 5.1 Web `npm run typecheck`, `npm run lint` and `npm run test` pass; new files have TSDoc and matching tests; no Group-specific form lifecycle remains.
 - [x] 5.2 Browser walkthrough as an admin, a non-admin member and a non-member: overview, open, back (control and browser), edit and save, create, archive, legacy `?groupId=` link. Verify: non-member sees not-found, non-admin sees read-only fields, a non-member shared-expense participant gets not-found, fields are directly editable with compact header Save/Discard at 375px and desktop.
 - [x] 5.3 `openspec validate st024-group-form-view --strict` passes.
+
+## 6. Tabs
+
+- [x] 6.1 Split `GroupDetailPage` into `FormView` `tabs`: General (header fields, summary, transactions), Members, Categories. Verify: `GroupDetailPage.test.tsx` covers tab navigation, member add across tabs keeping the draft, and non-admin permissions.

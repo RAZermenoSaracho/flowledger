@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { CurrencySelect } from "../../../components/CurrencySelect";
-import { EditableField } from "../../../components/EditableField";
+import { EditableField, editableControlClassName } from "../../../components/EditableField";
 import { FinancialOverviewSection } from "./FinancialOverviewSection";
 import { planLabels } from "../constants";
 import type { useProfileDetails } from "../hooks/useProfileDetails";
@@ -53,6 +53,29 @@ export function GeneralTab({
                 onChange={(value) => draft.setField("preferredCurrency", value)}
                 disabled={profile.isLoading || draft.isSaving}
                 allowNoPreference
+              />
+            </EditableField>
+          </dd>
+        </div>
+        <div className="min-w-0 [overflow-wrap:anywhere]">
+          <dt className="font-medium text-slate-500 dark:text-slate-400">
+            Email
+          </dt>
+          <dd className="mt-1 text-ink dark:text-slate-100">
+            <EditableField
+              label="Email"
+              hideLabel
+              error={draft.fieldErrors.email}
+              dirty={draft.changedKeys.includes("email")}
+              onRevert={() => draft.revertField("email")}
+            >
+              <input
+                type="email"
+                className={editableControlClassName}
+                value={profile.values.email}
+                maxLength={255}
+                disabled={profile.isLoading || draft.isSaving}
+                onChange={(e) => draft.setField("email", e.target.value)}
               />
             </EditableField>
           </dd>

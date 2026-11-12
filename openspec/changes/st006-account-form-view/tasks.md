@@ -23,6 +23,10 @@
 
 - [x] 4.1 Make rows link to the view; remove inline edit form, row expansion and `useAccountEditForm`; use type labels. Verify: updated `AccountListItem.test.tsx` and `AccountsPage.test.tsx` pass; no references to `useAccountEditForm` remain (`grep`).
 
+## 4b. Tabs
+
+- [x] 4b.1 Split `AccountDetailPage` into `FormView` `tabs`; add `AccountTransactionsTab` and `useAccountTransactions` (`GET /transactions`, `accountId` filter, date desc + id desc, 20 per page). Verify: `AccountTransactionsTab.test.tsx` (page 1 to 2 request params, empty, error), `useAccountTransactions.test.tsx`, `AccountDetailPage.test.tsx` tabs.
+
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass.

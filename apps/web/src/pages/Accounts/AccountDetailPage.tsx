@@ -9,9 +9,11 @@ import {
   editableControlClassName
 } from "../../components/EditableField";
 import { FormView } from "../../components/FormView";
+import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
+import { AccountTransactionsTab } from "./components/AccountTransactionsTab";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
 import { AddAccountCard } from "./components/AddAccountCard";
 import { AccountTypeSections } from "./components/AccountTypeSections";
@@ -22,7 +24,7 @@ import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
-/** Account Form View at `/accounts/:id`: directly editable fields, sync panel and archive/restore/delete. Unknown or foreign ids show the same not-found state. */
+/** Account Form View at `/accounts/:id`: tabs General details (editable fields, sync panel) and Related transactions (paginated list); archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
 export function AccountDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
@@ -74,43 +76,13 @@ export function AccountDetailPage() {
 
   const { values } = draft;
 
-  return (
-    <div className="grid gap-6">
-      <AddAccountCard sync={sync} />
-      <Card>
-        <FormView
-          title={account.name}
-          subtitle={`${getAccountTypeLabel(account.type)}${account.isArchived ? " · Archived" : ""}`}
-          draft={draft}
-          backLink={{ to: routes.accounts, label: "Back to accounts" }}
-          actions={
-            <>
-              {account.isArchived ? (
-                <ActionMenuItem
-                  disabled={actions.restoreAccount.isPending}
-                  onClick={() => actions.restoreAccount.mutate()}
-                >
-                  Restore
-                </ActionMenuItem>
-              ) : (
-                <ActionMenuItem
-                  disabled={actions.archiveAccount.isPending}
-                  onClick={() => actions.archiveAccount.mutate()}
-                >
-                  Archive
-                </ActionMenuItem>
-              )}
-              <ActionMenuItem
-                variant="danger"
-                disabled={actions.deleteAccount.isPending}
-                onClick={confirmDelete}
-              >
-                Delete
-              </ActionMenuItem>
-            </>
-          }
-        >
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+  const tabs: FormViewTab[] = [
+    {
+      id: "general",
+      label: "General details",
+      content: (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
             <EditableField label="Name" {...field("name")}>
               <input
                 className={editableControlClassName}
@@ -188,6 +160,53 @@ export function AccountDetailPage() {
               }
             />
           </div>
+        </>
+      )
+    },
+    {
+      id: "transactions",
+      label: "Related transactions",
+      content: <AccountTransactionsTab key={account.id} accountId={account.id} />
+    }
+  ];
+
+  return (
+    <div className="grid gap-6">
+      <AddAccountCard sync={sync} />
+      <Card>
+        <FormView
+          title={account.name}
+          subtitle={`${getAccountTypeLabel(account.type)}${account.isArchived ? " · Archived" : ""}`}
+          draft={draft}
+          tabs={tabs}
+          backLink={{ to: routes.accounts, label: "Back to accounts" }}
+          actions={
+            <>
+              {account.isArchived ? (
+                <ActionMenuItem
+                  disabled={actions.restoreAccount.isPending}
+                  onClick={() => actions.restoreAccount.mutate()}
+                >
+                  Restore
+                </ActionMenuItem>
+              ) : (
+                <ActionMenuItem
+                  disabled={actions.archiveAccount.isPending}
+                  onClick={() => actions.archiveAccount.mutate()}
+                >
+                  Archive
+                </ActionMenuItem>
+              )}
+              <ActionMenuItem
+                variant="danger"
+                disabled={actions.deleteAccount.isPending}
+                onClick={confirmDelete}
+              >
+                Delete
+              </ActionMenuItem>
+            </>
+          }
+        >
         </FormView>
       </Card>
     </div>

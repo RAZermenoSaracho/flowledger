@@ -32,6 +32,16 @@ describe("GeneralTab", () => {
     );
   });
 
+  it("edits the account email directly in General", async () => {
+    mockBaseline();
+    renderWithProviders(<GeneralHarness />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Email")).toHaveValue("jane@example.com")
+    );
+    await userEvent.setup().type(screen.getByLabelText("Email"), "x");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   it("shows the plan with a link to the Subscription tab", async () => {
     mockBaseline();
     renderWithProviders(<GeneralHarness />, { withAuth: true });

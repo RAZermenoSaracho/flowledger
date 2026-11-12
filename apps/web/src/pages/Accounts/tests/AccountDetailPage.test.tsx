@@ -79,6 +79,29 @@ describe("AccountDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers General details and Related transactions tabs", async () => {
+    mockAccounts([makeAccount()]);
+    server.use(
+      http.get(`${API_URL}/transactions`, () =>
+        HttpResponse.json({
+          data: [],
+          meta: { total: 0, page: 1, pageSize: 20, pageCount: 0, hasNext: false, hasPrevious: false, executionTime: 1 }
+        })
+      )
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByLabelText("Name");
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "General details",
+      "Related transactions"
+    ]);
+    await user.click(screen.getByRole("tab", { name: "Related transactions" }));
+    expect(await screen.findByText("No transactions for this account yet.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  });
+
   it("saves edits in one request", async () => {
     mockAccounts([makeAccount()]);
     let body: unknown;

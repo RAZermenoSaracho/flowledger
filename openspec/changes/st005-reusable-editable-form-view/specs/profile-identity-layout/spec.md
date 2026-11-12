@@ -16,3 +16,11 @@ Profile SHALL use `useFormDraft`, `FormView` and `EditableField` from `editable-
 #### Scenario: Section appended to General
 - **WHEN** another change adds a child section to `GeneralTab`
 - **THEN** it renders below the existing details without touching the draft
+
+### Requirement: Profile header omits the email
+
+The Profile header SHALL show the avatar, name, plan and any saved error, and SHALL NOT display or edit the email. The email SHALL remain an editable field in the General tab, saved through the same draft and password-prompt flow.
+
+#### Scenario: No email under the name
+- **WHEN** the Profile is opened
+- **THEN** the header shows no email, and the email field is in the General tab

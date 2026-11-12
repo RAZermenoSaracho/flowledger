@@ -4,7 +4,7 @@ import { planLabels } from "../constants";
 import { ChangeEmailDialog } from "./ChangeEmailDialog";
 import type { useProfileDetails } from "../hooks/useProfileDetails";
 
-/** Identity header of the profile form view: directly editable avatar, name, and email; Save/Discard live in the `FormView` header. */
+/** Identity header of the profile form view: directly editable avatar and name; Save/Discard live in the `FormView` header. */
 export function ProfileHeader({
   profile
 }: {
@@ -72,23 +72,6 @@ export function ProfileHeader({
               />
             </EditableField>
           </h2>
-          <div className="mt-2 min-w-0">
-            <EditableField
-              label="Email"
-              error={draft.fieldErrors.email}
-              dirty={draft.changedKeys.includes("email")}
-              onRevert={() => draft.revertField("email")}
-            >
-              <input
-                type="email"
-                className={editableControlClassName}
-                value={p.values.email}
-                maxLength={255}
-                disabled={busy}
-                onChange={(e) => draft.setField("email", e.target.value)}
-              />
-            </EditableField>
-          </div>
           {p.user ? (
             <p className="mt-2 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {planLabels[p.user.planType]}

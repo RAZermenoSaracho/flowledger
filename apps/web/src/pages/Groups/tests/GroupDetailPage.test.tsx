@@ -89,15 +89,27 @@ function renderDetail(id = "group-1") {
 }
 
 describe("GroupDetailPage", () => {
-  it("shows the group's sections with directly editable fields for an admin", async () => {
+  it("shows General, Members and Categories tabs with editable fields for an admin", async () => {
     mock(makeGroup());
+    const user = userEvent.setup();
     renderDetail();
 
     expect(await screen.findByLabelText("Name")).toHaveValue("Roommates");
-    expect(screen.getByText("Members")).toBeInTheDocument();
-    expect(screen.getByText("Group categories")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "General",
+      "Members",
+      "Categories"
+    ]);
     expect(screen.getByText("Group summary")).toBeInTheDocument();
     expect(screen.getByText("Latest Group Transactions")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Find app user")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Members" }));
+    expect(screen.getByLabelText("Find app user")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Categories" }));
+    expect(screen.getByText("Group categories")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Edit" })
     ).not.toBeInTheDocument();
@@ -112,6 +124,8 @@ describe("GroupDetailPage", () => {
 
     await screen.findByText("Group summary");
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Members" }));
+    expect(screen.queryByLabelText("Find app user")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Record actions" })
     ).not.toBeInTheDocument();
@@ -180,9 +194,11 @@ describe("GroupDetailPage", () => {
     const name = await screen.findByLabelText("Name");
     await user.clear(name);
     await user.type(name, "Flat");
+    await user.click(screen.getByRole("tab", { name: "Members" }));
     await user.type(screen.getByLabelText("Find app user"), "sam");
     await user.click(await screen.findByRole("button", { name: "Add member" }));
 
+    await user.click(screen.getByRole("tab", { name: "General" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Name")).toHaveValue("Flat")
     );

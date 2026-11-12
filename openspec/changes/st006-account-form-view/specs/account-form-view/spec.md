@@ -40,6 +40,22 @@ The account view SHALL let the user edit name, type, identifier, currency and in
 - **WHEN** the server rejects the save
 - **THEN** the draft is kept and the error is displayed
 
+### Requirement: Account view tabs and related transactions
+
+The account view SHALL pass `tabs` to the shared Form View: "General details" (all editable fields, type sections and sync panel) and "Related transactions". Related transactions SHALL list the account's transactions newest first (date descending, then id descending), loaded server-side 20 per page through the existing `GET /transactions` endpoint filtered by `accountId`, with Previous/Next controls, and loading, empty and error states. Each row SHALL link to the transaction and show date, category and amount. No new endpoint is introduced and ownership remains enforced by the server.
+
+#### Scenario: Tabs shown
+- **WHEN** an account view is opened
+- **THEN** the General details and Related transactions tabs are shown and General details is active
+
+#### Scenario: Paging
+- **WHEN** the user opens Related transactions and presses Next
+- **THEN** page 2 is requested with the same `accountId` filter and shown, and Previous returns to page 1
+
+#### Scenario: Empty and error
+- **WHEN** the account has no transactions, or the request fails
+- **THEN** an empty message, or an error message, is shown instead of rows
+
 ### Requirement: Account actions remain available
 
 The account view SHALL show the account's sync status and sync controls where the account is synced, and SHALL offer archive (or restore) and delete in the header "Record actions" menu. The view SHALL link back with "Back to accounts". Delete SHALL require confirmation, and after delete the user SHALL return to the accounts list.

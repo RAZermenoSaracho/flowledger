@@ -7,10 +7,11 @@ import { renderWithProviders } from "../../../../tests/utils/renderWithProviders
 import { getToken } from "../../../../services/auth.client";
 import { API_URL, baseUser, mockBaseline } from "../../tests/profileFixtures";
 import { FormView } from "../../../../components/FormView";
+import { GeneralTab } from "../GeneralTab";
 import { ProfileHeader } from "../ProfileHeader";
 import { useProfileDetails } from "../../hooks/useProfileDetails";
 
-function HeaderHarness() {
+function HeaderHarness({ withGeneral = true }: { withGeneral?: boolean }) {
   const profile = useProfileDetails();
   return (
     <FormView
@@ -18,11 +19,16 @@ function HeaderHarness() {
       draft={profile.draft}
       onSave={profile.onSave}
       headerExtra={<ProfileHeader profile={profile} />}
-    />
+    >
+      {withGeneral ? <GeneralTab profile={profile} /> : null}
+    </FormView>
   );
 }
 
-const render = () => renderWithProviders(<HeaderHarness />, { withAuth: true });
+const render = (withGeneral = true) =>
+  renderWithProviders(<HeaderHarness withGeneral={withGeneral} />, {
+    withAuth: true
+  });
 
 describe("ProfileHeader", () => {
   it("renders disabled empty inputs before the profile resolves", () => {
@@ -34,9 +40,10 @@ describe("ProfileHeader", () => {
 
   it("renders identity details with initials and without account summary fields", async () => {
     mockBaseline();
-    render();
+    render(false);
     expect(await screen.findByLabelText("Name")).toHaveValue("Jane Doe");
-    expect(screen.getByLabelText("Email")).toHaveValue("jane@example.com");
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByText("jane@example.com")).not.toBeInTheDocument();
     expect(screen.queryByText("Not set")).not.toBeInTheDocument();
     expect(screen.queryByText("Member since")).not.toBeInTheDocument();
     expect(screen.getByText("JD")).toBeInTheDocument();

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { FormView } from "../../components/FormView";
+import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import * as groupsClient from "../../services/groups.client";
@@ -15,7 +16,7 @@ import { useGroupCategoryManagement } from "./hooks/useGroupCategoryManagement";
 import { useGroupForm } from "./hooks/useGroupForm";
 import { useGroupManagement } from "./hooks/useGroupManagement";
 
-/** Group Form View at `/groups/:id`: directly editable name/description, immediate members and categories lists, summary and transactions. Non-member, unknown or malformed ids all show the same not-found state. */
+/** Group Form View at `/groups/:id`: tabs General (name/description, summary, transactions), Members and Categories; members and categories lists save immediately. Non-member, unknown or malformed ids all show the same not-found state. */
 export function GroupDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
@@ -57,12 +58,54 @@ export function GroupDetailPage() {
   );
   const canManageActive = canManage && !group.isArchived;
 
+  const tabs: FormViewTab[] = [
+    {
+      id: "general",
+      label: "General",
+      content: (
+        <div className="grid gap-8">
+          <GroupHeader group={group} draft={draft} canEdit={canManageActive} />
+          <GroupSummarySection
+            summary={
+              group.summary ?? { totalIncome: 0, totalExpenses: 0, balance: 0 }
+            }
+          />
+          <GroupTransactionsSection transactions={group.transactions} />
+        </div>
+      )
+    },
+    {
+      id: "members",
+      label: "Members",
+      content: (
+        <GroupMembersSection
+          group={group}
+          canManageActive={canManageActive}
+          management={management}
+        />
+      )
+    },
+    {
+      id: "categories",
+      label: "Categories",
+      content: (
+        <GroupCategoriesSection
+          groupId={group.id}
+          canManage={canManage}
+          canManageActive={canManageActive}
+          categoryManagement={categoryManagement}
+        />
+      )
+    }
+  ];
+
   return (
     <Card className="min-w-0 lg:p-6">
       <FormView
         title={group.name}
         subtitle={`${canManage ? "Admin" : "Member"}${group.isArchived ? " · Archived" : ""}`}
         draft={draft}
+        tabs={tabs}
         backLink={{ to: routes.groups, label: "Back to groups" }}
         actions={
           canManage ? (
@@ -93,30 +136,6 @@ export function GroupDetailPage() {
           ) : undefined
         }
       >
-        <div className="mt-4 grid gap-8">
-          <GroupHeader
-            group={group}
-            draft={draft}
-            canEdit={canManageActive}
-          />
-          <GroupMembersSection
-            group={group}
-            canManageActive={canManageActive}
-            management={management}
-          />
-          <GroupCategoriesSection
-            groupId={group.id}
-            canManage={canManage}
-            canManageActive={canManageActive}
-            categoryManagement={categoryManagement}
-          />
-          <GroupSummarySection
-            summary={
-              group.summary ?? { totalIncome: 0, totalExpenses: 0, balance: 0 }
-            }
-          />
-          <GroupTransactionsSection transactions={group.transactions} />
-        </div>
       </FormView>
     </Card>
   );
