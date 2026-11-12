@@ -644,3 +644,13 @@ Still open:
 **Description:** `create_shared_expense` can send share invitations to any user id with only the global API rate limits. Consent and blocking limit the impact, and nothing counts financially until the share is accepted, but a key can still spam invitations.
 
 **Suggested fix:** Add a per-key invitation rate limit on invitation creation.
+
+## [OPEN] #050 — Sharing tab of a crypto transaction computes splits before the save is rejected
+
+**Found in:** B-006 (ST-023) staging QA.
+
+**Scope:** `apps/web` Transaction Form View, Sharing tab.
+
+**Description:** For a transaction in a non-shareable currency (crypto, or fiat with more than 2 minor units), the Sharing tab still offers the toggle and computes the owner share with float math (for example `0.6145678901234567` for a BTC amount). The server correctly rejects the save with "Sharing is only supported for fiat currencies with up to 2 decimals", and nothing is stored. The only defect is a misleading draft display.
+
+**Suggested fix:** Disable the sharing toggle when `isShareableCurrency` is false for the transaction or account currency, and show the server's message inline.
