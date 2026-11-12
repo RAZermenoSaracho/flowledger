@@ -47,7 +47,6 @@ function makeGroup(
       }
     ],
     categories: [],
-    transactions: [],
     summary: { totalIncome: 1000, totalExpenses: 400, balance: 600 },
     createdAt: "",
     updatedAt: "",
@@ -89,7 +88,7 @@ function renderDetail(id = "group-1") {
 }
 
 describe("GroupDetailPage", () => {
-  it("shows General, Members and Categories tabs with editable fields for an admin", async () => {
+  it("shows General, Members, Categories and Related transactions tabs with editable fields for an admin", async () => {
     mock(makeGroup());
     const user = userEvent.setup();
     renderDetail();
@@ -98,10 +97,11 @@ describe("GroupDetailPage", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "General",
       "Members",
-      "Categories"
+      "Categories",
+      "Related transactions"
     ]);
     expect(screen.getByText("Group summary")).toBeInTheDocument();
-    expect(screen.getByText("Latest Group Transactions")).toBeInTheDocument();
+    expect(screen.queryByText("Latest Group Transactions")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Find app user")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Members" }));
@@ -116,6 +116,28 @@ describe("GroupDetailPage", () => {
     expect(
       screen.queryByRole("button", { name: "Save" })
     ).not.toBeInTheDocument();
+  });
+
+  it("loads the Related transactions tab server-paginated and scoped to the group", async () => {
+    const queries: { where: unknown; pagination: unknown }[] = [];
+    mock(makeGroup());
+    server.use(
+      http.get(`${API_URL}/transactions`, ({ request }) => {
+        queries.push(JSON.parse(new URL(request.url).searchParams.get("query")!));
+        return HttpResponse.json({
+          data: [],
+          meta: { total: 0, page: 1, pageSize: 20, pageCount: 0, hasNext: false, hasPrevious: false, executionTime: 1 }
+        });
+      })
+    );
+    renderDetail();
+
+    await userEvent.click(await screen.findByRole("tab", { name: "Related transactions" }));
+    expect(await screen.findByText("No transactions for this group yet.")).toBeInTheDocument();
+    expect(queries[0]).toMatchObject({
+      where: { field: "groupId", op: "=", value: "group-1" },
+      pagination: { kind: "offset", page: 1, pageSize: 20 }
+    });
   });
 
   it("shows read-only fields and no management actions for a non-admin member", async () => {

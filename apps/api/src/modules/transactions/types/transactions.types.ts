@@ -153,6 +153,7 @@ export interface ImportedTransactionRecord {
 export type ImportedTransactionsQueryInput = {
   where?: RawWhereNode;
   sort?: DataSieveQuery<ImportedTransactionRecord>["sort"];
+  pagination?: DataSieveQuery<ImportedTransactionRecord>["pagination"];
 };
 
 /**

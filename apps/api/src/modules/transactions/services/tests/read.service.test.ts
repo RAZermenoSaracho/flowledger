@@ -235,7 +235,7 @@ describe("getImportedTransactionsPendingCount", () => {
 
 describe("listImportedTransactions", () => {
   it("returns an empty list without a hydration query when no ids match", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue([]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: [], total: 0 });
     prismaMock.providerImportedTransaction.count.mockResolvedValue(0);
 
     const result = await listImportedTransactions("user-1", undefined);
@@ -245,7 +245,7 @@ describe("listImportedTransactions", () => {
   });
 
   it("hydrates and orders imported transactions to match the resolved id order", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue(["it-2", "it-1"]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-2", "it-1"], total: 2 });
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1" },
       { id: "it-2" }
@@ -262,7 +262,7 @@ describe("listImportedTransactions", () => {
   });
 
   it("drops an id from the ordered list if its row can't be found", async () => {
-    resolveImportedTransactionIdsMock.mockResolvedValue(["it-1", "it-missing"]);
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-1", "it-missing"], total: 2 });
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1" }
     ] as never);
@@ -271,6 +271,29 @@ describe("listImportedTransactions", () => {
     const result = await listImportedTransactions("user-1", undefined);
 
     expect(result.importedTransactions).toEqual([{ id: "it-1" }]);
+  });
+});
+
+describe("listImportedTransactions — pagination", () => {
+  it("forwards pagination and reports the resolver's full total for a page", async () => {
+    const pagination = { kind: "offset", page: 2, pageSize: 1 };
+    resolveImportedTransactionIdsMock.mockResolvedValue({ ids: ["it-2"], total: 7 });
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([{ id: "it-2" }] as never);
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(3);
+
+    const result = await listImportedTransactions(
+      "user-1",
+      JSON.stringify({ pagination })
+    );
+
+    expect(resolveImportedTransactionIdsMock).toHaveBeenCalledWith(
+      "user-1",
+      undefined,
+      expect.anything(),
+      pagination
+    );
+    expect(result).toMatchObject({ total: 7, pendingCount: 3 });
+    expect(result.importedTransactions).toHaveLength(1);
   });
 });
 

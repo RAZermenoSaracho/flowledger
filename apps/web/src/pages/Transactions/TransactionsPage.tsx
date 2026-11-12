@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AddRecordButton } from "../../components/AddRecordButton";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { useCurrenciesQuery } from "../../components/CurrencySelect";
+import { Pagination } from "../../components/Pagination";
 import { PageHeader } from "../../components/PageHeader";
 import { groupByFields } from "../../components/SearchComponent";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
@@ -19,6 +20,7 @@ import {
   TRANSACTION_GROUPABLE_FIELDS,
   TRANSACTION_SORTABLE_FIELDS
 } from "./utils/transactionSearchFields";
+import { usePagination } from "../../hooks/usePagination";
 import { routes } from "../../constants/routes";
 import { listAccounts } from "../../services/accounts.client";
 import * as categoriesClient from "../../services/categories.client";
@@ -27,6 +29,8 @@ import * as transactionsClient from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
 import { transactionDateInputValue } from "../../utils/dateTime";
 import type { TransactionsTab } from "./types/transactions.types";
+
+const TRANSACTIONS_PAGE_SIZE = 50;
 
 // groupByFields (components/SearchComponent.tsx) keys its group defs by
 // `id`; SearchBar's GroupableField uses `name` (matching the rest of the
@@ -109,16 +113,25 @@ export function TransactionsPage() {
     () => allCategoriesQuery.data ?? [],
     [allCategoriesQuery.data]
   );
+  const importedFilterAccounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const importedFilterCategories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const [transactionQuery, setTransactionQuery] = useState<SearchBarQuery>({});
 
+  const transactionPaging = usePagination({
+    resetKey: JSON.stringify({ where: transactionQuery.where, sort: transactionQuery.sort }),
+    pageSize: TRANSACTIONS_PAGE_SIZE
+  });
   const transactionsQuery = useQuery({
-    queryKey: ["transactions", transactionQuery],
+    queryKey: ["transactions", transactionQuery, transactionPaging.pagination],
+    placeholderData: keepPreviousData,
     queryFn: async () =>
       transactionsClient.listTransactions({
         where: transactionQuery.where,
-        sort: transactionQuery.sort
+        sort: transactionQuery.sort,
+        pagination: transactionPaging.pagination
       })
   });
+  transactionPaging.syncPageCount(transactionsQuery.data?.meta.pageCount);
 
   const visibleTransactions = useMemo(() => transactionsQuery.data?.data ?? [], [transactionsQuery.data?.data]);
   // Sourced from the full currency list (independent of the current
@@ -282,7 +295,7 @@ export function TransactionsPage() {
             </Card>
             <TransactionList
               groupedTransactions={groupedTransactions}
-              totalCount={visibleTransactions.length}
+              totalCount={transactionsQuery.data?.meta.total ?? visibleTransactions.length}
               isDeleting={deleteTransaction.isPending}
               onEdit={(transaction) =>
                 navigate(routes.transaction(transaction.id))
@@ -290,6 +303,17 @@ export function TransactionsPage() {
               onDelete={(transaction) =>
                 void confirmDeleteTransaction(transaction)
               }
+            />
+            <Pagination
+              page={transactionPaging.page}
+              pageCount={transactionsQuery.data?.meta.pageCount}
+              total={transactionsQuery.data?.meta.total}
+              hasNext={transactionsQuery.data?.meta.hasNext ?? false}
+              isFetching={transactionsQuery.isFetching}
+              onPageChange={transactionPaging.setPage}
+              pageSize={transactionPaging.pageSize}
+              pageSizeOptions={[25, 50, 100]}
+              onPageSizeChange={transactionPaging.setPageSize}
             />
           </div>
         </>
@@ -329,8 +353,8 @@ export function TransactionsPage() {
                 : null
             }
             onQueryChange={imported.updateImportedQuery}
-            accounts={accountsQuery.data ?? []}
-            categories={categoriesQuery.data ?? []}
+            accounts={importedFilterAccounts}
+            categories={importedFilterCategories}
             providerAccountOptions={importedAccountOptions}
           />
 
@@ -383,6 +407,14 @@ export function TransactionsPage() {
             }
             onIgnore={(id) => imported.ignoreImportedTransaction.mutate(id)}
             onUnignore={(id) => imported.unignoreImportedTransaction.mutate(id)}
+          />
+          <Pagination
+            page={imported.importedPaging.page}
+            pageCount={imported.importedPaging.pageCount}
+            total={imported.importedTransactionsQuery.data?.total}
+            hasNext={imported.importedPaging.hasNext}
+            isFetching={imported.importedTransactionsQuery.isFetching}
+            onPageChange={imported.importedPaging.setPage}
           />
         </div>
       )}

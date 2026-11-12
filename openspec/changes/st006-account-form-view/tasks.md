@@ -32,3 +32,7 @@
 - [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass.
 - [ ] 5.2 Browser check at 375px and desktop: open, edit, save, discard, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom.
 - [ ] 5.3 Update `docs/KNOWN_ISSUES.md` only if this change surfaces or closes an item.
+
+## 7. Shared related list
+
+- [x] 7.1 Generalize `AccountTransactionsTab` and `useAccountTransactions` into one shared related-transactions list and hook (scope field `accountId` or `groupId`), with name search, sort and the shared `Pagination`. Verify: tests for the shared list and hook. Account detail tests still pass.

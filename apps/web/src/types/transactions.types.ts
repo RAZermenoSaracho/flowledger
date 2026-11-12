@@ -135,3 +135,6 @@ export type DataSieveMeta = {
   hasPrevious: boolean;
   executionTime: number;
 };
+
+/** Record a related transactions list is scoped to. */
+export type RelatedTransactionsScope = { field: "accountId" | "groupId"; value: string };

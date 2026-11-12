@@ -42,7 +42,7 @@ The account view SHALL let the user edit name, type, identifier, currency and in
 
 ### Requirement: Account view tabs and related transactions
 
-The account view SHALL pass `tabs` to the shared Form View: "General details" (all editable fields, type sections and sync panel) and "Related transactions". Related transactions SHALL list the account's transactions newest first (date descending, then id descending), loaded server-side 20 per page through the existing `GET /transactions` endpoint filtered by `accountId`, with Previous/Next controls, and loading, empty and error states. Each row SHALL link to the transaction and show date, category and amount. No new endpoint is introduced and ownership remains enforced by the server.
+The account view SHALL pass `tabs` to the shared Form View: "General details" (all editable fields, type sections and sync panel) and "Related transactions". Related transactions SHALL list the account's transactions newest first (date descending, then id descending), loaded server-side 20 per page through the existing `GET /transactions` endpoint filtered by `accountId`. It SHALL use the shared related-transactions list (also used by the Group view): the shared search bar with name search and the transaction sort options, and the shared pagination control showing Previous/Next, "Page X of Y" and the result count, with loading, empty and error states. Each row SHALL link to the transaction and show date, category and amount. No new endpoint is introduced and ownership remains enforced by the server.
 
 #### Scenario: Tabs shown
 - **WHEN** an account view is opened

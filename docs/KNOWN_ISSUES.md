@@ -570,13 +570,13 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ## [OPEN] #044 — Large result sets are cut off at fixed limits
 
-**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07.
+**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07. Narrowed by `b004-list-pagination`, 2026-11-12.
 
-**Scope:** `transactions/utils/boundedPagination.ts` (10,000 per page), `reports/services/read.service.ts` (100,000 rows for cashflow).
+**Scope:** `reports/services/read.service.ts` (100,000 rows for cashflow); unpaginated lists: `GET /shared-expenses`, `GET /debts`, `GET /groups`, and `/v1` + MCP imported transactions without `pagination`.
 
-**Description:** The web Transactions page loads its whole result in one request and has no page controls, so a user past 10,000 matching transactions sees only that many. Past 100,000, the cashflow report covers only the oldest rows.
+**Description:** The Transactions, Imported Transactions and Related transactions lists are now server-paginated. A request without `pagination` still returns up to 10,000 transactions (legacy default). Past 100,000, the cashflow report covers only the oldest rows. Shared expenses, Debts (three unbounded queries with balances computed in memory) and the Groups overview load the user's whole collection.
 
-**Suggested fix:** Add page controls to the Transactions page and aggregate the cashflow report in SQL if either limit is approached.
+**Suggested fix:** Aggregate the cashflow report in SQL if the limit is approached. Paginate shared expenses through its existing sieve call (`pagination` plus the shared web `Pagination`). Rewrite Debts as paged queries if volumes grow. Upstream `createSieve`'s page-size bound and `id` tie-breaker into a datasieve release.
 
 ---
 

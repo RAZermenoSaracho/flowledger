@@ -11,9 +11,9 @@ import {
 import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
+import { RelatedTransactionsList } from "../../components/RelatedTransactionsList";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
-import { AccountTransactionsTab } from "./components/AccountTransactionsTab";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
 import { AddAccountCard } from "./components/AddAccountCard";
 import { AccountTypeSections } from "./components/AccountTypeSections";
@@ -166,7 +166,13 @@ export function AccountDetailPage() {
     {
       id: "transactions",
       label: "Related transactions",
-      content: <AccountTransactionsTab key={account.id} accountId={account.id} />
+      content: (
+        <RelatedTransactionsList
+          key={account.id}
+          scope={{ field: "accountId", value: account.id }}
+          emptyText="No transactions for this account yet."
+        />
+      )
     }
   ];
 

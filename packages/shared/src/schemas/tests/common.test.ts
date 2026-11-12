@@ -4,6 +4,7 @@ import {
   currencyCodeSchema,
   dateStringSchema,
   idSchema,
+  listPaginationSchema,
   moneySchema,
   optionalArraySchema,
   optionalDateStringSchema,
@@ -140,5 +141,26 @@ describe("optionalArraySchema", () => {
 
   it("leaves the field undefined when omitted", () => {
     expect(schema.parse({})).toEqual({ ids: undefined });
+  });
+});
+
+describe("listPaginationSchema", () => {
+  it("accepts offset and cursor pagination", () => {
+    expect(listPaginationSchema.safeParse({ kind: "offset", page: 1, pageSize: 10 }).success).toBe(true);
+    expect(
+      listPaginationSchema.safeParse({ kind: "cursor", take: 5, direction: "backward" }).success
+    ).toBe(true);
+  });
+
+  it.each([
+    { kind: "offset", page: 0, pageSize: 10 },
+    { kind: "offset", page: 1, pageSize: 0 },
+    { kind: "offset", page: 1, pageSize: 1.5 },
+    { kind: "offset", page: 1, pageSize: "x" },
+    { kind: "cursor", take: 0 },
+    { kind: "cursor", take: 5, direction: "sideways" },
+    { kind: "page", page: 1 }
+  ])("rejects %j", (value) => {
+    expect(listPaginationSchema.safeParse(value).success).toBe(false);
   });
 });

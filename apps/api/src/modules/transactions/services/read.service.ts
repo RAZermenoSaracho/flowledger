@@ -23,9 +23,11 @@ import {
   resolveImportedTransactionIds
 } from "../utils/importedTransactionQuery.js";
 import { publicUserSelect, publicizeUsers, toPublicUser } from "../../users/utils/publicUser.js";
-import { boundedPagination } from "../utils/boundedPagination.js";
+import { boundedPagination, MAX_TRANSACTION_PAGE_SIZE } from "../utils/boundedPagination.js";
 
-const transactionsSieve = createSieve(prisma.transaction);
+const transactionsSieve = createSieve(prisma.transaction, {
+  maxPageSize: MAX_TRANSACTION_PAGE_SIZE
+});
 
 // The one facet DSQL can't express yet: "does this transaction have a
 // related-transaction row of type settlement_payment" needs a to-many
@@ -440,10 +442,11 @@ export async function listImportedTransactions(
   rawQuery: string | undefined
 ) {
   const input = parseImportedTransactionsQueryParam(rawQuery);
-  const ids = await resolveImportedTransactionIds(
+  const { ids, total } = await resolveImportedTransactionIds(
     userId,
     input.where,
-    input.sort ?? [{ field: "transactionDate", direction: "desc" }]
+    input.sort ?? [{ field: "transactionDate", direction: "desc" }],
+    input.pagination
   );
 
   const [importedTransactions, pendingCount] = await Promise.all([
@@ -453,7 +456,7 @@ export async function listImportedTransactions(
     })
   ]);
 
-  return { importedTransactions, total: ids.length, pendingCount };
+  return { importedTransactions, total, pendingCount };
 }
 
 /** Counts `userId`'s imported transactions still awaiting review. */

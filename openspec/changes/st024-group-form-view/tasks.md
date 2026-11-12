@@ -37,3 +37,9 @@ Prerequisites: ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-c
 ## 6. Tabs
 
 - [x] 6.1 Split `GroupDetailPage` into `FormView` `tabs`: General (header fields, summary, transactions), Members, Categories. Verify: `GroupDetailPage.test.tsx` covers tab navigation, member add across tabs keeping the draft, and non-admin permissions.
+
+## 7. Categories cards and Related transactions
+
+- [x] 7.1 Extract the global Categories page's card and edit/create fields into shared `components/CategoryCard.tsx` and `components/CategoryForm.tsx`, and use them on `CategoriesPage`. Verify: component tests, and `CategoriesPage.test.tsx` passes unchanged in behavior.
+- [x] 7.2 Rebuild `GroupCategoriesSection` as the card grid with in-place edit, the ActionMenu for admins, and a header "+" opening a `ModalDialog` with `CategoryForm` (close on success, keep on error, dirty-confirm on Cancel/Escape). Remove `GroupCategoryEditForm`. Verify: section tests cover cards, in-place edit position, save/cancel, menu actions, modal create/error/escape, and non-admin read-only.
+- [x] 7.3 Add the Related transactions tab using the shared related-transactions list filtered by `groupId`, and remove the latest-25 section from General. Verify: `GroupDetailPage.test.tsx` tab test. List tests cover the `groupId` filter, search, sort, paging and empty state. An API integration test covers groupId-filtered paging returning only the caller's own Group transactions.

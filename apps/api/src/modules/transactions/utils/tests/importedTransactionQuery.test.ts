@@ -123,7 +123,7 @@ describe("resolveImportedTransactionIds", () => {
       { id: "it-2" }
     ] as never);
 
-    const ids = await resolveImportedTransactionIds("user-1", undefined);
+    const { ids } = await resolveImportedTransactionIds("user-1", undefined);
 
     expect(ids).toEqual(["it-1", "it-2"]);
   });
@@ -133,7 +133,7 @@ describe("resolveImportedTransactionIds", () => {
       { id: "it-1" }
     ] as never);
 
-    const ids = await resolveImportedTransactionIds("user-1", {
+    const { ids } = await resolveImportedTransactionIds("user-1", {
       and: [
         { or: [{ field: "status", op: "=", value: "pending" }] },
         { not: { field: "status", op: "=", value: "ignored" } }
@@ -148,7 +148,7 @@ describe("resolveImportedTransactionIds", () => {
       .mockResolvedValueOnce([{ id: "matched-1" }] as never) // search lookup
       .mockResolvedValueOnce([{ id: "matched-1" }] as never); // sieve hydration
 
-    const ids = await resolveImportedTransactionIds("user-1", {
+    const { ids } = await resolveImportedTransactionIds("user-1", {
       or: [
         { field: "search", op: "contains", value: "coffee" },
         { field: "search", op: "contains", value: "coffee" }
@@ -181,13 +181,48 @@ describe("resolveImportedTransactionIds", () => {
       { id: "it-1" }
     ] as never);
 
-    const ids = await resolveImportedTransactionIds("user-1", {
+    const { ids } = await resolveImportedTransactionIds("user-1", {
       not: { field: "search", op: "contains", value: "" }
     });
 
     expect(ids).toEqual(["it-1"]);
     // No search lookup fired — only the sieve's own hydration call.
     expect(prismaMock.providerImportedTransaction.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveImportedTransactionIds — pagination", () => {
+  it("returns only the page's ids with the full match count and an id tie-breaker", async () => {
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(25);
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "it-1" }
+    ] as never);
+
+    const result = await resolveImportedTransactionIds(
+      "user-1",
+      undefined,
+      [{ field: "transactionDate", direction: "desc" }],
+      { kind: "offset", page: 2, pageSize: 1 }
+    );
+
+    expect(result).toEqual({ ids: ["it-1"], total: 25 });
+    expect(prismaMock.providerImportedTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 1,
+        take: 1,
+        orderBy: [{ transactionDate: "desc" }, { id: "desc" }]
+      })
+    );
+  });
+
+  it("reports ids.length as the total when unpaginated", async () => {
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(0);
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      { id: "a" },
+      { id: "b" }
+    ] as never);
+
+    expect((await resolveImportedTransactionIds("user-1", undefined)).total).toBe(2);
   });
 });
 

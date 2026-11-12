@@ -53,7 +53,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 | PATCH | `/notifications/read-all` | write | `204`; only your notifications |
 | GET | `/me` | read | your private profile including email, nickname, username and identityVisibility (no password hash) |
 | PATCH | `/me` | write | only `name` and `preferredCurrency` (null clears it); at least one required; email, password and plan cannot be changed |
-| GET | `/imported-transactions` | read | capped at 100 rows, `total` is the full count |
+| GET | `/imported-transactions` | read | capped at 100 rows, `total` is the full count; an optional offset `pagination` in `query` (positive integers, page size up to 10,000) returns only that page with the same `total` |
 | PATCH | `/imported-transactions/:id` | write | `{ categoryId }` (null clears); pending rows only, category type must match the row's direction (`400` otherwise) |
 | POST | `/imported-transactions/:id/ignore`, `/:id/unignore` | write | pending to ignored and back; `400` if the row is in the wrong status |
 | POST | `/imported-transactions/:id/import` | write | `201`; creates a real transaction from a pending row (optional `{ categoryId }`; a category must exist, `400` otherwise); not undoable except by deleting the transaction |

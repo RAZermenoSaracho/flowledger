@@ -89,3 +89,6 @@ export type RelatedListProps<Row> = {
   /** Rendered after the rows; hidden while loading, on error or when empty. */
   footer?: ReactNode;
 };
+
+/** DataSieve offset pagination object sent as `pagination` in a list query. */
+export type OffsetPagination = { kind: "offset"; page: number; pageSize: number };

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
+import { RelatedTransactionsList } from "../../components/RelatedTransactionsList";
 import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
@@ -11,12 +12,11 @@ import { GroupCategoriesSection } from "./components/GroupCategoriesSection";
 import { GroupHeader } from "./components/GroupHeader";
 import { GroupMembersSection } from "./components/GroupMembersSection";
 import { GroupSummarySection } from "./components/GroupSummarySection";
-import { GroupTransactionsSection } from "./components/GroupTransactionsSection";
 import { useGroupCategoryManagement } from "./hooks/useGroupCategoryManagement";
 import { useGroupForm } from "./hooks/useGroupForm";
 import { useGroupManagement } from "./hooks/useGroupManagement";
 
-/** Group Form View at `/groups/:id`: tabs General (name/description, summary, transactions), Members and Categories; members and categories lists save immediately. Non-member, unknown or malformed ids all show the same not-found state. */
+/** Group Form View at `/groups/:id`: tabs General (name/description, summary), Members, Related transactions and Categories; members and categories lists save immediately. Non-member, unknown or malformed ids all show the same not-found state. */
 export function GroupDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
@@ -70,7 +70,6 @@ export function GroupDetailPage() {
               group.summary ?? { totalIncome: 0, totalExpenses: 0, balance: 0 }
             }
           />
-          <GroupTransactionsSection transactions={group.transactions} />
         </div>
       )
     },
@@ -91,9 +90,19 @@ export function GroupDetailPage() {
       content: (
         <GroupCategoriesSection
           groupId={group.id}
-          canManage={canManage}
           canManageActive={canManageActive}
           categoryManagement={categoryManagement}
+        />
+      )
+    },
+    {
+      id: "related",
+      label: "Related transactions",
+      content: (
+        <RelatedTransactionsList
+          key={group.id}
+          scope={{ field: "groupId", value: group.id }}
+          emptyText="No transactions for this group yet."
         />
       )
     }
