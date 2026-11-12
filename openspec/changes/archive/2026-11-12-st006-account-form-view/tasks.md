@@ -30,8 +30,8 @@
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass.
-- [ ] 5.2 Browser check at 375px and desktop: open, edit, save, discard, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom.
-- [ ] 5.3 Update `docs/KNOWN_ISSUES.md` only if this change surfaces or closes an item.
+- [x] 5.2 Browser check at 375px and desktop: open, edit, save, discard, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom. (Covered by the owner's approved manual review on staging, 2026-11-12.)
+- [x] 5.3 Update `docs/KNOWN_ISSUES.md` only if this change surfaces or closes an item. (KNOWN_ISSUES #044 updated by `b004-list-pagination`; nothing else surfaced.)
 
 ## 7. Shared related list
 

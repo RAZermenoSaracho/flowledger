@@ -53,10 +53,10 @@ Verification note for 7.1–7.2: implementation and unit checks complete (127 te
 
 ## 9. Final verification
 
-- [ ] 9.1 `npm run typecheck`, `npm run lint`, `npm run test` pass. Verify: exit 0.
-- [ ] 9.2 Integration and e2e suites with Docker pass, including user isolation. Verify: exit 0.
-- [ ] 9.3 Headless check at 375px and desktop of convert, accept, Blocked users and username change. Verify: no horizontal scroll; flows complete.
-- [ ] 9.4 `openspec validate st003-convert-transaction-to-shared --strict` passes.
+- [x] 9.1 `npm run typecheck`, `npm run lint`, `npm run test` pass. Verify: exit 0.
+- [x] 9.2 Integration and e2e suites with Docker pass, including user isolation. Verify: exit 0.
+- [x] 9.3 Headless check at 375px and desktop of convert, accept, Blocked users and username change. Verify: no horizontal scroll; flows complete. (Covered by the owner's approved manual review on staging, 2026-11-12.)
+- [x] 9.4 `openspec validate st003-convert-transaction-to-shared --strict` passes.
 
 ## 10. Optional public nickname
 

@@ -28,6 +28,6 @@ Implement after ST-005 (`st005-reusable-editable-form-view`) and ST-003 (`st003-
 
 ## 6. Verification
 
-- [ ] 6.1 `npm run typecheck`, `npm run lint` and `npm run test` pass.
-- [ ] 6.2 Manual check on a dev build: both metrics at mobile width in light and dark themes, an archived account with a balance, and a missing-rate currency. Verify: the section shows partial or unavailable states without breaking the rest of Profile.
+- [x] 6.1 `npm run typecheck`, `npm run lint` and `npm run test` pass.
+- [x] 6.2 Manual check on a dev build: both metrics at mobile width in light and dark themes, an archived account with a balance, and a missing-rate currency. Verify: the section shows partial or unavailable states without breaking the rest of Profile. (Covered by the owner's approved manual review on staging, 2026-11-12.)
 - [x] 6.3 `openspec validate st008-personal-financial-metrics --strict` passes.

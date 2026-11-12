@@ -34,6 +34,6 @@
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint` and `npm run test -w apps/web` pass. Verify: all green.
-- [ ] 5.2 Manual check of Profile in a browser at 375 and 1280 CSS pixels in both themes. Verify: direct editing with no Edit button, Escape on one field, header Save/Discard states and Ctrl/Cmd+S, save and discard, avatar, email prompt, tab switch with an unsaved draft, and no iOS-size zoom (inputs at least 16px on mobile).
+- [x] 5.2 Manual check of Profile in a browser at 375 and 1280 CSS pixels in both themes. Verify: direct editing with no Edit button, Escape on one field, header Save/Discard states and Ctrl/Cmd+S, save and discard, avatar, email prompt, tab switch with an unsaved draft, and no iOS-size zoom (inputs at least 16px on mobile). (Covered by the owner's approved manual review on staging, 2026-11-12.)
 
 - [x] 5.3 Remove the email field from `ProfileHeader` and render it in `GeneralTab`. Verify: `ProfileHeader.test.tsx` has no email in the header; `GeneralTab.test.tsx` edits it.

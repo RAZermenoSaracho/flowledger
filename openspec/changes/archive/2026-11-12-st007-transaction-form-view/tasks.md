@@ -34,4 +34,4 @@ Tests follow `docs/TESTING.md`: `tests/` folder beside each source file, same ba
 ## 5. Verification
 
 - [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass; new exports have TSDoc. Verify: exit 0.
-- [ ] 5.2 `openspec validate st007-transaction-form-view --strict` passes.
+- [x] 5.2 `openspec validate st007-transaction-form-view --strict` passes.
