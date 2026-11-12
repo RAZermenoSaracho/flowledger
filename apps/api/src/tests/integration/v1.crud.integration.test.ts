@@ -303,7 +303,7 @@ describe("/v1 CRUD integration", () => {
       const expense = await prisma.sharedExpense.create({ data: {
         transactionId: tx.id, ownerUserId: a.userId, title: "Shared", totalAmount: 5 } });
       const participant = await prisma.sharedExpenseParticipant.create({ data: {
-        sharedExpenseId: expense.id, userId: b.userId, participantName: "B", shareAmount: 5 } });
+        sharedExpenseId: expense.id, userId: b.userId, participantName: "B", shareAmount: "5" } });
       const settlement = await prisma.settlementRequest.create({ data: {
         sharedExpenseParticipantId: participant.id, debtorUserId: b.userId, creditorUserId: a.userId, amount: 5 } });
       return { tx, expense, participant, settlement };

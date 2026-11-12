@@ -48,7 +48,7 @@ function mockBaseline() {
 describe("DashboardPage", () => {
   it("renders zeroed metrics before the summary query resolves", () => {
     mockBaseline();
-    renderWithProviders(<DashboardPage />);
+    renderWithProviders(<DashboardPage />, { withAuth: true });
 
     expect(screen.getByText("Total income")).toBeInTheDocument();
     expect(screen.getAllByText("$0.00").length).toBeGreaterThan(0);
@@ -56,15 +56,29 @@ describe("DashboardPage", () => {
 
   it("renders summary metrics once loaded", async () => {
     mockBaseline();
-    renderWithProviders(<DashboardPage />);
+    renderWithProviders(<DashboardPage />, { withAuth: true });
 
     await waitFor(() => expect(screen.getByText("Total income").parentElement).toHaveTextContent("$1,000.00"));
     expect(screen.getByText("$600.00")).toBeInTheDocument();
   });
 
+  it("formats metrics in the viewer's preferred currency", async () => {
+    mockBaseline();
+    server.use(
+      http.post(`${API_URL}/auth/refresh`, () =>
+        HttpResponse.json({ token: "tok", user: { id: "u1", preferredCurrency: "MXN" } })
+      )
+    );
+    renderWithProviders(<DashboardPage />, { withAuth: true });
+
+    await waitFor(() =>
+      expect(screen.getByText("Total income").parentElement).toHaveTextContent("MX$1,000.00")
+    );
+  });
+
   it("renders recent transactions with income/expense styling", async () => {
     mockBaseline();
-    renderWithProviders(<DashboardPage />);
+    renderWithProviders(<DashboardPage />, { withAuth: true });
 
     await waitFor(() => expect(screen.getByText("Paycheck")).toBeInTheDocument());
     expect(screen.getByText("Groceries")).toBeInTheDocument();
@@ -97,7 +111,7 @@ describe("DashboardPage", () => {
       http.get(`${API_URL}/transactions`, () => HttpResponse.json({ data: [], meta: {} }))
     );
 
-    renderWithProviders(<DashboardPage />);
+    renderWithProviders(<DashboardPage />, { withAuth: true });
 
     await waitFor(() => expect(screen.getByText("Recent activity")).toBeInTheDocument());
     expect(screen.queryByText("Paycheck")).not.toBeInTheDocument();
@@ -115,7 +129,7 @@ describe("DashboardPage", () => {
           return HttpResponse.json({ cashflow: [], currency: "USD" });
         })
       );
-      renderWithProviders(<DashboardPage />);
+      renderWithProviders(<DashboardPage />, { withAuth: true });
 
       await waitFor(() => expect(timeZone).toBe("Pacific/Kiritimati"));
     } finally {

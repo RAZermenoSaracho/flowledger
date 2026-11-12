@@ -7,14 +7,16 @@ import { searchUsers } from "../../../services/users.client";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft } from "../types/sharedExpenses.types";
+import { compare, isNonZero, subtract, sum } from "../../../utils/money";
 import { formatPublicUser } from "../../../utils/publicUser";
 
-function participantStatus(shareAmount: string, paidAmount: string) {
-  const share = Number(shareAmount);
-  const paid = Number(paidAmount);
-
-  if (paid >= share) return "paid";
-  if (paid > 0) return "partial";
+function participantStatus(
+  shareAmount: string,
+  paidAmount: string,
+  currency: string
+): "pending" | "partial" | "paid" {
+  if (compare(paidAmount, shareAmount, currency) >= 0) return "paid";
+  if (isNonZero(paidAmount)) return "partial";
   return "pending";
 }
 
@@ -43,15 +45,28 @@ export function useSharedExpenseForm() {
   const selectedTransaction = (transactionsQuery.data ?? []).find(
     (transaction) => transaction.id === transactionId
   );
-  const toCents = (value: string | number) => Math.round(Number(value || 0) * 100);
-  const participantShareTotal =
-    participants.reduce((sum, participant) => sum + toCents(participant.shareAmount), 0) / 100;
-  const remainingAmount = selectedTransaction
-    ? (toCents(selectedTransaction.amount) - toCents(participantShareTotal)) / 100
-    : 0;
-  const sharesExceedTransactionAmount = Boolean(
-    selectedTransaction && remainingAmount < 0
+  const currency = selectedTransaction?.executionCurrency ?? "USD";
+  const participantShareTotal = sum(
+    participants.map((participant) => participant.shareAmount),
+    currency
   );
+  const sharesExceedTransactionAmount = Boolean(
+    selectedTransaction && compare(participantShareTotal, selectedTransaction.amount, currency) > 0
+  );
+  const remainingAmount = selectedTransaction
+    ? subtract(selectedTransaction.amount, participantShareTotal, currency)
+    : "0";
+  const participantInputs = () =>
+    participants.map((participant) => {
+      const paidAmount = participant.paidAmount.trim() || "0";
+      return {
+        userId: participant.userId ?? null,
+        participantName: participant.participantName,
+        shareAmount: participant.shareAmount.trim(),
+        paidAmount,
+        status: participantStatus(participant.shareAmount.trim() || "0", paidAmount, currency)
+      };
+    });
 
   async function refreshAfterSave() {
     closeForm();
@@ -66,16 +81,7 @@ export function useSharedExpenseForm() {
         transactionId,
         title,
         status,
-        participants: participants.map((participant) => ({
-          userId: participant.userId ?? null,
-          participantName: participant.participantName,
-          shareAmount: Number(participant.shareAmount),
-          paidAmount: Number(participant.paidAmount),
-          status: participantStatus(
-            participant.shareAmount,
-            participant.paidAmount
-          )
-        }))
+        participants: participantInputs()
       }),
     onSuccess: refreshAfterSave
   });
@@ -85,16 +91,7 @@ export function useSharedExpenseForm() {
         transactionId,
         title,
         status,
-        participants: participants.map((participant) => ({
-          userId: participant.userId ?? null,
-          participantName: participant.participantName,
-          shareAmount: Number(participant.shareAmount),
-          paidAmount: Number(participant.paidAmount),
-          status: participantStatus(
-            participant.shareAmount,
-            participant.paidAmount
-          )
-        }))
+        participants: participantInputs()
       }),
     onSuccess: refreshAfterSave
   });
@@ -191,8 +188,8 @@ export function useSharedExpenseForm() {
         userId: participant.userId,
         participantName: participant.participantName,
         source: participant.userId ? "app" : "manual",
-        shareAmount: String(participant.shareAmount),
-        paidAmount: String(participant.paidAmount)
+        shareAmount: participant.shareAmount,
+        paidAmount: participant.paidAmount
       }))
     );
     setIsFormOpen(true);

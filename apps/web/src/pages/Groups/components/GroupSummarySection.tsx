@@ -1,12 +1,11 @@
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD"
-});
+import { formatMoney } from "../../../utils/currency";
 
-/** Income/expense/balance summary tiles for a group. */
+/** Income/expense/balance summary tiles for a group, formatted in `currency` (the viewer's preferred currency). */
 export function GroupSummarySection({
-  summary
+  summary,
+  currency
 }: {
+  currency: string;
   summary: { totalIncome: number; totalExpenses: number; balance: number };
 }) {
   return (
@@ -18,7 +17,7 @@ export function GroupSummarySection({
             Total income
           </p>
           <p className="mt-2 break-words text-xl font-bold text-pine dark:text-emerald-300 sm:text-2xl">
-            {money.format(summary.totalIncome)}
+            {formatMoney(summary.totalIncome, currency)}
           </p>
         </div>
         <div className="rounded-md bg-slate-50 p-4 dark:bg-slate-950">
@@ -26,7 +25,7 @@ export function GroupSummarySection({
             Total expenses
           </p>
           <p className="mt-2 break-words text-xl font-bold text-coral dark:text-orange-300 sm:text-2xl">
-            {money.format(summary.totalExpenses)}
+            {formatMoney(summary.totalExpenses, currency)}
           </p>
         </div>
         <div className="rounded-md bg-slate-50 p-4 dark:bg-slate-950">
@@ -40,7 +39,7 @@ export function GroupSummarySection({
                 : "text-coral dark:text-orange-300"
             }`}
           >
-            {money.format(summary.balance)}
+            {formatMoney(summary.balance, currency)}
           </p>
         </div>
       </div>

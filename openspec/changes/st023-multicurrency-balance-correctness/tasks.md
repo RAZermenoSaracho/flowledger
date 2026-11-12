@@ -75,3 +75,17 @@ Start implementation only after `/opsx:apply` is authorized. Do not run any step
 - [x] 9.2 Run the end-to-end check with the full suite (`npm run test`, Docker VM) and one e2e journey: create a USD to MXN transfer, edit the received amount (one correction row), delete it (deletion row remains), and check that a BTC 18-decimal round trip leaves balances exact. Verify: the suite is green.
 - [x] 9.3 **APPROVAL R (local staging):** reset `flowledger_staging` with the design's Migration Plan step 5 script. Verify: step 6 checks pass on staging.
 - [ ] 9.4 **APPROVAL release, plus F or R for production:** follow Migration Plan steps 1 to 7 in order (backup, before-snapshot, migrate and restart through the deploy script, R if chosen, verify). Verify: the step 6 results and the dump location are recorded in the release notes.
+
+## 10. Unified monetary precision
+
+- [x] 10.1 Add the second additive migration widening every money and rate column to `Decimal(38,18)` (D11) and update `schema.prisma`. Verify: SQL holds only `ALTER COLUMN ... TYPE`, and applies cleanly to a testcontainers database.
+- [x] 10.2 Configure `Prisma.Decimal` once (precision 50, `ROUND_HALF_UP`). Verify: a regression test shows `100 + 1.234567890123456789` equals `101.234567890123456789`.
+- [x] 10.3 Update the shared regex and precision to 20 integer digits and remove `isShareableCurrency` and its guards. Verify: `schemas/tests/common.test.ts` accepts 20 and rejects 21 integer digits, and BTC and KWD sharing is accepted.
+- [x] 10.4 Rewrite API sharing, debt, settlement, `personBalances` and `moneyText` on `Decimal` with largest-remainder allocation. Verify: service tests for 100.00 MXN / 3, 0.01 BTC / 3 and an exact 1 ETH settlement.
+- [x] 10.5 Add `shareAmount`, `paidAmount`, `totalAmount` and `outstandingAmount` to the `serialize` native keys. Verify in `serialize.test.ts`.
+- [x] 10.6 Update the MCP schemas and descriptions and `docs/PUBLIC_API.md` for decimal-string share, paid, total and outstanding amounts and crypto sharing. Verify by docs review.
+- [x] 10.7 Add web `utils/money.ts` on BigInt minor units (parse, add, subtract, compare, allocate, format). Verify: `utils/tests/money.test.ts` covers fiat, 18-decimal and remainder cases.
+- [x] 10.8 Replace every web float site with `money.ts`: `transactionDraftReducers` (`toShare`, `splitAmongGroup`, `splitEqually`), `sumParticipantShares`, the `TransactionSharingTab` footer, `transactionValidation` over-allocation, `transactionSave` `Number(share)`, `useSharedExpenseForm` cents, `debtDisplay` `availableSettlementAmount`, `useDebtSettlementWorkflow`, `PersonDebtDetail` `selectedBatchTotal`, `crossCurrencyRecord` and `currency.ts` `suggestAmount`. Verify: each file's tests pass and a grep finds no `Number(` or float math on money.
+- [x] 10.9 Make the group summary convert per currency to the preferred currency, and replace the hard-coded USD formatters in Dashboard and Group summary. Verify: component and service tests with mixed currencies and a non-USD preference.
+- [x] 10.10 Add regression tests for fiat, BTC, ETH, remainders, settlements, balances and serialization. Verify: `npm run test` is green.
+- [ ] 10.11 Verify on local staging: apply the second migration and repeat the step 6 checks. Verify: balances unchanged and a BTC share round trip is exact.

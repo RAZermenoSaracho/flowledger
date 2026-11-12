@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 
-/** Looks up the execution-to-preferred rate and values `amount` (a decimal string, number or Decimal) in the preferred currency; valuation only, never used for native balances. */
+/** Looks up the execution-to-preferred rate and values `amount` (a decimal string, number or Decimal) in the preferred currency as an exact `Decimal` rounded half-up to that currency's minor units; valuation only, never used for native balances. */
 export async function resolveTransactionCurrencyFields(input: {
   executionCurrency: string;
   amount: Prisma.Decimal.Value;
@@ -18,7 +18,7 @@ export async function resolveTransactionCurrencyFields(input: {
   return {
     executionCurrency,
     exchangeRate,
-    amountInPreferredCurrency: roundMoney(new Prisma.Decimal(input.amount).toNumber() * exchangeRate)
+    amountInPreferredCurrency: valueInCurrency(input.amount, exchangeRate, preferredCurrency)
   };
 }
 

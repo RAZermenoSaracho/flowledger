@@ -1,0 +1,24 @@
+-- AlterTable
+ALTER TABLE "Account" ALTER COLUMN "initialBalance" SET DATA TYPE DECIMAL(38,18);
+
+-- AlterTable
+ALTER TABLE "ProviderImportedTransaction" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(38,18);
+
+-- AlterTable
+ALTER TABLE "SettlementRequest" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "debtorAccountAmount" SET DATA TYPE DECIMAL(38,18);
+
+-- AlterTable
+ALTER TABLE "SharedExpense" ALTER COLUMN "totalAmount" SET DATA TYPE DECIMAL(38,18);
+
+-- AlterTable
+ALTER TABLE "SharedExpenseParticipant" ALTER COLUMN "shareAmount" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "paidAmount" SET DATA TYPE DECIMAL(38,18);
+
+-- AlterTable
+ALTER TABLE "Transaction" ALTER COLUMN "amount" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "amountInPreferredCurrency" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "exchangeRate" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "accountAmount" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "destinationAmount" SET DATA TYPE DECIMAL(38,18),
+ALTER COLUMN "feeAmount" SET DATA TYPE DECIMAL(38,18);

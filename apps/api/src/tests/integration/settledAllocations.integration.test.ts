@@ -91,8 +91,8 @@ describe("settled allocations and additional allocation lines", () => {
     transactionId = created.body.transaction.id;
 
     const shared = await putSharing(owner, transactionId, [
-      { userId: ana.user.id, share: 1200 },
-      { userId: carlos.user.id, share: 800 }
+      { userId: ana.user.id, share: "1200" },
+      { userId: carlos.user.id, share: "800" }
     ]);
     expect(shared.status).toBe(200);
     sharedExpenseId = (await prisma.sharedExpense.findUniqueOrThrow({ where: { transactionId } })).id;
@@ -110,18 +110,18 @@ describe("settled allocations and additional allocation lines", () => {
 
   it("refuses to edit or remove the settled allocation but lets Carlos's share change", async () => {
     const edit = await putSharing(owner, transactionId, [
-      { id: anaLine1, userId: ana.user.id, share: 1300 },
-      { id: carlosLine, userId: carlos.user.id, share: 800 }
+      { id: anaLine1, userId: ana.user.id, share: "1300" },
+      { id: carlosLine, userId: carlos.user.id, share: "800" }
     ]);
     expect(edit.status).toBe(400);
     expect(edit.body.message ?? JSON.stringify(edit.body)).toContain("fully settled");
 
-    const removal = await putSharing(owner, transactionId, [{ id: carlosLine, userId: carlos.user.id, share: 800 }]);
+    const removal = await putSharing(owner, transactionId, [{ id: carlosLine, userId: carlos.user.id, share: "800" }]);
     expect(removal.status).toBe(400);
 
     const carlosEdit = await putSharing(owner, transactionId, [
-      { id: anaLine1, userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 }
+      { id: anaLine1, userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" }
     ]);
     expect(carlosEdit.status).toBe(200);
     expect((await rows(sharedExpenseId, carlos.user.id))[0]).toMatchObject({ acceptance: "accepted" });
@@ -130,24 +130,24 @@ describe("settled allocations and additional allocation lines", () => {
 
   it("adds an additional line for Ana as proposed, and she rejects only that line through /v1", async () => {
     const withoutId = await putSharing(owner, transactionId, [
-      { userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 }
+      { userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" }
     ]);
     expect(withoutId.status).toBe(200);
     expect(await rows(sharedExpenseId, ana.user.id)).toHaveLength(1);
 
     const added = await putSharing(owner, transactionId, [
-      { id: anaLine1, userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 },
-      { userId: ana.user.id, share: 300 }
+      { id: anaLine1, userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" },
+      { userId: ana.user.id, share: "300" }
     ]);
     expect(added.status).toBe(200);
     const [, line2] = await rows(sharedExpenseId, ana.user.id);
     expect(line2).toMatchObject({ acceptance: "proposed", status: "pending" });
 
     const ambiguous = await putSharing(owner, transactionId, [
-      { userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 }
+      { userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" }
     ]);
     expect(ambiguous.status).toBe(400);
 
@@ -167,14 +167,14 @@ describe("settled allocations and additional allocation lines", () => {
 
   it("re-adds the line after removing the rejected one and counts only 300 once Ana accepts through MCP", async () => {
     const removed = await putSharing(owner, transactionId, [
-      { id: anaLine1, userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 }
+      { id: anaLine1, userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" }
     ]);
     expect(removed.status).toBe(200);
     const readded = await putSharing(owner, transactionId, [
-      { id: anaLine1, userId: ana.user.id, share: 1200 },
-      { id: carlosLine, userId: carlos.user.id, share: 700 },
-      { userId: ana.user.id, share: 300 }
+      { id: anaLine1, userId: ana.user.id, share: "1200" },
+      { id: carlosLine, userId: carlos.user.id, share: "700" },
+      { userId: ana.user.id, share: "300" }
     ]);
     expect(readded.status).toBe(200);
     const [, line2] = await rows(sharedExpenseId, ana.user.id);
@@ -191,8 +191,8 @@ describe("settled allocations and additional allocation lines", () => {
     await client.close();
 
     const debts = await as(ana, request(app).get("/debts"));
-    const outstanding = debts.body.iOwe.map((d: { outstandingAmount: number }) => d.outstandingAmount);
-    expect(outstanding.filter((amount: number) => amount > 0)).toEqual([300]);
+    const outstanding = debts.body.iOwe.map((d: { outstandingAmount: string }) => d.outstandingAmount);
+    expect(outstanding.filter((amount: string) => Number(amount) > 0)).toEqual(["300"]);
   });
 
   it("refuses a settlement request or direct settle on the settled line", async () => {

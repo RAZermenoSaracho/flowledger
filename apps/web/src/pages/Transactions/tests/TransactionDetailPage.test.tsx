@@ -219,7 +219,7 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 42.5,
+      totalAmount: "42.5",
       status: "open",
       participants: [
         {
@@ -227,8 +227,8 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
           userId: "user-2",
           participantName: "@sam",
           currency: "USD",
-          shareAmount: 20,
-          paidAmount: 10,
+          shareAmount: "20",
+          paidAmount: "10",
           status: "partial",
           acceptance: "accepted"
         },
@@ -237,8 +237,8 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
           userId: "user-3",
           participantName: "@kim",
           currency: "USD",
-          shareAmount: 10,
-          paidAmount: 0,
+          shareAmount: "10",
+          paidAmount: "0",
           status: "pending",
           acceptance: "proposed"
         }
@@ -963,8 +963,8 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
       sharedExpense: {
         enabled: true,
         participants: [
-          { userId: "user-9", share: 10 },
-          { manualName: "Pat", share: 5 }
+          { userId: "user-9", share: "10" },
+          { manualName: "Pat", share: "5" }
         ]
       }
     });
@@ -1008,7 +1008,7 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
       sharedExpense: {
         enabled: true,
         title: "Dinner split",
-        participants: [{ id: "p1", userId: "user-2", share: 25 }]
+        participants: [{ id: "p1", userId: "user-2", share: "25" }]
       }
     });
   });
@@ -1018,7 +1018,7 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     const refreshed = sharedTransaction();
     refreshed.sharedExpense!.participants[0] = {
       ...refreshed.sharedExpense!.participants[0]!,
-      shareAmount: 25,
+      shareAmount: "25",
       acceptance: "proposed"
     };
     let saved = false;
@@ -1058,8 +1058,8 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
             userId: "user-3",
             participantName: "@kim",
             currency: "USD",
-            shareAmount: 10,
-            paidAmount: 0,
+            shareAmount: "10",
+            paidAmount: "0",
             status: "pending",
             acceptance: "proposed"
           }
@@ -1341,8 +1341,8 @@ describe("TransactionDetailPage (new draft)", () => {
       {
         userId: "user-2",
         participantName: "Sam (@sam)",
-        shareAmount: 50,
-        paidAmount: 0,
+        shareAmount: "50.00",
+        paidAmount: "0",
         status: "pending"
       }
     ]);

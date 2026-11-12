@@ -68,8 +68,8 @@ export function buildCreateBody(draft: TransactionDraft): Record<string, unknown
       participants: draft.participants.map((participant) => ({
         userId: participant.userId ?? null,
         participantName: participant.participantName,
-        shareAmount: Number(participant.shareAmount),
-        paidAmount: 0,
+        shareAmount: participant.shareAmount.trim(),
+        paidAmount: "0",
         status: "pending"
       }))
     };
@@ -95,7 +95,7 @@ export function buildSharedExpenseUpdate(draft: TransactionDraft): Record<string
       ...(participant.userId
         ? { userId: participant.userId }
         : { manualName: participant.participantName }),
-      share: Number(participant.shareAmount)
+      share: participant.shareAmount.trim()
     }))
   };
 }

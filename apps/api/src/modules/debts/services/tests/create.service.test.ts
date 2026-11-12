@@ -30,8 +30,8 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     id: "debt-1",
     userId: "user-1",
     currency: "USD",
-    shareAmount: { toNumber: () => 100 },
-    paidAmount: { toNumber: () => 0 },
+    shareAmount: new Prisma.Decimal("100"),
+    paidAmount: new Prisma.Decimal("0"),
     acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
@@ -83,8 +83,8 @@ describe("createSettlementRequest", () => {
   it("throws a 400 when the debt is already settled", async () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow({
-        shareAmount: { toNumber: () => 100 },
-        paidAmount: { toNumber: () => 100 }
+        shareAmount: new Prisma.Decimal("100"),
+        paidAmount: new Prisma.Decimal("100")
       }) as never
     );
     assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
@@ -164,9 +164,10 @@ describe("createSettlementRequest", () => {
       id: "sr-1",
       creditorUserId: "owner-1",
       debtor: { name: "User One" },
-      amount: { toNumber: () => 50 },
+      amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: "USD",
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }
@@ -205,22 +206,19 @@ describe("createSettlementRequest currencies", () => {
       amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: debtCurrency,
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }
     } as never);
   }
 
-  it.each(["BTC", "KWD"])("rejects a %s debt as not shareable", async (currency) => {
+  it.each(["BTC", "KWD"])("accepts a %s debt with valid precision", async (currency) => {
     setup(currency, currency);
-
-    await expect(createSettlementRequest("user-1", "debt-1", body)).rejects.toMatchObject({
-      statusCode: 400,
-      message: "Sharing is only supported for fiat currencies with up to 2 decimals"
-    });
+    await expect(createSettlementRequest("user-1", "debt-1", body)).resolves.toMatchObject({ id: "sr-1" });
   });
 
-  it("rejects a non-shareable account currency", async () => {
+  it("requires accountAmount for a cross-currency account", async () => {
     setup("USD", "BTC");
 
     await expect(createSettlementRequest("user-1", "debt-1", body)).rejects.toMatchObject({
@@ -275,9 +273,10 @@ describe("createBatchSettlementRequests", () => {
       id: "sr-1",
       creditorUserId: "owner-1",
       debtor: { name: "User One" },
-      amount: { toNumber: () => 50 },
+      amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: "USD",
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }

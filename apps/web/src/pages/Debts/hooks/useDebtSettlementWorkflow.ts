@@ -10,6 +10,7 @@ import type {
   SettlementDraft
 } from "../types/debts.types";
 import { amountPrecisionError } from "../../../utils/currency";
+import { compare, isPositive } from "../../../utils/money";
 import { availableSettlementAmount } from "../utils/debtDisplay";
 
 /** State and handlers for creating settlement requests and approving/rejecting incoming ones. */
@@ -242,7 +243,7 @@ export function useDebtSettlementWorkflow({
         ? debt.sharedExpense.transaction.categoryId
         : "";
     return {
-      amount: String(availableSettlementAmount(debt)),
+      amount: availableSettlementAmount(debt),
       accountAmount: "",
       accountId: accounts[0]?.id ?? "",
       categoryId: originalCategoryId || (privateExpenseCategories[0]?.id ?? ""),
@@ -257,17 +258,15 @@ export function useDebtSettlementWorkflow({
 
   function isSettlementDraftComplete(debt: Debt) {
     const draft = draftFor(debt);
-    const amount = Number(draft.amount);
     const accountCurrency = accounts.find((account) => account.id === draft.accountId)?.currency;
     const accountAmountOk =
       !accountCurrency ||
       accountCurrency === debt.currency ||
-      (Number(draft.accountAmount) > 0 && !amountPrecisionError(draft.accountAmount, accountCurrency));
+      (isPositive(draft.accountAmount, accountCurrency) && !amountPrecisionError(draft.accountAmount, accountCurrency));
     return (
       accountAmountOk &&
-      Number.isFinite(amount) &&
-      amount > 0 &&
-      amount <= availableSettlementAmount(debt) &&
+      isPositive(draft.amount, debt.currency) &&
+      compare(draft.amount, availableSettlementAmount(debt), debt.currency) <= 0 &&
       Boolean(draft.accountId) &&
       Boolean(draft.categoryId)
     );

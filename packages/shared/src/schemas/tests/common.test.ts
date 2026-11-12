@@ -6,11 +6,12 @@ import {
   decimalAmountSchema,
   decimalPlaces,
   exceedsCurrencyPrecision,
-  isShareableCurrency,
   dateStringSchema,
   idSchema,
   listPaginationSchema,
   moneySchema,
+  nonNegativeDecimalAmountSchema,
+  positiveDecimalAmountSchema,
   optionalArraySchema,
   optionalDateStringSchema,
   paginationQuerySchema,
@@ -174,9 +175,10 @@ describe("decimalAmountSchema", () => {
   it("passes an 18-decimal string unchanged", () => {
     expect(decimalAmountSchema.parse("1.234567890123456789")).toBe("1.234567890123456789");
     expect(decimalAmountSchema.parse("-12")).toBe("-12");
+    expect(decimalAmountSchema.parse("12345678901234567890.123456789012345678")).toBe("12345678901234567890.123456789012345678");
   });
 
-  it.each([4.5, "1e-7", "abc", "1234567890123", "1.1234567890123456789", "", ".5", "5."])(
+  it.each([4.5, "1e-7", "abc", "123456789012345678901", "1.1234567890123456789", "", ".5", "5."])(
     "rejects %s",
     (value) => {
       expect(decimalAmountSchema.safeParse(value).success).toBe(false);
@@ -195,17 +197,6 @@ describe("currencyFractionDigits", () => {
   });
 });
 
-describe("isShareableCurrency", () => {
-  it.each([
-    ["MXN", true],
-    ["JPY", true],
-    ["KWD", false],
-    ["BTC", false]
-  ])("%s is %s", (code, expected) => {
-    expect(isShareableCurrency(code)).toBe(expected);
-  });
-});
-
 describe("decimalPlaces", () => {
   it("counts fraction digits", () => {
     expect(decimalPlaces("3")).toBe(0);
@@ -219,10 +210,22 @@ describe("exceedsCurrencyPrecision", () => {
     ["1.505", "USD", true],
     ["1.5", "JPY", true],
     ["1.123456789012345678", "BTC", false],
-    ["123456789012", "USD", false],
-    ["1234567890123", "USD", true],
-    ["-1234567890123", "USD", true]
+    ["12345678901234567890", "USD", false],
+    ["123456789012345678901", "USD", true],
+    ["-123456789012345678901", "USD", true]
   ])("%s in %s is %s", (value, currency, expected) => {
     expect(exceedsCurrencyPrecision(value, currency)).toBe(expected);
+  });
+});
+
+describe("positive/non-negative decimal amount schemas", () => {
+  it("judges sign by digits, exact for crypto-sized values", () => {
+    expect(positiveDecimalAmountSchema.safeParse("0.000000000000000001").success).toBe(true);
+    expect(positiveDecimalAmountSchema.safeParse("0.000").success).toBe(false);
+    expect(positiveDecimalAmountSchema.safeParse("-1").success).toBe(false);
+    expect(positiveDecimalAmountSchema.safeParse(1).success).toBe(false);
+    expect(nonNegativeDecimalAmountSchema.safeParse("0").success).toBe(true);
+    expect(nonNegativeDecimalAmountSchema.safeParse("-0").success).toBe(true);
+    expect(nonNegativeDecimalAmountSchema.safeParse("-0.5").success).toBe(false);
   });
 });

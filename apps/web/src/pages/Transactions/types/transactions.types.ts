@@ -15,7 +15,7 @@ export type TransactionsTab = "transactions" | "imported";
 export type ParticipantDraft = {
   draftId: string;
   id?: string;
-  paidAmount?: number;
+  paidAmount?: string;
   status?: ParticipantStatus;
   acceptance?: ShareAcceptance;
   userId?: string | null;

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -18,8 +19,8 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     id: "debt-1",
     userId: participant.id,
     participantName: participant.name,
-    shareAmount: { toNumber: () => 100 },
-    paidAmount: { toNumber: () => 0 },
+    shareAmount: new Prisma.Decimal("100"),
+    paidAmount: new Prisma.Decimal("0"),
     acceptance: "accepted",
     currency: "USD",
     sharedExpense: {
@@ -126,8 +127,8 @@ describe("listDebts", () => {
     setupBaseMocks();
     prismaMock.sharedExpenseParticipant.findMany.mockResolvedValue([
       debtRow({
-        shareAmount: { toNumber: () => 100 },
-        paidAmount: { toNumber: () => 100 }
+        shareAmount: new Prisma.Decimal("100"),
+        paidAmount: new Prisma.Decimal("100")
       })
     ] as never);
 

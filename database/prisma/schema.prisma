@@ -207,7 +207,7 @@ model Account {
   type                            AccountType
   identifier                      String?
   currency                        String            @default("USD")
-  initialBalance                  Decimal           @default(0) @db.Decimal(30, 18)
+  initialBalance                  Decimal           @default(0) @db.Decimal(38, 18)
   isArchived                      Boolean           @default(false)
   archivedAt                      DateTime?
   createdAt                       DateTime          @default(now())
@@ -257,14 +257,14 @@ model Transaction {
   id                          String                       @id @default(cuid())
   userId                      String
   name                        String
-  amount                      Decimal                      @db.Decimal(30, 18)
-  accountAmount               Decimal?                     @db.Decimal(30, 18)
-  destinationAmount           Decimal?                     @db.Decimal(30, 18)
-  feeAmount                   Decimal?                     @db.Decimal(30, 18)
+  amount                      Decimal                      @db.Decimal(38, 18)
+  accountAmount               Decimal?                     @db.Decimal(38, 18)
+  destinationAmount           Decimal?                     @db.Decimal(38, 18)
+  feeAmount                   Decimal?                     @db.Decimal(38, 18)
   feeCurrency                 String?
   executionCurrency           String                       @default("USD")
-  exchangeRate                Decimal                      @default(1) @db.Decimal(20, 8)
-  amountInPreferredCurrency   Decimal                      @db.Decimal(12, 2)
+  exchangeRate                Decimal                      @default(1) @db.Decimal(38, 18)
+  amountInPreferredCurrency   Decimal                      @db.Decimal(38, 18)
   type                        TransactionType
   date                        DateTime
   categoryId                  String?
@@ -364,7 +364,7 @@ model SharedExpense {
   transactionId String                     @unique
   ownerUserId   String
   title         String
-  totalAmount   Decimal                    @db.Decimal(12, 2)
+  totalAmount   Decimal                    @db.Decimal(38, 18)
   status        SharedExpenseStatus        @default(open)
   createdAt     DateTime                   @default(now())
   updatedAt     DateTime                   @updatedAt
@@ -381,8 +381,8 @@ model SharedExpenseParticipant {
   userId             String?
   participantName    String
   currency           String              @default("USD")
-  shareAmount        Decimal             @db.Decimal(12, 2)
-  paidAmount         Decimal             @default(0) @db.Decimal(12, 2)
+  shareAmount        Decimal             @db.Decimal(38, 18)
+  paidAmount         Decimal             @default(0) @db.Decimal(38, 18)
   status             ParticipantStatus   @default(pending)
   acceptance         ShareAcceptance     @default(proposed)
   createdAt          DateTime            @default(now())
@@ -400,12 +400,12 @@ model SettlementRequest {
   sharedExpenseParticipantId String
   debtorUserId               String
   creditorUserId             String
-  amount                     Decimal                  @db.Decimal(12, 2)
+  amount                     Decimal                  @db.Decimal(38, 18)
   status                     SettlementStatus         @default(pending)
   note                       String?
   paymentInfo                String?
   debtorAccountId            String?
-  debtorAccountAmount        Decimal?                 @db.Decimal(30, 18)
+  debtorAccountAmount        Decimal?                 @db.Decimal(38, 18)
   debtorCategoryId           String?
   creditorAccountId          String?
   creditorCategoryId         String?
@@ -521,7 +521,7 @@ model ProviderImportedTransaction {
   providerAccountId     String
   providerTransactionId String
   description           String
-  amount                Decimal             @db.Decimal(12, 2)
+  amount                Decimal             @db.Decimal(38, 18)
   currency              String
   transactionDate       DateTime
   refreshDate           DateTime?

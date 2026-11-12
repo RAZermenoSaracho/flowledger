@@ -100,6 +100,7 @@ function mockTx(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: "USD" } as never);
   findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
 });
 
@@ -182,7 +183,7 @@ describe("updateTransaction", () => {
     expect(resolveTransactionCurrencyFieldsMock).not.toHaveBeenCalled();
     expect(tx.transaction.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ amountInPreferredCurrency: 50 })
+        data: expect.objectContaining({ amountInPreferredCurrency: new Prisma.Decimal("50") })
       })
     );
   });
@@ -226,7 +227,7 @@ describe("updateTransaction", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "MXN",
       exchangeRate: 17,
-      amountInPreferredCurrency: 1700
+      amountInPreferredCurrency: new Prisma.Decimal("1700")
     });
     const tx = mockTx();
     (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -243,7 +244,7 @@ describe("updateTransaction", () => {
       (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
         typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
       );
-    const sharing = { enabled: true, participants: [{ userId: "user-2", share: 10 }] } as never;
+    const sharing = { enabled: true, participants: [{ userId: "user-2", share: "10" }] } as never;
 
     it("applies sharedExpense inside the same transaction with the previous type", async () => {
       prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);

@@ -132,7 +132,7 @@ describe("getTransactionById related transactions", () => {
       expect.objectContaining({
         id: "req-1",
         status: "approved",
-        amount: 30,
+        amount: "30",
         participantId: "part-1",
         counterparty: { id: "b", username: "bob", nickname: null, displayName: null },
         transaction: { id: "cred-a", description: "T cred-a", date: new Date("2026-01-01"), type: "expense" }
@@ -174,7 +174,7 @@ describe("getTransactionById related transactions", () => {
     expect(result.relatedSettlements).toEqual([]);
     expect(result.settlementOrigin).toEqual({
       title: "Dinner",
-      amount: 30,
+      amount: "30",
       currency: "USD",
       date: original.date,
       type: "expense",

@@ -15,7 +15,7 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
     transactionId: "tx-1",
     ownerUserId: "user-1",
     title: "Dinner split",
-    totalAmount: 100,
+    totalAmount: "100",
     status: "open",
     participants: [],
     createdAt: "2024-01-01T00:00:00.000Z",

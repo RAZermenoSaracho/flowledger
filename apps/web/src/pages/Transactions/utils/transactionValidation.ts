@@ -2,6 +2,7 @@ import { decimalAmountSchema, transactionSchema } from "@flowledger/shared";
 import type { Account } from "../../../types/accounts.types";
 import type { FormErrors } from "../../../types/common.types";
 import { amountPrecisionError, formatMoney } from "../../../utils/currency";
+import { compare, isNonZero, isPositive, parseUnits, subtract, sum } from "../../../utils/money";
 import type { TransactionDraft } from "../types/transactions.types";
 import { sumParticipantShares } from "./transactionDraft";
 import { differingCurrency, destinationAccountId, feeApplies } from "./transactionCurrencies";
@@ -45,7 +46,6 @@ export function validateTransactionDraft(draft: TransactionDraft, accounts: Acco
   const errors: FormErrors = {};
   const isTransfer = draft.type === "transfer";
   const date = new Date(draft.date);
-  const amount = Number(draft.amount);
 
   if (!draft.name.trim()) errors.name = "Name is required";
   if (!decimalAmountSchema.safeParse(draft.amount.trim()).success) {
@@ -84,22 +84,35 @@ export function validateTransactionDraft(draft: TransactionDraft, accounts: Acco
     if (draft.participants.length === 0) {
       errors.participants = "Add at least one participant to share this transaction";
     }
+    const currency = draft.executionCurrency;
     draft.participants.forEach((participant, index) => {
-      if (!(Number(participant.shareAmount) > 0)) {
-        errors[`participants.${index}.shareAmount`] = "Enter a share above 0";
-      } else if (Number(participant.shareAmount) < (participant.paidAmount ?? 0)) {
-        errors[`participants.${index}.shareAmount`] = "A share cannot be lower than what was paid";
+      const key = `participants.${index}.shareAmount`;
+      const precision = participant.shareAmount.trim()
+        ? amountPrecisionError(participant.shareAmount, currency)
+        : null;
+      if (precision) {
+        errors[key] = precision;
+      } else if (!isPositive(participant.shareAmount, currency)) {
+        errors[key] = "Enter a share above 0";
+      } else if (
+        isNonZero(participant.paidAmount) &&
+        compare(participant.shareAmount, participant.paidAmount!, currency) < 0
+      ) {
+        errors[key] = "A share cannot be lower than what was paid";
       }
     });
-    const over = sumParticipantShares(draft.participants) - amount;
-    if (Number.isFinite(over) && Math.round(over * 100) > 0) {
-      let running = 0;
-      const offending = draft.participants.findIndex((participant) => {
-        running += Number(participant.shareAmount) || 0;
-        return Math.round((running - amount) * 100) > 0;
-      });
-      errors[`participants.${offending}.shareAmount`] ??= "This share pushes the total over the amount";
-      errors.participants ??= `Over by ${formatMoney(over, draft.executionCurrency)} — participant shares cannot exceed the transaction amount.`;
+    if (parseUnits(draft.amount, currency) !== null) {
+      const allocated = sumParticipantShares(draft.participants, currency);
+      if (compare(allocated, draft.amount, currency) > 0) {
+        const over = subtract(allocated, draft.amount, currency);
+        let running = "0";
+        const offending = draft.participants.findIndex((participant) => {
+          running = sum([running, participant.shareAmount], currency);
+          return compare(running, draft.amount, currency) > 0;
+        });
+        errors[`participants.${offending}.shareAmount`] ??= "This share pushes the total over the amount";
+        errors.participants ??= `Over by ${formatMoney(over, currency)} — participant shares cannot exceed the transaction amount.`;
+      }
     }
   }
 

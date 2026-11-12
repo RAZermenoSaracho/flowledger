@@ -78,6 +78,33 @@ describe("TransactionSharingTab", () => {
     expect(screen.getByText("Unallocated: -$20.00")).toBeInTheDocument();
   });
 
+  it("keeps the BTC owner share exact", () => {
+    renderWithProviders(
+      <Harness
+        initial={draft({
+          amount: "1.234567890123456789",
+          executionCurrency: "BTC",
+          participants: [row("a", "0.62")]
+        })}
+      />
+    );
+
+    expect(screen.getByText("Owner share: 0.614567890123456789 BTC")).toBeInTheDocument();
+    expect(screen.getByText("Allocated: 0.62 BTC")).toBeInTheDocument();
+    expect(screen.getByText("Unallocated: 0 BTC")).toBeInTheDocument();
+  });
+
+  it("shows exact over-allocation for ETH", () => {
+    renderWithProviders(
+      <Harness
+        initial={draft({ amount: "1", executionCurrency: "ETH", participants: [row("a", "1.000000000000000001")] })}
+      />
+    );
+
+    expect(screen.getByText("Owner share: 0 ETH")).toBeInTheDocument();
+    expect(screen.getByText("Unallocated: -0.000000000000000001 ETH")).toBeInTheDocument();
+  });
+
   it("adds a manual participant and removes it", async () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness initial={draft()} />);
@@ -167,7 +194,7 @@ describe("TransactionSharingTab", () => {
     participantName: `@${id}`,
     source: "app" as const,
     shareAmount: "20",
-    paidAmount: 0,
+    paidAmount: "0",
     status: "pending" as const,
     acceptance: "proposed" as const,
     ...extra
@@ -175,7 +202,7 @@ describe("TransactionSharingTab", () => {
 
   it("shows paid and response columns for a stored transaction and lets the owner edit a share", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<Harness {...stored([stub("sam", { paidAmount: 5, acceptance: "accepted" }), stub("kim")])} />);
+    renderWithProviders(<Harness {...stored([stub("sam", { paidAmount: "5", acceptance: "accepted" }), stub("kim")])} />);
 
     expect(screen.getByText("$5.00")).toBeInTheDocument();
     expect(screen.getByText("Accepted")).toBeInTheDocument();
@@ -188,7 +215,7 @@ describe("TransactionSharingTab", () => {
 
   it("locks a fully paid share and its removal, and the unshare toggle while a payment exists", () => {
     renderWithProviders(
-      <Harness {...stored([stub("sam", { paidAmount: 20, status: "paid", acceptance: "accepted" }), stub("kim")])} />
+      <Harness {...stored([stub("sam", { paidAmount: "20", status: "paid", acceptance: "accepted" }), stub("kim")])} />
     );
 
     expect(screen.getAllByLabelText("Share")[0]).toBeDisabled();
@@ -206,7 +233,7 @@ describe("TransactionSharingTab", () => {
     renderWithProviders(
       <Harness
         {...stored([
-          stub("a", { userId: "u9", participantName: "@sam", paidAmount: 20, status: "paid", acceptance: "accepted" })
+          stub("a", { userId: "u9", participantName: "@sam", paidAmount: "20", status: "paid", acceptance: "accepted" })
         ])}
       />
     );

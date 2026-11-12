@@ -93,8 +93,8 @@ describe("deleteTransaction", () => {
       sharedExpense: {
         id: "se-1",
         participants: [
-          { id: "p1", participantName: "@a", paidAmount: { toNumber: () => 0 }, settlementRequests: [{ id: "sr-1", status: "rejected", amount: { toNumber: () => 1 } }] },
-          { id: "p2", participantName: "@b", paidAmount: { toNumber: () => 0 }, settlementRequests: [] }
+          { id: "p1", participantName: "@a", paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ id: "sr-1", status: "rejected", amount: new Prisma.Decimal("1") }] },
+          { id: "p2", participantName: "@b", paidAmount: new Prisma.Decimal("0"), settlementRequests: [] }
         ]
       }
     });
@@ -107,9 +107,9 @@ describe("deleteTransaction", () => {
   });
 
   it.each([
-    ["a payment", { paidAmount: { toNumber: () => 5 }, settlementRequests: [] }],
-    ["a pending settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "pending", amount: { toNumber: () => 5 } }] }],
-    ["an approved settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "approved", amount: { toNumber: () => 5 } }] }]
+    ["a payment", { paidAmount: new Prisma.Decimal("5"), settlementRequests: [] }],
+    ["a pending settlement", { paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ status: "pending", amount: new Prisma.Decimal("5") }] }],
+    ["an approved settlement", { paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ status: "approved", amount: new Prisma.Decimal("5") }] }]
   ])("is blocked with 400 by %s, checked on rows reloaded inside the transaction, and deletes nothing", async (_label, overrides) => {
     const tx = mockTx({
       id: "txn-1",

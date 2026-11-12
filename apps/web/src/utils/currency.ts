@@ -1,4 +1,5 @@
 import { currencyFractionDigits, exceedsCurrencyPrecision } from "@flowledger/shared";
+import { multiplyByRate } from "./money";
 
 const isoCurrencies = new Set<string>(Intl.supportedValuesOf("currency"));
 const formatterCache = new Map<string, Intl.NumberFormat>();
@@ -53,13 +54,13 @@ export function amountPrecisionError(value: string, currency: string): string | 
 
 /**
  * Suggested counter-amount for `amount` at `rate`, as a decimal string at `currency`'s precision
- * (at most 8 decimals for crypto, trailing zeros trimmed); `null` for a non-positive input.
- * Float math is acceptable only because the result is an editable prefill the user reviews, never a stored value.
+ * (at most 8 decimals for crypto, trailing zeros trimmed, truncated); `null` for a non-positive input.
+ * An editable prefill the user reviews, never a stored value.
  */
 export function suggestAmount(amount: string, rate: number, currency: string): string | null {
-  const value = Number(amount) * rate;
-  if (!(Number(amount) > 0) || !Number.isFinite(value) || value <= 0) return null;
-  const digits = Math.min(currencyFractionDigits(currency), 8);
-  const fixed = value.toFixed(digits);
-  return digits > 0 && currencyFractionDigits(currency) > 2 ? fixed.replace(/\.?0+$/, "") : fixed;
+  const fractionDigits = currencyFractionDigits(currency);
+  const result = multiplyByRate(amount, rate, Math.min(fractionDigits, 8));
+  return result !== null && fractionDigits > 2 && result.includes(".")
+    ? result.replace(/\.?0+$/, "")
+    : result;
 }

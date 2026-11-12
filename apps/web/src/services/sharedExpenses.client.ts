@@ -10,8 +10,8 @@ export type SharedExpenseParticipantInput = {
   id?: string;
   userId?: string | null;
   participantName: string;
-  shareAmount: number;
-  paidAmount?: number;
+  shareAmount: string;
+  paidAmount?: string;
   status?: "pending" | "partial" | "paid";
 };
 

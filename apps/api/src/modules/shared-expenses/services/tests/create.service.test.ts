@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -18,7 +19,7 @@ const { createSharedExpense, createSharedExpenseForTransaction } = await import(
 
 const transactionRow = {
   id: "txn-1",
-  amount: { toNumber: () => 100 },
+  amount: new Prisma.Decimal("100"),
   name: "Dinner",
   groupId: null,
   type: "expense" as const,
@@ -44,8 +45,8 @@ describe("createSharedExpenseForTransaction", () => {
       title: "Dinner split",
       status: "open",
       participants: [
-        { userId: "user-2", participantName: "Stale", shareAmount: 50, paidAmount: 50, status: "paid" },
-        { participantName: "Cash Friend", shareAmount: 10, paidAmount: 0, status: "pending" }
+        { userId: "user-2", participantName: "Stale", shareAmount: "50", paidAmount: "50", status: "paid" },
+        { participantName: "Cash Friend", shareAmount: "10", paidAmount: "0", status: "pending" }
       ]
     });
 
@@ -53,8 +54,8 @@ describe("createSharedExpenseForTransaction", () => {
       enabled: true,
       title: "Dinner split",
       participants: [
-        { userId: "user-2", share: 50 },
-        { manualName: "Cash Friend", share: 10 }
+        { userId: "user-2", share: "50" },
+        { manualName: "Cash Friend", share: "10" }
       ]
     });
   });

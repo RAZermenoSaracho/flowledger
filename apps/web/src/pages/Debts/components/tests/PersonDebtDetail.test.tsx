@@ -39,20 +39,20 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
     userId: "user-2",
     participantName: "Friend",
     currency: "USD",
-    shareAmount: 100,
-    paidAmount: 40,
+    shareAmount: "100",
+    paidAmount: "40",
     status: "partial",
     sharedExpenseId: "se-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    outstandingAmount: 60,
-    pendingSettlementAmount: 0,
+    outstandingAmount: "60",
+    pendingSettlementAmount: "0",
     sharedExpense: {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 100,
+      totalAmount: "100",
       status: "open",
       participants: [],
       createdAt: "",
@@ -157,7 +157,7 @@ describe("PersonDebtDetail", () => {
   });
 
   it("shows a waiting-for-approval message instead of the form when there's no available amount", () => {
-    const debt = makeDebt({ outstandingAmount: 60, pendingSettlementAmount: 60 });
+    const debt = makeDebt({ outstandingAmount: "60", pendingSettlementAmount: "60" });
     renderWithProviders(
       <PersonDebtDetail {...baseProps({ balance: makeBalance({ iOweThem: [debt], theyOweMe: [] }) })} />
     );
@@ -170,8 +170,8 @@ describe("PersonDebtDetail", () => {
     const availableDebt = makeDebt({ id: "debt-1" });
     const waitingDebt = makeDebt({
       id: "debt-2",
-      outstandingAmount: 60,
-      pendingSettlementAmount: 60
+      outstandingAmount: "60",
+      pendingSettlementAmount: "60"
     });
     const user = userEvent.setup();
     const props = baseProps({

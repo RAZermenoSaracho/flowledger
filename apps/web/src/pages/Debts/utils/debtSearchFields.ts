@@ -62,7 +62,7 @@ export type SettlementRequestSearchRow = {
   creditorName: string;
   creditorUsername: string;
   note: string;
-  amount: number;
+  amount: string;
   status: string;
 };
 
@@ -79,7 +79,7 @@ export function toSettlementRequestSearchRow(
     creditorName: request.creditor?.displayName ?? "",
     creditorUsername: request.creditor?.username ?? "",
     note: request.note ?? "",
-    amount: Number(request.amount),
+    amount: request.amount,
     status: request.status
   };
 }
@@ -100,7 +100,7 @@ export const settlementRequestSearchFields: SearchFieldConfig[] = [
       "note"
     ]
   },
-  { name: "amount", label: "Amount", type: "number" },
+  { name: "amount", label: "Amount", type: "string" },
   {
     name: "status",
     label: "Status",
@@ -126,9 +126,9 @@ export type SettledDebtSearchRow = {
   ownerName: string;
   ownerUsername: string;
   transactionName: string;
-  shareAmount: number;
-  paidAmount: number;
-  outstandingAmount: number;
+  shareAmount: string;
+  paidAmount: string;
+  outstandingAmount: string;
 };
 
 /** Flattens a settled `Debt` into the plain fields `settledDebtSearchFields` filters on. */
@@ -170,9 +170,9 @@ export const settledDebtSearchFields: SearchFieldConfig[] = [
       "transactionName"
     ]
   },
-  { name: "shareAmount", label: "Share amount", type: "number" },
-  { name: "paidAmount", label: "Paid amount", type: "number" },
-  { name: "outstandingAmount", label: "Outstanding amount", type: "number" }
+  { name: "shareAmount", label: "Share amount", type: "string" },
+  { name: "paidAmount", label: "Paid amount", type: "string" },
+  { name: "outstandingAmount", label: "Outstanding amount", type: "string" }
 ];
 
 /** Field the Settled History tab's quick-search box targets. */

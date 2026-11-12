@@ -1,4 +1,5 @@
 import type { Transaction } from "../../../types/transactions.types";
+import { add, compare, divideToSignificant, subtract } from "../../../utils/money";
 
 /** What the detail view shows for a saved cross-currency transaction. */
 export type CrossCurrencyRecord = {
@@ -7,10 +8,10 @@ export type CrossCurrencyRecord = {
   targetAmount: string;
   targetCurrency: string;
   /** Target per source unit, from the persisted amounts. */
-  effectiveRate: number;
+  effectiveRate: string;
   fee: { amount: string; currency: string } | null;
   /** Rate with the fee backed out; only present when a fee is recorded. */
-  rateBeforeFee: number | null;
+  rateBeforeFee: string | null;
 };
 
 /** The applied amount of `transaction` and its currency, or `null` when it is single-currency. Transfers use the destination, others the account. */
@@ -37,20 +38,27 @@ function appliedSide(transaction: Transaction) {
 export function crossCurrencyRecord(transaction: Transaction): CrossCurrencyRecord | null {
   const side = appliedSide(transaction);
   if (!side) return null;
-  const source = Number(transaction.amount);
-  const target = Number(side.amount);
-  if (!(source > 0)) return null;
+  const effectiveRate = divideToSignificant(side.amount, transaction.amount);
+  if (effectiveRate === null) return null;
 
   const fee =
     transaction.feeAmount && transaction.feeCurrency
       ? { amount: transaction.feeAmount, currency: transaction.feeCurrency }
       : null;
-  let rateBeforeFee: number | null = null;
+  let rateBeforeFee: string | null = null;
   if (fee) {
-    const feeValue = Number(fee.amount);
-    const denominator = fee.currency === transaction.executionCurrency ? source - feeValue : source;
-    const numerator = fee.currency === transaction.executionCurrency ? target : target + feeValue;
-    if (denominator > 0) rateBeforeFee = numerator / denominator;
+    const inSource = fee.currency === transaction.executionCurrency;
+    const sourceCurrency = transaction.executionCurrency;
+    const sourceAfterFee =
+      inSource && compare(transaction.amount, fee.amount, sourceCurrency) > 0
+        ? subtract(transaction.amount, fee.amount, sourceCurrency)
+        : null;
+    if (inSource ? sourceAfterFee !== null : true) {
+      rateBeforeFee = divideToSignificant(
+        inSource ? side.amount : add(side.amount, fee.amount, fee.currency),
+        inSource ? sourceAfterFee! : transaction.amount
+      );
+    }
   }
 
   return {
@@ -58,7 +66,7 @@ export function crossCurrencyRecord(transaction: Transaction): CrossCurrencyReco
     sourceCurrency: transaction.executionCurrency,
     targetAmount: side.amount,
     targetCurrency: side.currency,
-    effectiveRate: target / source,
+    effectiveRate,
     fee,
     rateBeforeFee
   };

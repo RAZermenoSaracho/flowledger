@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
-  assertShareableCurrencies,
+  assertAmountPrecision,
   assertShareableTransaction,
   validateSharedExpenseParticipants
 } from "../assertions.js";
@@ -26,8 +26,8 @@ describe("validateSharedExpenseParticipants", () => {
   it("does not throw when shares sum to exactly the total amount", () => {
     expect(() =>
       validateSharedExpenseParticipants(new Prisma.Decimal("100"), [
-        { shareAmount: 60 } as never,
-        { shareAmount: 40 } as never
+        { shareAmount: "60" },
+        { shareAmount: "40" } as never
       ])
     ).not.toThrow();
   });
@@ -35,7 +35,7 @@ describe("validateSharedExpenseParticipants", () => {
   it("does not throw when shares sum to less than the total amount", () => {
     expect(() =>
       validateSharedExpenseParticipants(new Prisma.Decimal("100"), [
-        { shareAmount: 30 } as never
+        { shareAmount: "30" } as never
       ])
     ).not.toThrow();
   });
@@ -43,21 +43,29 @@ describe("validateSharedExpenseParticipants", () => {
   it("throws a 400 when shares exceed the total amount", () => {
     expect(() =>
       validateSharedExpenseParticipants(new Prisma.Decimal("100"), [
-        { shareAmount: 60 } as never,
-        { shareAmount: 60 } as never
+        { shareAmount: "60" },
+        { shareAmount: "60" }
       ])
     ).toThrow("Participant shares cannot exceed the transaction amount");
   });
 });
 
-describe("assertShareableCurrencies", () => {
-  it("accepts MXN, USD and JPY, ignoring null entries", () => {
-    expect(() => assertShareableCurrencies(["MXN", "USD", "JPY", null, undefined])).not.toThrow();
+describe("validateSharedExpenseParticipants exactness", () => {
+  it("accepts ten 0.01 BTC shares against a 0.1 BTC total", () => {
+    const shares = Array.from({ length: 10 }, () => ({ shareAmount: "0.01" }));
+    expect(() => validateSharedExpenseParticipants(new Prisma.Decimal("0.1"), shares)).not.toThrow();
+    expect(() => validateSharedExpenseParticipants(new Prisma.Decimal("0.099999999999999999"), shares)).toThrow();
+  });
+});
+
+describe("assertAmountPrecision", () => {
+  it("accepts amounts within the currency's minor units", () => {
+    expect(() => assertAmountPrecision("1.50", "USD", "f")).not.toThrow();
+    expect(() => assertAmountPrecision("0.123456789012345678", "BTC", "f")).not.toThrow();
   });
 
-  it.each(["BTC", "KWD"])("rejects %s with the sharing message and a field error", (currency) => {
-    expect(() => assertShareableCurrencies(["MXN", currency])).toThrow(
-      "Sharing is only supported for fiat currencies with up to 2 decimals"
-    );
+  it("throws a 400 on excess decimals", () => {
+    expect(() => assertAmountPrecision("1.505", "USD", "f")).toThrow("more decimals than USD");
+    expect(() => assertAmountPrecision("1.5", "JPY", "f")).toThrow(expect.objectContaining({ statusCode: 400 }));
   });
 });

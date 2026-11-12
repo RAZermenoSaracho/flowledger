@@ -1,11 +1,8 @@
 import { z } from "zod";
-import { decimalAmountSchema } from "./common.js";
+import { decimalAmountSchema, positiveDecimalAmountSchema } from "./common.js";
 
 export const settlementRequestSchema = z.object({
-  amount: decimalAmountSchema.refine(
-    (amount) => Number(amount) > 0,
-    "Amount must be greater than 0"
-  ),
+  amount: positiveDecimalAmountSchema,
   accountAmount: decimalAmountSchema.optional(),
   accountId: z.string().min(1, "Account is required"),
   categoryId: z.string().min(1, "Category is required"),

@@ -68,7 +68,7 @@ Every `Transaction` is denominated in `executionCurrency` (defaults to the accou
 - **Valuations:** `currentBalanceInPreferredCurrency` converts the native balance at the current rate after the sum. A rate change never alters a native balance or a recorded amount.
 - **Fee:** `feeAmount` is detail only. The applied amounts already include it, so it is neither subtracted again nor reported as an expense (transfers stay out of reports). The effective rate is `destinationAmount / amount` (or `accountAmount / amount`); the rate before fee is `destinationAmount / (amount − fee)` for a source-currency fee or `(destinationAmount + fee) / amount` for a destination-currency fee.
 - **Account currency lock:** an account's currency cannot change once any transaction references it (400 naming `currency`).
-- **Shareable currencies:** `isShareableCurrency()` allows only ISO currencies with at most 2 minor units, because shared-expense and settlement columns are `Decimal(12,2)`. Sharing, settlement request and approval reject others with 400.
+- **Any currency is shareable:** shared-expense and settlement columns are `Decimal(38,18)`; shares and settlement amounts are exact decimal strings validated against the transaction/debt currency's minor units (`exceedsCurrencyPrecision`, 400 otherwise). All share, paid and outstanding arithmetic is `Prisma.Decimal` (precision 50, half-up, set in `db/prisma.ts`).
 
 ### Correction history
 

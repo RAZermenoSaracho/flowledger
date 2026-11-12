@@ -29,7 +29,7 @@ async function createSharedExpenseDebt(owner: { token: string }, participant: { 
       sharedExpense: {
         title: "Dinner split",
         participants: [
-          { userId: participant.user.id, participantName: "Friend", shareAmount: 50 }
+          { userId: participant.user.id, participantName: "Friend", shareAmount: "50" }
         ]
       }
     });
@@ -122,7 +122,8 @@ describe("/debts and /settlements routes", () => {
       });
 
     expect(approveResponse.status).toBe(200);
-    expect(approveResponse.body.debt.outstandingAmount).toBe(0);
+    expect(approveResponse.body.debt.outstandingAmount).toBe("0");
+    expect(approveResponse.body.debt.pendingSettlementAmount).toBe("0");
   });
 
   it("rejects a pending settlement request", async () => {

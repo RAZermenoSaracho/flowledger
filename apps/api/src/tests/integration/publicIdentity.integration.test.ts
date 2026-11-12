@@ -23,7 +23,7 @@ async function shareExpense(owner: Actor, participant: Actor, accept = false) {
     categoryId: category.body.category.id,
     sharedExpense: {
       title: "Dinner split",
-      participants: [{ userId: participant.user.id, participantName: "Stale Snapshot", shareAmount: 50 }]
+      participants: [{ userId: participant.user.id, participantName: "Stale Snapshot", shareAmount: "50" }]
     }
   });
   expect(transaction.status).toBe(201);
@@ -144,7 +144,7 @@ describe("public identity across modules", () => {
       type: "expense",
       date: "2024-01-16",
       categoryId: category.body.category.id,
-      sharedExpense: { title: "Lunch", participants: [{ userId: blocker.user.id, participantName: "x", shareAmount: 10 }] }
+      sharedExpense: { title: "Lunch", participants: [{ userId: blocker.user.id, participantName: "x", shareAmount: "10" }] }
     });
     expect(refused.status).toBe(400);
     expect(refused.body.message).toBe("This user can't be invited.");

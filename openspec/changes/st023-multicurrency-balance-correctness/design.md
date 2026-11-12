@@ -10,7 +10,7 @@ See proposal.md for the motivation. These facts were verified against `razs_ai` 
   - `createTransaction`, `updateTransaction` and `deleteTransaction` are shared by the web API, `/v1` and MCP.
   - `importProviderImportedTransaction` and `approveSettlement` create rows directly.
   - `approveSettlement` converts the debt currency into each account's currency at the live rate (`convertSettlementAmount`). That breaks the rule that current rates are suggestions only.
-- **Number handling.** `serialize()` turns every `Decimal` into a number. `moneySchema` is `z.coerce.number()`, and native columns are `Decimal(12,2)`.
+- **Number handling.** `serialize()` turns every `Decimal` into a number. `moneySchema` is `z.coerce.number()`, and native columns are `Decimal(12,2)`. Shared-expense, settlement and imported amounts are also `Decimal(12,2)`, and the web app splits and sums them with float math.
 - **Production data** (read-only):
   - Volume: 6 users, 6 accounts (5 MXN, 1 USD) and 24 transactions from 2 users. All 24 are MXN, scale 2, and created on or after 2026-08-14; 18 have no account.
   - Currency and transfers: 0 transactions in a currency other than their account's, 0 transfers.
@@ -28,7 +28,7 @@ See proposal.md for the motivation. These facts were verified against `razs_ai` 
 
 **Goals:**
 - One resolver for applied amounts and one balance function, used by every write path and every consumer.
-- An exact path from request decimal string to Postgres `numeric(30,18)` and back to the response, with no float in between.
+- An exact path from request decimal string to Postgres `numeric(38,18)` and back to the response, with no float in between.
 - No legacy compatibility code for the previous model.
 
 **Non-Goals:**
@@ -42,7 +42,7 @@ See proposal.md for the motivation. These facts were verified against `razs_ai` 
 
 ### D1. Two applied-amount columns on the existing row
 
-`accountAmount` and `destinationAmount` are added as `Decimal(30,18)`, nullable at the database level, because transactions without an account and non-transfers legitimately have none. The resolver guarantees the invariant on every write.
+`accountAmount` and `destinationAmount` are added as `Decimal(38,18)`, nullable at the database level, because transactions without an account and non-transfers legitimately have none. The resolver guarantees the invariant on every write.
 
 - *Rejected: two rows per transfer.* It duplicates the one-row assumption made by sharing, relations, notifications and the UI.
 - *Rejected: redefining `amount` as the account-native value.* It changes a field that reports, the snapshot and every client read.
@@ -100,13 +100,13 @@ Suggestions use only the existing rate lookup (`GET /currencies/rate`, `/v1/curr
 
 Both apps validate with the same helper, the API in the resolver and the web app inline in the form. The rule rejects and never rounds.
 
-`isShareableCurrency(code)` is `ISO && minor units ≤ 2`, because shared-expense and settlement columns stay `Decimal(12,2)`.
+Sharing and settlement are supported for every currency, so there is no shareable-currency guard.
 
 - *Rejected: Binance as the crypto list.* It is async and live, and cannot be called from a schema.
 
 ### D6. Serialization by key allowlist
 
-`serialize()` renders a `Decimal` under a native key with `decimal.toFixed()`, which gives full precision and no exponent. The native keys are `amount`, `accountAmount`, `destinationAmount`, `feeAmount`, `initialBalance` and `currentBalance`. Every other `Decimal` stays a number.
+`serialize()` renders a `Decimal` under a native key with `decimal.toFixed()`, which gives full precision and no exponent. The native keys are `amount`, `accountAmount`, `destinationAmount`, `feeAmount`, `initialBalance`, `currentBalance`, `shareAmount`, `paidAmount`, `totalAmount` and `outstandingAmount`. Every other `Decimal` stays a number.
 
 This is one change point covering the web API, `/v1` and MCP. `SettlementRequest.amount` and `ProviderImportedTransaction.amount` become strings too, which matches the documented rule "every `amount` is a decimal string". Their input schemas move to `decimalAmountSchema` for symmetry.
 
@@ -136,7 +136,7 @@ model TransactionCorrection {
 ### D8. Guards
 
 - `accounts/services/update.service.ts` rejects a currency change while transactions reference the account.
-- `isShareableCurrency` runs in the shared sharing helper (`transaction-sharing-conversion`'s "one shared helper") and in settlement request and approval.
+- Sharing and settlement have no currency guard (D11).
 
 ### D9. Web
 
@@ -157,6 +157,17 @@ The new code reads no legacy shape. There is no `accountAmount ?? amount` fallba
 
 Both need explicit approval of the exact SQL. F is a raw `UPDATE` inside a migration and R is a destructive script. A reset materially simplifies nothing in production, because the schema, code and tests are identical under F and R. Choosing F avoids deleting data that is correct.
 
+### D11. Unified monetary precision
+
+Every money and rate column is `Decimal(38,18)`: 20 integer digits and 18 decimals, enough for any crypto amount and any fiat total. A second additive migration widens the shared-expense, participant, settlement, imported and valuation columns (the first B-006 migration is already applied on staging). Widening is lossless, so no data reset is needed.
+
+- **API arithmetic.** `Prisma.Decimal` only, configured once at startup with precision 50 and `ROUND_HALF_UP`. decimal.js defaults to 20 significant digits, which silently truncates: `100 + 1.234567890123456789` gives `101.23456789012345679`. A regression test pins the exact result.
+- **Web arithmetic.** One `utils/money.ts` on native `BigInt` minor units (parse, add, subtract, compare, allocate, format) is the only web money arithmetic. No new dependency.
+- **Rounding.** Input is never rounded. Valuations into the preferred currency round half up to that currency's digits.
+- **Splits.** Largest remainder on integer minor units, remainder units one each in owner-first then list order. The owner share is the amount minus the participant shares, so sums are exact.
+- **Why not stay at two decimals for sharing.** Excluding crypto left float math in the sharing UI and a currency guard in three layers. Exact arithmetic removes both.
+- **Group summary.** It never adds across currencies: each currency is converted to the viewer's preferred currency at the current rate, labeled as a valuation as reports do. Dashboard and group summary formatters use the preferred currency, not USD.
+
 ## Risks / Trade-offs
 
 - **[Breaking contract] `/v1` and MCP clients must send and read decimal strings.** → Documented as breaking in `docs/PUBLIC_API.md` and the MCP tool descriptions. First-party consumers (web, MCP schemas) change in the same PR. The audience is trusted pre-production users.
@@ -172,8 +183,8 @@ All steps are approval-gated where marked. Nothing runs during planning.
 
 1. **Backup (production).** Run `pg_dump --format=custom` of the production database and store it outside the deploy directory. This is the recovery point for both F and R.
 2. **Before-snapshot (read-only).** Record per-account `currentBalance` from `GET /accounts` and row counts for `Transaction`, `SharedExpense`, `SharedExpenseParticipant`, `SettlementRequest`, `TransactionRelation` and `Notification`.
-3. **Migration, created with `prisma migrate dev --create-only`.**
-   - Widen `Account.initialBalance` and `Transaction.amount` to `Decimal(30,18)`.
+3. **Migrations.** Two migrations ship together, applied in order by `prisma migrate deploy`: `20261112185218` (the first B-006 migration, already applied on staging) and `20261112204539` (widens every money and rate column to `Decimal(38,18)`, D11, lossless, no data change). The first one contains:
+   - Widen `Account.initialBalance` and `Transaction.amount` (to `Decimal(38,18)` once `20261112204539` has run).
    - Add `accountAmount`, `destinationAmount`, `feeAmount` and `feeCurrency`.
    - Add the `TransactionCorrectionAction` enum and the `TransactionCorrection` table.
    - Under F only, append the fill **(APPROVAL F)**:
@@ -183,7 +194,7 @@ All steps are approval-gated where marked. Nothing runs during planning.
      UPDATE "Transaction" SET "destinationAmount" = "amount"
        WHERE "type" = 'transfer' AND "transferToAccountId" IS NOT NULL AND "destinationAmount" IS NULL;
      ```
-4. **Release (`main` push, separate approval).** The deploy script runs `prisma migrate deploy`, then restarts pm2.
+4. **Release (`main` push, separate approval).** The deploy script runs `prisma migrate deploy` (both migrations, in order), then restarts pm2.
 5. **R only (APPROVAL R).** Run this in one transaction right after the restart. The order matters: notification metadata has no foreign key, and settlement requests must go before transactions. This order was verified on local staging on 2026-11-12:
    ```sql
    BEGIN;
@@ -201,12 +212,13 @@ All steps are approval-gated where marked. Nothing runs during planning.
    ```
    For local staging, the same script runs against `flowledger_staging` only, also with approval.
 6. **Verify (read-only).**
+   - Both migrations are recorded in `_prisma_migrations`, and every money and rate column reports `numeric(38,18)`.
    - `select count(*) from "Transaction" where ("accountId" is not null and "accountAmount" is null) or ("type"='transfer' and "destinationAmount" is null)` returns 0. Under F, re-run step 3's statements first, because they are idempotent.
    - Under F, every account's `currentBalance` equals the before-snapshot.
    - Under R, `SharedExpense`, `SettlementRequest` and `TransactionRelation` counts are 0, and no financial notification remains.
    - Under both, the preserved-table counts are unchanged.
 7. **Recovery.**
-   - Application problem: redeploy the previous commit. Old code ignores the new nullable columns and reads the widened numerics.
+   - Application problem: redeploy the previous commit. Old code ignores the new nullable columns and reads the widened `Decimal(38,18)` numerics.
    - Data problem: `pg_restore` the step-1 dump into a fresh database and repoint `DATABASE_URL`.
    - No down-migration is written. Narrowing to `(12,2)` would truncate crypto values.
 

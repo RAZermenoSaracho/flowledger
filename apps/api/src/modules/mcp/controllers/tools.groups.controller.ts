@@ -221,7 +221,7 @@ export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "create_shared_expense",
     {
-      description: `Share any owned non-transfer transaction with existing app users or manual participants, including users outside its group. Shares cannot exceed the amount. Notifies app users with proposals; only accepted shares count as debts.${RETRY_NOTE}`,
+      description: `Share any owned non-transfer transaction with existing app users or manual participants, including users outside its group. Share amounts (shareAmount) are decimal strings in the transaction's currency and cannot sum to more than the amount. Notifies app users with proposals; only accepted shares count as debts.${RETRY_NOTE}`,
       inputSchema: sharedExpenseSchema.shape
     },
     async (args) =>
@@ -236,7 +236,7 @@ export function registerGroupWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "request_settlement",
     {
-      description: `Ask a creditor to confirm a payment for one of the user's debts (debtor only; the debt must be outstanding and have no pending request). Notifies the creditor, who must approve it themselves; nothing is moved until then. amount is a decimal string. Only fiat currencies with up to 2 decimals can be settled.${RETRY_NOTE}`,
+      description: `Ask a creditor to confirm a payment for one of the user's debts (debtor only; the debt must be outstanding and have no pending request). Notifies the creditor, who must approve it themselves; nothing is moved until then. amount is a decimal string in the debt's currency, with at most that currency's decimals (e.g. "0.4" ETH).${RETRY_NOTE}`,
       inputSchema: requestSettlementToolSchema.shape
     },
     async (args) =>

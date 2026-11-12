@@ -1,7 +1,9 @@
+import { requestSettlementToolSchema, sharedExpenseSchema } from "@flowledger/shared";
 import { ParseError } from "datasieve";
 import { Prisma } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { HttpError } from "../../../../utils/httpError.js";
 import { fail, ok } from "../toolResult.js";
 
@@ -47,5 +49,25 @@ describe("fail", () => {
     const result = fail(new Error("db password leaked"));
     expect((result.content[0] as { text: string }).text).toBe("Internal error");
     expect(spy).toHaveBeenCalled();
+  });
+});
+
+type Schema = { properties: { participants: { items: { properties: { shareAmount: { type: string } } } }; amount: { type: string } } };
+
+describe("money over MCP", () => {
+  it("advertises shares and settlement amounts as strings in the generated tool JSON schema", () => {
+    const share = zodToJsonSchema(z.object(sharedExpenseSchema.shape)) as Schema;
+    expect(share.properties.participants.items.properties.shareAmount.type).toBe("string");
+    const settlement = zodToJsonSchema(z.object(requestSettlementToolSchema.shape)) as Schema;
+    expect(settlement.properties.amount.type).toBe("string");
+  });
+
+  it("returns native amounts as exact strings and valuations as numbers", () => {
+    const result = ok({
+      participant: { shareAmount: new Prisma.Decimal("0.010000000000000001"), amountInPreferredCurrency: new Prisma.Decimal("1.5") }
+    });
+    expect(result.structuredContent).toEqual({
+      participant: { shareAmount: "0.010000000000000001", amountInPreferredCurrency: 1.5 }
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getExchangeRate } from "../../../currencies/services/read.service.js";
 import { resolveTransactionCurrencyFields } from "../transactionCurrency.js";
@@ -22,7 +23,7 @@ describe("resolveTransactionCurrencyFields", () => {
       preferredCurrency: "MXN"
     });
 
-    expect(result.amountInPreferredCurrency).toBe(1708.5);
+    expect(result.amountInPreferredCurrency).toEqual(new Prisma.Decimal("1708.5"));
   });
 
   it("normalizes currency codes to uppercase and converts using preferredCurrency", async () => {
@@ -38,7 +39,7 @@ describe("resolveTransactionCurrencyFields", () => {
     expect(result).toEqual({
       executionCurrency: "USD",
       exchangeRate: 2,
-      amountInPreferredCurrency: 200
+      amountInPreferredCurrency: new Prisma.Decimal("200")
     });
   });
 
@@ -52,7 +53,7 @@ describe("resolveTransactionCurrencyFields", () => {
     });
 
     expect(getExchangeRateMock).toHaveBeenCalledWith("USD", "USD");
-    expect(result.amountInPreferredCurrency).toBe(50);
+    expect(result.amountInPreferredCurrency).toEqual(new Prisma.Decimal("50"));
   });
 
   it("rounds the converted amount to 2 decimals", async () => {
@@ -64,6 +65,6 @@ describe("resolveTransactionCurrencyFields", () => {
       preferredCurrency: "mxn"
     });
 
-    expect(result.amountInPreferredCurrency).toBe(171.23);
+    expect(result.amountInPreferredCurrency).toEqual(new Prisma.Decimal("171.23"));
   });
 });

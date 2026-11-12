@@ -41,7 +41,7 @@ describe("serialize", () => {
     });
   });
 
-  it("keeps every other Decimal a number", () => {
+  it("serializes share amounts exactly and preferred values and rates as numbers", () => {
     const result = serialize({
       amountInPreferredCurrency: new Prisma.Decimal("42.5"),
       shareAmount: new Prisma.Decimal("10"),
@@ -49,7 +49,7 @@ describe("serialize", () => {
     });
     expect(result).toEqual({
       amountInPreferredCurrency: 42.5,
-      shareAmount: 10,
+      shareAmount: "10",
       exchangeRate: 17.25
     });
   });
@@ -88,5 +88,26 @@ describe("publicUser", () => {
   it("handles a record with a null passwordHash", () => {
     const user = { id: "user-1", passwordHash: null };
     expect(publicUser(user)).toEqual({ id: "user-1" });
+  });
+
+  it("serializes share, paid, total, outstanding and pending-settlement amounts as exact strings but valuations as numbers", () => {
+    const result = serialize({
+      shareAmount: new Prisma.Decimal("1"),
+      paidAmount: new Prisma.Decimal("0.4"),
+      totalAmount: new Prisma.Decimal("0.010000000000000001"),
+      outstandingAmount: new Prisma.Decimal("0.6"),
+      pendingSettlementAmount: new Prisma.Decimal("0.2"),
+      outstandingAmountInPreferredCurrency: new Prisma.Decimal("33.5"),
+      amountInPreferredCurrency: new Prisma.Decimal("12.25")
+    });
+    expect(result).toEqual({
+      shareAmount: "1",
+      paidAmount: "0.4",
+      totalAmount: "0.010000000000000001",
+      outstandingAmount: "0.6",
+      pendingSettlementAmount: "0.2",
+      outstandingAmountInPreferredCurrency: 33.5,
+      amountInPreferredCurrency: 12.25
+    });
   });
 });

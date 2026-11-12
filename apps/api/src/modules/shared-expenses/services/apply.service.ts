@@ -8,7 +8,7 @@ import { userLabel, publicUserSelect, publicizeUsers } from "../../users/utils/p
 import { HttpError } from "../../../utils/httpError.js";
 import type { SharingInput } from "../types/sharedExpenses.types.js";
 import {
-  assertShareableCurrencies,
+  assertAmountPrecision,
   assertShareableTransaction,
   validateSharedExpenseParticipants
 } from "../utils/assertions.js";
@@ -34,8 +34,6 @@ type SharedTransaction = {
 };
 
 type NormalizedParticipant = Awaited<ReturnType<typeof normalizeSharedExpenseParticipants>>[number];
-
-const cents = (value: number | string | Prisma.Decimal) => Math.round(Number(value) * 100);
 
 /** Include for every shared expense this module returns: participants carry only the public user columns, so snapshots never show a real name. */
 export const sharedExpenseResponseInclude = {
@@ -85,10 +83,6 @@ export async function applySharedExpenseToTransaction(
 
   if (!existing && !input) return null;
 
-  const accountCurrency = transaction.accountId
-    ? (await tx.account.findUnique({ where: { id: transaction.accountId }, select: { currency: true } }))?.currency
-    : null;
-  assertShareableCurrencies([transaction.executionCurrency, accountCurrency]);
   const requested = input?.enabled ? input.participants : undefined;
   const existingUserIds = new Set(
     (existing?.participants ?? []).flatMap((participant) => (participant.userId ? [participant.userId] : []))
@@ -96,6 +90,9 @@ export async function applySharedExpenseToTransaction(
   const normalized = requested
     ? await normalizeSharedExpenseParticipants(ownerUserId, requested, { client: tx, existingUserIds })
     : undefined;
+  normalized?.forEach((participant, index) =>
+    assertAmountPrecision(participant.share, transaction.executionCurrency, `sharedExpense.participants.${index}.share`)
+  );
 
   const owner = await tx.user.findUniqueOrThrow({ where: { id: ownerUserId }, select: publicUserSelect });
   const ownerLabel = userLabel(owner);
@@ -140,7 +137,7 @@ export async function applySharedExpenseToTransaction(
         senderUserId: ownerUserId,
         type: "shared_expense_invited",
         title: "Shared expense invitation",
-        message: `${ownerLabel} proposed ${moneyText(participant.shareAmount)} of ${title} for you.`,
+        message: `${ownerLabel} proposed ${moneyText(participant.shareAmount, transaction.executionCurrency)} of ${title} for you.`,
         metadata: base(created.id, participant.id)
       });
     }
@@ -152,7 +149,7 @@ export async function applySharedExpenseToTransaction(
 
   type Row = (typeof existing.participants)[number];
   const matchedIds = new Set<string>();
-  const desired: { row: Row | null; input: NormalizedParticipant | null; share: number; index: number }[] = [];
+  const desired: { row: Row | null; input: NormalizedParticipant | null; share: Prisma.Decimal; index: number }[] = [];
   if (normalized) {
     const claim = (row: Row) => {
       if (matchedIds.has(row.id)) throw new HttpError(400, "A participant can only be added once");
@@ -202,11 +199,11 @@ export async function applySharedExpenseToTransaction(
           ) ?? null;
         if (row) claim(row);
       }
-      desired.push({ row, input: participant, share: Number(participant.share), index });
+      desired.push({ row, input: participant, share: new Prisma.Decimal(participant.share), index });
     });
   } else {
     existing.participants.forEach((row, index) =>
-      desired.push({ row, input: null, share: row.shareAmount.toNumber(), index })
+      desired.push({ row, input: null, share: row.shareAmount, index })
     );
   }
 
@@ -236,7 +233,7 @@ export async function applySharedExpenseToTransaction(
           senderUserId: ownerUserId,
           type: "shared_expense_invited",
           title: "Shared expense invitation",
-          message: `${ownerLabel} proposed ${moneyText(row.shareAmount)} of ${title} for you.`,
+          message: `${ownerLabel} proposed ${moneyText(row.shareAmount, transaction.executionCurrency)} of ${title} for you.`,
           metadata: base(existing.id, row.id)
         });
       }
@@ -246,8 +243,8 @@ export async function applySharedExpenseToTransaction(
     const { row } = entry;
     const field = `sharedExpense.participants.${entry.index}.share`;
     assertShareEditable(row, entry.share, field);
-    const amountChanged = cents(entry.share) !== cents(row.shareAmount);
-    const raised = cents(entry.share) > cents(row.shareAmount);
+    const amountChanged = !entry.share.eq(row.shareAmount);
+    const raised = entry.share.gt(row.shareAmount);
     let acceptance = row.acceptance;
     if (row.userId) {
       if (row.acceptance === "accepted" && (raised || directionFlip)) acceptance = "proposed";
@@ -271,8 +268,8 @@ export async function applySharedExpenseToTransaction(
             : {})
         },
         data: {
-          shareAmount: new Prisma.Decimal(entry.share),
-          status: participantStatus(entry.share, row.paidAmount.toNumber()),
+          shareAmount: entry.share,
+          status: participantStatus(entry.share, row.paidAmount),
           acceptance
         }
       });
@@ -284,7 +281,7 @@ export async function applySharedExpenseToTransaction(
         senderUserId: ownerUserId,
         type: "shared_expense_updated",
         title: "Shared expense updated",
-        message: `${updatedMessage("changed the proposal for")} Your share is now ${moneyText(entry.share)}; accept it again.`,
+        message: `${updatedMessage("changed the proposal for")} Your share is now ${moneyText(entry.share, transaction.executionCurrency)}; accept it again.`,
         metadata: base(existing.id, row.id)
       });
     }

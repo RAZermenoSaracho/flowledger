@@ -138,7 +138,7 @@ describe("transaction save", () => {
           isShared: true,
           sharedTitle: " Trip ",
           participants: [
-            { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "20", paidAmount: 5, status: "partial" },
+            { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "20", paidAmount: "5", status: "partial" },
             { draftId: "x", userId: "u3", participantName: "Kim", source: "app", shareAmount: "7.5" },
             { draftId: "y", participantName: "Pat", source: "manual", shareAmount: "2" }
           ]
@@ -151,9 +151,9 @@ describe("transaction save", () => {
           enabled: true,
           title: "Trip",
           participants: [
-            { id: "p1", userId: "u2", share: 20 },
-            { userId: "u3", share: 7.5 },
-            { manualName: "Pat", share: 2 }
+            { id: "p1", userId: "u2", share: "20" },
+            { userId: "u3", share: "7.5" },
+            { manualName: "Pat", share: "2" }
           ]
         }
       });
@@ -177,8 +177,8 @@ describe("transaction save", () => {
         sharedExpense: {
           enabled: true,
           participants: [
-            { id: "p1", userId: "u2", share: 20 },
-            { userId: "u2", share: 5 }
+            { id: "p1", userId: "u2", share: "20" },
+            { userId: "u2", share: "5" }
           ]
         }
       });
@@ -221,8 +221,8 @@ describe("transaction save", () => {
       expect(body.sharedExpense).toEqual({
         title: "Dinner",
         participants: [
-          { userId: "u2", participantName: "Sam", shareAmount: 50, paidAmount: 0, status: "pending" },
-          { userId: null, participantName: "Pat", shareAmount: 20, paidAmount: 0, status: "pending" }
+          { userId: "u2", participantName: "Sam", shareAmount: "50", paidAmount: "0", status: "pending" },
+          { userId: null, participantName: "Pat", shareAmount: "20", paidAmount: "0", status: "pending" }
         ]
       });
     });

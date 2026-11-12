@@ -6,6 +6,7 @@ import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
+import { isNonZero, sum } from "../../../utils/money";
 import type { SettlementDraft } from "../types/debts.types";
 import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
 import { AccountAmountField } from "./AccountAmountField";
@@ -53,12 +54,17 @@ export function PersonDebtDetail({
   onSubmitBatchSettlement: (event: FormEvent) => Promise<void>;
 }) {
   const selectableIOweThem = balance.iOweThem.filter(
-    (debt) => availableSettlementAmount(debt) > 0
+    (debt) => isNonZero(availableSettlementAmount(debt))
   );
-  const selectedBatchTotal = selectedIOweThem.reduce(
-    (total, debt) => total + (Number(draftFor(debt).amount) || 0),
-    0
-  );
+  const batchAmountsByCurrency = new Map<string, string[]>();
+  for (const debt of selectedIOweThem) {
+    const amounts = batchAmountsByCurrency.get(debt.currency) ?? [];
+    amounts.push(draftFor(debt).amount);
+    batchAmountsByCurrency.set(debt.currency, amounts);
+  }
+  const selectedBatchTotal = [...batchAmountsByCurrency]
+    .map(([currency, amounts]) => formatMoney(sum(amounts, currency), currency))
+    .join(" + ");
   const selectedDraftsComplete =
     selectedIOweThem.length > 0 &&
     selectedIOweThem.every(isSettlementDraftComplete);
@@ -116,7 +122,7 @@ export function PersonDebtDetail({
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {selectedIOweThem.length} selected ·{" "}
-                {formatMoney(selectedBatchTotal, summaryCurrency)}
+                {selectedBatchTotal}
               </p>
             </div>
             <form
@@ -171,7 +177,7 @@ export function PersonDebtDetail({
               const availableAmount = availableSettlementAmount(debt);
               const settlementCategoryOptions = categoryOptionsFor(debt);
 
-              return availableAmount <= 0 ? (
+              return !isNonZero(availableAmount) ? (
                 <EmptyState>
                   A settlement request is waiting for approval.
                 </EmptyState>
@@ -183,9 +189,8 @@ export function PersonDebtDetail({
                   <TextInput
                     label={`Amount (${debt.currency})`}
                     type="number"
-                    min="0.01"
                     max={availableAmount}
-                    step="0.01"
+                    step="any"
                     value={draft.amount}
                     onChange={(event) =>
                       updateDraft(debt, "amount", event.target.value)

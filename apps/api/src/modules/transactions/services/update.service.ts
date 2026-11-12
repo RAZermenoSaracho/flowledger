@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { UpdateTransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import {
   assertExpenseOffsetAllowed,
   assertGroupRelations,
@@ -142,7 +142,7 @@ export async function updateTransaction(userId: string, id: string, input: Updat
 
   let currencyFields:
     | Awaited<ReturnType<typeof resolveTransactionCurrencyFields>>
-    | { amountInPreferredCurrency: number }
+    | { amountInPreferredCurrency: Prisma.Decimal }
     | undefined;
   if (
     body.executionCurrency !== undefined &&
@@ -158,9 +158,15 @@ export async function updateTransaction(userId: string, id: string, input: Updat
       preferredCurrency: user.preferredCurrency
     });
   } else if (body.amount !== undefined) {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { preferredCurrency: true }
+    });
     currencyFields = {
-      amountInPreferredCurrency: roundMoney(
-        new Prisma.Decimal(body.amount).times(existing.exchangeRate).toNumber()
+      amountInPreferredCurrency: valueInCurrency(
+        body.amount,
+        existing.exchangeRate,
+        user.preferredCurrency ?? existing.executionCurrency
       )
     };
   }

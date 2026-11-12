@@ -22,10 +22,10 @@ export const timeZoneSchema = z.string().refine((value) => {
 
 export const moneySchema = z.coerce.number().finite();
 
-/** A native money amount as an exact decimal string: up to 12 integer and 18 fraction digits, no exponent. Numbers are rejected so no float ever carries a balance. */
+/** A native money amount as an exact decimal string: up to 20 integer and 18 fraction digits, no exponent. Numbers are rejected so no float ever carries a balance. */
 export const decimalAmountSchema = z
   .string()
-  .regex(/^-?\d{1,12}(\.\d{1,18})?$/, "Amount must be a decimal string with at most 12 integer and 18 fraction digits");
+  .regex(/^-?\d{1,20}(\.\d{1,18})?$/, "Amount must be a decimal string with at most 20 integer and 18 fraction digits");
 
 export const currencyCodeSchema = z
   .string()
@@ -77,10 +77,10 @@ export function decimalPlaces(value: string): number {
   return value.split(".")[1]?.length ?? 0;
 }
 
-/** True when `value` has more fraction digits than `currency` allows (`currencyFractionDigits`) or more than 12 integer digits. */
+/** True when `value` has more fraction digits than `currency` allows (`currencyFractionDigits`) or more than 20 integer digits. */
 export function exceedsCurrencyPrecision(value: string, currency: string): boolean {
   const integerDigits = value.replace(/^-/, "").split(".")[0]!.length;
-  return decimalPlaces(value) > currencyFractionDigits(currency) || integerDigits > 12;
+  return decimalPlaces(value) > currencyFractionDigits(currency) || integerDigits > 20;
 }
 
 /** Minor-unit digits of an ISO 4217 code (USD 2, JPY 0, KWD 3); any non-ISO code (crypto) gets 18. */
@@ -91,7 +91,14 @@ export function currencyFractionDigits(code: string): number {
     .maximumFractionDigits as number;
 }
 
-/** True for ISO currencies with at most 2 minor-unit digits, the only ones shared-expense and settlement `Decimal(12,2)` columns hold exactly. */
-export function isShareableCurrency(code: string): boolean {
-  return isoCurrencies.has(code.toUpperCase()) && currencyFractionDigits(code) <= 2;
-}
+/** A positive native amount as an exact decimal string; the check reads digits, never a float. */
+export const positiveDecimalAmountSchema = decimalAmountSchema.refine(
+  (value) => !value.startsWith("-") && /[1-9]/.test(value),
+  "Amount must be greater than 0"
+);
+
+/** A zero-or-greater native amount as an exact decimal string (`"-0"` counts as zero). */
+export const nonNegativeDecimalAmountSchema = decimalAmountSchema.refine(
+  (value) => !value.startsWith("-") || !/[1-9]/.test(value),
+  "Amount must not be negative"
+);

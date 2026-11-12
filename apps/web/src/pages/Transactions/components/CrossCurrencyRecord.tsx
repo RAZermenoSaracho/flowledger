@@ -3,10 +3,6 @@ import { formatMoney } from "../../../utils/currency";
 import { formatTransactionDate } from "../../../utils/dateTime";
 import { crossCurrencyRecord } from "../utils/crossCurrencyRecord";
 
-function formatRate(rate: number) {
-  return rate.toLocaleString("en-US", { maximumFractionDigits: 8 });
-}
-
 /**
  * Read-only record of a saved cross-currency transaction: source and applied (or received) amount,
  * execution time, the effective rate and, when a fee is recorded, the fee and the rate before it.
@@ -25,7 +21,7 @@ export function CrossCurrencyRecord({ transaction }: { transaction: Transaction 
     ["Executed", formatTransactionDate(transaction)],
     [
       "Effective rate",
-      `1 ${record.sourceCurrency} = ${formatRate(record.effectiveRate)} ${record.targetCurrency}`
+      `1 ${record.sourceCurrency} = ${record.effectiveRate} ${record.targetCurrency}`
     ]
   ];
   if (record.fee) {
@@ -33,7 +29,7 @@ export function CrossCurrencyRecord({ transaction }: { transaction: Transaction 
     if (record.rateBeforeFee !== null) {
       rows.push([
         "Rate before fee",
-        `1 ${record.sourceCurrency} = ${formatRate(record.rateBeforeFee)} ${record.targetCurrency}`
+        `1 ${record.sourceCurrency} = ${record.rateBeforeFee} ${record.targetCurrency}`
       ]);
     }
   }

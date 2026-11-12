@@ -7,7 +7,7 @@ import {
   currencyCodeSchema,
   dateStringSchema,
   decimalAmountSchema,
-  moneySchema
+  positiveDecimalAmountSchema
 } from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
@@ -142,7 +142,7 @@ export const updateTransactionSharedExpenseSchema = z.discriminatedUnion("enable
             id: z.string().min(1).optional(),
             userId: z.string().min(1).optional(),
             manualName: z.string().trim().min(1).max(120).optional(),
-            share: moneySchema.positive()
+            share: positiveDecimalAmountSchema
           })
           .refine((p) => Boolean(p.userId) !== Boolean(p.manualName), {
             message: "Provide either userId or manualName"

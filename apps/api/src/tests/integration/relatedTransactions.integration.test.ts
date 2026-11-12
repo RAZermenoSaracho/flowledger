@@ -64,8 +64,8 @@ describe("related transactions of a shared expense", () => {
       sharedExpense: {
         title: "Dinner split",
         participants: [
-          { userId: b.user.id, participantName: "B", shareAmount: 30 },
-          { userId: c.user.id, participantName: "C", shareAmount: 30 }
+          { userId: b.user.id, participantName: "B", shareAmount: "30" },
+          { userId: c.user.id, participantName: "C", shareAmount: "30" }
         ]
       }
     });
@@ -164,7 +164,7 @@ describe("related transactions of a shared expense", () => {
     expect(bView.body.transaction.relatedSettlements).toEqual([]);
     expect(bView.body.transaction.settlementOrigin).toMatchObject({
       title: "Dinner split",
-      amount: 90,
+      amount: "90",
       owner: { id: a.user.id }
     });
     const bJson = JSON.stringify(bView.body.transaction);

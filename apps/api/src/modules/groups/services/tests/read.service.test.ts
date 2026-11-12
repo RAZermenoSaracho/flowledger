@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
+import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
+import { getExchangeRate } from "../../../currencies/services/read.service.js";
 import {
   assertCategory,
   getGroupAdmin,
@@ -8,6 +10,8 @@ import {
   getMemberGroup,
   listGroups
 } from "../read.service.js";
+
+vi.mock("../../../currencies/services/read.service.js", () => ({ getExchangeRate: vi.fn() }));
 
 /**
  * `transaction.groupBy` is Prisma's most heavily overloaded generic method —
@@ -142,6 +146,7 @@ describe("getGroupById", () => {
     prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
     prismaMock.group.findUnique.mockResolvedValue({ id: "group-1" } as never);
     groupByMock.mockResolvedValue([] as never);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: "USD" } as never);
 
     await getGroupById("user-1", "group-1");
 
@@ -153,20 +158,26 @@ describe("getGroupById", () => {
     });
   });
 
-  it("computes income/expense/balance summary from grouped transaction totals", async () => {
+  it("converts each currency's totals to the viewer's preferred currency instead of summing native amounts", async () => {
     prismaMock.groupMember.findFirst.mockResolvedValue({ id: "m1" } as never);
     prismaMock.group.findUnique.mockResolvedValue({ id: "group-1" } as never);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: "USD" } as never);
+    vi.mocked(getExchangeRate).mockImplementation(async (from: string) =>
+      ({ USD: 1, MXN: 0.05, BTC: 60000 })[from] ?? 1
+    );
     groupByMock.mockResolvedValue([
-      { type: "income", _sum: { amount: { toNumber: () => 1000 } } },
-      { type: "expense", _sum: { amount: { toNumber: () => 400 } } }
+      { type: "income", executionCurrency: "USD", _sum: { amount: new Prisma.Decimal("1000") } },
+      { type: "income", executionCurrency: "BTC", _sum: { amount: new Prisma.Decimal("0.01") } },
+      { type: "expense", executionCurrency: "MXN", _sum: { amount: new Prisma.Decimal("8000") } }
     ] as never);
 
     const result = await getGroupById("user-1", "group-1");
 
     expect(result.summary).toEqual({
-      totalIncome: 1000,
+      totalIncome: 1600,
       totalExpenses: 400,
-      balance: 600
+      currency: "USD",
+      balance: 1200
     });
   });
 });

@@ -19,12 +19,12 @@ function wrapper({ children }: { children: ReactNode }) {
 function mockBaseline() {
   server.use(
     http.get(`${API_URL}/transactions`, () =>
-      HttpResponse.json({ data: [{ id: "tx-1", name: "Dinner" }], meta: {} })
+      HttpResponse.json({ data: [{ id: "tx-1", name: "Dinner", amount: "100", executionCurrency: "USD" }], meta: {} })
     )
   );
 }
 
-function mockBaselineWithAmount(amount = 100) {
+function mockBaselineWithAmount(amount = "100") {
   server.use(
     http.get(`${API_URL}/transactions`, () =>
       HttpResponse.json({
@@ -40,7 +40,7 @@ const sharedExpense: SharedExpense = {
   transactionId: "tx-1",
   ownerUserId: "user-1",
   title: "Dinner split",
-  totalAmount: 100,
+  totalAmount: "100",
   status: "open",
   participants: [
     {
@@ -48,8 +48,8 @@ const sharedExpense: SharedExpense = {
       userId: "user-2",
       participantName: "Friend",
       currency: "USD",
-      shareAmount: 50,
-      paidAmount: 20,
+      shareAmount: "50",
+      paidAmount: "20",
       status: "partial"
     },
     {
@@ -57,8 +57,8 @@ const sharedExpense: SharedExpense = {
       userId: null,
       participantName: "Roommate",
       currency: "USD",
-      shareAmount: 30,
-      paidAmount: 0,
+      shareAmount: "30",
+      paidAmount: "0",
       status: "pending"
     }
   ],
@@ -177,7 +177,7 @@ describe("useSharedExpenseForm", () => {
   });
 
   it("computes remainingAmount and sharesExceedTransactionAmount once a transaction with participants is selected", async () => {
-    mockBaselineWithAmount(100);
+    mockBaselineWithAmount("100");
     const { result } = renderHook(() => useSharedExpenseForm(), { wrapper });
 
     act(() => result.current.setTransactionId("tx-1"));
@@ -188,13 +188,13 @@ describe("useSharedExpenseForm", () => {
     const draftId = result.current.participants[0]!.draftId;
     act(() => result.current.updateParticipant(draftId, "shareAmount", "60"));
 
-    expect(result.current.participantShareTotal).toBe(60);
-    expect(result.current.remainingAmount).toBe(40);
+    expect(result.current.participantShareTotal).toBe("60.00");
+    expect(result.current.remainingAmount).toBe("40.00");
     expect(result.current.sharesExceedTransactionAmount).toBe(false);
 
     act(() => result.current.updateParticipant(draftId, "shareAmount", "150"));
 
-    expect(result.current.remainingAmount).toBe(-50);
+    expect(result.current.remainingAmount).toBe("-50.00");
     expect(result.current.sharesExceedTransactionAmount).toBe(true);
   });
 

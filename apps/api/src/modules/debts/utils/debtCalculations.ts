@@ -1,13 +1,13 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getDebtDirection, isSettlementDirectionCurrent } from "./debtDirection.js";
 import type { debtInclude } from "./debtInclude.js";
 
-/** Remaining unpaid amount on a debt, floored at 0. */
+/** Remaining unpaid amount on a debt in its own currency, floored at 0 (exact `Decimal`). */
 export function debtOutstanding(debt: {
   shareAmount: Prisma.Decimal;
   paidAmount: Prisma.Decimal;
 }) {
-  return Math.max(0, debt.shareAmount.toNumber() - debt.paidAmount.toNumber());
+  return Prisma.Decimal.max(0, debt.shareAmount.minus(debt.paidAmount));
 }
 
 /** Sums a debt's pending settlement requests that still match its current debtor/creditor direction. */
@@ -25,7 +25,7 @@ export function pendingSettlementTotal(debt: {
   }[];
 }) {
   const direction = getDebtDirection(debt);
-  if (!direction) return 0;
+  if (!direction) return new Prisma.Decimal(0);
 
   return debt.settlementRequests
     .filter(
@@ -33,7 +33,7 @@ export function pendingSettlementTotal(debt: {
         request.status === "pending" &&
         isSettlementDirectionCurrent(debt, request)
     )
-    .reduce((sum, request) => sum + request.amount.toNumber(), 0);
+    .reduce((sum, request) => sum.plus(request.amount), new Prisma.Decimal(0));
 }
 
 /** Enriches a Prisma debt row (loaded via {@link debtInclude}) with resolved direction and outstanding/pending amounts for balance views. */
@@ -53,9 +53,10 @@ export function balanceDebt(
 }
 
 /** Derives a participant's paid status by comparing `paidAmount` against `shareAmount`. */
-export function participantStatus(shareAmount: number, paidAmount: number) {
-  if (paidAmount >= shareAmount) return "paid";
-  if (paidAmount > 0) return "partial";
+export function participantStatus(shareAmount: Prisma.Decimal.Value, paidAmount: Prisma.Decimal.Value) {
+  const paid = new Prisma.Decimal(paidAmount);
+  if (paid.gte(shareAmount)) return "paid";
+  if (paid.gt(0)) return "partial";
   return "pending";
 }
 

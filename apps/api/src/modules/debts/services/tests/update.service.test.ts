@@ -50,8 +50,8 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     sharedExpenseId: "se-1",
     userId: "user-1",
     currency: "USD",
-    shareAmount: { toNumber: () => 100 },
-    paidAmount: { toNumber: () => 0 },
+    shareAmount: new Prisma.Decimal("100"),
+    paidAmount: new Prisma.Decimal("0"),
     acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
@@ -126,8 +126,8 @@ describe("settleDebtDirectly", () => {
   it("throws a 400 when the debt is already settled", async () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow({
-        shareAmount: { toNumber: () => 100 },
-        paidAmount: { toNumber: () => 100 }
+        shareAmount: new Prisma.Decimal("100"),
+        paidAmount: new Prisma.Decimal("100")
       }) as never
     );
 
@@ -143,7 +143,7 @@ describe("settleDebtDirectly", () => {
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
-      debtRow({ paidAmount: { toNumber: () => 100 }, status: "paid" }) as never
+      debtRow({ paidAmount: new Prisma.Decimal("100"), status: "paid" }) as never
     );
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.sharedExpenseParticipant.count.mockResolvedValue(0);
@@ -185,9 +185,10 @@ describe("rejectSettlement", () => {
       id: "sr-1",
       debtorUserId: "user-1",
       creditor: { name: "Owner" },
-      amount: { toNumber: () => 50 },
+      amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: "USD",
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }
@@ -255,7 +256,7 @@ describe("approveSettlement", () => {
   it("throws a 400 when the request amount now exceeds the outstanding balance", async () => {
     prismaMock.settlementRequest.findFirst.mockResolvedValue(
       pendingSettlementRequest({
-        amount: { toNumber: () => 500 }
+        amount: new Prisma.Decimal("500")
       }) as never
     );
 
@@ -289,7 +290,7 @@ describe("approveSettlement", () => {
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
-      debtRow({ paidAmount: { toNumber: () => 50 } }) as never
+      debtRow({ paidAmount: new Prisma.Decimal("50") }) as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
       pendingSettlementRequest() as never
@@ -305,7 +306,7 @@ describe("approveSettlement", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 50
+      amountInPreferredCurrency: new Prisma.Decimal("50")
     });
     prismaMock.transaction.create
       .mockResolvedValueOnce({ id: "debtor-txn" } as never)
@@ -336,7 +337,7 @@ describe("approveSettlement", () => {
     // The returned debt goes through balanceDebt() (same as
     // settleDebtDirectly's return), so it carries the computed
     // outstandingAmount a caller needs without a follow-up fetch.
-    expect(result.debt.outstandingAmount).toBe(50);
+    expect(result.debt.outstandingAmount).toEqual(new Prisma.Decimal("50"));
   });
 });
 
@@ -350,7 +351,7 @@ describe("approveSettlement applied amounts", () => {
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
-      debtRow({ currency: debtCurrency, paidAmount: { toNumber: () => 50 } }) as never
+      debtRow({ currency: debtCurrency, paidAmount: new Prisma.Decimal("50") }) as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
       pendingSettlementRequest({
@@ -366,7 +367,7 @@ describe("approveSettlement applied amounts", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: debtCurrency,
       exchangeRate: 1,
-      amountInPreferredCurrency: 50
+      amountInPreferredCurrency: new Prisma.Decimal("50")
     });
     prismaMock.transaction.create
       .mockResolvedValueOnce({ id: "debtor-txn" } as never)
@@ -422,12 +423,10 @@ describe("approveSettlement applied amounts", () => {
     expect(creditorData.accountAmount?.toFixed()).toBe("850");
   });
 
-  it.each(["BTC", "KWD"])("rejects approving a %s settlement", async (currency) => {
+  it.each(["BTC", "KWD"])("accepts approving a %s settlement", async (currency) => {
     setup({ debtor: currency, creditor: currency }, currency);
-
-    await expect(approveSettlement("owner-1", "sr-1", approval)).rejects.toMatchObject({
-      statusCode: 400,
-      message: "Sharing is only supported for fiat currencies with up to 2 decimals"
+    await expect(approveSettlement("owner-1", "sr-1", approval)).resolves.toMatchObject({
+      debt: { outstandingAmount: new Prisma.Decimal("50") }
     });
   });
 });
@@ -440,7 +439,7 @@ describe("approveBatchSettlements", () => {
     prismaMock.sharedExpenseParticipant.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.settlementRequest.updateMany.mockResolvedValue({ count: 1 } as never);
     prismaMock.sharedExpenseParticipant.findUniqueOrThrow.mockResolvedValue(
-      debtRow({ paidAmount: { toNumber: () => 50 } }) as never
+      debtRow({ paidAmount: new Prisma.Decimal("50") }) as never
     );
     prismaMock.settlementRequest.update.mockResolvedValue(
       pendingSettlementRequest() as never
@@ -454,7 +453,7 @@ describe("approveBatchSettlements", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 50
+      amountInPreferredCurrency: new Prisma.Decimal("50")
     });
     prismaMock.transaction.create
       .mockResolvedValueOnce({ id: "debtor-txn" } as never)

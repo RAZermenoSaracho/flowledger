@@ -8,7 +8,12 @@ const NATIVE_AMOUNT_KEYS = new Set([
   "destinationAmount",
   "feeAmount",
   "initialBalance",
-  "currentBalance"
+  "currentBalance",
+  "shareAmount",
+  "paidAmount",
+  "totalAmount",
+  "outstandingAmount",
+  "pendingSettlementAmount"
 ]);
 
 // `Prisma.Decimal` defines its own `toJSON()` (returning a string), and per

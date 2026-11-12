@@ -181,7 +181,7 @@ A financial transaction. The core financial record.
 | `feeAmount` / `feeCurrency` | Decimal(30,18)? / String? | Optional explicit fee, set together; currency is the source amount's or the destination account's. Detail only |
 | `executionCurrency` | String | ISO 4217 code, default `"USD"`; the currency the transaction was recorded in |
 | `exchangeRate` | Decimal(20,8) | Default `1`; rate from `executionCurrency` to the owner's `preferredCurrency` at creation/edit time |
-| `amountInPreferredCurrency` | Decimal(12,2) | `amount * exchangeRate`, snapshotted at creation/edit time — not re-converted if the user's `preferredCurrency` changes later |
+| `amountInPreferredCurrency` | Decimal(38,18) | `amount * exchangeRate`, snapshotted at creation/edit time — not re-converted if the user's `preferredCurrency` changes later |
 | `type` | TransactionType | `income`, `expense`, `transfer` |
 | `date` | DateTime | Transaction date |
 | `categoryId` | String? | FK → Category |
@@ -255,7 +255,7 @@ An expense split across multiple participants. Attached 1:1 to a Transaction.
 | `transactionId` | String (unique) | FK → Transaction |
 | `ownerUserId` | String | FK → User (who paid) |
 | `title` | String | Display title |
-| `totalAmount` | Decimal(12,2) | Total expense amount |
+| `totalAmount` | Decimal(38,18) | Total expense amount |
 | `status` | SharedExpenseStatus | `open`, `settled`, `cancelled` |
 
 Relations: `participants` (SharedExpenseParticipant)
@@ -272,8 +272,8 @@ One participant's share of a shared expense. Can be a registered user or a named
 | `userId` | String? | FK → User (null for non-registered participants) |
 | `participantName` | String | Display name |
 | `currency` | String | ISO 4217 code, default `"USD"`; inherited from the underlying transaction's `executionCurrency` |
-| `shareAmount` | Decimal(12,2) | What they owe |
-| `paidAmount` | Decimal(12,2) | What they've paid so far |
+| `shareAmount` | Decimal(38,18) | What they owe |
+| `paidAmount` | Decimal(38,18) | What they've paid so far |
 | `status` | ParticipantStatus | `pending`, `partial`, `paid` |
 
 Relations: `settlementRequests` (SettlementRequest)
@@ -289,7 +289,7 @@ A formal request from a debtor to a creditor to settle a shared expense debt. Tr
 | `sharedExpenseParticipantId` | String | FK → SharedExpenseParticipant |
 | `debtorUserId` | String | FK → User |
 | `creditorUserId` | String | FK → User |
-| `amount` | Decimal(12,2) | Settlement amount, in the debt currency |
+| `amount` | Decimal(38,18) | Settlement amount, in the debt currency |
 | `debtorAccountAmount` | Decimal(30,18)? | Amount applied to the debtor account, stated when its currency differs from the debt's |
 | `status` | SettlementStatus | `pending`, `approved`, `rejected` |
 | `note` / `paymentInfo` | String? | Optional notes |
@@ -401,7 +401,7 @@ A transaction fetched from a provider and staged for user review. Becomes a Tran
 | `providerCredentialId` | String | Provider credential |
 | `providerAccountId` | String | Provider account |
 | `description` | String | Raw transaction description |
-| `amount` | Decimal(12,2) | Negative = expense, positive = income |
+| `amount` | Decimal(38,18) | Negative = expense, positive = income |
 | `currency` | String | ISO currency code |
 | `transactionDate` | DateTime | Transaction date |
 | `refreshDate` | DateTime? | When provider refreshed it |

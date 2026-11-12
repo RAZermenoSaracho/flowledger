@@ -1,10 +1,8 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
 import { resolveAppliedAmounts } from "../../transactions/utils/appliedAmounts.js";
-import { assertShareableCurrencies } from "../../shared-expenses/utils/assertions.js";
 import { resolveTransactionCurrencyFields } from "../../transactions/utils/transactionCurrency.js";
 import {
   balanceDebt,
@@ -25,7 +23,6 @@ import {
 } from "./settlementValidation.service.js";
 import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
 
-const cents = (value: number) => Math.round(value * 100);
 
 /** Marks a shared expense `settled` once none of its participants have an unpaid balance. */
 export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
@@ -66,7 +63,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
     if (!direction) throw notFound("Debt");
 
     const outstandingAmount = debtOutstanding(debt);
-    if (outstandingAmount <= 0) {
+    if (outstandingAmount.lte(0)) {
       throw new HttpError(400, "Debt is already settled");
     }
 
@@ -173,16 +170,16 @@ export async function approveSettlement(
     }
 
     const outstandingAmount = debtOutstanding(debt);
-    const amount = settlementRequest.amount.toNumber();
-    if (amount > outstandingAmount) {
+    const amount = settlementRequest.amount;
+    if (amount.gt(outstandingAmount)) {
       throw new HttpError(
         400,
         "Settlement request exceeds the current outstanding balance"
       );
     }
 
-    const paidAmount = debt.paidAmount.toNumber() + amount;
-    const status = participantStatus(debt.shareAmount.toNumber(), paidAmount);
+    const paidAmount = debt.paidAmount.plus(amount);
+    const status = participantStatus(debt.shareAmount, paidAmount);
 
     const approvedAt = new Date();
     const requestClaim = await tx.settlementRequest.updateMany({
@@ -190,12 +187,12 @@ export async function approveSettlement(
       data: { status: "approved", approvedAt }
     });
     if (requestClaim.count !== 1) throw new HttpError(409, "Settlement request was already resolved");
-    if (cents(paidAmount) > cents(debt.shareAmount.toNumber())) {
+    if (paidAmount.gt(debt.shareAmount)) {
       throw new HttpError(400, "Settlement request exceeds the current outstanding balance");
     }
     const paidClaim = await tx.sharedExpenseParticipant.updateMany({
       where: { id: debt.id, paidAmount: debt.paidAmount },
-      data: { paidAmount: new Prisma.Decimal(paidAmount), status }
+      data: { paidAmount, status }
     });
     if (paidClaim.count !== 1) throw new HttpError(409, "The debt changed while approving; please retry");
     const updatedDebt = await tx.sharedExpenseParticipant.findUniqueOrThrow({
@@ -286,10 +283,6 @@ export async function approveSettlement(
         select: { preferredCurrency: true }
       })
     ]);
-    assertShareableCurrencies(
-      [debtCurrency, debtorAccount.currency, creditorAccount.currency],
-      "amount"
-    );
     const settlementAmount = approvedRequest.amount.toFixed();
     const debtorApplied = resolveAppliedAmounts({
       type: "expense",
@@ -407,7 +400,8 @@ export async function approveSettlement(
           type: "settlement_approved",
         title: "Settlement approved",
         message: `${userLabel(approvedRequestWithTransactions.creditor)} approved your ${moneyText(
-          approvedRequestWithTransactions.amount
+          approvedRequestWithTransactions.amount,
+          debtCurrency
         )} settlement for ${approvedRequestWithTransactions.sharedExpenseParticipant.sharedExpense.title}. A transaction was created automatically.`,
         metadata: {
           settlementRequestId: approvedRequestWithTransactions.id,
@@ -505,7 +499,8 @@ export async function rejectSettlement(
       type: "settlement_rejected",
       title: "Settlement rejected",
       message: `${userLabel(rejectedRequest.creditor)} rejected your ${moneyText(
-        rejectedRequest.amount
+        rejectedRequest.amount,
+        rejectedRequest.sharedExpenseParticipant.currency
       )} settlement for ${rejectedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
       metadata: {
         settlementRequestId: rejectedRequest.id,

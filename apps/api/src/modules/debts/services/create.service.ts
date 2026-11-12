@@ -4,7 +4,7 @@ import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createNotifications } from "../../notifications/services/create.service.js";
 import { moneyText } from "../../notifications/utils/moneyText.js";
 import { resolveAppliedAmounts } from "../../transactions/utils/appliedAmounts.js";
-import { assertShareableCurrencies } from "../../shared-expenses/utils/assertions.js";
+import { assertAmountPrecision } from "../../shared-expenses/utils/assertions.js";
 import { debtOutstanding, pendingSettlementTotal } from "../utils/debtCalculations.js";
 import { isCountedShare } from "../utils/shareAcceptance.js";
 import { getDebtDirection } from "../utils/debtDirection.js";
@@ -53,9 +53,9 @@ export async function createSettlementRequest(
 
         const outstandingAmount = debtOutstanding(debt);
         const pendingAmount = pendingSettlementTotal(debt);
-        const requestAmount = Number(body.amount);
+        const requestAmount = new Prisma.Decimal(body.amount);
         const debtorAccount = await assertSettlementAccount(tx, userId, body.accountId);
-        assertShareableCurrencies([debt.currency, debtorAccount.currency], "amount");
+        assertAmountPrecision(body.amount, debt.currency, "amount");
         const debtorApplied = resolveAppliedAmounts({
           type: "expense",
           amount: body.amount,
@@ -71,10 +71,10 @@ export async function createSettlementRequest(
           debt.sharedExpense.transaction.groupId
         );
 
-        if (outstandingAmount <= 0) {
+        if (outstandingAmount.lte(0)) {
           throw new HttpError(400, "Debt is already settled");
         }
-        if (requestAmount > outstandingAmount - pendingAmount) {
+        if (requestAmount.gt(outstandingAmount.minus(pendingAmount))) {
           throw new HttpError(
             400,
             "Settlement request exceeds the outstanding balance"
@@ -132,7 +132,8 @@ export async function createSettlementRequest(
             type: "settlement_requested",
             title: "Settlement requested",
             message: `${userLabel(settlementRequest.debtor)} requested settlement of ${moneyText(
-              settlementRequest.amount
+              settlementRequest.amount,
+              settlementRequest.sharedExpenseParticipant.currency
             )} for ${settlementRequest.sharedExpenseParticipant.sharedExpense.title}.`,
             metadata: {
               settlementRequestId: settlementRequest.id,

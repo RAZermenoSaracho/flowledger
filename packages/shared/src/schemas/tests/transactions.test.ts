@@ -38,7 +38,7 @@ describe("transactionSchema — income/expense", () => {
         ...baseIncome,
         sharedExpense: {
           title: "Split rent",
-          participants: [{ participantName: "Sam", shareAmount: 500 }]
+          participants: [{ participantName: "Sam", shareAmount: "500" }]
         }
       }).success
     ).toBe(true);
@@ -129,7 +129,7 @@ describe("transactionSchema — transfer", () => {
         ...validTransfer,
         sharedExpense: {
           title: "Split",
-          participants: [{ participantName: "Sam", shareAmount: 50 }]
+          participants: [{ participantName: "Sam", shareAmount: "50" }]
         }
       }).success
     ).toBe(false);
@@ -169,7 +169,7 @@ describe("updateTransactionSchema", () => {
         sharedExpense: {
           enabled: true,
           title: "Dinner",
-          participants: [{ userId: "u1", share: 10 }, { id: "p2", manualName: "Ana", share: 5 }]
+          participants: [{ userId: "u1", share: "10" }, { id: "p2", manualName: "Ana", share: "5" }]
         }
       }).success
     ).toBe(true);
@@ -177,10 +177,10 @@ describe("updateTransactionSchema", () => {
 
   it.each([
     ["enabled without participants", { enabled: true, participants: [] }],
-    ["participant with both userId and manualName", { enabled: true, participants: [{ userId: "u", manualName: "A", share: 1 }] }],
-    ["participant with neither", { enabled: true, participants: [{ share: 1 }] }],
-    ["non-positive share", { enabled: true, participants: [{ userId: "u", share: 0 }] }],
-    ["missing enabled", { participants: [{ userId: "u", share: 1 }] }]
+    ["participant with both userId and manualName", { enabled: true, participants: [{ userId: "u", manualName: "A", share: "1" }] }],
+    ["participant with neither", { enabled: true, participants: [{ share: "1" }] }],
+    ["non-positive share", { enabled: true, participants: [{ userId: "u", share: "0" }] }],
+    ["missing enabled", { participants: [{ userId: "u", share: "1" }] }]
   ])("rejects sharedExpense: %s", (_label, sharedExpense) => {
     expect(updateTransactionSchema.safeParse({ sharedExpense }).success).toBe(false);
   });

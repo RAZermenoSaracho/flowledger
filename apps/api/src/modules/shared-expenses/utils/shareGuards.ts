@@ -1,7 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { badRequest } from "../../../utils/httpError.js";
 import type { GuardParticipant } from "../types/sharedExpenses.types.js";
-
-const cents = (value: number) => Math.round(value * 100);
 
 /** Builds a 400 whose `details.issues.fieldErrors[field]` carries `message`, the shape the web forms read. */
 export function fieldError(field: string, message: string) {
@@ -14,13 +13,13 @@ export function fieldError(field: string, message: string) {
 export function pendingRequestAmount(participant: Pick<GuardParticipant, "settlementRequests">) {
   return participant.settlementRequests
     .filter((request) => request.status === "pending")
-    .reduce((sum, request) => sum + request.amount.toNumber(), 0);
+    .reduce((sum, request) => sum.plus(request.amount), new Prisma.Decimal(0));
 }
 
 /** Whether a participant has any payment or a pending/approved settlement request. */
 export function hasSettlementActivity(participant: GuardParticipant) {
   return (
-    participant.paidAmount.toNumber() > 0 ||
+    participant.paidAmount.gt(0) ||
     participant.settlementRequests.some((request) => request.status === "pending" || request.status === "approved")
   );
 }
@@ -42,7 +41,7 @@ export function assertTypeChangeAllowed(participants: GuardParticipant[], previo
   const settled = participants.find(isSettledAllocation);
   if (settled) assertNotSettled(settled, "type");
   const blocking = participants.find(
-    (participant) => participant.paidAmount.toNumber() > 0 || pendingRequestAmount(participant) > 0
+    (participant) => participant.paidAmount.gt(0) || pendingRequestAmount(participant).gt(0)
   );
   if (blocking) {
     throw fieldError(
@@ -55,8 +54,7 @@ export function assertTypeChangeAllowed(participants: GuardParticipant[], previo
 /** Whether an allocation is accepted and fully paid: from then on it is immutable and extra amounts need a new allocation. */
 export function isSettledAllocation(participant: Pick<GuardParticipant, "acceptance" | "shareAmount" | "paidAmount">) {
   return (
-    participant.acceptance === "accepted" &&
-    cents(participant.paidAmount.toNumber()) >= cents(participant.shareAmount.toNumber())
+    participant.acceptance === "accepted" && participant.paidAmount.gte(participant.shareAmount)
   );
 }
 
@@ -74,19 +72,20 @@ export function assertNotSettled(participant: GuardParticipant, field: string) {
  * Throws 400 on `field` when `participant` is settled and `nextShare` differs, when `nextShare` is below paid plus
  * pending requests, or when it raises a share that already has payment activity (extra amounts need a new allocation).
  */
-export function assertShareEditable(participant: GuardParticipant, nextShare: number, field: string) {
-  const current = participant.shareAmount.toNumber();
-  if (cents(nextShare) === cents(current)) return;
+export function assertShareEditable(participant: GuardParticipant, nextShare: Prisma.Decimal.Value, field: string) {
+  const next = new Prisma.Decimal(nextShare);
+  const current = participant.shareAmount;
+  if (next.eq(current)) return;
   assertNotSettled(participant, field);
-  const paid = participant.paidAmount.toNumber();
+  const paid = participant.paidAmount;
   const pending = pendingRequestAmount(participant);
-  if (cents(nextShare) < cents(paid + pending)) {
+  if (next.lt(paid.plus(pending))) {
     throw fieldError(
       field,
       `${participant.participantName}'s share cannot be below what was paid plus pending settlement requests.`
     );
   }
-  if (cents(nextShare) > cents(current) && (paid > 0 || pending > 0)) {
+  if (next.gt(current) && (paid.gt(0) || pending.gt(0))) {
     throw fieldError(
       field,
       `${participant.participantName}'s share already has payments or pending settlement requests; add an additional allocation for the extra amount.`
@@ -97,7 +96,7 @@ export function assertShareEditable(participant: GuardParticipant, nextShare: nu
 /** Throws 400 on `field` unless the participant is not settled, has `paidAmount = 0` and no pending request. */
 export function assertRemovable(participant: GuardParticipant, field: string) {
   assertNotSettled(participant, field);
-  if (participant.paidAmount.toNumber() > 0 || pendingRequestAmount(participant) > 0) {
+  if (participant.paidAmount.gt(0) || pendingRequestAmount(participant).gt(0)) {
     throw fieldError(
       field,
       `Cannot remove ${participant.participantName}: they have payments or pending settlement requests.`

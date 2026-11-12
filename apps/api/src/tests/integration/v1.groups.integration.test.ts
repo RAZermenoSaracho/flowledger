@@ -102,7 +102,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
     return res.body.transaction.id as string;
   }
 
-  async function shareWithB(amount = 100, share = 40) {
+  async function shareWithB(amount = 100, share = "40") {
     const transactionId = await groupTransaction(amount);
     const res = await call(
       a, "post", "/v1/shared-expenses",
@@ -208,7 +208,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
 
   it("supports universal sharing, consent and caller-scoped blocks with audit and public identities", async () => {
     const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Personal", amount: 50, accountAmount: "50", amountInPreferredCurrency: 50, type: "expense", date: new Date(), accountId: a.accountId } });
-    const created = await call(a, "post", "/v1/shared-expenses", { transactionId: tx.id, title: "Personal", participants: [{ userId: c.userId, participantName: "C", shareAmount: 25 }] }, 201, "sharedExpense.create");
+    const created = await call(a, "post", "/v1/shared-expenses", { transactionId: tx.id, title: "Personal", participants: [{ userId: c.userId, participantName: "C", shareAmount: "25" }] }, 201, "sharedExpense.create");
     const id = created.body.sharedExpense.id;
     const own = await request(app).get("/v1/me").set(bearer(a.readKey));
     expect(own.body.user).toMatchObject({ email: expect.any(String), username: expect.any(String), identityVisibility: "username_only" });
@@ -242,19 +242,19 @@ describe("/v1 group, shared-expense and settlement routes", () => {
         data: { userId: b.userId, name: "Mine", amount: 50, accountAmount: "50", amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: b.accountId, groupId }
       });
       groupTransactionId = await groupTransaction(100);
-      const participant = (userId: string, shareAmount = 100) => ({ userId, participantName: "P", shareAmount });
+      const participant = (userId: string, shareAmount = "100") => ({ userId, participantName: "P", shareAmount });
       const body = (transactionId: string, participants: object[]) => ({ transactionId, title: "Split", participants });
 
       const before = await snapshot();
-      await call(a, "post", "/v1/shared-expenses", body(bTx.id, [participant(a.userId, 50)]), 404, "sharedExpense.create");
+      await call(a, "post", "/v1/shared-expenses", body(bTx.id, [participant(a.userId, "50")]), 404, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body("missing", [participant(b.userId)]), 404, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(a.userId)]), 400, "sharedExpense.create");
-      await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, 150)]), 400, "sharedExpense.create");
+      await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, "150")]), 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", { transactionId: groupTransactionId }, 400, "sharedExpense.create");
       await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId)]), 403, undefined, true);
       expect(await snapshot()).toEqual(before);
 
-      const created = await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, 100)]), 201, "sharedExpense.create");
+      const created = await call(a, "post", "/v1/shared-expenses", body(groupTransactionId, [participant(b.userId, "100")]), 201, "sharedExpense.create");
       sharedExpenseId = created.body.sharedExpense.id;
       expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ resourceId: sharedExpenseId }));
       expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_invited" } })).toBe(1);
@@ -292,7 +292,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
 
   describe("settlements", () => {
     it("lets only the debtor request, once, and only the creditor approve", async () => {
-      const { debtId } = await shareWithB(100, 40);
+      const { debtId } = await shareWithB(100, "40");
       const settle = { amount: "40", accountId: b.accountId, categoryId: expenseCategoryId, note: "paid" };
 
       const before = await snapshot();
@@ -329,7 +329,7 @@ describe("/v1 group, shared-expense and settlement routes", () => {
     });
 
     it("lets the creditor reject a pending request without creating transactions", async () => {
-      const { debtId } = await shareWithB(100, 25);
+      const { debtId } = await shareWithB(100, "25");
       const created = await call(b, "post", `/v1/debts/${debtId}/settlement-request`, { amount: "25", accountId: b.accountId, categoryId: expenseCategoryId }, 201, "settlement.request");
       const requestId = created.body.settlementRequest.id as string;
 

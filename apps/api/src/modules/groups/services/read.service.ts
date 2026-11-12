@@ -1,3 +1,6 @@
+import { Prisma } from "@prisma/client";
+import { getExchangeRate } from "../../currencies/services/read.service.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
@@ -123,7 +126,7 @@ export async function getGroupById(userId: string, groupId: string) {
   const member = await prisma.groupMember.findFirst({ where: { groupId, userId }, select: { id: true } });
   if (!member) throw notFound("Group");
 
-  const [group, transactionTotals] = await Promise.all([
+  const [group, transactionTotals, viewer] = await Promise.all([
     prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -141,33 +144,34 @@ export async function getGroupById(userId: string, groupId: string) {
       }
     }),
     prisma.transaction.groupBy({
-      by: ["type"],
+      by: ["type", "executionCurrency"],
       where: {
         userId,
         groupId,
         type: { in: ["income", "expense"] }
       },
       _sum: { amount: true }
-    })
+    }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { preferredCurrency: true } })
   ]);
 
   if (!group) throw notFound("Group");
 
-  const summary = transactionTotals.reduce(
-    (totals, row) => {
-      const amount = row._sum.amount?.toNumber() ?? 0;
-      if (row.type === "income") totals.totalIncome += amount;
-      if (row.type === "expense") totals.totalExpenses += amount;
-      return totals;
-    },
-    { totalIncome: 0, totalExpenses: 0 }
-  );
+  const currency = viewer.preferredCurrency ?? "USD";
+  const totals = { income: new Prisma.Decimal(0), expense: new Prisma.Decimal(0) };
+  for (const row of transactionTotals) {
+    if (row.type !== "income" && row.type !== "expense") continue;
+    const rate = await getExchangeRate(row.executionCurrency, currency);
+    totals[row.type] = totals[row.type].plus(valueInCurrency(row._sum.amount ?? 0, rate, currency));
+  }
+  const summary = { totalIncome: totals.income.toNumber(), totalExpenses: totals.expense.toNumber() };
 
   return {
     ...publicizeUsers(group),
     summary: {
       ...summary,
-      balance: summary.totalIncome - summary.totalExpenses
+      currency,
+      balance: totals.income.minus(totals.expense).toNumber()
     }
   };
 }

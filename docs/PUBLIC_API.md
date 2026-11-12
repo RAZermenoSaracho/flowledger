@@ -117,7 +117,7 @@ Native amounts are decimal strings on the web API, `/v1` and MCP, in requests an
 - **Fee:** `feeAmount` and `feeCurrency` are sent together or not at all; `feeCurrency` is the source amount's currency or the destination account's. `null` for both clears it. A fee is detail only: it is not subtracted again and is not an expense.
 - **Settlements:** `accountAmount` on a request (debtor) or approval (creditor) is required when the chosen account's currency differs from the debt's, and rejected if it differs when the currencies are equal.
 - **Batch import:** `POST /imported-transactions/batch-import` rejects rows whose currency differs from the account's (`400`, nothing changes); import those one at a time with `accountAmount`.
-- **Sharing:** shared expenses and settlements accept only ISO currencies with at most 2 decimals.
+- **Sharing:** shared expenses and settlements work in any currency, including crypto. Share and settlement amounts are decimal strings with at most the currency's decimals.
 
 ## Errors and limits
 

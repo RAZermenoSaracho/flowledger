@@ -50,7 +50,7 @@ describe("/shared-expenses routes", () => {
           {
             userId: participant.user.id,
             participantName: "Friend",
-            shareAmount: 50
+            shareAmount: "50"
           }
         ]
       }

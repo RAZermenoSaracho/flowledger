@@ -301,7 +301,7 @@ describe("financial data isolation", () => {
       const { accountId, categoryId } = await seedOwnerData(owner);
       const tx = await seedTransaction(owner, accountId, categoryId, {
         type: transactionType,
-        sharedExpense: { title: "Split", participants: [{ userId: who.userId, participantName: "P", shareAmount: 40 }] }
+        sharedExpense: { title: "Split", participants: [{ userId: who.userId, participantName: "P", shareAmount: "40" }] }
       });
       await send(who.token, { method: "post", path: `/shared-expenses/${tx.sharedExpense!.id}/accept` });
       const debt = await prisma.sharedExpenseParticipant.findFirstOrThrow({ where: { sharedExpenseId: tx.sharedExpense!.id } });

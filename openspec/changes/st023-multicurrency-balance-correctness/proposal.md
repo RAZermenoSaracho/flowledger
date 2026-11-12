@@ -25,7 +25,8 @@ B-006 (ST-023) fixes this before B-007 and before any feature that builds on bal
   - `Transaction.date` remains the only execution instant.
   - `exchangeRate` and `amountInPreferredCurrency` keep their meaning as valuation snapshots.
 - **Exact precision.**
-  - `Account.initialBalance`, `Transaction.amount` and the new amount columns become `Decimal(30,18)`.
+  - Every money and rate column becomes `Decimal(38,18)` (20 integer digits): `Account.initialBalance`, the `Transaction` amount, rate and valuation columns, `SharedExpense.totalAmount`, participant `shareAmount` and `paidAmount`, `SettlementRequest` amounts and `ProviderImportedTransaction.amount`. A second additive migration widens them losslessly.
+  - Sharing and settlement work for every currency, crypto included, with exact deterministic splits. The group summary values each currency into the viewer's preferred currency instead of adding across currencies.
   - **BREAKING (API/MCP input and output).** Native amounts are decimal strings in both directions, and JSON numbers are rejected for them.
   - Fiat amounts must fit their ISO 4217 minor units: USD and MXN 2, JPY 0. Any other currency may have up to 18 decimals. Excess precision is rejected and never rounded.
   - Valuations, report totals and debts stay numbers.
@@ -49,7 +50,7 @@ B-006 (ST-023) fixes this before B-007 and before any feature that builds on bal
 
 ### New Capabilities
 - `multi-currency-balances`: required native applied amounts, execution details, the single balance calculation, the account-currency lock, and the cross-currency forms and display.
-- `native-amount-precision`: `Decimal(30,18)`, the decimal-string-only contract, precision limits by currency, and the shareable-currency rule.
+- `native-amount-precision`: `Decimal(38,18)`, the decimal-string-only contract, precision limits by currency, and exact deterministic splits for every currency.
 - `transaction-corrections`: append-only correction history for edits and deletions.
 
 ### Modified Capabilities

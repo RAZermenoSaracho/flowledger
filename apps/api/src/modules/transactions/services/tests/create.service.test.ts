@@ -77,7 +77,7 @@ describe("createTransaction", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 100
+      amountInPreferredCurrency: new Prisma.Decimal("100")
     });
     const tx = mockTx();
     (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -107,7 +107,7 @@ describe("createTransaction", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 100
+      amountInPreferredCurrency: new Prisma.Decimal("100")
     });
     const tx = mockTx();
     (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -127,7 +127,7 @@ describe("createTransaction", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 100
+      amountInPreferredCurrency: new Prisma.Decimal("100")
     });
     const tx = mockTx();
     (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -152,7 +152,7 @@ describe("createTransaction applied amounts", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 17,
-      amountInPreferredCurrency: 1700
+      amountInPreferredCurrency: new Prisma.Decimal("1700")
     });
     const tx = mockTx();
     (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -285,7 +285,7 @@ describe("importProviderImportedTransaction", () => {
       resolveTransactionCurrencyFieldsMock.mockResolvedValue({
         executionCurrency: rowCurrency,
         exchangeRate: 1,
-        amountInPreferredCurrency: 10
+        amountInPreferredCurrency: new Prisma.Decimal("10")
       });
       const tx = {
         providerImportedTransaction: {
@@ -358,7 +358,7 @@ describe("importProviderImportedTransaction", () => {
     resolveTransactionCurrencyFieldsMock.mockResolvedValue({
       executionCurrency: "USD",
       exchangeRate: 1,
-      amountInPreferredCurrency: 10
+      amountInPreferredCurrency: new Prisma.Decimal("10")
     });
 
     const tx = {

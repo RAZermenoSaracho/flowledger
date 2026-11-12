@@ -172,7 +172,7 @@ export type ImportedTransactionSelection =
 export interface RelatedTransactionRow {
   id: string;
   description: string;
-  amount: number;
+  amount: string;
   currency: string;
   date: Date;
   type: string;
@@ -183,7 +183,7 @@ export interface RelatedTransactionRow {
 export interface RelatedSettlementRow {
   id: string;
   status: string;
-  amount: number;
+  amount: string;
   currency: string;
   createdAt: Date;
   approvedAt: Date | null;
@@ -195,7 +195,7 @@ export interface RelatedSettlementRow {
 /** What a settling participant may see of the expense they settled: only data the shared-expense endpoints already expose to participants, never the owner's transaction id. */
 export interface SettlementOriginSummary {
   title: string;
-  amount: number;
+  amount: string;
   currency: string;
   date: Date;
   type: string;

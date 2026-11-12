@@ -60,6 +60,12 @@ describe("suggestAmount", () => {
     expect(suggestAmount("100", 0.00001, "BTC")).toBe("0.001");
   });
 
+  it("keeps full precision on the amount instead of going through a float", () => {
+    expect(suggestAmount("1.234567890123456789", 2, "BTC")).toBe("2.46913578");
+    expect(suggestAmount("12345678901234567890", 1.5, "USD")).toBe("18518518351851851835.00");
+    expect(suggestAmount("1", 0.5, "ETH")).toBe("0.5");
+  });
+
   it("returns null for a non-positive or invalid input", () => {
     expect(suggestAmount("", 2, "USD")).toBeNull();
     expect(suggestAmount("0", 2, "USD")).toBeNull();
