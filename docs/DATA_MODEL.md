@@ -130,7 +130,7 @@ A financial account owned by a user. Can be manual (user-created) or linked to a
 | `type` | AccountType | Enum |
 | `identifier` | String? | Last 4 digits, IBAN tail, etc. |
 | `currency` | String | ISO 4217 code, default `"USD"`; the account's native currency |
-| `initialBalance` | Decimal(12,2) | Starting balance |
+| `initialBalance` | Decimal(30,18) | Starting balance; locked currency once any transaction references the account |
 | `isArchived` | Boolean | Soft delete |
 | `archivedAt` | DateTime? | When archived |
 
@@ -175,7 +175,10 @@ A financial transaction. The core financial record.
 | `id` | String (cuid) | PK |
 | `userId` | String | FK → User (owner) |
 | `name` | String | Description / merchant |
-| `amount` | Decimal(12,2) | Always positive; type indicates direction. Denominated in `executionCurrency` |
+| `amount` | Decimal(30,18) | Always positive; type indicates direction. Denominated in `executionCurrency` |
+| `accountAmount` | Decimal(30,18)? | Applied to `accountId` in that account's currency; equals `amount` when currencies match; null without an account |
+| `destinationAmount` | Decimal(30,18)? | Credited to `transferToAccountId` in its currency; transfers only |
+| `feeAmount` / `feeCurrency` | Decimal(30,18)? / String? | Optional explicit fee, set together; currency is the source amount's or the destination account's. Detail only |
 | `executionCurrency` | String | ISO 4217 code, default `"USD"`; the currency the transaction was recorded in |
 | `exchangeRate` | Decimal(20,8) | Default `1`; rate from `executionCurrency` to the owner's `preferredCurrency` at creation/edit time |
 | `amountInPreferredCurrency` | Decimal(12,2) | `amount * exchangeRate`, snapshotted at creation/edit time — not re-converted if the user's `preferredCurrency` changes later |
@@ -286,7 +289,8 @@ A formal request from a debtor to a creditor to settle a shared expense debt. Tr
 | `sharedExpenseParticipantId` | String | FK → SharedExpenseParticipant |
 | `debtorUserId` | String | FK → User |
 | `creditorUserId` | String | FK → User |
-| `amount` | Decimal(12,2) | Settlement amount |
+| `amount` | Decimal(12,2) | Settlement amount, in the debt currency |
+| `debtorAccountAmount` | Decimal(30,18)? | Amount applied to the debtor account, stated when its currency differs from the debt's |
 | `status` | SettlementStatus | `pending`, `approved`, `rejected` |
 | `note` / `paymentInfo` | String? | Optional notes |
 | `debtorAccountId` | String? | Debtor's payment account |
@@ -296,6 +300,24 @@ A formal request from a debtor to a creditor to settle a shared expense debt. Tr
 | `debtorTransactionId` | String? (unique) | Created on approval |
 | `creditorTransactionId` | String? (unique) | Created on approval |
 | `approvedAt` | DateTime? | When approved |
+
+---
+
+### TransactionCorrection
+
+Append-only history of financial edits and deletions. Forward-only: nothing is backfilled and creation writes no row.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `transactionId` | String | No FK, so rows outlive the transaction |
+| `userId` | String | FK → User (owner and actor), cascade delete |
+| `action` | TransactionCorrectionAction | `update`, `delete` |
+| `previous` | Json | `type`, `amount`, `executionCurrency`, `accountId`, `transferToAccountId`, `accountAmount`, `destinationAmount`, `feeAmount`, `feeCurrency`, `date`; decimals as strings |
+| `corrected` | Json? | Same shape; null on delete |
+| `createdAt` | DateTime | |
+
+Index: `(userId, transactionId, createdAt)`.
 
 ---
 

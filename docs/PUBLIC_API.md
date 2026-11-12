@@ -101,10 +101,23 @@ curl -G "$PUBLIC_API_URL/v1/transactions" \
 ```bash
 curl -X POST "$PUBLIC_API_URL/v1/transactions" \
   -H "Authorization: Bearer $FL_KEY" -H "Content-Type: application/json" \
-  -d '{"name":"Coffee","amount":4.5,"type":"expense","date":"2024-01-15","accountId":"<id>","categoryId":"<id>"}'
+  -d '{"name":"Coffee","amount":"4.5","type":"expense","date":"2024-01-15","accountId":"<id>","categoryId":"<id>"}'
 ```
 
 The body is validated by the same schema as the web app, so optional fields such as shared-expense data are accepted too.
+
+## Breaking: decimal-string amounts
+
+Native amounts are decimal strings on the web API, `/v1` and MCP, in requests and responses. This replaces JSON numbers.
+
+- **Strings, in and out:** `amount`, `accountAmount`, `destinationAmount`, `feeAmount`, `initialBalance`, `currentBalance`, `SettlementRequest.amount`, `debtorAccountAmount` and the imported-transaction `amount`. Format: `^-?\d{1,12}(\.\d{1,18})?$`, no exponent. Preferred-currency valuations, report totals and debt figures stay JSON numbers.
+- **Numbers rejected:** a JSON number, an exponent or a non-numeric string returns `400` naming the field.
+- **Precision per currency:** ISO 4217 codes allow their minor units (USD/MXN 2, JPY 0, KWD 3); any other code (crypto) allows 18 decimals. At most 12 integer digits. Excess precision is rejected, never rounded.
+- **Cross-currency writes state the applied amount:** when the execution currency differs from the account's, send `accountAmount`; for a transfer whose destination currency differs from the source amount's, send `destinationAmount`. Omitting it returns `400` naming the field. Equal currencies need none, and a differing value is rejected. The server never derives one from a current rate; use `GET /v1/currencies/rate` (MCP `get_exchange_rate`) for a suggestion. An update that changes the amount, currency, type or an account restates them.
+- **Fee:** `feeAmount` and `feeCurrency` are sent together or not at all; `feeCurrency` is the source amount's currency or the destination account's. `null` for both clears it. A fee is detail only: it is not subtracted again and is not an expense.
+- **Settlements:** `accountAmount` on a request (debtor) or approval (creditor) is required when the chosen account's currency differs from the debt's, and rejected if it differs when the currencies are equal.
+- **Batch import:** `POST /imported-transactions/batch-import` rejects rows whose currency differs from the account's (`400`, nothing changes); import those one at a time with `accountAmount`.
+- **Sharing:** shared expenses and settlements accept only ISO currencies with at most 2 decimals.
 
 ## Errors and limits
 

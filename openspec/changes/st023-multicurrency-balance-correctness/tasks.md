@@ -71,7 +71,7 @@ Start implementation only after `/opsx:apply` is authorized. Do not run any step
 
 ## 9. Docs, data and release
 
-- [ ] 9.1 Update the docs: `docs/PUBLIC_API.md` (decimal-string contract and required cross-currency amounts, marked breaking), the MCP tool descriptions, `docs/DATA_MODEL.md` and `docs/DOMAIN_LOGIC.md` (balance invariants, fee rule). Update `SHORT_TERM_ROADMAP.md` with the ST-023 status only when it ships. Verify by docs review in the PR.
-- [ ] 9.2 Run the end-to-end check with the full suite (`npm run test`, Docker VM) and one e2e journey: create a USD to MXN transfer, edit the received amount (one correction row), delete it (deletion row remains), and check that a BTC 18-decimal round trip leaves balances exact. Verify: the suite is green.
+- [x] 9.1 Update the docs: `docs/PUBLIC_API.md` (decimal-string contract and required cross-currency amounts, marked breaking), the MCP tool descriptions, `docs/DATA_MODEL.md` and `docs/DOMAIN_LOGIC.md` (balance invariants, fee rule). Update `SHORT_TERM_ROADMAP.md` with the ST-023 status only when it ships. Verify by docs review in the PR.
+- [x] 9.2 Run the end-to-end check with the full suite (`npm run test`, Docker VM) and one e2e journey: create a USD to MXN transfer, edit the received amount (one correction row), delete it (deletion row remains), and check that a BTC 18-decimal round trip leaves balances exact. Verify: the suite is green.
 - [ ] 9.3 **APPROVAL R (local staging):** reset `flowledger_staging` with the design's Migration Plan step 5 script. Verify: step 6 checks pass on staging.
 - [ ] 9.4 **APPROVAL release, plus F or R for production:** follow Migration Plan steps 1 to 7 in order (backup, before-snapshot, migrate and restart through the deploy script, R if chosen, verify). Verify: the step 6 results and the dump location are recorded in the release notes.
