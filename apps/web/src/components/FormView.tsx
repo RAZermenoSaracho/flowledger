@@ -1,10 +1,11 @@
 import { ArrowLeft, CloudUpload, Loader2, X } from "lucide-react";
-import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Children, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { FormDraftControls, FormViewTab } from "../types/common.types";
 import { ActionMenu } from "./ActionMenu";
 import { Button } from "./Button";
 import { ModalDialog } from "./ModalDialog";
+import { Tabs } from "./Tabs";
 
 const ACTION_BUTTON_SIZE = "h-9 w-9 shrink-0";
 
@@ -149,7 +150,7 @@ export function FormView({
         </p>
       ) : null}
       {headerExtra}
-      {tabs && tabs.length > 0 ? <Tabs tabs={tabs} /> : null}
+      {tabs && tabs.length > 0 ? <UrlTabs tabs={tabs} /> : null}
       {children}
       {leaveTo ? (
         <ModalDialog titleId={dialogTitleId} title="Discard unsaved changes?" onCancel={() => setLeaveTo(null)}>
@@ -168,84 +169,24 @@ export function FormView({
   );
 }
 
-function Tabs({ tabs }: { tabs: FormViewTab[] }) {
+function UrlTabs({ tabs }: { tabs: FormViewTab[] }) {
   const [params, setParams] = useSearchParams();
-  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const active = tabs.find((t) => t.id === params.get("tab")) ?? tabs[0]!;
-
-  function select(id: string) {
-    setParams(
-      (current) => {
-        const next = new URLSearchParams(current);
-        next.set("tab", id);
-        return next;
-      },
-      { replace: true }
-    );
-  }
-
-  function onKeyDown(event: KeyboardEvent, index: number) {
-    const last = tabs.length - 1;
-    const next =
-      event.key === "ArrowRight"
-        ? index === last ? 0 : index + 1
-        : event.key === "ArrowLeft"
-          ? index === 0 ? last : index - 1
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? last
-              : null;
-    if (next === null) return;
-    event.preventDefault();
-    const id = tabs[next]!.id;
-    select(id);
-    refs.current[id]?.focus();
-  }
+  const activeId = (tabs.find((t) => t.id === params.get("tab")) ?? tabs[0]!).id;
 
   return (
-    <div>
-      <div
-        role="tablist"
-        className="flex overflow-x-auto shadow-[inset_0_-1px_0] shadow-slate-200 dark:shadow-slate-700"
-      >
-        {tabs.map((tab, index) => {
-          const selected = tab.id === active.id;
-          return (
-            <button
-              key={tab.id}
-              ref={(el) => {
-                refs.current[tab.id] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={selected}
-              aria-controls={`panel-${tab.id}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => select(tab.id)}
-              onKeyDown={(event) => onKeyDown(event, index)}
-              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-pine dark:focus-visible:ring-emerald-400 ${
-                selected
-                  ? "border-pine text-pine dark:border-emerald-400 dark:text-emerald-300"
-                  : "border-transparent text-slate-500 hover:text-ink dark:text-slate-400 dark:hover:text-slate-100"
-              }`}
-            >
-              {tab.label}
-              {tab.badge ? <span className="ml-2 rounded-full bg-slate-100 px-2 text-xs dark:bg-slate-800">{tab.badge}</span> : null}
-            </button>
-          );
-        })}
-      </div>
-      <div
-        role="tabpanel"
-        id={`panel-${active.id}`}
-        aria-labelledby={`tab-${active.id}`}
-        tabIndex={0}
-        className="pt-6 focus-visible:outline-none"
-      >
-        {active.content}
-      </div>
-    </div>
+    <Tabs
+      tabs={tabs}
+      activeId={activeId}
+      onSelect={(id) =>
+        setParams(
+          (current) => {
+            const next = new URLSearchParams(current);
+            next.set("tab", id);
+            return next;
+          },
+          { replace: true }
+        )
+      }
+    />
   );
 }

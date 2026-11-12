@@ -92,3 +92,12 @@ export type RelatedListProps<Row> = {
 
 /** DataSieve offset pagination object sent as `pagination` in a list query. */
 export type OffsetPagination = { kind: "offset"; page: number; pageSize: number };
+
+/** Props of the controlled `Tabs` strip. `idPrefix` namespaces tab/panel ids (`${idPrefix}tab-${id}`) so several tab sets can share a page. */
+export type TabsProps = {
+  tabs: FormViewTab[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  idPrefix?: string;
+  compact?: boolean;
+};

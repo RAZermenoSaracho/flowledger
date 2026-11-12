@@ -36,5 +36,5 @@ The flow SHALL work end to end against `api-flowledger-dev.razs.dev` for ChatGPT
 - **THEN** the consent page offers no "Allow changes" option and the grant is read-only
 
 #### Scenario: Grok API with a personal API key
-- **WHEN** an xAI Responses API request includes an `mcp` tool with `server_url` set to the MCP URL and `authorization` set to `Bearer <read-only flk_ key>`
+- **WHEN** an xAI Responses API request includes an `mcp` tool with `server_url` set to the MCP URL and `authorization` set to `Bearer <read-only fl_ key>`
 - **THEN** FlowLedger accepts the key on `/mcp`, read tools work, write tools are refused, and revoking the key stops access

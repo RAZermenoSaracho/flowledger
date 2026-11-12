@@ -14,3 +14,4 @@
 - [x] 2.4 Staging: with the staging document URL as `client_id`, the real CIMD fetch, consent by the staging owner, the code redirect to Meta (not followed), token exchange, `/mcp` call, refresh and grant revoke. Discovery unchanged.
 - [x] 3.1 Integration test with a Grok-shaped CIMD client: a write grant lists 45 tools and runs create, get, update and delete on the caller's data. Another user's token cannot update it. A read grant lists 16 tools and is refused writes.
 - [x] 3.2 Docs: Muse scopes `read write offline_access`, and Grok.com as a CIMD client.
+- [x] 4.1 Profile › Security & API › Connect an AI client: subtabs ChatGPT, Claude (Web / Desktop, Code), Meta AI Muse (Client ID fetched from the hosted document, open CORS on that route) and Grok, with copy controls. Verify: `ConnectClientSection`, `Tabs` and `CopyButton` tests, plus a staging browser check.

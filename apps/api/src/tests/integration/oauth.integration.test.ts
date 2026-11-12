@@ -215,6 +215,7 @@ describe("MCP OAuth server", () => {
     const museCid = `${issuer}/oauth/clients/meta-muse.json`;
     const doc = await request(app).get("/oauth/clients/meta-muse.json");
     expect(doc.status).toBe(200);
+    expect(doc.headers["access-control-allow-origin"]).toBe("*");
     expect(doc.body).toMatchObject({ client_id: museCid, redirect_uris: [MUSE_REDIRECT], token_endpoint_auth_method: "none" });
 
     const user = await createAuthedUser(app);

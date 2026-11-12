@@ -126,7 +126,7 @@ The xAI API calls remote MCP servers server-side and sends the token you give it
 2. Keep it in an environment variable, never in source.
 
 ```bash
-export FLOWLEDGER_API_KEY=...   # flk_..., read-only
+export FLOWLEDGER_API_KEY=...   # fl_..., read-only
 curl https://api.x.ai/v1/responses \
   -H "Authorization: Bearer $XAI_API_KEY" -H "Content-Type: application/json" \
   -d '{"model": "grok-4.7", "input": [{"role": "user", "content": "List my accounts"}],

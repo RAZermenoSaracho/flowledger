@@ -28,3 +28,6 @@ export type OAuthGrant = {
   expiresAt: string | null;
   lastUsedAt: string | null;
 };
+
+/** The part of the public Muse Client ID Metadata Document the UI uses. */
+export type MuseClientDocument = { client_id: string };
