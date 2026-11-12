@@ -1,6 +1,10 @@
 import { Button } from "../../../components/Button";
 import type { Account, AccountSync } from "../../../types/accounts.types";
 import { formatMoney } from "../../../utils/currency";
+import {
+  BankSyncUnavailableNotice,
+  UnavailableActionTooltip
+} from "./UnavailableActionTooltip";
 import { formatDateTime, formatStatus } from "../utils/accountDisplay";
 
 /** Displays a provider-linked account's sync status and resync/reconnect actions. */
@@ -15,7 +19,7 @@ export function AccountSyncPanel({
 }: {
   account: Account;
   resyncMessages: Record<string, string>;
-  /** False when the sync's provider is disabled by the operator; actions are replaced by a notice. */
+  /** False when the sync's provider is disabled by the operator; actions stay visible but disabled with a tooltip, and stored failure/resync text is hidden. */
   isSyncAvailable: boolean;
   isStartingCredentialFlow: boolean;
   onResync: (syncId: string) => void;
@@ -87,12 +91,12 @@ export function AccountSyncPanel({
                 </span>
               </p>
             </div>
-            {sync.failureReason ? (
+            {sync.failureReason && isSyncAvailable ? (
               <p className="mt-2 text-sm text-coral dark:text-orange-300">
                 {sync.failureReason}
               </p>
             ) : null}
-            {resyncMessages[sync.id] ? (
+            {resyncMessages[sync.id] && isSyncAvailable ? (
               <p
                 className={`mt-2 text-sm ${
                   sync.requiresManualReconnect
@@ -105,39 +109,49 @@ export function AccountSyncPanel({
             ) : null}
           </div>
 
-          {isSyncAvailable ? (
-            <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={isStartingCredentialFlow || account.isArchived}
-                onClick={() => onResync(sync.id)}
-              >
-                Resync
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={
-                  isStartingCredentialFlow ||
-                  account.isArchived ||
-                  !sync.provider ||
-                  !sync.providerCredentialId
-                }
-                onClick={() => onReconnect(sync.id)}
-              >
-                Reconnect
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Bank synchronization is currently unavailable.
-            </p>
-          )}
+          <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+            <UnavailableActionTooltip unavailable={!isSyncAvailable}>
+              {(a11y) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isStartingCredentialFlow || account.isArchived}
+                  onClick={
+                    isSyncAvailable ? () => onResync(sync.id) : undefined
+                  }
+                  {...a11y}
+                >
+                  Resync
+                </Button>
+              )}
+            </UnavailableActionTooltip>
+            <UnavailableActionTooltip unavailable={!isSyncAvailable}>
+              {(a11y) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={
+                    isStartingCredentialFlow ||
+                    account.isArchived ||
+                    !sync.provider ||
+                    !sync.providerCredentialId
+                  }
+                  onClick={
+                    isSyncAvailable ? () => onReconnect(sync.id) : undefined
+                  }
+                  {...a11y}
+                >
+                  Reconnect
+                </Button>
+              )}
+            </UnavailableActionTooltip>
+          </div>
         </div>
       ))}
 
-      {hasCredentialFlowError ? (
+      {!isSyncAvailable ? <BankSyncUnavailableNotice /> : null}
+
+      {hasCredentialFlowError && isSyncAvailable ? (
         <p className="text-sm text-coral dark:text-orange-300">
           Could not start the selected Syncfy credential flow.
         </p>

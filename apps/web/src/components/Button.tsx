@@ -14,7 +14,7 @@ const variants = {
 export function Button({ className = "", variant = "primary", ...props }: ButtonProps) {
   return (
     <button
-      className={`min-h-10 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
+      className={`min-h-10 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 ${variants[variant]} ${className}`}
       {...props}
     />
   );

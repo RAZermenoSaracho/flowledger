@@ -173,19 +173,49 @@ describe("AccountSyncPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides Resync/Reconnect and shows the unavailable notice when sync is unavailable", () => {
+  it("keeps Resync/Reconnect visible but aria-disabled, no-op, and shows the notice when sync is unavailable", async () => {
+    const user = userEvent.setup();
+    const props = baseProps({
+      isSyncAvailable: false,
+      account: makeAccount({
+        sync: [makeSync({ requiresManualReconnect: true, failureReason: "Syncfy request failed with status 402" })]
+      }),
+      resyncMessages: { "sync-1": "Manual reconnect is required." }
+    });
+    renderWithProviders(<AccountSyncPanel {...props} />);
+
+    const resync = screen.getByRole("button", { name: "Resync" });
+    const reconnect = screen.getByRole("button", { name: "Reconnect" });
+    expect(resync).toHaveAttribute("aria-disabled", "true");
+    expect(reconnect).toHaveAttribute("aria-disabled", "true");
+    await user.click(resync);
+    await user.click(reconnect);
+    expect(props.onResync).not.toHaveBeenCalled();
+    expect(props.onReconnect).not.toHaveBeenCalled();
+
+    expect(screen.queryByText("Reconnect required")).not.toBeInTheDocument();
+    expect(screen.queryByText("Syncfy request failed with status 402")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manual reconnect is required.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Bank connections and synchronization are temporarily disabled. Your existing accounts and transactions remain available."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Test Bank", { exact: false })).toBeInTheDocument();
+  });
+
+  it("shows failureReason, resync messages and no notice when sync is available", () => {
     renderWithProviders(
       <AccountSyncPanel
         {...baseProps({
-          isSyncAvailable: false,
-          account: makeAccount({ sync: [makeSync({ requiresManualReconnect: true })] })
+          account: makeAccount({ sync: [makeSync({ failureReason: "Syncfy request failed with status 402" })] }),
+          resyncMessages: { "sync-1": "Resync complete." }
         })}
       />
     );
-    expect(screen.queryByRole("button", { name: "Resync" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reconnect" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Reconnect required")).not.toBeInTheDocument();
-    expect(screen.getByText("Bank synchronization is currently unavailable.")).toBeInTheDocument();
-    expect(screen.getByText("Test Bank", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Syncfy request failed with status 402")).toBeInTheDocument();
+    expect(screen.getByText("Resync complete.")).toBeInTheDocument();
+    expect(screen.queryByText(/temporarily disabled/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resync" })).not.toHaveAttribute("aria-disabled");
   });
 });

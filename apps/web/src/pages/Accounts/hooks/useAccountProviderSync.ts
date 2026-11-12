@@ -10,6 +10,7 @@ import { openSyncfyWidget } from "../utils/syncfyWidget";
  * State and handlers for connecting, resyncing, and reconnecting provider (Syncfy) accounts.
  * `availableProviders` is derived from the connectors list (empty while loading or when the
  * operator disables a provider); provider actions no-op for providers not in it.
+ * `isBankSyncUnavailable` is true only once connectors have loaded with no provider available.
  */
 export function useAccountProviderSync({
   defaultCurrency
@@ -52,12 +53,19 @@ export function useAccountProviderSync({
       (await accountsClient.listProviderConnectors()).connectors
   });
 
+  const availableProviders = new Set(
+    (connectorsQuery.data ?? []).map((connector) => connector.provider)
+  );
+  const isBankSyncAvailable = availableProviders.size > 0;
+  const isBankSyncUnavailable =
+    connectorsQuery.isSuccess && !isBankSyncAvailable;
+
   const providerAccountsQuery = useQuery({
     queryKey: ["provider-accounts", "unlinked"],
     queryFn: async () =>
       (await accountsClient.listProviderAccounts({ status: "unlinked" }))
         .accounts,
-    enabled: addMode === "sync",
+    enabled: addMode === "sync" && isBankSyncAvailable,
     refetchInterval: activeConnection ? 5000 : false
   });
 
@@ -73,11 +81,6 @@ export function useAccountProviderSync({
         })
       ).accounts
   });
-
-  const availableProviders = new Set(
-    (connectorsQuery.data ?? []).map((connector) => connector.provider)
-  );
-  const isBankSyncAvailable = availableProviders.size > 0;
 
   async function invalidateProviderData() {
     await queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -305,6 +308,7 @@ export function useAccountProviderSync({
     connectorsQuery,
     availableProviders,
     isBankSyncAvailable,
+    isBankSyncUnavailable,
     providerAccountsQuery,
     linkableAccountsQuery,
     createAccount,

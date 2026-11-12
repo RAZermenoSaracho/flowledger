@@ -252,19 +252,35 @@ describe("AddAccountCard", () => {
     expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
   });
 
-  it("disables the sync option with a notice when no connectors are available", async () => {
+  it("keeps the sync option visible but aria-disabled with a tooltip, and makes no provider calls, when no connectors are available", async () => {
     mockBaseline();
+    const providerCalls = vi.fn();
     server.use(
-      http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] }))
+      http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] })),
+      http.post(`${API_URL}/providers/connections`, () => {
+        providerCalls();
+        return HttpResponse.json({});
+      }),
+      http.get(`${API_URL}/providers/accounts`, () => {
+        providerCalls();
+        return HttpResponse.json({ accounts: [] });
+      })
     );
     const user = userEvent.setup();
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
+    const syncCard = screen.getByRole("button", { name: /Sync accounts/ });
+    await waitFor(() => expect(syncCard).toHaveAttribute("aria-disabled", "true"));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).toBeDisabled());
-    expect(screen.getByText("Bank synchronization is currently unavailable.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Manual account/ })).not.toBeDisabled();
+    await user.click(syncCard);
+    expect(screen.getByText("Add account")).toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Bank synchronization is temporarily unavailable."
+    );
+    expect(syncCard).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+    expect(providerCalls).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Manual account/ })).not.toHaveAttribute("aria-disabled");
   });
 
   it("keeps the sync option enabled when connectors exist", async () => {
@@ -274,7 +290,7 @@ describe("AddAccountCard", () => {
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).not.toBeDisabled());
-    expect(screen.queryByText("Bank synchronization is currently unavailable.")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).not.toHaveAttribute("aria-disabled"));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });

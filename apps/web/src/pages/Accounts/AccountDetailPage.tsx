@@ -144,9 +144,12 @@ export function AccountDetailPage() {
             <AccountSyncPanel
               account={account}
               resyncMessages={sync.resyncMessages}
-              isSyncAvailable={(account.sync ?? []).every((item) =>
-                sync.availableProviders.has(item.provider)
-              )}
+              isSyncAvailable={
+                !sync.connectorsQuery.isSuccess ||
+                (account.sync ?? []).every((item) =>
+                  sync.availableProviders.has(item.provider)
+                )
+              }
               isStartingCredentialFlow={
                 sync.startProviderCredentialFlow.isPending
               }

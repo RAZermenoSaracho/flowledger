@@ -13,6 +13,7 @@ import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountListItem } from "./components/AccountListItem";
 import { AddAccountCard } from "./components/AddAccountCard";
+import { BankSyncUnavailableNotice } from "./components/UnavailableActionTooltip";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { Account } from "../../types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
@@ -97,6 +98,8 @@ export function AccountsPage() {
   return (
     <div className="grid gap-6">
       <AddAccountCard sync={sync} />
+
+      {sync.isBankSyncUnavailable ? <BankSyncUnavailableNotice /> : null}
 
       <Card>
         <PageHeader

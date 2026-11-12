@@ -7,10 +7,8 @@ import { CurrencySelect } from "../../../components/CurrencySelect";
 import { SelectField, TextInput } from "../../../components/FormField";
 import { formatMoney } from "../../../utils/currency";
 import { formatEnumLabel } from "../../../utils/enumLabels";
+import { UnavailableActionTooltip } from "./UnavailableActionTooltip";
 import type { useAccountProviderSync } from "../hooks/useAccountProviderSync";
-
-const BANK_SYNC_UNAVAILABLE_MESSAGE =
-  "Bank synchronization is currently unavailable.";
 
 /** Form card for creating a new manual account. */
 export function AddAccountCard({
@@ -25,8 +23,7 @@ export function AddAccountCard({
 
   if (!sync.isFormOpen) return null;
 
-  const isSyncUnavailable =
-    sync.connectorsQuery.isSuccess && !sync.isBankSyncAvailable;
+  const isSyncUnavailable = sync.isBankSyncUnavailable;
 
   return (
     <Card>
@@ -61,19 +58,24 @@ export function AddAccountCard({
               transactions.
             </p>
           </button>
-          <button
-            type="button"
-            className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
-            disabled={isSyncUnavailable}
-            onClick={() => sync.setAddMode("sync")}
-          >
-            <p className="font-semibold">Sync accounts</p>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {isSyncUnavailable
-                ? BANK_SYNC_UNAVAILABLE_MESSAGE
-                : "Choose a provider. The provider widget will open so you can select and connect your institution securely."}
-            </p>
-          </button>
+          <UnavailableActionTooltip unavailable={isSyncUnavailable}>
+            {(a11y) => (
+              <button
+                type="button"
+                className="rounded-md border border-slate-200 p-4 text-left transition hover:border-pine hover:bg-slate-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 dark:border-slate-800 dark:hover:border-emerald-700 dark:hover:bg-slate-900"
+                onClick={
+                  isSyncUnavailable ? undefined : () => sync.setAddMode("sync")
+                }
+                {...a11y}
+              >
+                <p className="font-semibold">Sync accounts</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Choose a provider. The provider widget will open so you can
+                  select and connect your institution securely.
+                </p>
+              </button>
+            )}
+          </UnavailableActionTooltip>
         </div>
       ) : null}
 
@@ -188,12 +190,6 @@ export function AddAccountCard({
             </p>
           ) : null}
 
-          {isSyncUnavailable ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {BANK_SYNC_UNAVAILABLE_MESSAGE}
-            </p>
-          ) : null}
-
           {sync.startProviderConnection.isError ? (
             <p className="text-sm text-coral dark:text-orange-300">
               Could not start the connection flow.
@@ -223,14 +219,23 @@ export function AddAccountCard({
                   FlowLedger after the provider imports them.
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={sync.providerAccountsQuery.isFetching}
-                onClick={() => sync.providerAccountsQuery.refetch()}
-              >
-                Refresh
-              </Button>
+              <UnavailableActionTooltip unavailable={isSyncUnavailable}>
+                {(a11y) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={sync.providerAccountsQuery.isFetching}
+                    onClick={
+                      isSyncUnavailable
+                        ? undefined
+                        : () => sync.providerAccountsQuery.refetch()
+                    }
+                    {...a11y}
+                  >
+                    Refresh
+                  </Button>
+                )}
+              </UnavailableActionTooltip>
             </div>
 
             <div className="mt-3 grid gap-3">
