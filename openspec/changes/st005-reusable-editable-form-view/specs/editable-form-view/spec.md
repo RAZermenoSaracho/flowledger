@@ -77,7 +77,7 @@ When `initial` changes, the draft SHALL rebase onto it only if the draft is not 
 - **THEN** the draft and header actions are unaffected
 
 ### Requirement: Header actions
-`FormView` SHALL render compact icon Save (lucide `CloudUpload`) and Cancel (lucide `X`) buttons on the right of its header row, without any bottom bar. Each SHALL have an `aria-label` ("Save" / "Cancel"), a `title` tooltip, a hit target of at least 40x40px, a visible focus ring and a small icon. Both SHALL render only while the draft is dirty. With `isNew`, Save SHALL always render (disabled until the draft is dirty and valid) while Cancel still renders only when dirty. Save SHALL be disabled, with its reason in the title and an accessible description, while `draft.isSaving` or `draft.fieldErrors` is non-empty, and SHALL show a spinner and `aria-busy` while saving. Cancel SHALL discard the draft immediately (restoring the last persisted state) without a confirm dialog. The header SHALL wrap at 375 CSS pixels with no horizontal overflow. `draft.saveError` SHALL show inline under the header. Ctrl/Cmd+S SHALL save when dirty and enabled, and prevent the browser default. `onSave` SHALL replace Save's default `draft.save`.
+`FormView` SHALL render compact icon Save (lucide `CloudUpload`) and Cancel (lucide `X`) buttons, followed by the options menu, in an action group at the top-right of its first header row, without any bottom bar. Save, Cancel and the options trigger SHALL be identical 36x36px squares matching the shared options-menu trigger, with the same icon size and border treatment. Each SHALL have an `aria-label` ("Save" / "Cancel"), a `title` tooltip and a visible focus ring. When a `backLink` is given it SHALL render as an icon-only back arrow (lucide `ArrowLeft`, accessible name and `title` from `label`) at the top-left of that same row, with the title, subtitle and extra content on the row beneath. Both SHALL render only while the draft is dirty. With `isNew`, Save SHALL always render (disabled until the draft is dirty and valid) while Cancel still renders only when dirty. Save SHALL be disabled, with its reason in the title and an accessible description, while `draft.isSaving` or `draft.fieldErrors` is non-empty, and SHALL show a spinner and `aria-busy` while saving. Cancel SHALL discard the draft immediately (restoring the last persisted state) without a confirm dialog. The action group SHALL be `shrink-0` and stay on a single row at every width (320 to 1440 CSS pixels) with no horizontal overflow, using one layout with no width-specific variant. `draft.saveError` SHALL show inline under the header. Ctrl/Cmd+S SHALL save when dirty and enabled, and prevent the browser default. `onSave` SHALL replace Save's default `draft.save`.
 
 #### Scenario: Clean draft
 - **WHEN** a Form View renders with a clean draft
@@ -105,7 +105,7 @@ When `initial` changes, the draft SHALL rebase onto it only if the draft is not 
 
 #### Scenario: Targets and layout
 - **WHEN** the view renders at 375 CSS pixels
-- **THEN** both buttons are at least 40px square and the header wraps with no horizontal overflow
+- **THEN** Save, Cancel and the options trigger are the same 36px square and the action group stays on one row with no horizontal overflow
 
 #### Scenario: Save shortcut
 - **WHEN** the draft is dirty and the user presses Ctrl+S or Cmd+S
@@ -199,7 +199,7 @@ A field error SHALL render with `role="alert"` and be linked to the input by `ar
 - **THEN** no menu button is rendered
 
 ### Requirement: Unsaved-change protection
-While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's back link SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty, and SHALL navigate and discard the draft only when confirmed. Cancel never asks. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
+While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's back arrow SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty, and SHALL navigate and discard the draft only when confirmed. Cancel never asks. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
 
 #### Scenario: Close tab with edits
 - **WHEN** a user closes or reloads the page with a dirty draft
@@ -218,7 +218,7 @@ While a draft is dirty, the hook SHALL register a `beforeunload` guard and remov
 - **THEN** no guard or confirm appears
 
 ### Requirement: Mobile usability
-Inputs inside the Form View SHALL use at least 16px text at mobile width (`text-base sm:text-sm`) so iOS does not zoom on focus. Interactive targets SHALL be at least 40px high. The form SHALL stay usable, with no horizontal page overflow, at 375 CSS pixels.
+Inputs inside the Form View SHALL use at least 16px text at mobile width (`text-base sm:text-sm`) so iOS does not zoom on focus. Interactive targets SHALL be at least 40px high, except the header icon actions, which match the 36px options-menu trigger. The form SHALL stay usable, with no horizontal page overflow, at 375 CSS pixels.
 
 #### Scenario: Focus on iOS
 - **WHEN** a field input is focused at mobile width

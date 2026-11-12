@@ -1,4 +1,4 @@
-import { CloudUpload, Loader2, X } from "lucide-react";
+import { ArrowLeft, CloudUpload, Loader2, X } from "lucide-react";
 import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { FormDraftControls, FormViewTab } from "../types/common.types";
@@ -6,8 +6,10 @@ import { ActionMenu } from "./ActionMenu";
 import { Button } from "./Button";
 import { ModalDialog } from "./ModalDialog";
 
+const ACTION_BUTTON_SIZE = "h-9 w-9 shrink-0";
+
 /**
- * Composition shell for an editable record: a header with an optional descriptive `backLink`, the
+ * Composition shell for an editable record: a header whose first row holds an optional icon-only `backLink` (top-left) and the action group (top-right), with the
  * `title`, compact icon Save/Cancel buttons that render only while the draft is dirty (Save is
  * also always rendered, disabled until dirty and valid, when `isNew`), an optional "Record
  * actions" menu built from `actions` (`ActionMenuItem`s), the inline `draft.saveError`, optional
@@ -54,7 +56,7 @@ export function FormView({
   const doSave = onSave ?? draft.save;
   const showSave = draft.isDirty || Boolean(isNew);
   const iconButton =
-    "inline-flex h-10 w-10 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950";
+    `${ACTION_BUTTON_SIZE} inline-flex items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950`;
 
   const latest = useRef({ canSave: saveReason === null, doSave });
   latest.current = { canSave: saveReason === null, doSave };
@@ -76,27 +78,35 @@ export function FormView({
     if (to) navigate(to);
   }
 
+  const titleBlock = (
+    <div className="min-w-0 flex-1">
+      <h1 className="break-words text-xl font-semibold">{title}</h1>
+      {subtitle ? <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p> : null}
+    </div>
+  );
+
   return (
     <div className="grid grid-cols-1 gap-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 basis-48">
+      <header className="grid gap-2">
+        <div className="flex items-start justify-between gap-3">
           {backLink ? (
             <Link
               to={backLink.to}
+              aria-label={backLink.label}
+              title={backLink.label}
               onClick={(event) => {
                 if (!draft.isDirty) return;
                 event.preventDefault();
                 setLeaveTo(backLink.to);
               }}
-              className="mb-2 inline-block rounded text-sm font-semibold text-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 dark:text-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950"
+              className="-ml-2 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine focus-visible:ring-offset-2 dark:text-emerald-300 dark:focus-visible:ring-emerald-400 dark:focus-visible:ring-offset-slate-950"
             >
-              {backLink.label}
+              <ArrowLeft className="h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
             </Link>
-          ) : null}
-          <h1 className="break-words text-xl font-semibold">{title}</h1>
-          {subtitle ? <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+          ) : (
+            titleBlock
+          )}
+          <div className="flex shrink-0 items-center gap-2">
           {showSave ? (
             <button
               type="button"
@@ -109,9 +119,9 @@ export function FormView({
               className={`${iconButton} border-pine bg-pine text-white hover:bg-emerald-800`}
             >
               {draft.isSaving ? (
-                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <CloudUpload className="h-5 w-5" aria-hidden="true" />
+                <CloudUpload className="h-4 w-4" aria-hidden="true" />
               )}
             </button>
           ) : null}
@@ -124,12 +134,14 @@ export function FormView({
               onClick={() => draft.cancel()}
               className={`${iconButton} border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800`}
             >
-              <X className="h-5 w-5" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           ) : null}
           {showSave && saveReason ? <span id={`${reasonId}-save`} className="sr-only">{saveReason}</span> : null}
           {Children.toArray(actions).length > 0 ? <ActionMenu label="Record actions">{actions}</ActionMenu> : null}
+          </div>
         </div>
+        {backLink ? titleBlock : null}
       </header>
       {draft.saveError ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">

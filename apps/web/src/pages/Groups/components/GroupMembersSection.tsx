@@ -41,7 +41,7 @@ export function GroupMembersSection({
             label="Find app user"
             value={management.userSearch}
             onChange={(event) => management.setUserSearch(event.target.value)}
-            placeholder="Search by username"
+            placeholder="Search by username or nickname"
           />
           {management.trimmedUserSearch.length > 0 && management.trimmedUserSearch.length < 3 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">

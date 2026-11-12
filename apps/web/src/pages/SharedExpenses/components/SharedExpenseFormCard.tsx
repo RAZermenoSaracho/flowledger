@@ -85,7 +85,7 @@ export function SharedExpenseFormCard({
           label="Find app user"
           value={form.userSearch}
           onChange={(event) => form.setUserSearch(event.target.value)}
-          placeholder="Search by username"
+          placeholder="Search by username or nickname"
         />
         <div className="grid gap-2 md:col-span-2">
           {form.trimmedUserSearch.length > 0 && form.trimmedUserSearch.length < 3 ? (

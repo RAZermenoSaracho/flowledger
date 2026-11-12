@@ -39,7 +39,7 @@ describe("FormView", () => {
     expect(document.querySelector(".fixed, .sticky")).toBeNull();
   });
 
-  it("shows enabled 40px icon Save and Cancel with tooltips when dirty", () => {
+  it("shows enabled 36px icon Save and Cancel with tooltips when dirty", () => {
     renderView(<FormView title="Thing" draft={draftOf({ isDirty: true })} />);
     const save = screen.getByRole("button", { name: "Save" });
     const cancel = screen.getByRole("button", { name: "Cancel" });
@@ -47,7 +47,7 @@ describe("FormView", () => {
     expect(cancel).toBeEnabled();
     expect(save).toHaveAttribute("title", "Save");
     expect(cancel).toHaveAttribute("title", "Cancel");
-    expect(save.className).toContain("h-10 w-10");
+    expect(save.className).toContain("h-9 w-9");
     expect(cancel.className).toContain("focus-visible:ring-2");
   });
 
@@ -122,7 +122,7 @@ describe("FormView", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("renders a descriptive back link that navigates straight away when clean", async () => {
+  it("renders an icon-only back link, named by its label, that navigates straight away when clean", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/a"]}>
@@ -141,8 +141,33 @@ describe("FormView", () => {
         </Routes>
       </MemoryRouter>
     );
-    await user.click(screen.getByRole("link", { name: "Back to things" }));
+    const link = screen.getByRole("link", { name: "Back to things" });
+    expect(link).toHaveTextContent("");
+    expect(screen.queryByText("Back to things")).not.toBeInTheDocument();
+    await user.click(link);
     expect(screen.getByText("list page")).toBeInTheDocument();
+  });
+
+  it("gives Save, Cancel and Options the same size in a non-wrapping shrink-0 group", () => {
+    renderView(
+      <FormView
+        title="T"
+        draft={draftOf({ isDirty: true })}
+        actions={<ActionMenuItem>Delete</ActionMenuItem>}
+      />
+    );
+    const buttons = ["Save", "Cancel", "Record actions"].map((name) =>
+      screen.getByRole("button", { name })
+    );
+    for (const b of buttons) {
+      expect(b.className).toContain("h-9");
+      expect(b.className).toContain("w-9");
+      expect(b.querySelector("svg")).toHaveClass("h-4", "w-4");
+    }
+    const group = buttons[0]!.parentElement!;
+    expect(group).toHaveClass("shrink-0");
+    expect(group.className).not.toContain("flex-wrap");
+    expect(group.parentElement!.className).not.toContain("flex-wrap");
   });
 
   it("guards the back link while dirty and navigates only after confirming", async () => {

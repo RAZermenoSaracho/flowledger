@@ -29,6 +29,7 @@
 ## 4b. Header correction (PR #40 review)
 
 - [x] 4b.1 In `components/FormView.tsx`, replace `onBack` with `backLink` (descriptive react-router `Link`, dirty-guard confirm dialog before navigating), render icon Save/Cancel (`CloudUpload`/`X`, `aria-label`, `title`, 40px, focus ring) only while dirty (Save also when `isNew`), Cancel discards without confirm, and add the `actions` "Record actions" `ActionMenu`. Verify: `components/tests/FormView.test.tsx` covers back link clean/dirty, hidden/visible Save and Cancel, disabled invalid/saving, `isNew`, Cancel restore, actions menu, Ctrl+S.
+- [x] 4b.2 Header layout pass: icon-only `ArrowLeft` back link top-left, Save/Cancel/Options as identical 40px squares in a non-wrapping `shrink-0` group top-right on the same row, title beneath. Verify: `components/tests/FormView.test.tsx` asserts the accessible back name, equal size tokens and no `flex-wrap`.
 
 ## 5. Verification
 

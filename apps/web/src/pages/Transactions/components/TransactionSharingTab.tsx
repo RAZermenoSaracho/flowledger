@@ -154,7 +154,7 @@ export function TransactionSharingTab({
               <input
                 className={editableControlClassName}
                 value={userSearch}
-                placeholder="Search by username"
+                placeholder="Search by username or nickname"
                 onChange={(event) => setUserSearch(event.target.value)}
               />
             </EditableField>
