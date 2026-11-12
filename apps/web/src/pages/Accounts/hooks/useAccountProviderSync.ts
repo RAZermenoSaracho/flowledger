@@ -6,7 +6,12 @@ import type { Account, AccountSync } from "../../../types/accounts.types";
 import type { SyncfyWidgetEntrypoint } from "../types/accounts.types";
 import { openSyncfyWidget } from "../utils/syncfyWidget";
 
-/** State and handlers for connecting, resyncing, and reconnecting provider (Syncfy) accounts. */
+/**
+ * State and handlers for connecting, resyncing, and reconnecting provider (Syncfy) accounts.
+ * `availableProviders` is derived from the connectors list (empty while loading or when the
+ * operator disables a provider); provider actions no-op for providers not in it.
+ * `isBankSyncUnavailable` is true only once connectors have loaded with no provider available.
+ */
 export function useAccountProviderSync({
   defaultCurrency
 }: {
@@ -48,12 +53,19 @@ export function useAccountProviderSync({
       (await accountsClient.listProviderConnectors()).connectors
   });
 
+  const availableProviders = new Set(
+    (connectorsQuery.data ?? []).map((connector) => connector.provider)
+  );
+  const isBankSyncAvailable = availableProviders.size > 0;
+  const isBankSyncUnavailable =
+    connectorsQuery.isSuccess && !isBankSyncAvailable;
+
   const providerAccountsQuery = useQuery({
     queryKey: ["provider-accounts", "unlinked"],
     queryFn: async () =>
       (await accountsClient.listProviderAccounts({ status: "unlinked" }))
         .accounts,
-    enabled: addMode === "sync",
+    enabled: addMode === "sync" && isBankSyncAvailable,
     refetchInterval: activeConnection ? 5000 : false
   });
 
@@ -251,7 +263,12 @@ export function useAccountProviderSync({
     entrypoint: Exclude<SyncfyWidgetEntrypoint["type"], "connect">
   ) {
     const sync = account.sync?.find((item) => item.id === syncId);
-    if (!sync?.provider || !sync.providerCredentialId) return;
+    if (
+      !sync?.provider ||
+      !sync.providerCredentialId ||
+      !availableProviders.has(sync.provider)
+    )
+      return;
 
     setIsFormOpen(true);
     setAddMode("sync");
@@ -289,6 +306,9 @@ export function useAccountProviderSync({
     providerAccountLinkTargets,
     setProviderAccountLinkTargets,
     connectorsQuery,
+    availableProviders,
+    isBankSyncAvailable,
+    isBankSyncUnavailable,
     providerAccountsQuery,
     linkableAccountsQuery,
     createAccount,

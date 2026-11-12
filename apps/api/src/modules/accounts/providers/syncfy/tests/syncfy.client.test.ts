@@ -4,7 +4,8 @@ vi.mock("../../../../../config/env.js", () => ({
   env: {
     SYNCFY_API_BASE_URL: "https://api.syncfy.test",
     SYNCFY_DATA_BASE_URL: "https://data.syncfy.test",
-    SYNCFY_API_KEY: "test-api-key"
+    SYNCFY_API_KEY: "test-api-key",
+    SYNCFY_AUTO_SYNC_ENABLED: true
   }
 }));
 

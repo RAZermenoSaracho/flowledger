@@ -28,10 +28,20 @@ function renderProviderSync(defaultCurrency = "USD") {
 
 function mockBaseline() {
   server.use(
-    http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] })),
+    http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({
+        connectors: [
+          { provider: "syncfy", connectorId: "c1", title: "Bank", description: "d", country: "US", category: "bank", coverageLabel: "Popular" }
+        ]
+      })),
     http.get(`${API_URL}/providers/accounts`, () => HttpResponse.json({ accounts: [] })),
     http.get(`${API_URL}/accounts`, () => HttpResponse.json({ accounts: [] }))
   );
+}
+
+async function renderLoadedProviderSync() {
+  const rendered = renderProviderSync();
+  await waitFor(() => expect(rendered.result.current.isBankSyncAvailable).toBe(true));
+  return rendered;
 }
 
 const originalLocation = window.location;
@@ -86,7 +96,7 @@ describe("useAccountProviderSync", () => {
         })
       )
     );
-    const { result } = renderProviderSync();
+    const { result } = await renderLoadedProviderSync();
 
     await act(async () => {
       await result.current.startProviderConnection.mutateAsync({ provider: "syncfy" });
@@ -109,7 +119,7 @@ describe("useAccountProviderSync", () => {
       )
     );
     openSyncfyWidgetMock.mockResolvedValue({ event: "success", credential: undefined });
-    const { result } = renderProviderSync();
+    const { result } = await renderLoadedProviderSync();
 
     await act(async () => {
       await result.current.startProviderConnection.mutateAsync({ provider: "syncfy" });
@@ -134,7 +144,7 @@ describe("useAccountProviderSync", () => {
       )
     );
     openSyncfyWidgetMock.mockRejectedValue(new Error("boom"));
-    const { result } = renderProviderSync();
+    const { result } = await renderLoadedProviderSync();
 
     await act(async () => {
       await result.current.startProviderConnection.mutateAsync({ provider: "syncfy" });
@@ -222,7 +232,7 @@ describe("useAccountProviderSync", () => {
       )
     );
     openSyncfyWidgetMock.mockResolvedValue({ event: "success", credential: undefined });
-    const { result } = renderProviderSync();
+    const { result } = await renderLoadedProviderSync();
     const account: Account = {
       id: "acc-1",
       name: "Checking",
@@ -306,5 +316,32 @@ describe("useAccountProviderSync", () => {
         "Could not start the Syncfy credential flow."
       )
     );
+  });
+
+  it("reports bank sync unavailable and no-ops startSyncedCredentialFlow when connectors are empty", async () => {
+    server.use(
+      http.get(`${API_URL}/providers/connectors`, () => HttpResponse.json({ connectors: [] }))
+    );
+    const { result } = renderProviderSync();
+    await waitFor(() => expect(result.current.connectorsQuery.isSuccess).toBe(true));
+    const account: Account = {
+      id: "acc-1",
+      name: "Checking",
+      type: "checking",
+      currency: "USD",
+      initialBalance: 0,
+      isArchived: false,
+      sync: [
+        { id: "sync-1", provider: "syncfy", providerCredentialId: "cred-1", status: "ok" } as AccountSync
+      ],
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    act(() => result.current.startSyncedCredentialFlow(account, "sync-1", "credential"));
+
+    expect(result.current.isBankSyncAvailable).toBe(false);
+    expect(result.current.availableProviders.has("syncfy")).toBe(false);
+    expect(result.current.isFormOpen).toBe(false);
   });
 });

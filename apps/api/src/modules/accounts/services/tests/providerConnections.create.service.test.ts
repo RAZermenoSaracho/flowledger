@@ -27,6 +27,19 @@ const { confirmProviderAccounts, createConnection } = await import(
 );
 
 describe("createConnection", () => {
+  it("throws a 503 without starting a flow when the provider is unavailable", async () => {
+    const createConnectionFlow = vi.fn();
+    getProviderMock.mockReturnValue({
+      isAvailable: () => false,
+      createConnectionFlow
+    } as never);
+
+    await expect(
+      createConnection("user-1", { provider: "syncfy" })
+    ).rejects.toMatchObject({ statusCode: 503 });
+    expect(createConnectionFlow).not.toHaveBeenCalled();
+  });
+
   it("throws a 404 when the requested institution isn't available", async () => {
     findSelectedInstitutionMock.mockReturnValue(undefined);
 
@@ -37,6 +50,7 @@ describe("createConnection", () => {
 
   it("throws a 404 when neither institution nor connector match", async () => {
     findSelectedConnectorMock.mockReturnValue(undefined);
+    getProviderMock.mockReturnValue({} as never);
 
     await expect(
       createConnection("user-1", { provider: "unknown-provider" })

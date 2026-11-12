@@ -141,4 +141,38 @@ describe("AccountsPage", () => {
     const link = await screen.findByRole("link", { name: /Checking/ });
     expect(link).toHaveAttribute("href", "/accounts/acc-1");
   });
+
+  it("shows the bank-sync notice only when no provider is available", async () => {
+    mockBaseline([]);
+    const notice =
+      "Bank connections and synchronization are temporarily disabled. Your existing accounts and transactions remain available.";
+    const { unmount } = renderWithProviders(<AccountsPage />, {
+      withAuth: true
+    });
+    expect(await screen.findByText(notice)).toBeInTheDocument();
+    unmount();
+
+    server.use(
+      http.get(`${API_URL}/providers/connectors`, () =>
+        HttpResponse.json({
+          connectors: [
+            {
+              provider: "syncfy",
+              connectorId: "c1",
+              title: "Bank",
+              description: "d",
+              country: "MX",
+              category: "bank",
+              coverageLabel: "Popular"
+            }
+          ]
+        })
+      )
+    );
+    renderWithProviders(<AccountsPage />, { withAuth: true });
+    await waitFor(() =>
+      expect(screen.getByText("No accounts found.")).toBeInTheDocument()
+    );
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
+  });
 });

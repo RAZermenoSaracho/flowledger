@@ -1,4 +1,5 @@
 import type { ProviderConnector, ProviderInstitution } from "../types/provider.types.js";
+import { isProviderAvailable } from "./providerAvailability.js";
 import { listProviders } from "./providerRegistry.js";
 
 type InstitutionCatalogQuery = {
@@ -45,10 +46,10 @@ export function filterInstitutions(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/** Aggregates institutions from every registered provider that implements `listInstitutions`. */
+/** Aggregates institutions from every currently available provider that implements `listInstitutions`. */
 export async function listAvailableInstitutions() {
   const providers = listProviders().filter(
-    (provider) => provider.listInstitutions
+    (provider) => provider.listInstitutions && isProviderAvailable(provider)
   );
 
   return (
@@ -56,10 +57,10 @@ export async function listAvailableInstitutions() {
   ).flat();
 }
 
-/** Aggregates connectors from every registered provider that implements `listConnectors`. */
+/** Aggregates connectors from every currently available provider that implements `listConnectors`; an empty list is how clients learn bank sync is unavailable. */
 export async function listAvailableConnectors() {
   const providers = listProviders().filter(
-    (provider) => provider.listConnectors
+    (provider) => provider.listConnectors && isProviderAvailable(provider)
   );
 
   return (

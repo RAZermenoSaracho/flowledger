@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../../config/env.js", () => ({
   env: {
+    SYNCFY_API_KEY: "test-api-key",
+    SYNCFY_AUTO_SYNC_ENABLED: true,
     SYNCFY_WIDGET_SCRIPT_URL: "https://cdn.test/widget.js",
     SYNCFY_WIDGET_STYLE_URL: "https://cdn.test/widget.css"
   }
@@ -41,6 +43,7 @@ const { processSyncfyWebhookEvent } = await import("../services/create.service.j
 const { markSyncfyWebhookEventFailed } = await import(
   "../services/update.service.js"
 );
+const { env } = await import("../../../../../config/env.js");
 const { syncfyProvider } = await import("../syncfy.adapter.js");
 
 const createSyncfySessionMock = vi.mocked(createSyncfySession);
@@ -56,6 +59,47 @@ const markSyncfyWebhookEventFailedMock = vi.mocked(markSyncfyWebhookEventFailed)
 
 beforeEach(() => {
   vi.clearAllMocks();
+  env.SYNCFY_AUTO_SYNC_ENABLED = true;
+});
+
+describe("syncfyProvider when Syncfy is unavailable", () => {
+  beforeEach(() => {
+    env.SYNCFY_AUTO_SYNC_ENABLED = false;
+  });
+
+  it("isAvailable reflects the env switch", () => {
+    expect(syncfyProvider.isAvailable!()).toBe(false);
+    env.SYNCFY_AUTO_SYNC_ENABLED = true;
+    expect(syncfyProvider.isAvailable!()).toBe(true);
+  });
+
+  it("createUser, createSession and createConnectionFlow reject with a 503 without calling Syncfy", async () => {
+    const input = { providerUserId: "su-1", externalUserId: "user-1" } as never;
+
+    await expect(syncfyProvider.createUser!(input)).rejects.toMatchObject({
+      statusCode: 503
+    });
+    await expect(syncfyProvider.createSession!(input)).rejects.toMatchObject({
+      statusCode: 503
+    });
+    await expect(
+      syncfyProvider.createConnectionFlow!(input)
+    ).rejects.toMatchObject({ statusCode: 503 });
+
+    expect(getOrCreateSyncfyUserForFlowLedgerUserMock).not.toHaveBeenCalled();
+    expect(createSyncfySessionMock).not.toHaveBeenCalled();
+  });
+
+  it("handleWebhook returns ignored without processing or marking the event failed", async () => {
+    const result = await syncfyProvider.handleWebhook!({
+      eventId: "evt-1",
+      payload: {}
+    } as never);
+
+    expect(result).toEqual({ status: "ignored" });
+    expect(processSyncfyWebhookEventMock).not.toHaveBeenCalled();
+    expect(markSyncfyWebhookEventFailedMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("syncfyProvider.listConnectors", () => {

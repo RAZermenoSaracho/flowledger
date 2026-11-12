@@ -225,6 +225,8 @@ export type ProviderWebhookHandlingResult =
 export type FinancialProviderAdapter<TWebhookPayload = unknown> = {
   key: ProviderKey;
   displayName: string;
+  /** Operator-level global switch: when it returns `false` the provider exposes no connectors/institutions and refuses every user-initiated operation, while its already-imported data stays readable. Omitted means always available. Per-user entitlement (e.g. Premium) is not this flag's concern; see `isProviderAvailable`. */
+  isAvailable?: () => boolean;
 } & Partial<ProviderInstitutionsAdapter> &
   Partial<ProviderConnectorsAdapter> &
   Partial<ProviderUserAdapter> &

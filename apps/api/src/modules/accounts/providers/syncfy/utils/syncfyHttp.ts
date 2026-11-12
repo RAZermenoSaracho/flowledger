@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { env } from "../../../../../config/env.js";
 import { HttpError } from "../../../../../utils/httpError.js";
 import type { JsonRecord } from "../types/syncfy.types.js";
+import { assertSyncfyAvailable } from "./syncfyAvailability.js";
 
 const syncfyApiBaseUrl = env.SYNCFY_API_BASE_URL;
 const syncfyDataBaseUrl = env.SYNCFY_DATA_BASE_URL;
@@ -171,8 +172,9 @@ export function sanitizeSyncfyDataEndpoint(endpoint: string) {
   return `${url.pathname}${url.search}`;
 }
 
-/** Fetches `url` and parses the response as JSON (`null` if the body isn't valid JSON); throws a 502 on a non-OK HTTP status. */
+/** Fetches `url` and parses the response as JSON (`null` if the body isn't valid JSON); throws a 502 on a non-OK HTTP status. Every outbound Syncfy request goes through here, so it refuses with a 503 before any network call while Syncfy is unavailable. */
 export async function fetchJson(url: URL, init?: RequestInit) {
+  assertSyncfyAvailable();
   const response = await fetch(url, init);
   const body = (await response.json().catch(() => null)) as unknown;
 
