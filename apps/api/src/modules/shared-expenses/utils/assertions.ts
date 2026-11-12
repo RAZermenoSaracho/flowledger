@@ -1,10 +1,15 @@
-import { exceedsCurrencyPrecision } from "@flowledger/shared";
+import {
+  currencyFractionDigits,
+  exceedsCurrencyPrecision
+} from "@flowledger/shared";
 import { Prisma, type Transaction } from "@prisma/client";
 import { HttpError } from "../../../utils/httpError.js";
 import { fieldError } from "./shareGuards.js";
 
 /** Throws if `transaction` is a transfer — only income and expense transactions can be shared. */
-export function assertShareableTransaction(transaction: Pick<Transaction, "type">) {
+export function assertShareableTransaction(
+  transaction: Pick<Transaction, "type">
+) {
   if (transaction.type === "transfer") {
     throw new HttpError(
       400,
@@ -25,13 +30,30 @@ export function validateSharedExpenseParticipants(
     new Prisma.Decimal(0)
   );
   if (shares.gt(totalAmount)) {
-    throw fieldError("sharedExpense.participants", "Participant shares cannot exceed the transaction amount");
+    throw fieldError(
+      "sharedExpense.participants",
+      "Participant shares cannot exceed the transaction amount"
+    );
   }
 }
 
 /** Throws a 400 on `field` when `amount` has more fraction digits than `currency` allows (or more than 20 integer digits). */
-export function assertAmountPrecision(amount: Prisma.Decimal.Value, currency: string, field: string) {
-  if (exceedsCurrencyPrecision(new Prisma.Decimal(amount).toFixed(), currency)) {
-    throw fieldError(field, `Amount has more decimals than ${currency.toUpperCase()} allows`);
+export function assertAmountPrecision(
+  amount: Prisma.Decimal.Value,
+  currency: string,
+  field: string
+) {
+  if (
+    exceedsCurrencyPrecision(
+      typeof amount === "string"
+        ? amount
+        : new Prisma.Decimal(amount).toFixed(),
+      currency
+    )
+  ) {
+    throw fieldError(
+      field,
+      `${field} allows at most ${currencyFractionDigits(currency)} decimal places for ${currency.toUpperCase()}`
+    );
   }
 }

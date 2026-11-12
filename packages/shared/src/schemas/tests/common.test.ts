@@ -4,12 +4,10 @@ import {
   currencyCodeSchema,
   currencyFractionDigits,
   decimalAmountSchema,
-  decimalPlaces,
   exceedsCurrencyPrecision,
   dateStringSchema,
   idSchema,
   listPaginationSchema,
-  moneySchema,
   nonNegativeDecimalAmountSchema,
   positiveDecimalAmountSchema,
   optionalArraySchema,
@@ -70,24 +68,6 @@ describe("timeZoneSchema", () => {
 
   it.each(["Not/AZone", ""])("rejects %s", (value) => {
     expect(timeZoneSchema.safeParse(value).success).toBe(false);
-  });
-});
-
-describe("moneySchema", () => {
-  it("coerces a numeric string to a number", () => {
-    expect(moneySchema.parse("42.5")).toBe(42.5);
-  });
-
-  it("accepts a finite number", () => {
-    expect(moneySchema.parse(-10)).toBe(-10);
-  });
-
-  it("rejects Infinity", () => {
-    expect(moneySchema.safeParse(Infinity).success).toBe(false);
-  });
-
-  it("rejects a non-numeric string", () => {
-    expect(moneySchema.safeParse("not-a-number").success).toBe(false);
   });
 });
 
@@ -194,13 +174,6 @@ describe("currencyFractionDigits", () => {
     ["BTC", 18]
   ])("%s has %i digits", (code, digits) => {
     expect(currencyFractionDigits(code)).toBe(digits);
-  });
-});
-
-describe("decimalPlaces", () => {
-  it("counts fraction digits", () => {
-    expect(decimalPlaces("3")).toBe(0);
-    expect(decimalPlaces("1.50")).toBe(2);
   });
 });
 

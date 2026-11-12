@@ -261,13 +261,7 @@ export async function getTransactionsSummary(
     aggregations: [{ fn: "sum", field: "amountInPreferredCurrency", alias: "total" }]
   });
 
-  // Not serialize(): it converts Prisma.Decimal via a JSON.stringify
-  // replacer, but Decimal.js defines its own toJSON() (returning a
-  // string), which JSON.stringify calls before the replacer ever sees
-  // the value — so the replacer's `instanceof Prisma.Decimal` check
-  // never fires here. Number() sidesteps that (Decimal.js supports
-  // numeric coercion via toString()), giving a real number instead of a
-  // numeric string sneaking into a `number`-typed response field.
+  // Not serialize(): its JSON replacer never sees Decimal (toJSON runs first); sums are rebuilt exactly below.
   const rows = result.data as unknown as {
     type: "income" | "expense" | "transfer";
     total: unknown;

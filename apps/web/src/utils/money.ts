@@ -25,9 +25,9 @@ export function fromUnits(units: bigint, digits: number, trim = false): string {
   return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
 }
 
-/** Whether `currency` is a non-ISO (crypto) code, whose amounts render with trailing zeros trimmed. */
-function isTrimmed(currency: string): boolean {
-  return !isoCurrencies.has(currency.toUpperCase());
+/** Whether `currency` is an ISO 4217 code (anything else is treated as crypto, rendered with trailing zeros trimmed). */
+export function isIsoCurrency(currency: string): boolean {
+  return isoCurrencies.has(currency.toUpperCase());
 }
 
 /** Parses `value` to `currency` minor units, or `null` when blank, malformed, negative, or too precise. */
@@ -41,7 +41,7 @@ export function parseUnits(value: string, currency: string): bigint | null {
 
 /** Formats `units` of `currency` as its canonical decimal string. */
 export function formatUnits(units: bigint, currency: string): string {
-  return fromUnits(units, currencyFractionDigits(currency), isTrimmed(currency));
+  return fromUnits(units, currencyFractionDigits(currency), !isIsoCurrency(currency));
 }
 
 /** `a + b` in `currency`; throws on an invalid operand. */

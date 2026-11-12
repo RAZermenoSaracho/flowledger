@@ -65,7 +65,7 @@ describe("assertAmountPrecision", () => {
   });
 
   it("throws a 400 on excess decimals", () => {
-    expect(() => assertAmountPrecision("1.505", "USD", "f")).toThrow("more decimals than USD");
+    expect(() => assertAmountPrecision("1.505", "USD", "f")).toThrow("f allows at most 2 decimal places for USD");
     expect(() => assertAmountPrecision("1.5", "JPY", "f")).toThrow(expect.objectContaining({ statusCode: 400 }));
   });
 });

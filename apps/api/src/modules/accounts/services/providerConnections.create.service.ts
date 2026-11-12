@@ -10,7 +10,6 @@ import {
   listAvailableInstitutions
 } from "../utils/institutionCatalog.js";
 import {
-  getNumber,
   getRecord,
   getString,
   normalizeAccountType,
@@ -126,7 +125,7 @@ async function createOrLinkProviderAccount(input: {
       type: normalizeAccountType(metadata.type),
       identifier: null,
       currency: getString(metadata.currency)?.toUpperCase() ?? "USD",
-      initialBalance: new Prisma.Decimal(getNumber(metadata.balance) ?? 0)
+      initialBalance: parseBalance(metadata.balance)
     }
   });
 
@@ -135,6 +134,17 @@ async function createOrLinkProviderAccount(input: {
     data: { accountId: account.id },
     include: { account: true, connection: true }
   });
+}
+
+/** Exact `Decimal` from a provider-reported balance (string or number as received); anything non-numeric becomes 0. */
+function parseBalance(raw: unknown): Prisma.Decimal {
+  if (typeof raw !== "string" && typeof raw !== "number") return new Prisma.Decimal(0);
+  try {
+    const value = new Prisma.Decimal(raw);
+    return value.isFinite() ? value : new Prisma.Decimal(0);
+  } catch {
+    return new Prisma.Decimal(0);
+  }
 }
 
 /** Links each selected provider account to an existing FlowLedger account, or creates one from provider metadata if none is specified. */

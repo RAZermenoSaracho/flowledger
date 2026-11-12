@@ -1,17 +1,7 @@
 import { Prisma } from "@prisma/client";
-import { currencyFractionDigits, exceedsCurrencyPrecision } from "@flowledger/shared";
+import { assertAmountPrecision } from "../../shared-expenses/utils/assertions.js";
 import { fieldError } from "../../shared-expenses/utils/shareGuards.js";
 import type { AppliedAmounts, AppliedAmountsInput } from "../types/transactions.types.js";
-
-function assertPrecision(field: string, value: string, currency: string) {
-  const digits = currencyFractionDigits(currency);
-  if (exceedsCurrencyPrecision(value, currency)) {
-    throw fieldError(
-      field,
-      `${field} allows at most ${digits} decimal places for ${currency}`
-    );
-  }
-}
 
 /** Applies one side: copies `amount` when the currencies match (a differing stated value is rejected), otherwise requires and returns the stated value. */
 function resolveSide(
@@ -36,7 +26,7 @@ function resolveSide(
       `${field} is required when ${executionCurrency} differs from ${targetCurrency}`
     );
   }
-  assertPrecision(field, stated, targetCurrency);
+  assertAmountPrecision(stated, targetCurrency, field);
   return new Prisma.Decimal(stated);
 }
 
@@ -54,7 +44,7 @@ export function resolveAppliedAmounts(input: AppliedAmountsInput): AppliedAmount
   const destinationCurrency =
     input.type === "transfer" ? (input.destinationCurrency?.toUpperCase() ?? null) : null;
 
-  assertPrecision("amount", input.amount, executionCurrency);
+  assertAmountPrecision(input.amount, executionCurrency, "amount");
 
   if (accountCurrency === null && input.accountAmount != null) {
     throw fieldError("accountAmount", "accountAmount requires an account");
@@ -98,7 +88,7 @@ export function resolveAppliedAmounts(input: AppliedAmountsInput): AppliedAmount
         : "feeCurrency must be the transaction currency or the account currency"
     );
   }
-  assertPrecision("feeAmount", input.feeAmount!, feeCurrency);
+  assertAmountPrecision(input.feeAmount!, feeCurrency, "feeAmount");
 
   return {
     accountAmount,

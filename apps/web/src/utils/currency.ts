@@ -1,7 +1,6 @@
 import { currencyFractionDigits, exceedsCurrencyPrecision } from "@flowledger/shared";
-import { multiplyByRate } from "./money";
+import { isIsoCurrency, multiplyByRate } from "./money";
 
-const isoCurrencies = new Set<string>(Intl.supportedValuesOf("currency"));
 const formatterCache = new Map<string, Intl.NumberFormat>();
 
 /** Memoized `Intl.NumberFormat`: ISO codes get currency style at their minor units, any other code a plain number with up to 18 decimals. */
@@ -10,7 +9,7 @@ function getFormatter(currency: string, compact: boolean): Intl.NumberFormat {
   const cached = formatterCache.get(key);
   if (cached) return cached;
 
-  const isIso = isoCurrencies.has(currency.toUpperCase());
+  const isIso = isIsoCurrency(currency);
   const formatter = new Intl.NumberFormat("en-US", {
     ...(isIso ? { style: "currency", currency } : { minimumFractionDigits: 0 }),
     ...(compact
@@ -26,7 +25,7 @@ function getFormatter(currency: string, compact: boolean): Intl.NumberFormat {
 function format(amount: number | string, currency: string, compact: boolean): string {
   // The Intl typings omit string input, but Intl.NumberFormat v3 formats a decimal string exactly.
   const text = getFormatter(currency, compact).format(amount as unknown as number);
-  return isoCurrencies.has(currency.toUpperCase()) ? text : `${text} ${currency}`;
+  return isIsoCurrency(currency) ? text : `${text} ${currency}`;
 }
 
 /**

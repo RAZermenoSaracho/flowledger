@@ -20,8 +20,6 @@ export const timeZoneSchema = z.string().refine((value) => {
   }
 }, "Invalid IANA time zone");
 
-export const moneySchema = z.coerce.number().finite();
-
 /** A native money amount as an exact decimal string: up to 20 integer and 18 fraction digits, no exponent. Numbers are rejected so no float ever carries a balance. */
 export const decimalAmountSchema = z
   .string()
@@ -73,7 +71,7 @@ export const listSortSchema = z.array(
 const isoCurrencies = new Set<string>(Intl.supportedValuesOf("currency"));
 
 /** Number of fraction digits in a decimal string (`"1.50"` is 2, `"3"` is 0). */
-export function decimalPlaces(value: string): number {
+function decimalPlaces(value: string): number {
   return value.split(".")[1]?.length ?? 0;
 }
 
