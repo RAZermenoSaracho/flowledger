@@ -16,7 +16,7 @@ import { useGroupCategoryManagement } from "./hooks/useGroupCategoryManagement";
 import { useGroupForm } from "./hooks/useGroupForm";
 import { useGroupManagement } from "./hooks/useGroupManagement";
 
-/** Group Form View at `/groups/:id`: tabs General (name/description, summary), Members, Related transactions and Categories; members and categories lists save immediately. Non-member, unknown or malformed ids all show the same not-found state. */
+/** Group Form View at `/groups/:id`: tabs General (name/description, summary), Members, Categories and Transactions; members and categories lists save immediately. Non-member, unknown or malformed ids all show the same not-found state. */
 export function GroupDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
@@ -96,8 +96,8 @@ export function GroupDetailPage() {
       )
     },
     {
-      id: "related",
-      label: "Related transactions",
+      id: "transactions",
+      label: "Transactions",
       content: (
         <RelatedTransactionsList
           key={group.id}

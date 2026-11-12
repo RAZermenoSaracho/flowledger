@@ -79,7 +79,7 @@ describe("AccountDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers General details and Related transactions tabs", async () => {
+  it("offers General and Transactions tabs", async () => {
     mockAccounts([makeAccount()]);
     server.use(
       http.get(`${API_URL}/transactions`, () =>
@@ -94,10 +94,10 @@ describe("AccountDetailPage", () => {
 
     await screen.findByLabelText("Name");
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "General details",
-      "Related transactions"
+      "General",
+      "Transactions"
     ]);
-    await user.click(screen.getByRole("tab", { name: "Related transactions" }));
+    await user.click(screen.getByRole("tab", { name: "Transactions" }));
     expect(await screen.findByText("No transactions for this account yet.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });

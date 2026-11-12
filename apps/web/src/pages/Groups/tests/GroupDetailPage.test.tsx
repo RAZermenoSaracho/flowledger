@@ -88,7 +88,7 @@ function renderDetail(id = "group-1") {
 }
 
 describe("GroupDetailPage", () => {
-  it("shows General, Members, Categories and Related transactions tabs with editable fields for an admin", async () => {
+  it("shows General, Members, Categories and Transactions tabs with editable fields for an admin", async () => {
     mock(makeGroup());
     const user = userEvent.setup();
     renderDetail();
@@ -98,7 +98,7 @@ describe("GroupDetailPage", () => {
       "General",
       "Members",
       "Categories",
-      "Related transactions"
+      "Transactions"
     ]);
     expect(screen.getByText("Group summary")).toBeInTheDocument();
     expect(screen.queryByText("Latest Group Transactions")).not.toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("GroupDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("loads the Related transactions tab server-paginated and scoped to the group", async () => {
+  it("loads the Transactions tab server-paginated and scoped to the group", async () => {
     const queries: { where: unknown; pagination: unknown }[] = [];
     mock(makeGroup());
     server.use(
@@ -132,7 +132,7 @@ describe("GroupDetailPage", () => {
     );
     renderDetail();
 
-    await userEvent.click(await screen.findByRole("tab", { name: "Related transactions" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Transactions" }));
     expect(await screen.findByText("No transactions for this group yet.")).toBeInTheDocument();
     expect(queries[0]).toMatchObject({
       where: { field: "groupId", op: "=", value: "group-1" },

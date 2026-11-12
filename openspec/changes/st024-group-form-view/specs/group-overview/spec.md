@@ -80,11 +80,11 @@ The Group detail view SHALL be composed from the shared Form View introduced by 
 
 ### Requirement: Group detail is organized in tabs
 
-The Group detail view SHALL pass `tabs` to the shared Form View: "General" (name, description and group summary), "Members", "Categories" and "Related transactions". The active tab SHALL be driven by the `?tab=` URL parameter and default to General. The draft SHALL survive tab switches, and read-only/permission rules SHALL be identical in every tab.
+The Group detail view SHALL pass `tabs` to the shared Form View: "General" (name, description and group summary), "Members", "Categories" and "Transactions". The active tab SHALL be driven by the `?tab=` URL parameter and default to General. The draft SHALL survive tab switches, and read-only/permission rules SHALL be identical in every tab.
 
 #### Scenario: Tabs shown
 - **WHEN** a member opens `/groups/:id`
-- **THEN** the General, Members, Categories and Related transactions tabs are shown and General is active
+- **THEN** the General, Members, Categories and Transactions tabs are shown and General is active
 
 #### Scenario: Members tab
 - **WHEN** the user opens the Members tab
@@ -98,12 +98,12 @@ The Group detail view SHALL pass `tabs` to the shared Form View: "General" (name
 - **WHEN** a non-admin member opens the Members tab
 - **THEN** no member search/add or removal controls are shown
 
-### Requirement: Group related transactions are server-paginated
+### Requirement: Group transactions are server-paginated
 
-The Related transactions tab SHALL list the caller's own transactions assigned to the Group through the existing `GET /transactions` endpoint filtered by `groupId`. It SHALL use the same related-transactions list as the account view: the shared search bar with name search and the transaction sort options (date by default, newest first, with an `id` tie-breaker), and the shared pagination control at 20 rows per page. It SHALL have loading, empty and error states, and each row SHALL link to the transaction and show date, account, category and amount. Other members' transactions and transactions of other Groups SHALL never be listed. The server's ownership scope SHALL apply before paging.
+The Transactions tab SHALL list the caller's own transactions assigned to the Group through the existing `GET /transactions` endpoint filtered by `groupId`. It SHALL use the same related-transactions list as the account view: the shared search bar with name search and the transaction sort options (date by default, newest first, with an `id` tie-breaker), and the shared pagination control at 20 rows per page. It SHALL have loading, empty and error states, and each row SHALL link to the transaction and show date, account, category and amount. Other members' transactions and transactions of other Groups SHALL never be listed. The server's ownership scope SHALL apply before paging.
 
 #### Scenario: Group filter and paging
-- **WHEN** a member with 25 transactions in the Group opens Related transactions and presses Next
+- **WHEN** a member with 25 transactions in the Group opens Transactions and presses Next
 - **THEN** page 2 of the `groupId`-filtered list is requested and shows the remaining 5, and the control reads "Page 2 of 2"
 
 #### Scenario: Search resets the page

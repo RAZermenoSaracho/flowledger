@@ -15,7 +15,7 @@ const RELATED_TRANSACTION_SEARCH_FIELDS: SearchFieldConfig[] = [
 ];
 
 /**
- * "Related transactions" tab body for an account or group Form View: a name search, the scope's
+ * "Transactions" tab body for an account or group Form View: a name search, the scope's
  * transactions (newest first by default) and a server-paging footer. Render it with `key` set to
  * the record id so paging and search reset when the record changes.
  */
@@ -39,7 +39,7 @@ export function RelatedTransactionsList({
         onQueryChange={list.setSearch}
       />
       <RelatedList<Transaction>
-        title="Related transactions"
+        title="Transactions"
         rows={list.rows}
         rowKey={(row) => row.id}
         isLoading={list.isLoading}

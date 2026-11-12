@@ -24,7 +24,7 @@ import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
-/** Account Form View at `/accounts/:id`: tabs General details (editable fields, sync panel) and Related transactions (paginated list); archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
+/** Account Form View at `/accounts/:id`: tabs General (editable fields, sync panel) and Transactions (paginated list); archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
 export function AccountDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
@@ -79,7 +79,7 @@ export function AccountDetailPage() {
   const tabs: FormViewTab[] = [
     {
       id: "general",
-      label: "General details",
+      label: "General",
       content: (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -165,7 +165,7 @@ export function AccountDetailPage() {
     },
     {
       id: "transactions",
-      label: "Related transactions",
+      label: "Transactions",
       content: (
         <RelatedTransactionsList
           key={account.id}
