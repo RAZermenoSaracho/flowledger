@@ -1,76 +1,77 @@
 # Tasks
 
-Implementation starts only after `/opsx:apply` is authorized. The steps marked **APPROVAL** must not run until the product owner approves the exact statement. Run `npm run typecheck`, `npm run lint` and `npm run test` before considering any group done. Route, integration and e2e suites need the Docker VM (`CLAUDE.local.md`).
+Start implementation only after `/opsx:apply` is authorized. Do not run any step marked **APPROVAL** until the product owner approves its exact statement. Before marking a group done, run `npm run typecheck`, `npm run lint` and the affected tests. Route, integration and e2e suites need the Docker VM (`CLAUDE.local.md`).
 
 ## 1. Shared precision contract
 
-- [ ] 1.1 Add `isFiatCurrency`, `normalizeNativeAmount` and `decimalAmountSchema` to `packages/shared` (D5). Verify: shared schema/util tests cover:
-  - a string round trip of `1.234567890123456789`
-  - number input `4.5` → `"4.5"`
-  - exponent and garbage rejected
-  - 19 decimals rejected
-  - fiat `10.005` → `"10.01"`
-  - 13 integer digits rejected
-- [ ] 1.2 Switch the native amount fields of the transaction, account and imported-transaction update schemas to `decimalAmountSchema`. Add optional `accountAmount`, `destinationAmount`, `feeAmount`, `feeCurrency` and `appliedRate` (fee pair together; `appliedRate` > 0). Remove `cross_currency_effects` from the financial-overview disclosure enum. Verify: `schemas/tests/{transactions,accounts,reports}.test.ts` pass with the new cases.
+- [ ] 1.1 Add `decimalAmountSchema`, `currencyFractionDigits` and `isShareableCurrency` to `packages/shared/src/schemas/common.ts` (D5). Verify in `schemas/tests/common.test.ts`:
+  - string `"1.234567890123456789"` passes unchanged
+  - number `4.5`, exponent `"1e-7"`, garbage and 13 integer digits are rejected
+  - minor units: USD 2, JPY 0, KWD 3, BTC 18
+  - shareable: MXN yes, JPY yes, KWD no, BTC no
+- [ ] 1.2 Move native amount fields to `decimalAmountSchema`. This covers the transaction, account and imported-transaction schemas and the settlement `amount`, plus a new optional settlement `accountAmount`. Add optional `accountAmount`, `destinationAmount`, `feeAmount` and `feeCurrency` to the transaction schemas, with the fee fields required together. Remove `cross_currency_effects` from the disclosure enum. Verify: `schemas/tests/{transactions,accounts,debts,reports}.test.ts` pass with the new cases.
 
 ## 2. Schema and migration
 
-- [ ] 2.1 Update `schema.prisma` per D1, D2 and D7 (widened columns, five nullable columns, the `TransactionCorrection` model and enum, the `User` relation). Run `npm run prisma:generate`. Verify: `npm run typecheck` compiles against the new client.
-- [ ] 2.2 Generate the migration with `prisma migrate dev --create-only` against local staging only. **APPROVAL (decision 1):** only after approval, append the two idempotent backfill `UPDATE`s from design "Migration Plan" step 2. Verify on local staging:
-  - before and after `GET /accounts`, every `currentBalance` is identical
-  - `select count(*) from "Transaction" where "accountId" is not null and "accountAmount" is null` returns 0
+- [ ] 2.1 Update `schema.prisma` per D1 and D7: widen the columns, add the four nullable columns, the `TransactionCorrection` model and enum, and the `User` relation. Then `npm run prisma:generate`. Verify: `npm run typecheck` compiles against the new client.
+- [ ] 2.2 Generate the migration with `prisma migrate dev --create-only` against a scratch database, not staging or production. **APPROVAL F:** append the two fill statements from the design's Migration Plan step 3 only if F is chosen. Verify: the migration SQL holds only the expected `ALTER`, `CREATE` and approved `UPDATE` statements, and applies cleanly to a testcontainers database.
 
 ## 3. Serialization and balance
 
-- [ ] 3.1 Implement the D6 key allowlist in `utils/serialize.ts`. Verify: a new `utils/tests/serialize.test.ts` covers native keys → exact strings with no exponent (`1e-18` case), other Decimals → numbers, and Date passthrough.
-- [ ] 3.2 Rewrite `calculateAccountBalance` and `withAccountBalances` on `Prisma.Decimal` (D4). Select the new columns in `accounts/services/read.service.ts`, and convert to number only for the preferred-currency valuation. Verify: `transactionCalculations.test.ts` covers:
-  - same-currency regression (the existing cases unchanged)
-  - a USD→MXN transfer applying 100 and 1712.50
+- [ ] 3.1 Implement the D6 key allowlist in `utils/serialize.ts`. Verify in a new `utils/tests/serialize.test.ts`:
+  - native keys become exact strings with no exponent (`0.000000000000000001`)
+  - other Decimals stay numbers
+  - Date passthrough
+- [ ] 3.2 Rewrite `calculateAccountBalance` and `withAccountBalances` on `Prisma.Decimal` (D4). Select the new columns in `accounts/services/read.service.ts`, and convert to number only for valuations. Verify in `transactionCalculations.test.ts`:
+  - existing same-currency cases unchanged
+  - a USD to MXN transfer applies 100 / 1712.50
   - a USD expense on an MXN account
   - an 18-decimal BTC sum
-  - fees not subtracted
+  - the fee is not subtracted
 
 ## 4. Single write path
 
-- [ ] 4.1 Add `transactions/utils/appliedAmounts.ts` (D3), including suggestion, precision normalization, the fee/rate validation, and a 400 when no rate is available. Verify: `utils/tests/appliedAmounts.test.ts` with a mocked `getExchangeRate` covers equal currencies (exact copy), a stated value winning, a suggestion rounded per target currency, a missing rate, and the fee pair.
-- [ ] 4.2 Use it in `createTransaction` and `updateTransaction`. Recompute on update when amount, currency, type, an account, or a stated applied amount changes. Replace the `Math.round(body.amount * 100)` share-floor check with `Decimal` comparison. Verify: `create.service.test.ts` and `update.service.test.ts` cover cross-currency create and update, a same-currency regression, and ownership in every `where`.
-- [ ] 4.3 Use it in `importProviderImportedTransaction`, with the provider currency against the account currency, and in `approveSettlement`, where both sides are same-currency. Verify: the import and `debts/services/tests/update.service.test.ts` tests assert the persisted `accountAmount`.
+- [ ] 4.1 Add the pure `transactions/utils/appliedAmounts.ts` (D3), covering precision and the fee rules. Verify in `utils/tests/appliedAmounts.test.ts`:
+  - equal currencies copy exactly, and a mismatching stated value returns 400
+  - a missing stated value across currencies returns 400 naming the field
+  - over-precision returns 400
+  - fee pair and fee currency rules
+  - effective rate and rate before fee for both fee currencies
+- [ ] 4.2 Use the resolver in `createTransaction` and `updateTransaction`, re-resolving on any amount, currency, type or account change. Replace the cents-based share floor with a `Decimal` comparison. Verify: `create.service.test.ts` and `update.service.test.ts` cover cross-currency create and update, an update that changes the amount without restating it (400), a same-currency regression, and ownership in every `where`.
+- [ ] 4.3 Use the resolver in `importProviderImportedTransaction` (optional `accountAmount`) and in settlement request and approval. Remove `convertSettlementAmount` from the write path. Verify: the import and `debts/services/tests/update.service.test.ts` cover the same currency (copied), a cross-currency case without `accountAmount` (400), and a cross-currency case with it (persisted).
 
 ## 5. Correction history
 
-- [ ] 5.1 Write a `TransactionCorrection` row in `updateTransaction`, only when one of the 11 financial fields changed, and a deletion row in `deleteTransaction`, both inside the existing `$transaction` (D7). Verify:
-  - service tests assert the previous and corrected snapshots (decimals as strings)
+- [ ] 5.1 Write a `TransactionCorrection` row inside the existing `$transaction` of `updateTransaction` (financial-field change only) and `deleteTransaction` (D7). Verify with service tests:
+  - snapshots hold decimal strings
   - no row for a description-only edit
-  - a rollback when the insert fails
-  - the deletion row written with `corrected = null`
-- [ ] 5.2 Integration test (`src/tests/integration/transactionCorrections.integration.test.ts`, real Postgres) covering:
-  - the edit through `/v1` and MCP writes one row each
-  - the delete leaves its row behind after the transaction is gone
-  - another user sees nothing
+  - the update rolls back when the insert fails
+  - a deletion row with `corrected = null`
+- [ ] 5.2 Add `src/tests/integration/transactionCorrections.integration.test.ts` against real Postgres. Verify:
+  - edits through `/v1` and MCP each write one row
+  - a deleted transaction's row remains
+  - another user sees none
 
 ## 6. Guards
 
-- [ ] 6.1 Add the account currency lock in `accounts/services/update.service.ts` (400 naming `currency` when referenced). Verify with a service test, and mark KNOWN_ISSUES #013 resolved.
-- [ ] 6.2 Add `assertShareableCurrency` to the shared sharing helper and to the settlement request and approval services (D8). Verify: shared-expense and debts service tests reject BTC and accept MXN, on create, convert and update.
+- [ ] 6.1 Add the account currency lock in `accounts/services/update.service.ts`. Verify with a service test returning 400 naming `currency`. Mark KNOWN_ISSUES #013 resolved.
+- [ ] 6.2 Add `isShareableCurrency` checks to the shared sharing helper and to settlement request and approval (D8). Verify: shared-expense and debts service tests reject BTC and KWD and accept MXN on create, convert and update.
 
 ## 7. Consumers
 
-- [ ] 7.1 Make `financialOverview.service.ts` use the Decimal balance, and remove the cross-currency disclosure from the service and from `pages/Profile/components/FinancialOverviewSection.tsx`. Verify: `financialOverview.service.test.ts` asserts a cross-currency transfer leaves native balances correct and produces no disclosure. The Profile component test passes.
-- [ ] 7.2 Make the reports `read.service.ts` and `calculateMonthlyCashflow` sum through `Decimal` and output numbers, with the semantics unchanged. Verify: the existing reports tests pass unchanged, plus one 18-decimal crypto sum case.
+- [ ] 7.1 Make `financialOverview.service.ts` use the Decimal balance, and remove the cross-currency disclosure there and in `pages/Profile/components/FinancialOverviewSection.tsx`. Verify: `financialOverview.service.test.ts` shows a cross-currency transfer leaves native balances correct with no disclosure, and the Profile component test passes.
+- [ ] 7.2 Make the reports `read.service.ts` and `calculateMonthlyCashflow` sum through `Decimal` and return numbers. Verify: existing reports tests pass unchanged, plus one 18-decimal crypto case.
 
 ## 8. Web
 
-- [ ] 8.1 Make `formatMoney` and `formatCompactMoney` accept decimal strings exactly (D9), and change the transaction types to string amounts. Verify: `utils/tests/currency.test.ts` renders `1.234567890123456789 BTC` exactly and keeps the USD and MXN outputs unchanged.
-- [ ] 8.2 Add the applied-amount, received-amount, fee and stated-rate fields with their couplings and suggestion prefill. Send strings without `Number()`. Add inline precision errors through `normalizeNativeAmount`. Verify: the `pages/Transactions/utils/tests/*` coupling and save tests, plus a msw-backed component test that overrides the suggestion.
-- [ ] 8.3 Add the cross-currency record display on the transaction detail view (source, destination, time, stated or "effective" rate, fee). Verify with a component test for net-only (effective) and explicit-fee cases.
+- [ ] 8.1 Make `formatMoney` and `formatCompactMoney` accept decimal strings and use the currency's minor units (D9), and make transaction, account and debt amount types strings. Verify: `utils/tests/currency.test.ts` renders `1.234567890123456789 BTC` exactly, `1500 JPY` with no decimals, and USD/MXN unchanged.
+- [ ] 8.2 Add the required applied-amount and received-amount fields and the optional fee to the transaction form, with couplings and a suggestion prefill from `GET /currencies/rate`. Send strings with no `Number()`, and show inline precision errors through `currencyFractionDigits`. Verify: `pages/Transactions/utils/tests/*` coupling and save tests, plus a msw component test that overrides the suggestion.
+- [ ] 8.3 Add the settlement request and approval `accountAmount` field when the currencies differ, with a prefilled suggestion. Verify: a Debts workflow test sends `accountAmount` as a string.
+- [ ] 8.4 Add the cross-currency record display to the transaction detail view: source, destination, time, effective rate, and fee with rate before fee. Verify with component tests for the net-only and explicit-fee cases.
 
-## 9. Data, docs and release
+## 9. Docs, data and release
 
-- [ ] 9.1 Update `docs/PUBLIC_API.md` (decimal-string contract, marked breaking), the MCP tool descriptions, `docs/DATA_MODEL.md`, `docs/DOMAIN_LOGIC.md` (balance invariants, fee rule), and `SHORT_TERM_ROADMAP.md` (the ST-023 status only when it ships). Verify: docs review in the PR.
-- [ ] 9.2 **APPROVAL (decisions 2-4), no execution without it:**
-  - Run the read-only production counts. These are the local staging queries from design "Context": mismatched rows, cross-currency transfers, crypto accounts, and dependent shared expenses, relations and settlements.
-  - Optionally relabel the pre-`20260730001648` mislabeled rows.
-  - Only if a reset is chosen instead of owner correction, use the smallest coherent scope: delete the genuinely mismatched transactions after first deleting or reverting their settlement requests (`SettlementRequest.*TransactionId` is `SetNull`, which would leave approved settlements with no transaction) and resetting linked `ProviderImportedTransaction` rows to `pending`; `SharedExpense`, participants and `TransactionRelation` cascade.
-  - Users, auth, credentials, settings, categories, groups and accounts are never touched.
-  - Verify: the approved statements are recorded in the PR, along with the before and after counts.
-- [ ] 9.3 Confirm the external deploy runs `prisma migrate deploy` immediately before starting the new API, or else re-run the idempotent backfill after the switch. Then do the full-suite run (`npm run test` with the Docker VM). Verify: the deploy checklist is in the PR description and the full suite is green.
+- [ ] 9.1 Update the docs: `docs/PUBLIC_API.md` (decimal-string contract and required cross-currency amounts, marked breaking), the MCP tool descriptions, `docs/DATA_MODEL.md` and `docs/DOMAIN_LOGIC.md` (balance invariants, fee rule). Update `SHORT_TERM_ROADMAP.md` with the ST-023 status only when it ships. Verify by docs review in the PR.
+- [ ] 9.2 Run the end-to-end check with the full suite (`npm run test`, Docker VM) and one e2e journey: create a USD to MXN transfer, edit the received amount (one correction row), delete it (deletion row remains), and check that a BTC 18-decimal round trip leaves balances exact. Verify: the suite is green.
+- [ ] 9.3 **APPROVAL R (local staging):** reset `flowledger_staging` with the design's Migration Plan step 5 script. Verify: step 6 checks pass on staging.
+- [ ] 9.4 **APPROVAL release, plus F or R for production:** follow Migration Plan steps 1 to 7 in order (backup, before-snapshot, migrate and restart through the deploy script, R if chosen, verify). Verify: the step 6 results and the dump location are recorded in the release notes.

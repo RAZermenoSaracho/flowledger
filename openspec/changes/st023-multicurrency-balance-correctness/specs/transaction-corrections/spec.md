@@ -1,13 +1,13 @@
 ## Purpose
 
-Defines the append-only history that records who changed a transaction's financial values, when, and from what to what, including a final record that outlives deletion.
+Defines the append-only history that records who changed a transaction's financial values, when, and from what to what, including a final record that outlives deletion. It applies to changes made after this capability ships; no history is reconstructed for earlier records.
 
 ## ADDED Requirements
 
 ### Requirement: Correction recorded with each financial edit
 
 When an update changes any financial field, the system SHALL append one correction row in the same database transaction as the update. The financial fields are:
-- `type`, `amount`, `executionCurrency`, `accountId`, `transferToAccountId`, `accountAmount`, `destinationAmount`, `feeAmount`, `feeCurrency`, `appliedRate` and `date`
+- `type`, `amount`, `executionCurrency`, `accountId`, `transferToAccountId`, `accountAmount`, `destinationAmount`, `feeAmount`, `feeCurrency` and `date`
 
 The row SHALL hold:
 - the transaction id

@@ -2,97 +2,113 @@
 
 ## Context
 
-See proposal.md for the motivation. The current state, verified against the code on `razs_ai` at `7fd97a6`:
+See proposal.md for the motivation. These facts were verified against `razs_ai` at `7fd97a6` and by read-only database inspection on 2026-11-12.
 
-- **Transfers.** A transfer is one `Transaction` row with `type=transfer`, `accountId` as the source and `transferToAccountId` as the destination, plus one `amount` in `executionCurrency`. `TransactionRelation` is a generic link, not the transfer mechanism.
-- **Balances.** `transactions/utils/transactionCalculations.ts#calculateAccountBalance` is the only balance function. It has two callers:
-  - `accounts/services/read.service.ts` (via `withAccountBalances`)
-  - `reports/services/financialOverview.service.ts`
-
-  It applies `amount.toNumber()` to both sides and ignores currencies.
-- **Rate snapshot.** `exchangeRate` and `amountInPreferredCurrency` are a snapshot of the conversion to the preferred currency, from `transactions/utils/transactionCurrency.ts`. The dashboard summary sums `amountInPreferredCurrency`. Both are left unchanged.
+- **Transfer shape.** A transfer is one `Transaction` row: `accountId` is the source and `transferToAccountId` the destination, with one `amount` in `executionCurrency`. `TransactionRelation` is a generic link, not the transfer mechanism.
+- **One balance function.** `transactions/utils/transactionCalculations.ts#calculateAccountBalance` is the only balance function. Its callers are `accounts/services/read.service.ts` and `reports/services/financialOverview.service.ts`. It applies `amount.toNumber()` to both sides and ignores currencies.
 - **Write paths.**
   - `createTransaction`, `updateTransaction` and `deleteTransaction` are shared by the web API, `/v1` and MCP.
-  - `importProviderImportedTransaction` uses its own `tx.transaction.create`.
-  - Settlement approval (`debts/services/update.service.ts#approveSettlement`) has two more direct `tx.transaction.create` calls. Each side is already converted into its account's currency.
-- **Decimals.** `serialize()` turns every `Decimal` into a number. `moneySchema` is `z.coerce.number()`. Native columns are `Decimal(12,2)`. `Prisma.Decimal` is available in the API. The web app has no decimal library.
-- **Crypto detection.** Crypto is detected only through Binance (async). Fiat is whatever Frankfurter lists, and every Frankfurter code is ISO 4217.
-- **Local staging data** (read-only inspection, 155 transactions, 7 accounts in MXN/USD):
-  - 13 transactions have an `executionCurrency` that differs from their account's currency.
-  - 11 of them predate migration `20260730001648`. Its backfill stamped `executionCurrency='USD'` and rate 1 on every existing row, regardless of the account. Before that migration the form had no currency field, so those amounts are account-native and only mislabeled.
-  - 2 rows (2026-07-31 and 2026-08-08) are genuine mismatches.
-  - There are 0 cross-currency transfers and no crypto accounts.
-  - The 13 rows touch 5 shared expenses, 12 relations and 6 settlement requests.
-  - Production was not inspected.
+  - `importProviderImportedTransaction` and `approveSettlement` create rows directly.
+  - `approveSettlement` converts the debt currency into each account's currency at the live rate (`convertSettlementAmount`). That breaks the rule that current rates are suggestions only.
+- **Number handling.** `serialize()` turns every `Decimal` into a number. `moneySchema` is `z.coerce.number()`, and native columns are `Decimal(12,2)`.
+- **Production data** (read-only):
+  - Volume: 6 users, 6 accounts (5 MXN, 1 USD) and 24 transactions from 2 users. All 24 are MXN, scale 2, and created on or after 2026-08-14; 18 have no account.
+  - Currency and transfers: 0 transactions in a currency other than their account's, 0 transfers.
+  - Sharing and settlements: 1 shared expense with 1 participant, and 1 approved settlement request linked to a creditor transaction. There are 0 relations.
+  - Imports and notifications: 169 imported rows, all `ignored` and unlinked; 13 notifications, 5 of them financial.
+  - **No production financial record is incorrect under the new model.**
+- **Local staging data:**
+  - It has 13 transactions whose currency differs from their account's. 11 were mislabeled `USD` by the backfill in migration `20260730001648`, and 2 are genuinely in a different currency.
+  - Those 13 touch 5 shared expenses, 12 relations and 6 settlement requests.
+  - Staging is development data.
+- **Cascades.** Deleting a `Transaction` cascades to `SharedExpense`, then `SharedExpenseParticipant`, then `SettlementRequest`, and to `TransactionRelation` on both sides. `ProviderImportedTransaction.transactionId` is set to null. `Notification` references transactions only inside its JSON `metadata`. There is no `Debt` table: debts derive from participants.
+- **Deploy order.** `~/scripts/deploy-flowledger-prod.sh` runs `prisma migrate deploy` and then restarts the pm2 API.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - One resolver for applied amounts and one balance function, used by every write path and every consumer.
-- An exact decimal path from request to Postgres to response, with no float in between.
-- A migration that leaves every current balance unchanged.
+- An exact path from request decimal string to Postgres `numeric(30,18)` and back to the response, with no float in between.
+- No legacy compatibility code for the previous model.
 
 **Non-Goals:**
-- No historical rate store. Suggestions use today's rate, as `exchangeRate` does now.
-- No change to report semantics: reports still group by `executionCurrency` and convert at live rates.
-- No recomputation of `amountInPreferredCurrency` snapshots.
-- No generic audit or event system, and no read UI for corrections. A list endpoint is deferred until a screen needs it.
+- No historical rate store, and no server-side rate-derived executed amounts.
+- No change to report semantics.
+- No recomputation of the `amountInPreferredCurrency` snapshot.
+- No generic audit or event system, and no corrections read UI or endpoint until a screen needs one.
 - No decimal library on the web.
 
 ## Decisions
 
-### D1. Two applied-amount columns, not a split-row transfer model
+### D1. Two applied-amount columns on the existing row
 
-Add `accountAmount` (source/primary account, in its currency) and `destinationAmount` (transfer destination, in its currency). Both are nullable at the database level. The service requires `accountAmount` whenever `accountId` is set, and `destinationAmount` for every transfer. `amount` and `executionCurrency` stay what was executed.
+`accountAmount` and `destinationAmount` are added as `Decimal(30,18)`, nullable at the database level, because transactions without an account and non-transfers legitimately have none. The resolver guarantees the invariant on every write.
 
-- *Alternative: two rows per transfer (debit and credit legs).* This duplicates transaction logic that sharing, relations, notifications and the UI all assume is one row. Rejected by the ST-023 scope.
-- *Alternative: redefine `amount` as account-native and add `executedAmount`.* This changes the meaning of the field read by reports, the snapshot and every client. Rejected.
-- *Alternative: store `accountAmount` only when the currencies differ.* This puts a null branch in every consumer. Always persisting it costs nothing, and the backfill fills it exactly.
+- *Rejected: two rows per transfer.* It duplicates the one-row assumption made by sharing, relations, notifications and the UI.
+- *Rejected: redefining `amount` as the account-native value.* It changes a field that reports, the snapshot and every client read.
 
-### D2. Optional `appliedRate`, effective rate derived
+### D2. No stored rate; fees only when known
 
-`appliedRate` (Decimal(30,18), nullable) holds only a stated rate. When it is null, the record displays an effective rate computed from the persisted amounts:
-- a transfer: `destinationAmount / accountAmount`
-- otherwise: `accountAmount / amount`
+`appliedRate` is dropped. The rate is always derivable:
+- Effective rate: `destinationAmount / amount` for transfers, `accountAmount / amount` otherwise.
+- Rate before fee, when a fee is recorded in the source currency: `destinationAmount / (amount − fee)`.
+- Rate before fee, when the fee is in the destination currency: `(destinationAmount + fee) / amount`.
 
-There is no "rate kind" enum, because null means effective. `feeAmount` and `feeCurrency` are both nullable and validated together. `feeCurrency` must be one of the transaction's currencies (execution, source or destination). Fees are a detail only, as the ST-023 invariant requires. Reports keep excluding transfers, so a transfer fee is not reported as an expense. This answers the roadmap's open question: a user who wants the fee as an expense records it as a separate expense.
+Restricting `feeCurrency` to those two currencies is what makes this exact. "Correcting the rate" means correcting the received amount or the fee, both of which are persisted and audited.
 
-### D3. One resolver, `transactions/utils/appliedAmounts.ts`
+A fee is detail only. Reports keep excluding transfers, so a transfer fee is not an expense, which answers the roadmap's open question. A user who wants the fee reported records it as its own expense.
 
-`resolveAppliedAmounts({ type, amount, executionCurrency, account, destinationAccount, stated })` returns `{ accountAmount, destinationAmount }` as `Prisma.Decimal`:
-- When the currencies are equal, it copies `amount`.
-- When they differ, it uses the stated value, or otherwise `amount × getExchangeRate(from, to)`, rounded to the target currency's precision.
-- If no rate is available, it throws a 400 naming the field.
+- *Rejected: an `appliedRate` column.* With both amounts and the fee persisted it is redundant, and it adds a consistency check (rate × amount ≈ received) that can only drift.
 
-It is called by:
-- `createTransaction`
-- `updateTransaction`, whenever amount, currency, type, either account, or a stated applied amount changes
-- `importProviderImportedTransaction`
-- `approveSettlement`, where both sides are same-currency, so the resolver copies
+### D3. One resolver; executed amounts always stated
 
-The fee and rate validation lives beside it. The rate fetch goes through the existing `currencies/services/read.service.ts#getExchangeRate`, with no new provider code.
+`transactions/utils/appliedAmounts.ts#resolveAppliedAmounts` is a pure function with no rate lookup. Given the type, amount, execution currency, account currencies and the stated values, it returns `{ accountAmount, destinationAmount }` as `Prisma.Decimal`:
+- Equal currencies: copy `amount`. A different stated value is rejected with 400.
+- Different currencies: the stated value is required, otherwise 400 naming the field.
+- It also enforces precision through D5 and the fee rules from D2.
+
+Callers:
+- `createTransaction`.
+- `updateTransaction`: it re-resolves on any change to the amount, currency, type, an account or a stated value, so a cross-currency edit must restate the applied amounts.
+- `importProviderImportedTransaction`: the provider currency against the account currency. Its request takes an optional `accountAmount`.
+- `requestSettlement` (debtor side) and `approveSettlement` (creditor side): `settlementRequestSchema` and `settlementApprovalSchema` gain an optional `accountAmount`, required when the account currency differs from the debt currency. `convertSettlementAmount` is deleted from the write path, and the web form uses the rate endpoint for its suggestion.
+
+Suggestions use only the existing rate lookup (`GET /currencies/rate`, `/v1/currencies/rate`, MCP `get_exchange_rate`).
+
+- *Rejected: server-side suggestion when an applied amount is omitted.* It would persist a current rate as an executed value, which breaks the product rule. It also adds a rate-unavailable failure path to every write.
 
 ### D4. Balance in `Prisma.Decimal`
 
-`calculateAccountBalance` returns a `Prisma.Decimal` computed as `initialBalance + Σ income.accountAmount − Σ (expense|transfer-out).accountAmount + Σ transfer-in.destinationAmount`. `listAccounts` selects the two new columns. Preferred-currency valuations call `.toNumber()` only after the native sum. `calculateMonthlyCashflow` keeps number output (report totals stay numbers) but sums through `Decimal`.
+`calculateAccountBalance` returns a `Prisma.Decimal`:
 
-### D5. Precision rule from `Intl`, shared
+`initialBalance + Σ income.accountAmount − Σ (expense|transfer-out).accountAmount + Σ transfer-in.destinationAmount`
 
-`packages/shared` gets:
-- `isFiatCurrency(code)`: `Intl.supportedValuesOf("currency")`, which is synchronous and the same in Node 24 and current browsers.
-- `normalizeNativeAmount(value, currency)`: fiat rounds half-up to 2 places, otherwise rejects more than 18 decimals.
-- `decimalAmountSchema`: a string matching `^-?\d{1,12}(\.\d{1,18})?$`, or a finite number whose `String()` matches. Numbers are accepted for compatibility, and the output is always a canonical string.
+`listAccounts` selects the two columns. Valuations call `.toNumber()` only after the native sum. `calculateMonthlyCashflow` sums through `Decimal` and returns numbers.
 
-The schema checks the format. The currency-dependent rule runs in the resolver, because the target currency is often known only after the account is loaded. The web form calls the same helper for inline errors.
-- *Alternative: the Binance list for crypto.* It is async, live, and unavailable in the shared schema. Treating "not ISO" as crypto is synchronous and conservative. Odd ISO codes such as XAU are treated as fiat, which matches today's behavior.
+### D5. Precision rule from `Intl`
+
+`packages/shared/src/schemas/common.ts` gains a format schema and a currency helper.
+
+`decimalAmountSchema`:
+- Accepts only a string matching `^-?\d{1,12}(\.\d{1,18})?$`.
+- Numbers are rejected. Under the product rule, unsafe numeric contracts are not kept for compatibility.
+
+`currencyFractionDigits(code)`:
+- An ISO code returns its minor units: `new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits` (USD and MXN 2, JPY 0, KWD 3).
+- Any non-ISO code (crypto) returns 18.
+- ISO membership is `Intl.supportedValuesOf("currency")`.
+
+Both apps validate with the same helper, the API in the resolver and the web app inline in the form. The rule rejects and never rounds.
+
+`isShareableCurrency(code)` is `ISO && minor units ≤ 2`, because shared-expense and settlement columns stay `Decimal(12,2)`.
+
+- *Rejected: Binance as the crypto list.* It is async and live, and cannot be called from a schema.
 
 ### D6. Serialization by key allowlist
 
-`serialize()` converts a `Decimal` under a native key (`amount`, `accountAmount`, `destinationAmount`, `feeAmount`, `appliedRate`, `initialBalance`, `currentBalance`) to `decimal.toFixed()`, a full-precision string with no exponent. Every other `Decimal` stays a number. This is one change point covering the web API, `/v1` and MCP (`mcp/utils/toolResult.ts` already calls `serialize`).
+`serialize()` renders a `Decimal` under a native key with `decimal.toFixed()`, which gives full precision and no exponent. The native keys are `amount`, `accountAmount`, `destinationAmount`, `feeAmount`, `initialBalance` and `currentBalance`. Every other `Decimal` stays a number.
 
-`SettlementRequest.amount` and `ProviderImportedTransaction.amount` also become strings, because they share the key. That is consistent with the documented rule "every `amount` is a decimal string".
-- *Alternative: all Decimals become strings.* This breaks every valuation consumer for no gain.
-- *Alternative: per-service string mapping.* This scatters the rule across about 25 call sites.
+This is one change point covering the web API, `/v1` and MCP. `SettlementRequest.amount` and `ProviderImportedTransaction.amount` become strings too, which matches the documented rule "every `amount` is a decimal string". Their input schemas move to `decimalAmountSchema` for symmetry.
 
 ### D7. `TransactionCorrection`
 
@@ -111,54 +127,94 @@ model TransactionCorrection {
 }
 ```
 
-- The snapshot holds the 11 financial fields from the spec, with decimals stored as strings.
-- It is written by `updateTransaction` (only when one of those fields changed) and by `deleteTransaction`, inside their existing `prisma.$transaction`.
-- Settlement approval and import create transactions. They do not correct them, so they write no row.
-- The actor is the owner. Only owners can edit transactions today, and `/v1` and MCP act as the credential's user; the credential itself is already in the audit log line. `ponytail:` a single `userId` column means actor and owner are the same. Add `actorUserId` if non-owner edits (for example group admins) are introduced.
+- **Contents.** It snapshots the 10 financial fields from the spec, with decimals as strings.
+- **Who writes it.** `updateTransaction` writes a row only when one of those fields changed, and `deleteTransaction` always writes one. Both write inside their existing `prisma.$transaction`.
+- **What is not recorded.** Creation by import or settlement is not a correction, so it writes no row. The table is forward-only and nothing is backfilled.
+- **Actor.** It is the owner, because only owners can edit transactions. `/v1` and MCP act as the credential's user, and the credential is already in the audit log line.
+- `ponytail:` a single `userId` stands for both actor and owner. Add `actorUserId` if non-owner edits arrive.
 
 ### D8. Guards
 
-- **Account currency lock.** `accounts/services/update.service.ts` rejects a currency change when a transaction references the account.
-- **Crypto sharing guard.** This is one check, `assertShareableCurrency`, added to the existing shared sharing helper (the `transaction-sharing-conversion` "one shared helper") and to the settlement request and approval services.
+- `accounts/services/update.service.ts` rejects a currency change while transactions reference the account.
+- `isShareableCurrency` runs in the shared sharing helper (`transaction-sharing-conversion`'s "one shared helper") and in settlement request and approval.
 
 ### D9. Web
 
-- `amount` and the new fields become `string` in `types/transactions.types.ts`. Form drafts already hold strings, and they are sent as-is (the `Number(draft.amount)` conversions on save and prefill are removed).
-- `utils/currency.ts#formatMoney` accepts `number | string`:
-  - ISO codes use `Intl.NumberFormat` with `style: "currency"`.
-  - Other codes use `Intl.NumberFormat` with `maximumFractionDigits: 18`, passed the string unchanged (exact with Intl.NumberFormat v3), plus the code.
-- The `toFixed(2)` fallback is removed.
-- The form field couplings are pure functions in `pages/Transactions/utils/` and add:
-  - currencies differ → show the applied-amount field, prefilled from `GET /currencies/rate`
-  - same currency → hide and clear it
-- The detail view shows the record from the multi-currency spec.
-- Sharing arithmetic stays numeric, because crypto sharing is rejected.
+- `amount` and the new fields become `string` in `types/transactions.types.ts`. Drafts already hold strings, and the `Number(draft.amount)` conversions in save and prefill are removed.
+- `utils/currency.ts#formatMoney(amount: number | string, currency)` formats ISO codes with `Intl.NumberFormat` currency style at the currency's minor units. Other codes use `maximumFractionDigits: 18`, passed the string unchanged, which is exact with Intl.NumberFormat v3, followed by the code. The `toFixed(2)` fallback is removed.
+- Couplings stay pure functions in `pages/Transactions/utils/`:
+  - Currencies differ → show the required applied-amount field, prefilled from `GET /currencies/rate`.
+  - Currencies equal → hide it and leave it unset.
+- The Debts settlement forms get the same field.
+- The detail view shows the record defined in the spec.
+
+### D10. Existing data: correct-or-reset, never compatibility code
+
+The new code reads no legacy shape. There is no `accountAmount ?? amount` fallback and no "needs review" state. Before the new API serves traffic, every existing row must satisfy the new invariant. There are two ways to get there, and both are complete.
+
+- **F, fill (recommended for production).** In the migration, set `accountAmount = amount` and `destinationAmount = amount`. This is exact for production: every row is single-currency, and the fill's values are what was actually executed. It keeps 24 correct transactions and the one settlement, and it is two statements.
+- **R, financial-domain reset (recommended for local staging, and the alternative for production).** Delete the financial records, defined in the Migration Plan. It is equally small, and it is the only correct option where incorrect rows exist (local staging's 13).
+
+Both need explicit approval of the exact SQL. F is a raw `UPDATE` inside a migration and R is a destructive script. A reset materially simplifies nothing in production, because the schema, code and tests are identical under F and R. Choosing F avoids deleting data that is correct.
 
 ## Risks / Trade-offs
 
-- **[Breaking contract] `/v1` and MCP clients that read `amount` as a number get a string.** → Document it as breaking in `docs/PUBLIC_API.md` and in the MCP tool descriptions. Inputs still accept numbers. The product is pre-production, with trusted users only.
-- **[Suggestion at today's rate for a back-dated record]** → The suggestion is visible and editable before saving, and the response returns the persisted value. Rate history stays out of scope, per the roadmap.
-- **[Rows created between `migrate deploy` and the new API starting have null applied amounts]** → The backfill statements are idempotent (`WHERE "accountAmount" IS NULL`). The deploy task confirms that the external deploy runs migrations immediately before starting the new API, or re-runs the statements after the switch. The resolver never reads null back, because it writes on every create and update.
-- **[Genuine mismatched rows keep today's (wrong) balance effect after the backfill]** → They are listed by a read-only query for the owner to correct through the audited correction flow. The count is 2 locally, and production is pending approval to inspect.
-- **[`Intl.supportedValuesOf` treats any ISO code as fiat]** → This matches today's 2-decimal behavior for every Frankfurter currency, and crypto codes are never ISO.
-- **[Wider columns]** → `numeric(12,2)` to `numeric(30,18)` is lossless in Postgres. It rewrites the table, which takes seconds at the current size.
+- **[Breaking contract] `/v1` and MCP clients must send and read decimal strings.** → Documented as breaking in `docs/PUBLIC_API.md` and the MCP tool descriptions. First-party consumers (web, MCP schemas) change in the same PR. The audience is trusted pre-production users.
+- **[API/MCP clients must state cross-currency amounts]** → The error names the field, the rate lookup is one call away, and the tool descriptions say so.
+- **[Writes by the old API between `migrate deploy` and the pm2 restart lack applied amounts]** → F's statements are idempotent (`… IS NULL`), so step 6 of the Migration Plan re-runs them after the restart. Under R the window is covered by running the reset after the restart.
+- **[Any ISO code counts as fiat with its minor units]** → This is correct by definition. Crypto codes are never ISO 4217.
+- **[Rejecting excess fiat precision may surprise a client that used to send `10.005`]** → That client previously got silent rounding by Postgres. A rejection is the stated product rule.
+- **[Column widening rewrites the tables]** → It is lossless and takes milliseconds at the current size.
 
 ## Migration Plan
 
-1. **Prisma migration, generated.**
-   - Widen `Account.initialBalance` and `Transaction.amount` to `Decimal(30,18)`.
-   - Add `accountAmount`, `destinationAmount`, `feeAmount`, `feeCurrency` and `appliedRate`, all nullable.
-   - Add the `TransactionCorrectionAction` enum and the `TransactionCorrection` table.
-2. **Backfill, appended to the same `migration.sql`** (raw SQL, **requires approval**, see decisions):
-   ```sql
-   UPDATE "Transaction" SET "accountAmount" = "amount"
-     WHERE "accountId" IS NOT NULL AND "accountAmount" IS NULL;
-   UPDATE "Transaction" SET "destinationAmount" = "amount"
-     WHERE "type" = 'transfer' AND "transferToAccountId" IS NOT NULL AND "destinationAmount" IS NULL;
-   ```
-   This reproduces exactly what today's balance code computes, so every balance is unchanged. It writes no correction rows, because it is a structural fill, not a correction.
-3. **Optional relabel** (**separate approval**): set `executionCurrency` to the account's currency for rows created before migration `20260730001648` was applied, whose `executionCurrency` differs from the account's and whose `exchangeRate = 1`. Their `amountInPreferredCurrency` snapshot is not recomputed.
-4. **After deploy:** run the read-only listing of the remaining genuine mismatches (`executionCurrency <> account.currency`, after any relabel) for each owner.
-5. **Rollback.** The app rollback is safe: old code ignores the new nullable columns and reads the widened numerics. A schema rollback is not planned, because narrowing to `(12,2)` would truncate crypto values. Rolling back means redeploying the previous app only.
+All steps are approval-gated where marked. Nothing runs during planning.
 
-No reset is proposed. The smallest coherent reset scope, if it were preferred, is in tasks 9.2. It needs explicit approval of the exact statements, because deleting transactions cascades to shared expenses, participants, settlement requests and relations, and nulls settlement and import links.
+1. **Backup (production).** Run `pg_dump --format=custom` of the production database and store it outside the deploy directory. This is the recovery point for both F and R.
+2. **Before-snapshot (read-only).** Record per-account `currentBalance` from `GET /accounts` and row counts for `Transaction`, `SharedExpense`, `SharedExpenseParticipant`, `SettlementRequest`, `TransactionRelation` and `Notification`.
+3. **Migration, created with `prisma migrate dev --create-only`.**
+   - Widen `Account.initialBalance` and `Transaction.amount` to `Decimal(30,18)`.
+   - Add `accountAmount`, `destinationAmount`, `feeAmount` and `feeCurrency`.
+   - Add the `TransactionCorrectionAction` enum and the `TransactionCorrection` table.
+   - Under F only, append the fill **(APPROVAL F)**:
+     ```sql
+     UPDATE "Transaction" SET "accountAmount" = "amount"
+       WHERE "accountId" IS NOT NULL AND "accountAmount" IS NULL;
+     UPDATE "Transaction" SET "destinationAmount" = "amount"
+       WHERE "type" = 'transfer' AND "transferToAccountId" IS NOT NULL AND "destinationAmount" IS NULL;
+     ```
+4. **Release (`main` push, separate approval).** The deploy script runs `prisma migrate deploy`, then restarts pm2.
+5. **R only (APPROVAL R).** Run this in one transaction right after the restart. The order matters, because notification metadata is not covered by a foreign key:
+   ```sql
+   BEGIN;
+   DELETE FROM "Notification" WHERE "type" IN (
+     'shared_expense_added','shared_expense_invited','shared_expense_updated',
+     'shared_expense_accepted','shared_expense_rejected','debt_owes_money','debt_owed_money',
+     'settlement_requested','settlement_approved','settlement_rejected',
+     'settlement_payment_registration_needed');
+   DELETE FROM "Transaction";  -- cascades: SharedExpense > Participant > SettlementRequest; TransactionRelation
+   UPDATE "ProviderImportedTransaction" SET "status" = 'pending', "transactionId" = NULL
+     WHERE "status" = 'imported';
+   COMMIT;
+   ```
+   For local staging, the same script runs against `flowledger_staging` only, also with approval.
+6. **Verify (read-only).**
+   - `select count(*) from "Transaction" where ("accountId" is not null and "accountAmount" is null) or ("type"='transfer' and "destinationAmount" is null)` returns 0. Under F, re-run step 3's statements first, because they are idempotent.
+   - Under F, every account's `currentBalance` equals the before-snapshot.
+   - Under R, `SharedExpense`, `SettlementRequest` and `TransactionRelation` counts are 0, and no financial notification remains.
+   - Under both, the preserved-table counts are unchanged.
+7. **Recovery.**
+   - Application problem: redeploy the previous commit. Old code ignores the new nullable columns and reads the widened numerics.
+   - Data problem: `pg_restore` the step-1 dump into a fresh database and repoint `DATABASE_URL`.
+   - No down-migration is written. Narrowing to `(12,2)` would truncate crypto values.
+
+**Preserved under both F and R:**
+- Identity and access: `User`, `UserAuthAccount`, `RefreshToken`, `ApiKey`, `OAuthGrant`, `UserBlock`.
+- Organisation: `Group`, `GroupMember`, `Category`, `CategoryUser`.
+- `Account`, including `initialBalance`, which widens losslessly.
+- Provider data: `ProviderConnection`, `ProviderAccount`, `ProviderImportedTransaction` (only its status and link reset under R), `ProviderWebhookEvent`.
+- Non-financial notifications: `group_member_added` and `provider_transactions_pending`.
+- `_prisma_migrations`.
+- User settings: preferred currency, theme, sidebar.
+
+Accounts are kept under R as well. Their balances derive from transactions, so after a reset each account's balance equals its `initialBalance`, which is a consistent state.
