@@ -2,22 +2,27 @@
 
 ## Why
 
-Meta AI Muse should be able to connect to the FlowLedger MCP endpoint (`https://api-flowledger.razs.dev/mcp`) through the existing OAuth server. Muse's OAuth callback is `https://agent.meta.ai/api/hatch/oauth/callback`.
+The owner wants Meta AI Muse and Grok to use FlowLedger's MCP server (`https://api-flowledger.razs.dev/mcp`) through the same OAuth and credential infrastructure as ChatGPT and Claude.
 
-FlowLedger has no redirect allowlist to add it to. Clients are identified only by Client ID Metadata Documents (CIMD). Every client document's `redirect_uris` act as its allowlist, any `https` redirect is valid in a document, and `/authorize` and consent both require an exact redirect match. If Muse presents a CIMD `client_id` listing that callback, it already works with no server change.
-
-The only public evidence of how Muse registers (a vendor blog about a different MCP server) says it used Dynamic Client Registration. FlowLedger deliberately does not support DCR (`mcp-oauth`, "Client identification by metadata document"). Advertising a `registration_endpoint` could change how ChatGPT and Claude, which work today through CIMD, choose to register, and that cannot be verified offline.
+- **Muse** connectors are added through Meta's Muse Connector Platform, which requires submission and approval (platform.muse.ai, Connector guidelines §5–6 and Terms §2.1). The connection form asks for an OAuth Client ID. The public docs say nothing about Dynamic Client Registration or Client ID Metadata Documents (CIMD). Muse's callback is `https://agent.meta.ai/api/hatch/oauth/callback`. FlowLedger only accepts CIMD clients, whose `client_id` is an https URL the client hosts, so there is no Client ID to give Muse.
+- **Grok**: remote MCP is documented only for the xAI API, SDK and Speech-to-Speech API (docs.x.ai, Remote MCP Tools). The caller passes a token in the tool's `authorization` field, and no interactive OAuth flow is documented. Nothing documents custom MCP connectors in the Grok.com app. `/mcp` already accepts personal API keys (`flk_`), which are user-created, read/write scoped, expiring and revocable, so Grok needs no server change.
 
 ## What Changes
 
-- No change to OAuth server behavior, discovery metadata, scopes, PKCE or consent.
-- Regression tests pin the Muse callback behavior:
-  - a CIMD client listing the Muse callback is accepted;
-  - the code is delivered only to that exact URI;
-  - near-miss URIs (other path, query, host, `http`) are rejected without redirect;
-  - discovery still has no `registration_endpoint` and `POST /register` stays 404.
-- The `mcp-oauth` "Client compatibility" requirement names Muse as a CIMD client, with its end-to-end check left manual.
-- `docs/AUTH_FLOW.md` documents what Muse must present, and the decision needed if Muse only supports DCR.
+- FlowLedger publishes a Client ID Metadata Document for Muse at `${PUBLIC_API_URL}/oauth/clients/meta-muse.json`, on the API host. It contains:
+  - `client_id` equal to its own URL;
+  - `client_name` "Meta AI Muse";
+  - one exact redirect, `https://agent.meta.ai/api/hatch/oauth/callback`;
+  - public client, `token_endpoint_auth_method: "none"`.
+- That URL is the Client ID entered in Muse. The existing CIMD pipeline handles it unchanged: SSRF-safe fetch, exact redirect matching at `/authorize` and at consent, PKCE S256, `resource`, consent, scopes, tokens, refresh rotation and revocation.
+- No auth code change, client list, dynamic registration, client secret, wildcard, migration or new token logic. Staging and production each serve their own document under their own API host.
+- Regression tests:
+  - the document parses as a valid CIMD whose `client_id` equals its URL;
+  - the Muse client gets codes only at its exact callback;
+  - near misses and other clients' redirects are rejected without redirecting;
+  - full code, token, `/mcp`, refresh and revoke;
+  - an API key works on `/mcp` as a bearer.
+- `docs/AUTH_FLOW.md` and `docs/PUBLIC_API.md` give the exact values to enter in Muse and a Grok API example using environment variables.
 
 ## Capabilities
 
@@ -26,9 +31,10 @@ The only public evidence of how Muse registers (a vendor blog about a different 
 None.
 
 ### Modified Capabilities
-- `mcp-oauth`: Client compatibility adds Meta AI Muse via CIMD.
+- `mcp-oauth`: "Client compatibility" adds Muse (FlowLedger-hosted client document) and the Grok API (personal API key).
 
 ## Impact
 
-- Tests only in `apps/api` (`oauth.integration.test.ts`, CIMD read service test). `docs/AUTH_FLOW.md`.
-- No production configuration, secret, scope or migration change.
+- `apps/api/src/modules/oauth` adds one public GET route serving a static JSON document, with tests.
+- Docs only for Grok.
+- Production gets the Muse client only when PR #40 is deployed. No production configuration or records are changed now.

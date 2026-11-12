@@ -117,3 +117,22 @@ Every `POST`/`PUT`/`DELETE` is written to the server audit log (user, key id, op
 ## MCP tools
 
 The MCP server (`/mcp`) exposes the same data. Read credentials get 16 tools (`list_blocked_users`, `search_users`, `list_accounts`, `list_categories`, `search_transactions`, `get_transaction_summary`, `list_debts`, `get_report`, `get_exchange_rate`, `list_notifications` (also returns `unreadCount`), `get_transaction`, `list_currencies`, `get_profile`, `list_imported_transactions`, `list_groups`, `list_shared_expenses`); credentials with `write` also get 29 more (`accept_shared_expense`, `reject_shared_expense`, `block_user`, `unblock_user`, `add_group_member`, `create_group_category`, `update_imported_transaction`, `ignore_imported_transactions`, `unignore_imported_transactions`, `import_imported_transactions` (1 to 50 ids; creates real transactions, the assistant is told to confirm with the user), `update_preferences` (name and default currency only), `mark_notifications_read` (`id` or `all: true`), `create_group`, `update_group`, `set_group_archived`, `remove_group_member`, `create_shared_expense`, `request_settlement`, `create_transaction`, `update_transaction`, `delete_transaction`, `delete_account`, `delete_category`, `create_account`, `update_account`, `set_account_archived`, `create_category`, `update_category`, `set_category_archived`). `delete_transaction`, `delete_account`, `delete_category` and `remove_group_member` are marked destructive; the assistant is instructed to get explicit user confirmation first. Tools that notify or affect other users say so in their descriptions; not exposed over MCP: group delete, shared-expense update/delete, direct settle, batch settlement, and approving or rejecting settlements (REST only where a route exists). Every write call is audited as `mcp.<tool>`.
+
+## Grok (xAI API) with a personal API key
+
+The xAI API calls remote MCP servers server-side and sends the token you give it as the `Authorization` header. It has no OAuth flow, so use a FlowLedger personal API key.
+
+1. Create a key in Profile › Developer. Prefer a read-only key with an expiry.
+2. Keep it in an environment variable, never in source.
+
+```bash
+export FLOWLEDGER_API_KEY=...   # flk_..., read-only
+curl https://api.x.ai/v1/responses \
+  -H "Authorization: Bearer $XAI_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model": "grok-4.7", "input": [{"role": "user", "content": "List my accounts"}],
+       "tools": [{"type": "mcp", "server_url": "https://api-flowledger.razs.dev/mcp", "server_label": "flowledger",
+                  "authorization": "Bearer '"$FLOWLEDGER_API_KEY"'"}]}'
+```
+
+Revoking the key in Profile › Developer stops access immediately. A read key gets the read tools only.
+

@@ -16,7 +16,7 @@ const { decideConsent } = await import("../../services/create.service.js");
 const { getConsentContext, listOAuthGrants } = await import("../../services/read.service.js");
 const { revokeOAuthGrant } = await import("../../services/delete.service.js");
 const { postDecision } = await import("../create.controller.js");
-const { getContext, getOAuthGrants } = await import("../read.controller.js");
+const { getContext, getMuseClientDocument, getOAuthGrants } = await import("../read.controller.js");
 const { deleteOAuthGrant } = await import("../delete.controller.js");
 
 describe("oauth controllers", () => {
@@ -38,6 +38,20 @@ describe("oauth controllers", () => {
     await getContext(mockRequest({ query: { req: "tok" } }), res);
 
     expect(getConsentContext).toHaveBeenCalledWith("user1@example.com", "tok");
+  });
+
+  it("getMuseClientDocument serves the hosted Muse client document", () => {
+    const res = mockResponse();
+
+    getMuseClientDocument(mockRequest(), res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        client_name: "Meta AI Muse",
+        redirect_uris: ["https://agent.meta.ai/api/hatch/oauth/callback"],
+        token_endpoint_auth_method: "none"
+      })
+    );
   });
 
   it("getOAuthGrants serializes dates", async () => {

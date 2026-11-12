@@ -9,26 +9,21 @@ import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js"
 // stub client store here; its SSRF behaviour has its own unit tests.
 const CID = "https://app.example/client.json";
 const REDIRECT = "https://app.example/cb";
-// Hypothetical Muse client document URL: Muse must present its own CIMD client_id listing this callback.
-const MUSE_CID = "https://agent.meta.ai/oauth/client.json";
 const MUSE_REDIRECT = "https://agent.meta.ai/api/hatch/oauth/callback";
+// The CIMD fetch is stubbed; the hosted Muse document is served by the real route and returned as fetched.
 vi.mock("../../modules/oauth/providers/cimd/services/read.service.js", () => ({
-  getCimdClient: async (id: string) =>
-    id === CID
+  getCimdClient: async (id: string) => {
+    const { museClientDocument, museClientId } = await import("../../modules/oauth/utils/hostedClients.js");
+    if (id === museClientId()) return museClientDocument();
+    return id === CID
       ? {
           client_id: CID,
           client_name: "Test App",
           redirect_uris: ["https://app.example/cb", "http://localhost/callback"],
           token_endpoint_auth_method: "none"
         }
-      : id === "https://agent.meta.ai/oauth/client.json"
-        ? {
-            client_id: id,
-            client_name: "Muse",
-            redirect_uris: ["https://agent.meta.ai/api/hatch/oauth/callback"],
-            token_endpoint_auth_method: "none"
-          }
-        : undefined
+      : undefined;
+  }
 }));
 
 let app: Express;
@@ -208,42 +203,58 @@ describe("MCP OAuth server", () => {
     expect(ok.status).toBe(200);
   });
 
-  it("delivers a Muse code only to its exact registered callback and rejects near misses without redirecting", async () => {
+  it("serves the Muse client document and runs Muse's code, token, refresh and revoke only through its exact callback", async () => {
+    const museCid = `${issuer}/oauth/clients/meta-muse.json`;
+    const doc = await request(app).get("/oauth/clients/meta-muse.json");
+    expect(doc.status).toBe(200);
+    expect(doc.body).toMatchObject({ client_id: museCid, redirect_uris: [MUSE_REDIRECT], token_endpoint_auth_method: "none" });
+
     const user = await createAuthedUser(app);
     const { verifier, challenge } = pkce();
-    const muse = { client_id: MUSE_CID, redirect_uri: MUSE_REDIRECT };
-
+    const muse = { client_id: museCid, redirect_uri: MUSE_REDIRECT };
     for (const redirect_uri of [
       `${MUSE_REDIRECT}/extra`,
       `${MUSE_REDIRECT}?next=x`,
       MUSE_REDIRECT.replace("https:", "http:"),
       "https://agent.meta.ai.evil.example/api/hatch/oauth/callback",
-      "https://other.meta.ai/api/hatch/oauth/callback"
+      REDIRECT
     ]) {
       const rejected = await authorize(challenge, { ...muse, redirect_uri });
       expect(rejected.status, redirect_uri).toBe(400);
       expect(rejected.headers.location, redirect_uri).toBeUndefined();
     }
-    expect((await authorize(challenge, { client_id: MUSE_CID, redirect_uri: REDIRECT })).status).toBe(400);
+    expect((await authorize(challenge, { client_id: CID, redirect_uri: MUSE_REDIRECT })).status).toBe(400);
 
     const res = await authorize(challenge, muse);
+    expect(res.status).toBe(302);
     const req = new URL(res.headers.location!).searchParams.get("req")!;
-    const decision = await decide(user, req);
-    const url = new URL(decision.body.redirectUrl);
+    const ctx = await request(app).get("/oauth/authorize/context").query({ req }).set("Authorization", `Bearer ${user.token}`);
+    expect(ctx.body.client).toEqual({ name: "Meta AI Muse", redirectHost: "agent.meta.ai" });
+    const url = new URL((await decide(user, req)).body.redirectUrl);
     expect(`${url.origin}${url.pathname}`).toBe(MUSE_REDIRECT);
     expect(url.searchParams.get("state")).toBe("xyz");
     expect(url.searchParams.get("iss")).toBe(issuer);
 
-    const ok = await request(app).post("/token").type("form").send({
-      client_id: MUSE_CID,
+    const museToken = (body: Json) => request(app).post("/token").type("form").send({ client_id: museCid, ...body });
+    const issued = await museToken({
       grant_type: "authorization_code",
       code: url.searchParams.get("code"),
       code_verifier: verifier,
       redirect_uri: MUSE_REDIRECT,
       resource
     });
-    expect(ok.status).toBe(200);
-    expect(ok.body.scope).toBe("read");
+    expect(issued.status).toBe(200);
+    expect(issued.body.scope).toBe("read");
+    expect((await mcp(issued.body.access_token)).status).toBe(200);
+    expect((await token({ grant_type: "refresh_token", refresh_token: issued.body.refresh_token, resource })).status).toBe(400);
+
+    const rotated = await museToken({ grant_type: "refresh_token", refresh_token: issued.body.refresh_token, resource });
+    expect(rotated.status).toBe(200);
+    expect((await mcp(rotated.body.access_token)).status).toBe(200);
+
+    const revoked = await request(app).post("/revoke").type("form").send({ client_id: museCid, token: rotated.body.refresh_token });
+    expect(revoked.status).toBe(200);
+    expect((await mcp(rotated.body.access_token)).status).toBe(401);
   });
 
   it("rejects tampered or foreign consent requests and non-session credentials", async () => {
