@@ -7,7 +7,9 @@ export type NotificationInput = {
   title: string;
   message: string;
   metadata?: Prisma.InputJsonValue;
+  /** The user whose action triggered this notification; it is dropped when the recipient has blocked that user. */
+  senderUserId?: string;
 };
 
 /** Prisma transaction client narrowed to the `notification` delegate, so notification services can accept any transaction without importing the full client type. */
-export type NotificationClient = Pick<Prisma.TransactionClient, "notification">;
+export type NotificationClient = Pick<Prisma.TransactionClient, "notification" | "userBlock">;

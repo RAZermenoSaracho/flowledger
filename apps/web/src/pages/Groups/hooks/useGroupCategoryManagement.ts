@@ -1,11 +1,10 @@
-import type { CategoryType } from "@flowledger/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import * as categoriesClient from "../../../services/categories.client";
 import * as groupsClient from "../../../services/groups.client";
-import type { Group } from "../../../types/groups.types";
+import type { Category, CategoryFormValues } from "../../../types/categories.types";
 
-/** State and handlers for adding and archiving a group's shared categories. */
+/** Mutations and edit-selection state for a group's shared categories; form field state lives in `CategoryForm`. */
 export function useGroupCategoryManagement({
   selectedGroupId,
   refreshSelectedGroup
@@ -14,38 +13,21 @@ export function useGroupCategoryManagement({
   refreshSelectedGroup: () => Promise<void>;
 }) {
   const queryClient = useQueryClient();
-  const [categoryName, setCategoryName] = useState("");
-  const [categoryType, setCategoryType] = useState<CategoryType>("expense");
-  const [categoryColor, setCategoryColor] = useState("#176b52");
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
     null
   );
-  const [editCategoryName, setEditCategoryName] = useState("");
-  const [editCategoryType, setEditCategoryType] =
-    useState<CategoryType>("expense");
-  const [editCategoryColor, setEditCategoryColor] = useState("#176b52");
 
   const addCategory = useMutation({
-    mutationFn: () =>
-      groupsClient.addGroupCategory(selectedGroupId!, {
-        name: categoryName,
-        type: categoryType,
-        color: categoryColor
-      }),
+    mutationFn: (values: CategoryFormValues) =>
+      groupsClient.addGroupCategory(selectedGroupId!, values),
     onSuccess: async () => {
-      setCategoryName("");
       await refreshSelectedGroup();
       await queryClient.invalidateQueries({ queryKey: ["categories"] });
     }
   });
 
   const updateCategory = useMutation({
-    mutationFn: (category: {
-      id: string;
-      name: string;
-      type: CategoryType;
-      color: string;
-    }) =>
+    mutationFn: (category: { id: string } & CategoryFormValues) =>
       categoriesClient.updateCategory(category.id, {
         name: category.name,
         type: category.type,
@@ -88,38 +70,15 @@ export function useGroupCategoryManagement({
     }
   });
 
-  async function submitCategory(event: FormEvent) {
-    event.preventDefault();
-    await addCategory.mutateAsync();
-  }
-
-  async function submitCategoryEdit(event: FormEvent) {
-    event.preventDefault();
-    if (!editingCategoryId) return;
-
-    await updateCategory.mutateAsync({
-      id: editingCategoryId,
-      name: editCategoryName,
-      type: editCategoryType,
-      color: editCategoryColor
-    });
-  }
-
-  function openCategoryEditForm(category: Group["categories"][number]) {
+  function openCategoryEditForm(category: Category) {
     setEditingCategoryId(category.id);
-    setEditCategoryName(category.name);
-    setEditCategoryType(category.type);
-    setEditCategoryColor(category.color ?? "#176b52");
   }
 
   function closeCategoryEditForm() {
     setEditingCategoryId(null);
-    setEditCategoryName("");
-    setEditCategoryType("expense");
-    setEditCategoryColor("#176b52");
   }
 
-  async function confirmDeleteCategory(category: Group["categories"][number]) {
+  async function confirmDeleteCategory(category: Category) {
     const confirmed = window.confirm(
       `Delete "${category.name}" permanently? This cannot be undone. Related financial data may also be deleted or disconnected from this category.`
     );
@@ -128,26 +87,12 @@ export function useGroupCategoryManagement({
   }
 
   return {
-    categoryName,
-    setCategoryName,
-    categoryType,
-    setCategoryType,
-    categoryColor,
-    setCategoryColor,
     editingCategoryId,
-    editCategoryName,
-    setEditCategoryName,
-    editCategoryType,
-    setEditCategoryType,
-    editCategoryColor,
-    setEditCategoryColor,
     addCategory,
     updateCategory,
     archiveCategory,
     restoreCategory,
     deleteCategory,
-    submitCategory,
-    submitCategoryEdit,
     openCategoryEditForm,
     closeCategoryEditForm,
     confirmDeleteCategory

@@ -1,4 +1,5 @@
 import { prisma } from "../../../db/prisma.js";
+import { publicizeUsers } from "../../users/utils/publicUser.js";
 import { groupInclude } from "../utils/groupInclude.js";
 import { getGroupAdmin } from "./read.service.js";
 
@@ -10,7 +11,7 @@ export async function updateGroup(
 ) {
   await getGroupAdmin(userId, groupId);
 
-  return prisma.group.update({
+  return publicizeUsers(await prisma.group.update({
     where: { id: groupId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -19,27 +20,27 @@ export async function updateGroup(
         : {})
     },
     include: groupInclude(userId)
-  });
+  }));
 }
 
 /** Marks a group archived; requires `userId` to be a group admin. */
 export async function archiveGroup(userId: string, groupId: string) {
   await getGroupAdmin(userId, groupId);
 
-  return prisma.group.update({
+  return publicizeUsers(await prisma.group.update({
     where: { id: groupId },
     data: { isArchived: true, archivedAt: new Date() },
     include: groupInclude(userId)
-  });
+  }));
 }
 
 /** Un-archives a group; requires `userId` to be a group admin. */
 export async function restoreGroup(userId: string, groupId: string) {
   await getGroupAdmin(userId, groupId);
 
-  return prisma.group.update({
+  return publicizeUsers(await prisma.group.update({
     where: { id: groupId },
     data: { isArchived: false, archivedAt: null },
     include: groupInclude(userId)
-  });
+  }));
 }

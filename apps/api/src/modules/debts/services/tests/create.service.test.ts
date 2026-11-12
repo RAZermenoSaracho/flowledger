@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -30,6 +31,7 @@ function debtRow(overrides: Record<string, unknown> = {}) {
     userId: "user-1",
     shareAmount: { toNumber: () => 100 },
     paidAmount: { toNumber: () => 0 },
+    acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
       title: "Dinner",
@@ -51,6 +53,16 @@ describe("createSettlementRequest", () => {
         categoryId: "cat-1"
       })
     ).rejects.toThrow("Debt not found");
+  });
+
+  it.each(["proposed", "rejected"])("throws a 400 when the share is %s", async (acceptance) => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
+      debtRow({ acceptance }) as never
+    );
+
+    await expect(
+      createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" })
+    ).rejects.toThrow("This share has not been accepted");
   });
 
   it("throws a 404 when the caller isn't the debtor", async () => {
@@ -119,6 +131,25 @@ describe("createSettlementRequest", () => {
         categoryId: "cat-1"
       })
     ).rejects.toThrow("A pending settlement request already exists for this debt");
+  });
+
+  it("runs the checks and the insert in one Serializable transaction and maps P2034 to 409", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("conflict", { code: "P2034", clientVersion: "x" })
+    );
+
+    await expect(
+      createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" })
+    ).rejects.toMatchObject({ statusCode: 409, message: "Please retry" });
+
+    prismaMock.$transaction.mockClear();
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(null);
+    await createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" }).catch(
+      () => undefined
+    );
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+    });
   });
 
   it("creates the request and notifies the creditor", async () => {

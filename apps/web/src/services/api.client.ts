@@ -31,6 +31,18 @@ export class ApiError extends Error {
   }
 }
 
+/** Reads the first field-addressed validation error (`issues.fieldErrors`) from a failed request's error body, or `null` when the error is not field-addressed. */
+export function getFieldError(
+  error: unknown
+): { field: string; message: string } | null {
+  if (!(error instanceof ApiError)) return null;
+  const fieldErrors = (
+    error.body as { issues?: { fieldErrors?: Record<string, string[]> } } | undefined
+  )?.issues?.fieldErrors;
+  const [field, messages] = Object.entries(fieldErrors ?? {})[0] ?? [];
+  return field ? { field, message: messages?.[0] ?? error.message } : null;
+}
+
 type ApiOptions = {
   method?: string;
   body?: unknown;

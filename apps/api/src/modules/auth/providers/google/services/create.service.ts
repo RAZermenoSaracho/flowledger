@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { env } from "../../../../../config/env.js";
 import { prisma } from "../../../../../db/prisma.js";
 import { HttpError } from "../../../../../utils/httpError.js";
+import { withGeneratedUsername } from "../../../../users/utils/generateUsername.js";
 import { issueRefreshToken } from "../../../services/create.service.js";
 import type { GoogleLinkResult, GoogleProfile } from "../types/google.types.js";
 import {
@@ -39,7 +40,7 @@ export function buildGoogleAuthUrl(
 }
 
 async function findOrCreateGoogleUser(profile: GoogleProfile) {
-  return prisma.$transaction(async (tx) => {
+  return withGeneratedUsername((username) => prisma.$transaction(async (tx) => {
     const existingAccount = await tx.userAuthAccount.findUnique({
       where: {
         provider_providerAccountId: {
@@ -70,6 +71,7 @@ async function findOrCreateGoogleUser(profile: GoogleProfile) {
       data: {
         name: profile.name,
         email: profile.email,
+        username,
         avatarUrl: profile.picture,
         authAccounts: {
           create: {
@@ -80,7 +82,7 @@ async function findOrCreateGoogleUser(profile: GoogleProfile) {
         }
       }
     });
-  });
+  }));
 }
 
 async function linkGoogleIdentity(

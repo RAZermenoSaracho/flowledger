@@ -2,6 +2,7 @@ import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import type { GroupListRecord, GroupsQueryInput } from "../types/groups.types.js";
+import { publicizeUsers } from "../../users/utils/publicUser.js";
 import { groupInclude, groupListInclude } from "../utils/groupInclude.js";
 
 const groupsSieve = createSieve(prisma.group);
@@ -111,19 +112,16 @@ export async function listGroups(userId: string, rawQuery: string | undefined) {
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     include: groupListInclude()
   });
-  return result.data;
+  return publicizeUsers(result.data);
 }
 
-/** Like `getGroupById` but answers a non-member (or missing group) with 404, for external surfaces that must not reveal group existence. */
-export async function getMemberGroup(userId: string, groupId: string) {
+/** Alias of `getGroupById` for the external surfaces (/v1, MCP); both answer a non-member or missing group with 404. */
+export const getMemberGroup = (userId: string, groupId: string) => getGroupById(userId, groupId);
+
+/** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member; a non-member or missing group is a 404 so existence doesn't leak. */
+export async function getGroupById(userId: string, groupId: string) {
   const member = await prisma.groupMember.findFirst({ where: { groupId, userId }, select: { id: true } });
   if (!member) throw notFound("Group");
-  return getGroupById(userId, groupId);
-}
-
-/** Fetches one group (its active categories/members) plus its 25 most recent transactions and an income/expense summary for `userId`; requires `userId` to be a member. */
-export async function getGroupById(userId: string, groupId: string) {
-  await getGroupMembership(userId, groupId);
 
   const [group, transactionTotals] = await Promise.all([
     prisma.group.findUnique({
@@ -166,7 +164,7 @@ export async function getGroupById(userId: string, groupId: string) {
   );
 
   return {
-    ...group,
+    ...publicizeUsers(group),
     summary: {
       ...summary,
       balance: summary.totalIncome - summary.totalExpenses

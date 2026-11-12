@@ -32,17 +32,18 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
 }
 
 function renderManagement(selectedGroup: Group | null = null) {
-  const setSelectedGroupId = vi.fn();
+  const onCreated = vi.fn();
+  const onLeave = vi.fn();
   const result = renderHook(
     () =>
       useGroupManagement({
         selectedGroupId: selectedGroup?.id ?? null,
-        setSelectedGroupId,
-        selectedGroup
+        onCreated,
+        onLeave
       }),
     { wrapper }
   );
-  return { setSelectedGroupId, ...result };
+  return { onCreated, onLeave, ...result };
 }
 
 beforeEach(() => {
@@ -50,78 +51,25 @@ beforeEach(() => {
 });
 
 describe("useGroupManagement", () => {
-  it("starts with the create/edit forms closed", () => {
+  it("starts with the create form closed", () => {
     const { result } = renderManagement();
     expect(result.current.isCreateOpen).toBe(false);
-    expect(result.current.isEditingGroup).toBe(false);
   });
 
   it("submitCreate creates a group and selects it", async () => {
     server.use(
       http.post(`${API_URL}/groups`, () => HttpResponse.json({ group: makeGroup({ id: "group-2" }) }))
     );
-    const { result, setSelectedGroupId } = renderManagement();
+    const { result, onCreated } = renderManagement();
 
     act(() => result.current.setName("Roommates"));
     await act(async () => {
       await result.current.submitCreate({ preventDefault: () => {} } as React.FormEvent);
     });
 
-    expect(setSelectedGroupId).toHaveBeenCalledWith("group-2");
+    expect(onCreated).toHaveBeenCalledWith("group-2");
     expect(result.current.isCreateOpen).toBe(false);
     expect(result.current.name).toBe("");
-  });
-
-  it("openGroupEditForm/closeGroupEditForm populate and reset edit state", () => {
-    const { result } = renderManagement();
-
-    act(() => result.current.openGroupEditForm(makeGroup({ description: "Shared flat" })));
-    expect(result.current.isEditingGroup).toBe(true);
-    expect(result.current.editGroupName).toBe("Roommates");
-    expect(result.current.editGroupDescription).toBe("Shared flat");
-
-    act(() => result.current.closeGroupEditForm());
-    expect(result.current.isEditingGroup).toBe(false);
-    expect(result.current.editGroupName).toBe("");
-  });
-
-  it("submitGroupEdit updates the selected group", async () => {
-    let updatedBody: unknown;
-    server.use(
-      http.put(`${API_URL}/groups/group-1`, async ({ request }) => {
-        updatedBody = await request.json();
-        return HttpResponse.json({ group: makeGroup({ name: "New name" }) });
-      })
-    );
-    const group = makeGroup();
-    const { result } = renderManagement(group);
-
-    act(() => result.current.openGroupEditForm(group));
-    act(() => result.current.setEditGroupName("New name"));
-
-    await act(async () => {
-      await result.current.submitGroupEdit({ preventDefault: () => {} } as React.FormEvent);
-    });
-
-    expect(updatedBody).toMatchObject({ name: "New name" });
-    expect(result.current.isEditingGroup).toBe(false);
-  });
-
-  it("submitGroupEdit is a no-op when there is no selectedGroup", async () => {
-    let called = false;
-    server.use(
-      http.put(`${API_URL}/groups/group-1`, () => {
-        called = true;
-        return HttpResponse.json({ group: makeGroup() });
-      })
-    );
-    const { result } = renderManagement(null);
-
-    await act(async () => {
-      await result.current.submitGroupEdit({ preventDefault: () => {} } as React.FormEvent);
-    });
-
-    expect(called).toBe(false);
   });
 
   it("addMember adds a member to the currently selected group", async () => {
@@ -135,7 +83,7 @@ describe("useGroupManagement", () => {
             groupId: "group-1",
             userId: "user-2",
             role: "member",
-            user: { id: "user-2", name: "Jane", email: "jane@example.com" },
+            user: { id: "user-2", username: "jane", displayName: "Jane" },
             createdAt: "2024-01-01T00:00:00.000Z",
             updatedAt: "2024-01-01T00:00:00.000Z"
           }
@@ -151,22 +99,22 @@ describe("useGroupManagement", () => {
     expect(addedUserId).toBe("user-2");
   });
 
-  it("archiveGroup archives and deselects the group", async () => {
+  it("archiveGroup archives and leaves the group", async () => {
     server.use(
       http.post(`${API_URL}/groups/group-1/archive`, () =>
         HttpResponse.json({ group: makeGroup({ isArchived: true }) })
       )
     );
-    const { result, setSelectedGroupId } = renderManagement(makeGroup());
+    const { result, onLeave } = renderManagement(makeGroup());
 
     await act(async () => {
       await result.current.archiveGroup.mutateAsync("group-1");
     });
 
-    expect(setSelectedGroupId).toHaveBeenCalledWith(null);
+    expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("confirmDeleteGroup deletes only after confirmation and deselects", async () => {
+  it("confirmDeleteGroup deletes only after confirmation and leaves", async () => {
     let deleted = false;
     server.use(
       http.delete(`${API_URL}/groups/group-1`, () => {
@@ -174,14 +122,14 @@ describe("useGroupManagement", () => {
         return new HttpResponse(null, { status: 204 });
       })
     );
-    const { result, setSelectedGroupId } = renderManagement(makeGroup());
+    const { result, onLeave } = renderManagement(makeGroup());
 
     await act(async () => {
       await result.current.confirmDeleteGroup(makeGroup());
     });
 
     expect(deleted).toBe(true);
-    expect(setSelectedGroupId).toHaveBeenCalledWith(null);
+    expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
   it("confirmDeleteGroup does not delete when the confirmation is dismissed", async () => {
@@ -215,7 +163,7 @@ describe("useGroupManagement", () => {
 
     server.use(
       http.get(`${API_URL}/users/search`, () =>
-        HttpResponse.json({ users: [{ id: "user-2", name: "Jane", email: "jane@example.com" }] })
+        HttpResponse.json({ users: [{ id: "user-2", username: "jane", displayName: "Jane" }] })
       )
     );
     const { result: withSelection } = renderManagement(makeGroup());

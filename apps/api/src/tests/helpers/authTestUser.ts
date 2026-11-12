@@ -25,6 +25,6 @@ export async function createAuthedUser(
 
   return {
     token: response.body.token as string,
-    user: response.body.user as { id: string; email: string; name: string }
+    user: response.body.user as { id: string; email: string; name: string; username: string }
   };
 }

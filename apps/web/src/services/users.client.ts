@@ -1,5 +1,6 @@
 import { apiAssetUrl, apiRequest } from "./api.client";
-import type { PublicUser, User } from "../types/users.types";
+
+import type { BlockedUser, IdentityVisibility, PublicUser, User } from "../types/users.types";
 import type { PlanType, MobileSidebarSide, UpdateUserEmailInput } from "@flowledger/shared";
 
 /** Fetches the current user's profile. */
@@ -12,6 +13,8 @@ export function updateProfile(body: {
   name?: string;
   email?: string;
   preferredCurrency?: string | null;
+  username?: string;
+  identityVisibility?: IdentityVisibility;
 }) {
   return apiRequest<{ user: User }>("/users/me", { method: "PATCH", body });
 }
@@ -62,14 +65,38 @@ export function updateSidebarSide(mobileSidebarSide: MobileSidebarSide) {
   });
 }
 
-/** Searches other users by name/email. */
+/** Searches other users by username (min 3 chars). */
 export function searchUsers(query: string, limit = 8) {
   return apiRequest<{ users: PublicUser[] }>("/users/search", {
     query: { q: query, limit: String(limit) }
   });
 }
 
+/** Reports whether `username` is free for the signed-in user to claim. */
+export function checkUsernameAvailability(username: string) {
+  return apiRequest<{ username: string; available: boolean }>("/users/username-availability", {
+    query: { username }
+  });
+}
+
+/** Lists the users the signed-in user has blocked. */
+export function listBlocks() {
+  return apiRequest<{ blocks: BlockedUser[] }>("/users/blocks");
+}
+
+/** Blocks a user; blocking twice is a no-op. */
+export function blockUser(userId: string) {
+  return apiRequest<unknown>("/users/blocks", { method: "POST", body: { userId } });
+}
+
+/** Removes a block; earlier rejected shares stay rejected. */
+export function unblockUser(userId: string) {
+  return apiRequest<void>(`/users/blocks/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}
+
 /** Resolves an avatar path to a full URL. */
 export function getAvatarUrl(avatarUrl: string | null | undefined) {
   return apiAssetUrl(avatarUrl);
 }
+
+export { getFieldError } from "./api.client";

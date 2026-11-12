@@ -1,9 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { usePagination } from "../../../hooks/usePagination";
 import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { ImportedTransactionSelection } from "../../../services/transactions.client";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
+
+/** Imported transactions per page. */
+const IMPORTED_TRANSACTIONS_PAGE_SIZE = 50;
 
 /** State and handlers for the imported-transactions tab: filters, selection, and batch actions. */
 export function useImportedTransactionsWorkflow({
@@ -28,14 +32,24 @@ export function useImportedTransactionsWorkflow({
     useState(false);
   const [batchCategoryId, setBatchCategoryId] = useState("");
 
+  const paging = usePagination({
+    resetKey: JSON.stringify({ where: importedQuery.where, sort: importedQuery.sort }),
+    pageSize: IMPORTED_TRANSACTIONS_PAGE_SIZE
+  });
   const importedTransactionsQuery = useQuery({
-    queryKey: ["transactions", "imported", importedQuery],
+    queryKey: ["transactions", "imported", importedQuery, paging.page],
+    placeholderData: keepPreviousData,
     queryFn: async () =>
       transactionsClient.listImportedTransactions({
         where: importedQuery.where,
-        sort: importedQuery.sort
+        sort: importedQuery.sort,
+        pagination: paging.pagination
       })
   });
+  const importedTotal = importedTransactionsQuery.data?.total;
+  paging.syncPageCount(
+    importedTotal == null ? null : Math.max(1, Math.ceil(importedTotal / paging.pageSize))
+  );
   // Memoized: an inline `data ?? []` fallback produces a fresh array
   // reference on every render whenever `data` is undefined, which
   // propagates into ImportedTransactionsFiltersCard's `fields`
@@ -186,8 +200,19 @@ export function useImportedTransactionsWorkflow({
     });
   }
 
+  const importedPaging = {
+    page: paging.page,
+    pageCount: paging.pageCount,
+    hasNext: paging.hasNext,
+    setPage: (page: number) => {
+      setSelectedImportedIds([]);
+      paging.setPage(page);
+    }
+  };
+
   return {
     importedQuery,
+    importedPaging,
     updateImportedQuery,
     isPendingFilter,
     isIgnoredFilter,

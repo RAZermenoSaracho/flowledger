@@ -7,6 +7,7 @@ import { searchUsers } from "../../../services/users.client";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft } from "../types/sharedExpenses.types";
+import { formatPublicUser } from "../../../utils/publicUser";
 
 function participantStatus(shareAmount: string, paidAmount: string) {
   const share = Number(shareAmount);
@@ -148,8 +149,7 @@ export function useSharedExpenseForm() {
         {
           draftId: crypto.randomUUID(),
           userId: user.id,
-          participantName: user.name,
-          email: user.email,
+          participantName: formatPublicUser(user),
           source: "app",
           shareAmount: "",
           paidAmount: "0"

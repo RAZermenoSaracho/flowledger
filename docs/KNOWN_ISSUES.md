@@ -206,7 +206,9 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #017 — Changing a transaction amount does not rescale participant shares
+## [RESOLVED] #017 — Changing a transaction amount does not rescale participant shares
+
+**Resolved:** `updateTransaction` rejects with a 400 on `amount` an amount below the sum of existing participant shares, on the web API, `/v1` and MCP; the transaction view shows it on the amount field (`st007-transaction-form-view`).
 
 **Found in:** `expand-group-api-crud`.
 
@@ -230,7 +232,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #019 — Shared expenses on non-group transactions accept any user id as participant
+## [BY DESIGN] #019 — Shared expenses on non-group transactions accept any user id as participant
 
 **Found in:** `expand-group-api-crud`.
 
@@ -239,6 +241,8 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Any existing user id can be made a participant and is notified. `/v1` and MCP refuse non-group transactions (400); the web path is unchanged.
 
 **Suggested fix:** Require a shared relationship (group, contact) in the service so the web path is covered too.
+
+**Status update:** Reclassified as intentional, supported behavior. Universal invitations are a product decision, protected by participant consent, user blocking and public-identity privacy in B-004 ST-003; `/v1` and MCP will follow the same rule. No fix is planned. (`[BY DESIGN]` is used here because the entry is neither open nor a fix.)
 
 ---
 
@@ -348,7 +352,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #028 — Groups page filter modal appears behind parts of the selected group's form
+## [RESOLVED] #028 — Groups page filter modal appears behind parts of the selected group's form
 
 **Found in:** `fix-transaction-date-display` PR review. It is an existing production bug; this PR did not cause it.
 
@@ -356,7 +360,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Description:** On the Groups page, opening the filter modal from the group list leaves it partly covered by the selected group's detail form, so stacking and overlap are wrong. The page shows the list and the detail side by side at `xl`, with the list column wrapped in `xl:sticky xl:top-6`. Not reproduced or verified in this session. Plausible: the sticky wrapper forms its own stacking context, so the modal's `fixed z-50` (`FilterBuilder.tsx`) is confined to it and can paint under positioned elements in the detail `Card`. `<main>` overflow changed in this PR (`overflow-x-clip`); there is no evidence it is involved.
 
-**Suggested fix:** Resolved by the Group overview redesign, ST-024 (B-004), which removes the side-by-side layout and sticky column.
+**Resolved:** The Group overview redesign (ST-024, B-004) removes the side-by-side layout and sticky column; the filter dropdown and modal were verified above all content on the overview and detail views at 375px and 1440px.
 
 **Scope:** `apps/web/src/components/FilterBuilder.tsx` (the "Filters" modal).
 
@@ -474,9 +478,11 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Scope:** `addGroupMember`.
 
-**Description:** A group admin can add any user id, and that exposes member names and emails within the group. Related to #019.
+**Description:** A group admin can add a user immediately without consent. Email exposure is fixed: members are public identities (`id`, `username`, `displayName`). Group membership grants access independently of shared-expense consent.
 
-**Suggested fix:** TBD. Needs a product decision on an invite-and-accept step, ideally decided together with #019.
+**Suggested fix:** A future product decision may add Group invitations. Group add remains immediate; shared-expense proposals have their own accept/reject flow and universal sharing does not grant Group access.
+
+**Update:** The email exposure is addressed by B-004 ST-003's public identity; group-add consent stays open.
 
 ---
 
@@ -564,13 +570,13 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ## [OPEN] #044 — Large result sets are cut off at fixed limits
 
-**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07.
+**Found in:** Implementing `harden-api-and-deployment-config`, 2026-11-07. Narrowed by `b004-list-pagination`, 2026-11-12.
 
-**Scope:** `transactions/utils/boundedPagination.ts` (10,000 per page), `reports/services/read.service.ts` (100,000 rows for cashflow).
+**Scope:** `reports/services/read.service.ts` (100,000 rows for cashflow); unpaginated lists: `GET /shared-expenses`, `GET /debts`, `GET /groups`, and `/v1` + MCP imported transactions without `pagination`.
 
-**Description:** The web Transactions page loads its whole result in one request and has no page controls, so a user past 10,000 matching transactions sees only that many. Past 100,000, the cashflow report covers only the oldest rows.
+**Description:** The Transactions, Imported Transactions and Related transactions lists are now server-paginated. A request without `pagination` still returns up to 10,000 transactions (legacy default). Past 100,000, the cashflow report covers only the oldest rows. Shared expenses, Debts (three unbounded queries with balances computed in memory) and the Groups overview load the user's whole collection.
 
-**Suggested fix:** Add page controls to the Transactions page and aggregate the cashflow report in SQL if either limit is approached.
+**Suggested fix:** Aggregate the cashflow report in SQL if the limit is approached. Paginate shared expenses through its existing sieve call (`pagination` plus the shared web `Pagination`). Rewrite Debts as paged queries if volumes grow. Upstream `createSieve`'s page-size bound and `id` tie-breaker into a datasieve release.
 
 ---
 
@@ -587,9 +593,11 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 - Cloudflare Access (Google, owner only) covers `flowledger-dev.razs.dev`.
 - The landing deploy uses `npm ci`.
 - The gateway sends `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains` or preload.
+- Application pages enforce a script-restricting CSP in production (PRs #35 and #37). The landing pages stay report-only.
 
 Still open:
-- The CSP. Application pages enforce a script-restricting CSP once `enforce-app-content-security-policy` reaches production. Before that, the owner must test a real Syncfy bank connection. The landing pages stay report-only.
+- Owner check of the enforced CSP with real credentials. Connect or resync a bank through the Syncfy widget, sign in with Google, approve an MCP consent from claude.ai, and use the installed iOS app, watching DevTools for "Refused to…" errors. Signed-out production checks found no violations. If something is blocked, add its host to `appContentSecurityPolicy` in `apps/web/vite.config.ts`.
+- The gateway's report-only CSP also covers app pages and flags the Syncfy and Cloudflare beacon hosts. This is console noise only, since the enforced app policy governs. Scoping it to landing paths would quiet it.
 - MCP consent has no step-up re-authentication. An XSS, which isn't confirmed but would be the precondition, could approve a grant for an attacker-hosted client. Any new grant appears in Connected apps, where it can be revoked.
 - The access-log review for past F-01 and F-34 use, which logs can't fully rule out.
 - An installed Home Screen app sign-in check.
@@ -597,4 +605,40 @@ Still open:
 - `api-flowledger-dev.razs.dev` stays outside Access. The claude.ai MCP connector calls it server to server, and the dev SPA makes cross-origin requests to it, so it relies on the API's own JWT/OAuth auth.
 - Once a PR check workflow exists, add it as a required check on `main`.
 
-**Suggested fix:** Ship the application CSP after the Syncfy test. Review the access logs. Add a PR check workflow, then require it.
+**Suggested fix:** Run the owner CSP checks above. Review the access logs. Add a PR check workflow, then require it.
+
+---
+
+## [OPEN] #047 — In-app navigation does not warn about unsaved Form View changes
+
+**Found in:** Implementing `st005-reusable-editable-form-view`.
+
+**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView.tsx`.
+
+**Description:** A dirty draft is protected by a `beforeunload` guard and by a confirm on the view's own Discard and Back controls. Clicking a sidebar or other in-app link while dirty leaves the page and silently drops the edits, because React Router's `useBlocker` needs a data router and the app uses `BrowserRouter`.
+
+**Suggested fix:** Move to `createBrowserRouter`/`RouterProvider`, then block navigation with `useBlocker` while `draft.isDirty` and reuse the Discard confirm dialog.
+
+---
+
+## [OPEN] #048 — Notification messages keep the sender label from send time
+
+**Found in:** ST-003 review of identity privacy.
+
+**Scope:** `apps/api/src/modules/notifications/`, every `createDedupedNotifications` caller that builds `message` with `userLabel`.
+
+**Description:** A notification's `message` is written once with the sender's label at send time. If the sender later switches to `username_only`, their name stays visible in the notifications already sent.
+
+**Suggested fix:** Store only `senderUserId` plus the message template, and render the label at read time from the sender's current public identity.
+
+---
+
+## [OPEN] #049 — Share invitations through `/v1` and MCP have only the global rate limits
+
+**Found in:** ST-003 review of `/v1` and MCP parity.
+
+**Scope:** `/v1` shared-expense routes and the MCP `create_shared_expense` tool.
+
+**Description:** `create_shared_expense` can send share invitations to any user id with only the global API rate limits. Consent and blocking limit the impact, and nothing counts financially until the share is accepted, but a key can still spam invitations.
+
+**Suggested fix:** Add a per-key invitation rate limit on invitation creation.

@@ -12,6 +12,7 @@ async function main() {
     create: {
       name: "Demo User",
       email: "demo@flowledger.local",
+      username: "demo",
       passwordHash
     }
   });

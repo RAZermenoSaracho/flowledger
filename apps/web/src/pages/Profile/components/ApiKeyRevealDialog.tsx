@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "../../../components/Button";
-import { ModalDialog } from "./ModalDialog";
+import { ModalDialog } from "../../../components/ModalDialog";
 
 /**
  * Modal that shows a newly created API key exactly once. Escape and backdrop

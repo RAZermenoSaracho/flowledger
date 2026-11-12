@@ -59,6 +59,11 @@ export const setArchivedToolSchema = z.object({ id: z.string().min(1), archived:
 /** Input of the MCP `delete_transaction` tool: the target transaction `id` only. */
 export const transactionIdToolSchema = z.object({ id: z.string().min(1) }).strict();
 
+/** Input of the MCP `accept_shared_expense`/`reject_shared_expense` tools: the shared expense `id` plus an optional `participantId` to answer one allocation only. */
+export const respondSharedExpenseToolSchema = z
+  .object({ id: z.string().min(1), participantId: z.string().min(1).optional() })
+  .strict();
+
 /** Input of the MCP `update_group` tool: the optional group fields plus the target `id` (the at-least-one-field rule is enforced by `updateGroupSchema` on the remainder). */
 export const updateGroupToolSchema = groupSchema.partial().extend({ id: z.string().min(1) });
 

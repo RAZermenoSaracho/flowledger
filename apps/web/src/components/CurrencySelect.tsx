@@ -35,9 +35,12 @@ export function CurrencySelect({
   value,
   onChange,
   disabled,
-  allowNoPreference
+  allowNoPreference,
+  hideLabel = false
 }: {
   label: string;
+  /** Keeps the label for assistive tech but hides it visually, for use under another visible label. */
+  hideLabel?: boolean;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -189,7 +192,9 @@ export function CurrencySelect({
   return (
     <div className="relative" ref={containerRef}>
       <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-        <span id={labelId}>{label}</span>
+        <span id={labelId} className={hideLabel ? "sr-only" : undefined}>
+          {label}
+        </span>
         <span className="relative block min-w-0">
           <input
             ref={inputRef}

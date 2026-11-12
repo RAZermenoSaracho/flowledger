@@ -57,7 +57,7 @@ import { clampV1Pagination } from "./utils/v1Pagination.js";
 
 /**
  * Router for the public `/v1` API: API-key auth only, an explicit allowlist of
- * 26 routes plus the 13 group/shared-expense/settlement routes of `v1GroupsRouter` and the 12 imported-review/notification/profile routes of `v1MiscRouter`, reusing the internal validators and controllers, and a JSON 404 for
+ * the routes in this file, `v1GroupsRouter` and `v1MiscRouter`, reusing the internal validators and controllers, and a JSON 404 for
  * everything else (deny by default).
  */
 export const v1Router = Router();

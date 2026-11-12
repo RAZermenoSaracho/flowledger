@@ -90,6 +90,7 @@ const READ_TOOLS = [
   "get_transaction",
   "get_transaction_summary",
   "list_accounts",
+  "list_blocked_users",
   "list_categories",
   "list_currencies",
   "list_debts",
@@ -102,7 +103,9 @@ const READ_TOOLS = [
 ];
 
 const WRITE_TOOLS = [
+  "accept_shared_expense",
   "add_group_member",
+  "block_user",
   "create_account",
   "create_category",
   "create_group",
@@ -120,6 +123,7 @@ const WRITE_TOOLS = [
   "ignore_imported_transactions",
   "import_imported_transactions",
   "list_accounts",
+  "list_blocked_users",
   "list_categories",
   "list_currencies",
   "list_debts",
@@ -128,6 +132,7 @@ const WRITE_TOOLS = [
   "list_notifications",
   "list_shared_expenses",
   "mark_notifications_read",
+  "reject_shared_expense",
   "remove_group_member",
   "request_settlement",
   "search_transactions",
@@ -135,6 +140,7 @@ const WRITE_TOOLS = [
   "set_account_archived",
   "set_category_archived",
   "set_group_archived",
+  "unblock_user",
   "unignore_imported_transactions",
   "update_account",
   "update_category",

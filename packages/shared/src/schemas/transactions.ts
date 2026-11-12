@@ -101,9 +101,37 @@ export const transactionSchema = baseTransactionSchema.superRefine(
   }
 );
 
+/**
+ * Sharing state carried by `PUT /transactions/:id`: `{ enabled: false }` removes sharing,
+ * `{ enabled: true, ... }` declares the full participant list. A participant is either an app user
+ * (`userId`) or a manual one (`manualName`), optionally matched to an existing row by `id`.
+ */
+export const updateTransactionSharedExpenseSchema = z.discriminatedUnion("enabled", [
+  z.object({ enabled: z.literal(false) }),
+  z.object({
+    enabled: z.literal(true),
+    title: z.string().trim().min(1).max(160).optional(),
+    participants: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).optional(),
+            userId: z.string().min(1).optional(),
+            manualName: z.string().trim().min(1).max(120).optional(),
+            share: moneySchema.positive()
+          })
+          .refine((p) => Boolean(p.userId) !== Boolean(p.manualName), {
+            message: "Provide either userId or manualName"
+          })
+      )
+      .min(1)
+  })
+]);
+
 export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
-  .partial();
+  .partial()
+  .extend({ sharedExpense: updateTransactionSharedExpenseSchema.optional() });
 
 // The /transactions and /transactions/summary endpoints accept a single
 // JSON-encoded query-string parameter (a DataSieveQuery<TransactionRecord>
@@ -178,6 +206,9 @@ export const batchUnignoreProviderImportedTransactionsSchema = z.object({
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type TransactionSharedExpenseInput = z.infer<
   typeof transactionSharedExpenseSchema
+>;
+export type UpdateTransactionSharedExpenseInput = z.infer<
+  typeof updateTransactionSharedExpenseSchema
 >;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type TransactionsQueryParam = z.infer<typeof transactionsQueryParamSchema>;

@@ -1,63 +1,45 @@
+import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
-import { Button } from "../../../components/Button";
-import { SelectField, TextInput } from "../../../components/FormField";
-import { groupByFields } from "../../../components/SearchComponent";
+import { useMemo, useState } from "react";
+import { CategoryCard } from "../../../components/CategoryCard";
+import { CategoryForm } from "../../../components/CategoryForm";
+import { ModalDialog } from "../../../components/ModalDialog";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
-import { formatEnumLabel } from "../../../utils/enumLabels";
 import {
   createConditionWithValue,
   createEmptyGroup
 } from "../../../utils/searchDomain";
 import * as categoriesClient from "../../../services/categories.client";
-import type { Category } from "../../../types/categories.types";
 import {
   buildCategorySearchFields,
   CATEGORY_DEFAULT_SEARCH_FIELD,
-  CATEGORY_GROUPABLE_FIELDS,
   CATEGORY_SORTABLE_FIELDS
 } from "../../Categories/utils/categorySearchFields";
-import { CATEGORY_TYPES } from "@flowledger/shared";
-import type { CategoryType } from "@flowledger/shared";
 import type { useGroupCategoryManagement } from "../hooks/useGroupCategoryManagement";
-import { GroupCategoryItem } from "./GroupCategoryItem";
 
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
-const categoryGroupByDefsForBucketing = CATEGORY_GROUPABLE_FIELDS.map((field) => ({
-  id: field.name,
-  label: field.label
-}));
-
-// Archived categories are excluded by default — same default the old
-// dedicated Active/Archived toggle had — but expressed as an ordinary,
-// visible, removable FilterBuilder condition instead of hidden logic.
 const initialGroupCategoryDomain = {
   ...createEmptyGroup("and"),
   children: [createConditionWithValue("isArchived", "=", "false")]
 };
 
-function categoryGroupKey(category: Category, groupById: string) {
-  if (groupById === "type") {
-    return { key: category.type, label: category.type };
-  }
-  return { key: "", label: "" };
-}
-
-/** Section listing and managing a group's shared categories, with its own search/filter/group controls (a DSQL query scoped to this group, independent of the group's `categories` include). */
+/**
+ * Card grid of a group's shared categories with its own search/filter controls (a query scoped
+ * to this group). Managers get a "+" that opens a create modal and a per-card menu with in-place
+ * edit; every change saves on its own through `categoryManagement` and never touches the Group
+ * draft. Closing the create modal with unsaved input asks for confirmation first.
+ */
 export function GroupCategoriesSection({
   groupId,
-  canManage,
   canManageActive,
   categoryManagement
 }: {
   groupId: string;
-  canManage: boolean | undefined;
   canManageActive: boolean;
   categoryManagement: ReturnType<typeof useGroupCategoryManagement>;
 }) {
   const [categoryQuery, setCategoryQuery] = useState<SearchBarQuery>({});
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createDirty, setCreateDirty] = useState(false);
   const categorySearchFields = useMemo(() => buildCategorySearchFields(), []);
 
   const groupCategoriesQuery = useQuery({
@@ -72,31 +54,21 @@ export function GroupCategoriesSection({
       ).categories
   });
 
-  const visibleGroupCategories = useMemo(() => groupCategoriesQuery.data ?? [], [groupCategoriesQuery.data]);
-  const activeGroupBys = useMemo(() => categoryQuery.groupBy ?? [], [categoryQuery.groupBy]);
-  const groupedGroupCategories = useMemo(
-    () =>
-      groupByFields(
-        visibleGroupCategories,
-        activeGroupBys,
-        categoryGroupByDefsForBucketing,
-        categoryGroupKey
-      ),
-    [visibleGroupCategories, activeGroupBys]
-  );
+  const categories = groupCategoriesQuery.data ?? [];
+  const { editingCategoryId } = categoryManagement;
 
-  async function submit(event: FormEvent) {
-    await categoryManagement.submitCategory(event);
+  function requestCloseCreate() {
+    if (createDirty && !window.confirm("Discard unsaved changes?")) return;
+    setIsCreateOpen(false);
+    setCreateDirty(false);
   }
 
   return (
     <section className="min-w-0">
-      <h3 className="font-semibold">Group categories</h3>
-      <div className="mt-3 flex flex-col gap-3 border-y border-slate-100 py-4 dark:border-slate-800 lg:flex-row lg:items-start">
+      <div className="flex items-start gap-3 pb-4">
         <div className="min-w-0 flex-1">
           <SearchBar
             fields={categorySearchFields}
-            groupableFields={CATEGORY_GROUPABLE_FIELDS}
             sortableFields={CATEGORY_SORTABLE_FIELDS}
             defaultSearchField={CATEGORY_DEFAULT_SEARCH_FIELD}
             initialSort={{ field: "name", direction: "asc" }}
@@ -106,78 +78,82 @@ export function GroupCategoriesSection({
           />
         </div>
       </div>
-      <div className="mt-4 grid gap-4">
-        {groupedGroupCategories.map((section) => (
-          <div key={section.key || "all"} className="grid gap-3">
-            {section.label ? (
-              <h4 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-                {section.label}
-              </h4>
-            ) : null}
-            <div className="grid gap-3 xl:grid-cols-2">
-              {section.items.map((category) => (
-                <GroupCategoryItem
-                  key={category.id}
-                  category={category}
-                  canManage={canManage}
-                  categoryManagement={categoryManagement}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-        {visibleGroupCategories.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No group categories found.
-          </p>
+      <div className="flex items-center justify-between gap-3 pb-3">
+        <h3 className="text-base font-semibold">Group categories</h3>
+        {canManageActive ? (
+          <button
+            type="button"
+            aria-label="Add category"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-pine text-white transition hover:bg-pine/90 focus:outline-none focus:ring-2 focus:ring-pine focus:ring-offset-2 dark:bg-emerald-700 dark:hover:bg-emerald-600 dark:focus:ring-offset-slate-950"
+            onClick={() => setIsCreateOpen(true)}
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
         ) : null}
       </div>
-      {canManageActive ? (
-        <form
-          className="mt-5 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,12rem)_minmax(5rem,7rem)] 2xl:grid-cols-[minmax(18rem,1fr)_minmax(9rem,12rem)_minmax(5rem,7rem)_auto] 2xl:items-end"
-          onSubmit={submit}
+      {categories.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {categories.map((category) => (
+            <CategoryCard
+              key={category.id}
+              category={category}
+              isEditing={editingCategoryId === category.id}
+              savePending={categoryManagement.updateCategory.isPending}
+              onSave={(values) =>
+                categoryManagement.updateCategory.mutateAsync({
+                  id: category.id,
+                  ...values
+                })
+              }
+              onCancelEdit={categoryManagement.closeCategoryEditForm}
+              actions={
+                canManageActive
+                  ? {
+                      onEdit: () =>
+                        categoryManagement.openCategoryEditForm(category),
+                      onArchive: () =>
+                        categoryManagement.archiveCategory.mutate(category.id),
+                      onRestore: () =>
+                        categoryManagement.restoreCategory.mutate(category.id),
+                      onDelete: () =>
+                        categoryManagement.confirmDeleteCategory(category),
+                      archivePending:
+                        categoryManagement.archiveCategory.isPending,
+                      restorePending:
+                        categoryManagement.restoreCategory.isPending,
+                      deletePending: categoryManagement.deleteCategory.isPending
+                    }
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {groupCategoriesQuery.isLoading
+            ? "Loading..."
+            : "No group categories found."}
+        </p>
+      )}
+      {isCreateOpen ? (
+        <ModalDialog
+          titleId="new-group-category-title"
+          title="New group category"
+          titleClassName="mb-4 text-lg font-semibold"
+          onCancel={requestCloseCreate}
         >
-          <TextInput
-            label="Category"
-            value={categoryManagement.categoryName}
-            onChange={(event) =>
-              categoryManagement.setCategoryName(event.target.value)
-            }
-            required
+          <CategoryForm
+            submitLabel="Add category"
+            pending={categoryManagement.addCategory.isPending}
+            onDirtyChange={setCreateDirty}
+            onCancel={requestCloseCreate}
+            onSubmit={async (values) => {
+              await categoryManagement.addCategory.mutateAsync(values);
+              setIsCreateOpen(false);
+              setCreateDirty(false);
+            }}
           />
-          <SelectField
-            label="Type"
-            value={categoryManagement.categoryType}
-            onChange={(event) =>
-              categoryManagement.setCategoryType(
-                event.target.value as CategoryType
-              )
-            }
-          >
-            {CATEGORY_TYPES.map((item) => (
-              <option key={item} value={item}>
-                {formatEnumLabel(item)}
-              </option>
-            ))}
-          </SelectField>
-          <TextInput
-            label="Color"
-            type="color"
-            value={categoryManagement.categoryColor}
-            onChange={(event) =>
-              categoryManagement.setCategoryColor(event.target.value)
-            }
-          />
-          <div className="flex items-end lg:col-span-3 2xl:col-span-1">
-            <Button
-              type="submit"
-              className="w-full 2xl:w-auto"
-              disabled={categoryManagement.addCategory.isPending}
-            >
-              Add category
-            </Button>
-          </div>
-        </form>
+        </ModalDialog>
       ) : null}
     </section>
   );

@@ -10,6 +10,7 @@ import {
   participantStatus,
   settlementNotes
 } from "../utils/debtCalculations.js";
+import { isCountedShare } from "../utils/shareAcceptance.js";
 import {
   getDebtDirection,
   isSettlementDirectionCurrent
@@ -21,6 +22,9 @@ import {
   assertSettlementCategory,
   resolveSettlementExpenseOffsetCategoryId
 } from "./settlementValidation.service.js";
+import { publicUserSelect, publicizeUsers, userLabel } from "../../users/utils/publicUser.js";
+
+const cents = (value: number) => Math.round(value * 100);
 
 /** Marks a shared expense `settled` once none of its participants have an unpaid balance. */
 export async function settleSharedExpenseIfComplete(sharedExpenseId: string) {
@@ -54,6 +58,9 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
     });
     if (!debt) throw notFound("Debt");
 
+    if (!isCountedShare(debt)) {
+      throw new HttpError(400, "This share has not been accepted");
+    }
     const direction = getDebtDirection(debt);
     if (!direction) throw notFound("Debt");
 
@@ -62,12 +69,13 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
       throw new HttpError(400, "Debt is already settled");
     }
 
-    const updatedDebt = await tx.sharedExpenseParticipant.update({
+    const paidClaim = await tx.sharedExpenseParticipant.updateMany({
+      where: { id: debt.id, paidAmount: debt.paidAmount },
+      data: { paidAmount: debt.shareAmount, status: "paid" }
+    });
+    if (paidClaim.count !== 1) throw new HttpError(409, "The debt changed while settling; please retry");
+    const updatedDebt = await tx.sharedExpenseParticipant.findUniqueOrThrow({
       where: { id: debt.id },
-      data: {
-        paidAmount: debt.shareAmount,
-        status: "paid"
-      },
       include: debtInclude
     });
 
@@ -83,6 +91,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
       await createNotifications(tx, [
         {
           userId: direction.debtorUserId,
+          senderUserId: userId,
           type: "settlement_approved",
           title: "Settlement approved",
           message: `Your settlement for ${debt.sharedExpense.title} was approved.`,
@@ -96,6 +105,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
         },
         {
           userId: direction.debtorUserId,
+          senderUserId: userId,
           type: "settlement_payment_registration_needed",
           title: "Register settlement payment",
           message: `Your settlement for ${debt.sharedExpense.title} was approved. Register the payment as a transaction when ready.`,
@@ -114,7 +124,7 @@ export async function settleDebtDirectly(userId: string, debtId: string) {
   });
 
   await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
-  return { debt: balanceDebt(result.debt) };
+  return { debt: publicizeUsers(balanceDebt(result.debt)) };
 }
 
 /** Approves a pending settlement request and creates the matching debtor-expense/creditor-income transaction pair for it. */
@@ -139,15 +149,15 @@ export async function approveSettlement(
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         },
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } }
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect }
       }
     });
     if (!settlementRequest) throw notFound("Settlement request");
@@ -172,29 +182,39 @@ export async function approveSettlement(
     const paidAmount = debt.paidAmount.toNumber() + amount;
     const status = participantStatus(debt.shareAmount.toNumber(), paidAmount);
 
-    const updatedDebt = await tx.sharedExpenseParticipant.update({
+    const approvedAt = new Date();
+    const requestClaim = await tx.settlementRequest.updateMany({
+      where: { id: settlementRequest.id, status: "pending" },
+      data: { status: "approved", approvedAt }
+    });
+    if (requestClaim.count !== 1) throw new HttpError(409, "Settlement request was already resolved");
+    if (cents(paidAmount) > cents(debt.shareAmount.toNumber())) {
+      throw new HttpError(400, "Settlement request exceeds the current outstanding balance");
+    }
+    const paidClaim = await tx.sharedExpenseParticipant.updateMany({
+      where: { id: debt.id, paidAmount: debt.paidAmount },
+      data: { paidAmount: new Prisma.Decimal(paidAmount), status }
+    });
+    if (paidClaim.count !== 1) throw new HttpError(409, "The debt changed while approving; please retry");
+    const updatedDebt = await tx.sharedExpenseParticipant.findUniqueOrThrow({
       where: { id: debt.id },
-      data: {
-        paidAmount: new Prisma.Decimal(paidAmount),
-        status
-      },
       include: debtInclude
     });
     const approvedRequest = await tx.settlementRequest.update({
       where: { id: settlementRequest.id },
-      data: { status: "approved", approvedAt: new Date() },
+      data: { status: "approved", approvedAt },
       include: {
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } },
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect },
         sharedExpenseParticipant: {
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         }
       }
@@ -353,17 +373,17 @@ export async function approveSettlement(
         creditorTransactionId: creditorTransaction.id
       },
       include: {
-        debtor: { select: { id: true, name: true, email: true } },
-        creditor: { select: { id: true, name: true, email: true } },
+        debtor: { select: publicUserSelect },
+        creditor: { select: publicUserSelect },
         sharedExpenseParticipant: {
           include: {
             sharedExpense: {
               include: {
-                owner: { select: { id: true, name: true, email: true } },
+                owner: { select: publicUserSelect },
                 transaction: { select: publicTransactionSelect }
               }
             },
-            user: { select: { id: true, name: true, email: true } }
+            user: { select: publicUserSelect }
           }
         }
       }
@@ -372,9 +392,10 @@ export async function approveSettlement(
     await createNotifications(tx, [
       {
         userId: approvedRequestWithTransactions.debtorUserId,
-        type: "settlement_approved",
+        senderUserId: userId,
+          type: "settlement_approved",
         title: "Settlement approved",
-        message: `${approvedRequestWithTransactions.creditor.name} approved your ${moneyText(
+        message: `${userLabel(approvedRequestWithTransactions.creditor)} approved your ${moneyText(
           approvedRequestWithTransactions.amount
         )} settlement for ${approvedRequestWithTransactions.sharedExpenseParticipant.sharedExpense.title}. A transaction was created automatically.`,
         metadata: {
@@ -405,10 +426,10 @@ export async function approveSettlement(
   });
 
   await settleSharedExpenseIfComplete(result.debt.sharedExpenseId);
-  return {
+  return publicizeUsers({
     settlementRequest: result.settlementRequest,
     debt: balanceDebt(result.debt)
-  };
+  });
 }
 
 /** Approves each entry in `approvals` sequentially, reusing {@link approveSettlement}. */
@@ -449,17 +470,17 @@ export async function rejectSettlement(
     where: { id: settlementRequest.id },
     data: { status: "rejected" },
     include: {
-      debtor: { select: { id: true, name: true, email: true } },
-      creditor: { select: { id: true, name: true, email: true } },
+      debtor: { select: publicUserSelect },
+      creditor: { select: publicUserSelect },
       sharedExpenseParticipant: {
         include: {
           sharedExpense: {
             include: {
-              owner: { select: { id: true, name: true, email: true } },
+              owner: { select: publicUserSelect },
               transaction: { select: publicTransactionSelect }
             }
           },
-          user: { select: { id: true, name: true, email: true } }
+          user: { select: publicUserSelect }
         }
       }
     }
@@ -468,9 +489,10 @@ export async function rejectSettlement(
   await createNotifications(prisma, [
     {
       userId: rejectedRequest.debtorUserId,
+      senderUserId: userId,
       type: "settlement_rejected",
       title: "Settlement rejected",
-      message: `${rejectedRequest.creditor.name} rejected your ${moneyText(
+      message: `${userLabel(rejectedRequest.creditor)} rejected your ${moneyText(
         rejectedRequest.amount
       )} settlement for ${rejectedRequest.sharedExpenseParticipant.sharedExpense.title}.`,
       metadata: {
@@ -490,5 +512,5 @@ export async function rejectSettlement(
     }
   ]);
 
-  return rejectedRequest;
+  return publicizeUsers(rejectedRequest);
 }

@@ -1,3 +1,4 @@
+import { publicUserSelect } from "../../../users/utils/publicUser.js";
 import { describe, expect, it } from "vitest";
 import { debtInclude, publicTransactionSelect } from "../debtInclude.js";
 
@@ -23,16 +24,16 @@ describe("debtInclude", () => {
     expect(debtInclude).toMatchObject({
       sharedExpense: {
         include: {
-          owner: { select: { id: true, name: true, email: true } },
+          owner: { select: publicUserSelect },
           transaction: { select: publicTransactionSelect }
         }
       },
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: publicUserSelect },
       settlementRequests: {
         orderBy: { createdAt: "desc" },
         include: {
-          debtor: { select: { id: true, name: true, email: true } },
-          creditor: { select: { id: true, name: true, email: true } }
+          debtor: { select: publicUserSelect },
+          creditor: { select: publicUserSelect }
         }
       }
     });

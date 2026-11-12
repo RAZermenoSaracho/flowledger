@@ -4,23 +4,24 @@ import * as groupsClient from "../../../services/groups.client";
 import { searchUsers } from "../../../services/users.client";
 import type { Group } from "../../../types/groups.types";
 
-/** State and handlers for creating, editing, archiving, and managing members of a group. */
+/**
+ * State and handlers for creating a group and for the immediate group actions (add member,
+ * archive, restore, delete). None of them touch the Form View draft. `onCreated` receives the new
+ * group's id; `onLeave` runs after the group is archived or deleted.
+ */
 export function useGroupManagement({
   selectedGroupId,
-  setSelectedGroupId,
-  selectedGroup
+  onCreated,
+  onLeave
 }: {
   selectedGroupId: string | null;
-  setSelectedGroupId: (id: string | null) => void;
-  selectedGroup: Group | null | undefined;
+  onCreated?: (groupId: string) => void;
+  onLeave?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [isEditingGroup, setIsEditingGroup] = useState(false);
-  const [editGroupName, setEditGroupName] = useState("");
-  const [editGroupDescription, setEditGroupDescription] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const trimmedUserSearch = userSearch.trim();
 
@@ -43,7 +44,7 @@ export function useGroupManagement({
       groupsClient.createGroup({ name, description: description || null }),
     onSuccess: async (created) => {
       closeCreateForm();
-      setSelectedGroupId(created.group.id);
+      onCreated?.(created.group.id);
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
     }
   });
@@ -54,24 +55,12 @@ export function useGroupManagement({
     onSuccess: refreshSelectedGroup
   });
 
-  const updateGroup = useMutation({
-    mutationFn: (group: { id: string; name: string; description: string }) =>
-      groupsClient.updateGroup(group.id, {
-        name: group.name,
-        description: group.description || null
-      }),
-    onSuccess: async () => {
-      closeGroupEditForm();
-      await refreshSelectedGroup();
-    }
-  });
-
   const archiveGroup = useMutation({
     mutationFn: (groupId: string) => groupsClient.archiveGroup(groupId),
     onSuccess: async () => {
-      setSelectedGroupId(null);
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      onLeave?.();
     }
   });
 
@@ -83,9 +72,9 @@ export function useGroupManagement({
   const deleteGroup = useMutation({
     mutationFn: (groupId: string) => groupsClient.deleteGroup(groupId),
     onSuccess: async () => {
-      setSelectedGroupId(null);
       await queryClient.invalidateQueries({ queryKey: ["groups"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      onLeave?.();
     }
   });
 
@@ -94,33 +83,10 @@ export function useGroupManagement({
     await createGroup.mutateAsync();
   }
 
-  async function submitGroupEdit(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedGroup) return;
-
-    await updateGroup.mutateAsync({
-      id: selectedGroup.id,
-      name: editGroupName,
-      description: editGroupDescription
-    });
-  }
-
   function closeCreateForm() {
     setName("");
     setDescription("");
     setIsCreateOpen(false);
-  }
-
-  function openGroupEditForm(group: Group) {
-    setIsEditingGroup(true);
-    setEditGroupName(group.name);
-    setEditGroupDescription(group.description ?? "");
-  }
-
-  function closeGroupEditForm() {
-    setIsEditingGroup(false);
-    setEditGroupName("");
-    setEditGroupDescription("");
   }
 
   async function confirmDeleteGroup(group: Group) {
@@ -138,11 +104,6 @@ export function useGroupManagement({
     setName,
     description,
     setDescription,
-    isEditingGroup,
-    editGroupName,
-    setEditGroupName,
-    editGroupDescription,
-    setEditGroupDescription,
     userSearch,
     setUserSearch,
     trimmedUserSearch,
@@ -150,15 +111,11 @@ export function useGroupManagement({
     refreshSelectedGroup,
     createGroup,
     addMember,
-    updateGroup,
     archiveGroup,
     restoreGroup,
     deleteGroup,
     submitCreate,
-    submitGroupEdit,
     closeCreateForm,
-    openGroupEditForm,
-    closeGroupEditForm,
     confirmDeleteGroup
   };
 }

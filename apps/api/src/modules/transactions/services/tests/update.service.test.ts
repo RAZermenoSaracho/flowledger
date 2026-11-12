@@ -8,8 +8,8 @@ vi.mock("../transactionValidation.service.js", () => ({
   assertTransferAllowed: vi.fn()
 }));
 
-vi.mock("../../utils/sharedTransactionCleanup.js", () => ({
-  deleteSharedTransactionData: vi.fn()
+vi.mock("../../../shared-expenses/services/apply.service.js", () => ({
+  applySharedExpenseToTransaction: vi.fn()
 }));
 
 vi.mock("../../utils/transactionCurrency.js", () => ({
@@ -28,8 +28,8 @@ vi.mock("../../utils/importedTransactionQuery.js", async (importOriginal) => {
   return { ...actual, resolveImportedTransactionSelectionIds: vi.fn() };
 });
 
-const { deleteSharedTransactionData } = await import(
-  "../../utils/sharedTransactionCleanup.js"
+const { applySharedExpenseToTransaction } = await import(
+  "../../../shared-expenses/services/apply.service.js"
 );
 const { resolveTransactionCurrencyFields } = await import(
   "../../utils/transactionCurrency.js"
@@ -41,7 +41,7 @@ const { resolveImportedTransactionSelectionIds } = await import(
   "../../utils/importedTransactionQuery.js"
 );
 
-const deleteSharedTransactionDataMock = vi.mocked(deleteSharedTransactionData);
+const applySharedExpenseMock = vi.mocked(applySharedExpenseToTransaction);
 const resolveTransactionCurrencyFieldsMock = vi.mocked(
   resolveTransactionCurrencyFields
 );
@@ -96,6 +96,62 @@ describe("updateTransaction", () => {
     await expect(
       updateTransaction("user-1", "txn-1", { amount: 50 })
     ).rejects.toThrow("Transaction not found");
+  });
+
+  it("looks the transaction up scoped to the caller so another user's id is not found", async () => {
+    prismaMock.transaction.findFirst.mockResolvedValue(null);
+
+    await expect(
+      updateTransaction("other-user", "txn-1", { name: "x" })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "txn-1", userId: "other-user" } })
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  describe("amount vs participant shares", () => {
+    const shared = (...shares: number[]) =>
+      existingTransaction({
+        sharedExpense: {
+          participants: shares.map((s) => ({ shareAmount: { toNumber: () => s } }))
+        }
+      }) as never;
+
+    it("rejects an amount below the shares with a 400 on amount", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(shared(60, 30));
+
+      await expect(
+        updateTransaction("user-1", "txn-1", { amount: 89.99 })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        details: { issues: { fieldErrors: { amount: [expect.any(String)] } } }
+      });
+    });
+
+    it("allows an amount equal to the shares", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(shared(60, 30));
+      const tx = mockTx();
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        (arg as (tx: unknown) => unknown)(tx)
+      );
+
+      await updateTransaction("user-1", "txn-1", { amount: 90 });
+
+      expect(tx.transaction.update).toHaveBeenCalled();
+    });
+
+    it("does not apply to an unshared transaction", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+      const tx = mockTx();
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        (arg as (tx: unknown) => unknown)(tx)
+      );
+
+      await updateTransaction("user-1", "txn-1", { amount: 1 });
+
+      expect(tx.transaction.update).toHaveBeenCalled();
+    });
   });
 
   it("recomputes amountInPreferredCurrency from the existing exchange rate when only amount changes", async () => {
@@ -168,40 +224,80 @@ describe("updateTransaction", () => {
     expect(resolveTransactionCurrencyFieldsMock).toHaveBeenCalled();
   });
 
-  it("updates the linked shared expense's totalAmount when amount changes", async () => {
-    prismaMock.transaction.findFirst.mockResolvedValue(
-      existingTransaction() as never
-    );
-    const tx = mockTx();
-    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
-    );
+  describe("sharedExpense", () => {
+    const useTx = (tx: unknown) =>
+      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+        typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+      );
+    const sharing = { enabled: true, participants: [{ userId: "user-2", share: 10 }] } as never;
 
-    await updateTransaction("user-1", "txn-1", { amount: 75 });
+    it("applies sharedExpense inside the same transaction with the previous type", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+      const tx = mockTx();
+      useTx(tx);
 
-    expect(tx.sharedExpense.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { transactionId: "txn-1" } })
-    );
-  });
+      await updateTransaction("user-1", "txn-1", { name: "x", sharedExpense: sharing });
 
-  it("cleans up shared-expense data when the transaction becomes a transfer", async () => {
-    const existing = existingTransaction({ sharedExpense: { id: "se-1" } });
-    prismaMock.transaction.findFirst.mockResolvedValue(existing as never);
-    const tx = mockTx({
-      transaction: {
-        update: vi.fn().mockResolvedValue({ id: "txn-1", type: "transfer" })
-      }
+      expect(applySharedExpenseMock).toHaveBeenCalledWith(
+        tx,
+        "user-1",
+        expect.objectContaining({ id: "txn-1" }),
+        "expense",
+        sharing
+      );
     });
-    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
-    );
 
-    await updateTransaction("user-1", "txn-1", { type: "transfer" });
+    it("does not pre-reject a lowered amount when the same request resends the shares", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(
+        existingTransaction({
+          sharedExpense: { id: "se-1", participants: [{ shareAmount: { toNumber: () => 90 }, settlementRequests: [] }] }
+        }) as never
+      );
+      useTx(mockTx());
 
-    expect(deleteSharedTransactionDataMock).toHaveBeenCalledWith(
-      tx,
-      existing.sharedExpense
-    );
+      await expect(updateTransaction("user-1", "txn-1", { amount: 50, sharedExpense: sharing })).resolves.toBeDefined();
+    });
+
+    it("re-applies sharing when the amount of a shared transaction changes", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(
+        existingTransaction({ sharedExpense: { id: "se-1", participants: [] } }) as never
+      );
+      useTx(mockTx());
+
+      await updateTransaction("user-1", "txn-1", { amount: 75 });
+
+      expect(applySharedExpenseMock).toHaveBeenCalledWith(expect.anything(), "user-1", expect.anything(), "expense", undefined);
+    });
+
+    it("re-applies sharing when the type of a shared transaction changes (flip or transfer)", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(
+        existingTransaction({ sharedExpense: { id: "se-1", participants: [] } }) as never
+      );
+      useTx(mockTx({ transaction: { update: vi.fn().mockResolvedValue({ id: "txn-1", type: "transfer" }) } }));
+
+      await updateTransaction("user-1", "txn-1", { type: "transfer" });
+
+      expect(applySharedExpenseMock).toHaveBeenCalledWith(expect.anything(), "user-1", expect.objectContaining({ type: "transfer" }), "expense", undefined);
+    });
+
+    it("skips the helper for an unrelated edit of a shared transaction", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(
+        existingTransaction({ sharedExpense: { id: "se-1", participants: [] } }) as never
+      );
+      useTx(mockTx());
+
+      await updateTransaction("user-1", "txn-1", { notes: "n" });
+
+      expect(applySharedExpenseMock).not.toHaveBeenCalled();
+    });
+
+    it("lets a guard failure from the helper abort the update", async () => {
+      prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction() as never);
+      useTx(mockTx());
+      applySharedExpenseMock.mockRejectedValueOnce(Object.assign(new Error("blocked"), { statusCode: 400 }));
+
+      await expect(updateTransaction("user-1", "txn-1", { sharedExpense: { enabled: false } })).rejects.toThrow("blocked");
+    });
   });
 });
 

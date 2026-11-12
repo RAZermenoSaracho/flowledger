@@ -1,6 +1,6 @@
 import type { UpdateTransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
-import { HttpError, notFound } from "../../../utils/httpError.js";
+import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
 import { roundMoney } from "../../currencies/utils/roundMoney.js";
 import {
   assertExpenseOffsetAllowed,
@@ -8,7 +8,7 @@ import {
   assertOwnedRelations,
   assertTransferAllowed
 } from "./transactionValidation.service.js";
-import { deleteSharedTransactionData } from "../utils/sharedTransactionCleanup.js";
+import { applySharedExpenseToTransaction } from "../../shared-expenses/services/apply.service.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
   importedTransactionInclude,
@@ -22,8 +22,9 @@ import {
 } from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
-/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and syncing any linked shared expense. */
-export async function updateTransaction(userId: string, id: string, body: UpdateTransactionInput) {
+/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and applying `sharedExpense` (enable/edit/disable) atomically through `applySharedExpenseToTransaction`; a type change re-proposes or removes sharing under the same guards. Throws a 400 addressed to `amount` when the new amount is below the sum of existing participant shares. */
+export async function updateTransaction(userId: string, id: string, input: UpdateTransactionInput) {
+  const { sharedExpense: sharedExpenseInput, ...body } = input;
   const existing = await prisma.transaction.findFirst({
     where: { id, userId },
     include: {
@@ -37,6 +38,21 @@ export async function updateTransaction(userId: string, id: string, body: Update
     }
   });
   if (!existing) throw notFound("Transaction");
+
+  if (body.amount !== undefined && existing.sharedExpense && !sharedExpenseInput) {
+    const sharesInCents = existing.sharedExpense.participants.reduce(
+      (sum, participant) => sum + Math.round(participant.shareAmount.toNumber() * 100),
+      0
+    );
+    if (Math.round(body.amount * 100) < sharesInCents) {
+      throw badRequest("Amount cannot be below the sum of participant shares", {
+        issues: {
+          formErrors: [],
+          fieldErrors: { amount: ["Amount cannot be below the sum of participant shares"] }
+        }
+      });
+    }
+  }
 
   const relationInput = {
     accountId:
@@ -121,15 +137,9 @@ export async function updateTransaction(userId: string, id: string, body: Update
       }
     });
 
-    if (body.amount !== undefined) {
-      await tx.sharedExpense.updateMany({
-        where: { transactionId: existing.id },
-        data: { totalAmount: updatedTransaction.amount }
-      });
-    }
-
-    if (updatedTransaction.type === "transfer") {
-      await deleteSharedTransactionData(tx, existing.sharedExpense);
+    const typeChanged = updatedTransaction.type !== existing.type;
+    if (sharedExpenseInput || (existing.sharedExpense && (typeChanged || body.amount !== undefined))) {
+      await applySharedExpenseToTransaction(tx, userId, updatedTransaction, existing.type, sharedExpenseInput);
     }
 
     return updatedTransaction;

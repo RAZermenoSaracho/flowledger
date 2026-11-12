@@ -296,4 +296,28 @@ describe("useImportedTransactionsWorkflow", () => {
 
     expect(patchedBody).toEqual({ categoryId: "cat-1" });
   });
+
+  it("requests 50 rows per page, exposes the server total and keeps select-all-filtered across pages", async () => {
+    const queries: { pagination: { page: number; pageSize: number } }[] = [];
+    server.use(
+      http.get(`${API_URL}/transactions/imported`, ({ request }) => {
+        queries.push(JSON.parse(new URL(request.url).searchParams.get("query")!));
+        return HttpResponse.json({
+          importedTransactions: [makeImportedTransaction()],
+          total: 120,
+          pendingCount: 120
+        });
+      })
+    );
+    const { result } = renderWorkflow();
+
+    await waitFor(() => expect(result.current.importedPaging.pageCount).toBe(3));
+    expect(queries[0]!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
+    expect(result.current.importedTransactionsQuery.data?.total).toBe(120);
+
+    act(() => result.current.setSelectAllFilteredImported(true));
+    act(() => result.current.importedPaging.setPage(2));
+    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(2));
+    expect(result.current.selectAllFilteredImported).toBe(true);
+  });
 });

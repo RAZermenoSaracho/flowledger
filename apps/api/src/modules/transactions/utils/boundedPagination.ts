@@ -7,16 +7,12 @@ import type { TransactionRecord } from "../types/transactions.types.js";
  */
 export const MAX_TRANSACTION_PAGE_SIZE = 10_000;
 
-/** Applies the maximum page size, and makes it the default when a query asks for no pagination. */
+/** Defaults a query that asks for no pagination to one page of the maximum size; a requested page size is clamped by the transactions sieve. */
 export function boundedPagination(
   pagination: DataSieveQuery<TransactionRecord>["pagination"]
 ): DataSieveQuery<TransactionRecord>["pagination"] {
   if (!pagination) {
     return { kind: "offset", page: 1, pageSize: MAX_TRANSACTION_PAGE_SIZE };
-  }
-
-  if (pagination.kind === "offset") {
-    return { ...pagination, pageSize: Math.min(pagination.pageSize, MAX_TRANSACTION_PAGE_SIZE) };
   }
 
   return pagination;

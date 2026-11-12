@@ -13,9 +13,9 @@ import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountListItem } from "./components/AccountListItem";
 import { AddAccountCard } from "./components/AddAccountCard";
-import { useAccountEditForm } from "./hooks/useAccountEditForm";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { Account } from "../../types/accounts.types";
+import { getAccountTypeLabel } from "./utils/accountDisplay";
 import {
   ACCOUNT_DEFAULT_SEARCH_FIELD,
   ACCOUNT_GROUPABLE_FIELDS,
@@ -35,14 +35,16 @@ const initialAccountDomain = {
 // groupByFields (components/SearchComponent.tsx) keys its group defs by
 // `id`; SearchBar's GroupableField uses `name` — trivial adapter between
 // the two (see TransactionsPage.tsx for the same pattern).
-const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map((field) => ({
-  id: field.name,
-  label: field.label
-}));
+const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map(
+  (field) => ({
+    id: field.name,
+    label: field.label
+  })
+);
 
 function accountGroupKey(account: Account, groupById: string) {
   if (groupById === "type") {
-    return { key: account.type, label: account.type.replace("_", " ") };
+    return { key: account.type, label: getAccountTypeLabel(account.type) };
   }
   if (groupById === "source") {
     const source = account.source ?? "manual";
@@ -51,27 +53,11 @@ function accountGroupKey(account: Account, groupById: string) {
   return { key: "", label: "" };
 }
 
-/** Accounts list page: search/filter/group controls, provider sync widget, and inline edit forms. */
+/** Accounts list page: search/filter/group controls, and provider sync widget; rows link to the account view. */
 export function AccountsPage() {
   const auth = useAuth();
 
   const [accountQuery, setAccountQuery] = useState<SearchBarQuery>({});
-  const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(
-    new Set()
-  );
-
-  function toggleAccountExpanded(accountId: string) {
-    setExpandedAccountIds((current) => {
-      const next = new Set(current);
-      if (next.has(accountId)) {
-        next.delete(accountId);
-      } else {
-        next.add(accountId);
-      }
-      return next;
-    });
-  }
-
   const accountSearchFields = useMemo(() => buildAccountSearchFields(), []);
 
   const accountsQuery = useQuery({
@@ -88,10 +74,15 @@ export function AccountsPage() {
   const sync = useAccountProviderSync({
     defaultCurrency: auth.user?.preferredCurrency || "USD"
   });
-  const editForm = useAccountEditForm();
 
-  const visibleAccounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
-  const activeGroupBys = useMemo(() => accountQuery.groupBy ?? [], [accountQuery.groupBy]);
+  const visibleAccounts = useMemo(
+    () => accountsQuery.data ?? [],
+    [accountsQuery.data]
+  );
+  const activeGroupBys = useMemo(
+    () => accountQuery.groupBy ?? [],
+    [accountQuery.groupBy]
+  );
   const groupedAccounts = useMemo(
     () =>
       groupByFields(
@@ -145,31 +136,7 @@ export function AccountsPage() {
                   <AccountListItem
                     key={account.id}
                     account={account}
-                    editForm={editForm}
                     preferredCurrency={auth.user?.preferredCurrency}
-                    isExpanded={expandedAccountIds.has(account.id)}
-                    onToggleExpanded={() => toggleAccountExpanded(account.id)}
-                    resyncMessages={sync.resyncMessages}
-                    isStartingCredentialFlow={
-                      sync.startProviderCredentialFlow.isPending
-                    }
-                    hasCredentialFlowError={
-                      sync.startProviderCredentialFlow.isError
-                    }
-                    onResync={(syncId) =>
-                      sync.startSyncedCredentialFlow(
-                        account,
-                        syncId,
-                        "credential"
-                      )
-                    }
-                    onReconnect={(syncId) =>
-                      sync.startSyncedCredentialFlow(
-                        account,
-                        syncId,
-                        "updateCredential"
-                      )
-                    }
                   />
                 ))}
               </div>

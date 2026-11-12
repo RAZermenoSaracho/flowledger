@@ -1,0 +1,38 @@
+# Tasks
+
+## 1. Foundations
+
+- [x] 1.1 Confirm ST-005 exports `useFormDraft`, `FormView` and `EditableField`; add the `/accounts/:id` entry to `constants/routes.ts`. Verify: `npm run typecheck -w apps/web` passes.
+- [x] 1.2 Add `getAccountTypeLabel` (with TSDoc) to `pages/Accounts/utils/accountDisplay.ts`, `checking` labeled as checking/debit. Verify: `utils/tests/accountDisplay.test.ts` covers every `AccountType` and the `checking` label.
+
+## 2. Hooks
+
+- [x] 2.1 Add `pages/Accounts/hooks/useAccountForm.ts`: `useFormDraft` adapter (initial from account, shared-schema validate, save via `accountsClient.updateAccount` with `changedKeys`, blank identifier to `null`, invalidate `accounts`/`transactions`). Verify: `hooks/tests/useAccountForm.test.ts` (msw) covers load, dirty, validation block, batch save, server error keeps draft.
+- [x] 2.2 Add `pages/Accounts/hooks/useAccountActions.ts` for archive, restore and delete, moved from `useAccountEditForm`. Verify: `hooks/tests/useAccountActions.test.ts` covers each mutation and query invalidation.
+
+## 3. View
+
+- [x] 3.1 Add `AccountTypeSections.tsx` (type-to-section map, empty today) with TSDoc. Verify: `components/tests/AccountTypeSections.test.tsx` shows a registered test section only for its type.
+- [x] 3.2 Add `pages/Accounts/AccountDetailPage.tsx`: lookup by id (archived included), not-found state, `FormView` with the five directly editable fields (no Edit button; ST-005 compact header Save/Discard), `AccountSyncPanel`, archive/restore/delete (confirm, return to list). Verify: `tests/AccountDetailPage.test.tsx` covers render, direct edit and save, discard, not-found for unknown/foreign id, synced panel, archive, delete.
+- [x] 3.3 Register the route in `main.tsx`. Verify: route renders under the authenticated layout (covered by 3.2 test via router).
+
+- [x] 3.4 Move Archive/Restore/Delete into `FormView` `actions` (window.confirm kept on Delete) and use `backLink` "Back to accounts". Verify: `tests/AccountDetailPage.test.tsx` opens "Record actions" and covers archive, restore and delete.
+
+
+## 4. List cleanup
+
+- [x] 4.1 Make rows link to the view; remove inline edit form, row expansion and `useAccountEditForm`; use type labels. Verify: updated `AccountListItem.test.tsx` and `AccountsPage.test.tsx` pass; no references to `useAccountEditForm` remain (`grep`).
+
+## 4b. Tabs
+
+- [x] 4b.1 Split `AccountDetailPage` into `FormView` `tabs`; add `AccountTransactionsTab` and `useAccountTransactions` (`GET /transactions`, `accountId` filter, date desc + id desc, 20 per page). Verify: `AccountTransactionsTab.test.tsx` (page 1 to 2 request params, empty, error), `useAccountTransactions.test.tsx`, `AccountDetailPage.test.tsx` tabs.
+
+## 5. Verification
+
+- [x] 5.1 `npm run typecheck`, `npm run lint`, `npm run test` pass.
+- [x] 5.2 Browser check at 375px and desktop: open, edit, save, discard, archive, delete, a foreign-id URL shows not-found; no horizontal scroll or iOS zoom. (Covered by the owner's approved manual review on staging, 2026-11-12.)
+- [x] 5.3 Update `docs/KNOWN_ISSUES.md` only if this change surfaces or closes an item. (KNOWN_ISSUES #044 updated by `b004-list-pagination`; nothing else surfaced.)
+
+## 7. Shared related list
+
+- [x] 7.1 Generalize `AccountTransactionsTab` and `useAccountTransactions` into one shared related-transactions list and hook (scope field `accountId` or `groupId`), with name search, sort and the shared `Pagination`. Verify: tests for the shared list and hook. Account detail tests still pass.

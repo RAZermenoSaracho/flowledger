@@ -25,13 +25,13 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
       title: "Dinner split",
       totalAmount: 100,
       status: "open",
-      owner: { id: "user-1", name: "Jane", email: "jane@example.com" },
+      owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { type: "expense" } as Debt["sharedExpense"]["transaction"],
       participants: [],
       createdAt: "",
       updatedAt: ""
     },
-    user: { id: "user-2", name: "Sam", email: "sam@example.com" },
+    user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     settlementRequests: [],
     ...overrides
   };
@@ -42,7 +42,7 @@ describe("DebtSummaryCard", () => {
     renderWithProviders(<DebtSummaryCard debt={makeDebt()} viewerUserId="user-2" />);
 
     expect(screen.getByText("Dinner split")).toBeInTheDocument();
-    expect(screen.getByText(/Jane · expense split · \$40\.00 settled of \$100\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Jane \(@jane\) · expense split · \$40\.00 settled of \$100\.00/)).toBeInTheDocument();
     expect(screen.getByText("$60.00")).toBeInTheDocument();
     expect(screen.getByText("partial")).toBeInTheDocument();
   });

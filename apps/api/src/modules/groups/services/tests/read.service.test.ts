@@ -120,11 +120,12 @@ describe("listGroups", () => {
 });
 
 describe("getGroupById", () => {
-  it("throws when the user isn't a member", async () => {
+  it("throws a 404 when the user isn't a member", async () => {
     prismaMock.groupMember.findFirst.mockResolvedValue(null);
-    await expect(getGroupById("user-1", "group-1")).rejects.toThrow(
-      "Group does not exist for this user"
-    );
+    await expect(getGroupById("user-1", "group-1")).rejects.toMatchObject({
+      statusCode: 404,
+      message: "Group not found"
+    });
   });
 
   it("throws a 404 when the group doesn't exist", async () => {

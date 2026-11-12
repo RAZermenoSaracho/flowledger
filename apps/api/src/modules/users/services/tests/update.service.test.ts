@@ -328,3 +328,12 @@ describe("updateSidebarSide", () => {
     });
   });
 });
+
+describe("profile nickname", () => {
+  it.each(["Sunny", null])("writes nickname %j including explicit clears", async (nickname) => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ email: "a@b.com" } as never);
+    prismaMock.user.update.mockResolvedValue({} as never);
+    await updateProfile("u1", { name: "Ada", email: "a@b.com", nickname });
+    expect(prismaMock.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { name: "Ada", nickname } });
+  });
+});

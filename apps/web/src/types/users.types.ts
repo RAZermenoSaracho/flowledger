@@ -1,10 +1,16 @@
-import type { MobileSidebarSide, PlanType } from "@flowledger/shared";
+import type { IDENTITY_VISIBILITIES, MobileSidebarSide, PlanType } from "@flowledger/shared";
+
+/** How a user appears to others: `@username` only, or `Name (@username)`. */
+export type IdentityVisibility = (typeof IDENTITY_VISIBILITIES)[number];
 
 /** Full user record shape as returned by the API. */
 export type User = {
   id: string;
   name: string;
   email: string;
+  username: string;
+  nickname: string | null;
+  identityVisibility: IdentityVisibility;
   avatarUrl?: string | null;
   planType: PlanType;
   preferredCurrency?: string | null;
@@ -13,5 +19,17 @@ export type User = {
   updatedAt: string;
 };
 
-/** User fields safe to expose to other users (e.g. group members, debt counterparties). */
-export type PublicUser = Pick<User, "id" | "name" | "email">;
+/** Public identity of another user (group members, debt counterparties, participants); never carries email or name. */
+export type PublicUser = {
+  id: string;
+  username: string;
+  nickname: string | null;
+  displayName: string | null;
+};
+
+/** One entry of the signed-in user's block list. */
+export type BlockedUser = {
+  id: string;
+  createdAt: string;
+  user: PublicUser;
+};

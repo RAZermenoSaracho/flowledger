@@ -17,7 +17,7 @@ export function notificationTarget(notification: Notification) {
   if (notification.type === "group_member_added") {
     const groupId = metadataString(metadata, "groupId");
     return groupId
-      ? `${routes.groups}?groupId=${encodeURIComponent(groupId)}`
+      ? routes.group(encodeURIComponent(groupId))
       : routes.groups;
   }
 
@@ -52,6 +52,23 @@ export function notificationTarget(notification: Notification) {
     return `${routes.debts}?${params.toString()}`;
   }
 
+  if (
+    notification.type === "shared_expense_invited" ||
+    notification.type === "shared_expense_updated" ||
+    notification.type === "shared_expense_rejected"
+  ) {
+    const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
+    params.set("tab", "awaiting");
+    if (sharedExpenseId) params.set("sharedExpenseId", sharedExpenseId);
+    return `${routes.debts}?${params.toString()}`;
+  }
+
+  if (notification.type === "shared_expense_accepted") {
+    const participantId = metadataString(metadata, "participantId");
+    if (participantId) params.set("debtId", participantId);
+    return `${routes.debts}?${params.toString()}`;
+  }
+
   if (notification.type === "shared_expense_added") {
     const sharedExpenseId = metadataString(metadata, "sharedExpenseId");
     const participantId = metadataString(metadata, "participantId");
@@ -75,7 +92,7 @@ export function notificationTarget(notification: Notification) {
 
   const groupId = metadataString(metadata, "groupId");
   if (groupId) {
-    return `${routes.groups}?groupId=${encodeURIComponent(groupId)}`;
+    return routes.group(encodeURIComponent(groupId));
   }
 
   return null;

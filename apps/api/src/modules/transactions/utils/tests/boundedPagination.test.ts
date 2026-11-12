@@ -10,17 +10,11 @@ describe("boundedPagination", () => {
     });
   });
 
-  it("keeps a page size at the maximum and below", () => {
+  it("passes a requested pagination through unchanged", () => {
     const atMax = { kind: "offset" as const, page: 2, pageSize: MAX_TRANSACTION_PAGE_SIZE };
     const small = { kind: "offset" as const, page: 1, pageSize: 5 };
 
     expect(boundedPagination(atMax)).toEqual(atMax);
     expect(boundedPagination(small)).toEqual(small);
-  });
-
-  it("caps a page size above the maximum", () => {
-    expect(
-      boundedPagination({ kind: "offset", page: 3, pageSize: MAX_TRANSACTION_PAGE_SIZE + 1 })
-    ).toEqual({ kind: "offset", page: 3, pageSize: MAX_TRANSACTION_PAGE_SIZE });
   });
 });

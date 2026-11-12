@@ -38,15 +38,15 @@ export function createAccount(body: {
   });
 }
 
-/** Updates an account's fields. */
+/** Updates an account's fields; any subset may be sent. */
 export function updateAccount(
   accountId: string,
   body: {
-    name: string;
-    type: AccountType;
+    name?: string;
+    type?: AccountType;
     identifier?: string | null;
-    currency: string;
-    initialBalance: number;
+    currency?: string;
+    initialBalance?: number;
   }
 ) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}`, {

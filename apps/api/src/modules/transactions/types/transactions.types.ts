@@ -1,3 +1,4 @@
+import type { PublicUser } from "@flowledger/shared";
 import type { DataSieveQuery } from "datasieve";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
 
@@ -152,6 +153,7 @@ export interface ImportedTransactionRecord {
 export type ImportedTransactionsQueryInput = {
   where?: RawWhereNode;
   sort?: DataSieveQuery<ImportedTransactionRecord>["sort"];
+  pagination?: DataSieveQuery<ImportedTransactionRecord>["pagination"];
 };
 
 /**
@@ -164,3 +166,37 @@ export type ImportedTransactionsQueryInput = {
 export type ImportedTransactionSelection =
   | { mode: "ids"; ids: string[] }
   | { mode: "filtered"; where?: RawWhereNode };
+
+/** The original expense of a settlement the viewer is looking at; only returned when the viewer owns it. */
+export interface RelatedTransactionRow {
+  id: string;
+  description: string;
+  amount: number;
+  currency: string;
+  date: Date;
+  type: string;
+  relation: "origin";
+}
+
+/** One settlement request of an original expense's participants. `transaction` is only the viewer's own settlement transaction, never the counterparty's. */
+export interface RelatedSettlementRow {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  createdAt: Date;
+  approvedAt: Date | null;
+  counterparty: PublicUser;
+  participantId: string;
+  transaction: { id: string; description: string; date: Date; type: string } | null;
+}
+
+/** What a settling participant may see of the expense they settled: only data the shared-expense endpoints already expose to participants, never the owner's transaction id. */
+export interface SettlementOriginSummary {
+  title: string;
+  amount: number;
+  currency: string;
+  date: Date;
+  type: string;
+  owner: PublicUser;
+}

@@ -117,4 +117,37 @@ describe("/reports routes", () => {
       expect(response.status).toBe(400);
     });
   });
+
+  describe("financial-overview", () => {
+    it("requires authentication and rejects a bad timeZone", async () => {
+      expect((await request(app).get("/reports/financial-overview")).status).toBe(401);
+      const { token } = await createAuthedUser(app);
+      const response = await request(app)
+        .get("/reports/financial-overview")
+        .set("Authorization", `Bearer ${token}`)
+        .query({ timeZone: "Not/AZone" });
+      expect(response.status).toBe(400);
+    });
+
+    it("returns only the signed-in user's data", async () => {
+      const owner = await createAuthedUser(app);
+      const other = await createAuthedUser(app);
+      await request(app)
+        .post("/accounts")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({ name: "Main", type: "checking", currency: "USD", initialBalance: 500 });
+
+      const mine = await request(app)
+        .get("/reports/financial-overview")
+        .set("Authorization", `Bearer ${owner.token}`);
+      const theirs = await request(app)
+        .get("/reports/financial-overview")
+        .set("Authorization", `Bearer ${other.token}`);
+
+      expect(mine.status).toBe(200);
+      expect(mine.body.netWorth).toMatchObject({ status: "ok", total: 500, accounts: 500 });
+      expect(mine.body.savingsRate.status).toBe("no_data");
+      expect(theirs.body.netWorth).toMatchObject({ status: "ok", total: 0 });
+    });
+  });
 });

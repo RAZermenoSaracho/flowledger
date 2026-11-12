@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { groupCategorySchema, groupMemberSchema } from "./groups.js";
 
-/** Query of `GET /v1/users/search`: a name/email substring of at least 3 characters and at most 10 results. */
+/** Query of `GET /v1/users/search`: a username (exact, then prefix) of at least 3 characters and at most 10 results. */
 export const apiUserSearchQuerySchema = z.object({
   q: z.string().trim().min(3).max(120),
   limit: z.coerce.number().int().positive().max(10).default(10)
