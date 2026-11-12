@@ -59,6 +59,7 @@ describe("cimdDocumentSchema", () => {
       ...doc,
       redirect_uris: [
         "https://app.example/cb",
+        "https://agent.meta.ai/api/hatch/oauth/callback",
         "http://localhost/callback",
         "http://127.0.0.1/callback",
         "http://[::1]/cb"
