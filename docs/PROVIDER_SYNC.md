@@ -158,7 +158,7 @@ When storing endpoint paths in `ProviderConnection.rawData.syncfyRefreshMetadata
 
 Syncfy is available only when `SYNCFY_AUTO_SYNC_ENABLED` is true **and** `SYNCFY_API_KEY` is set (`providers/syncfy/utils/syncfyAvailability.ts`, exposed as the adapter's `isAvailable`). While unavailable:
 
-- `GET /providers/connectors` / `/providers/institutions` omit Syncfy; the web Accounts screens use the empty connector list to disable "Sync accounts" and replace Resync/Reconnect with "Bank synchronization is currently unavailable."
+- `GET /providers/connectors` / `/providers/institutions` omit Syncfy; the web Accounts screens use the empty connector list to show Sync accounts, Refresh, Resync and Reconnect as disabled (with the tooltip "Bank synchronization is temporarily unavailable."). They also show a notice that existing data remains available and hide stored provider failure text.
 - Connect, reconnect, credential refresh, and connection/account resync return `503 "Bank synchronization is currently unavailable"` before any Syncfy call or Syncfy DB write.
 - Verified webhooks are still HMAC-checked and recorded, but the adapter returns `ignored` instead of fetching event data.
 - `fetchJson` (the single outbound Syncfy HTTP helper) refuses every request as a backstop, so no caller can spend credits.

@@ -11,7 +11,7 @@ Express fix, its own PR to `razs_ai`, independent of B-006.
 
 ## 2. Web
 
-- [x] 2.1 Accounts derives availability from connectors, disables the sync add mode, and replaces Resync and Reconnect with the unavailable message. Add component tests.
+- [x] 2.1 Accounts derives availability from connectors. The provider actions are disabled and stay visible, each with an accessible tooltip (`aria-disabled` and `role="tooltip"`; it opens on focus, hover and tap, and Escape closes it). Add one notice. Hide stored failure text when unavailable. Add component tests.
 
 ## 3. Docs
 

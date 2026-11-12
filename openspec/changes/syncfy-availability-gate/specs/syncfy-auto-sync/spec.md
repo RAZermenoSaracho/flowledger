@@ -34,14 +34,28 @@ Syncfy SHALL be available only when `SYNCFY_AUTO_SYNC_ENABLED` is enabled and `S
 - **WHEN** `SYNCFY_AUTO_SYNC_ENABLED=true` and `SYNCFY_API_KEY` is set
 - **THEN** connect, reconnect, resync and webhook processing behave as before
 
-### Requirement: Web hides unavailable bank-sync actions
+### Requirement: Web shows unavailable bank-sync actions as disabled
 
-The web app SHALL treat a provider as actionable only when the connectors list contains it. When it is not, the Accounts screens SHALL disable the "Sync accounts" option and SHALL replace Resync and Reconnect with "Bank synchronization is currently unavailable." The web app SHALL NOT offer an upgrade action. The server SHALL enforce the rule regardless of the client.
+The web app SHALL treat a provider as actionable only when the connectors list contains it. When it is not, the Accounts screens SHALL behave as follows:
+
+- They SHALL keep the provider actions visible but disabled: Sync accounts, discovered-accounts refresh, Resync and Reconnect.
+- Each disabled action SHALL carry the tooltip "Bank synchronization is temporarily unavailable." The tooltip SHALL be reachable by keyboard focus, mouse hover and tap, and announced to assistive technology.
+- They SHALL show the notice "Bank connections and synchronization are temporarily disabled. Your existing accounts and transactions remain available."
+- They SHALL make no provider request and SHALL NOT load the provider widget.
+- They SHALL NOT show stored provider failure text or a reconnect call to action.
+- They SHALL NOT offer an upgrade action.
+
+The server SHALL enforce the rule regardless of the client.
 
 #### Scenario: Synced account while unavailable
 
 - **WHEN** connectors are empty and a user opens a synced account
-- **THEN** its sync status and metadata are shown, Resync and Reconnect are not offered, and the unavailable message is shown
+- **THEN** its sync status and metadata are shown, Resync and Reconnect are present and disabled with the tooltip, the notice is shown, and no stored failure text is shown
+
+#### Scenario: Keyboard and touch
+
+- **WHEN** a keyboard user tabs to a disabled Resync, or a touch user taps it
+- **THEN** the tooltip appears, no request is sent, and Escape or moving focus away closes it
 
 ## REMOVED Requirements
 

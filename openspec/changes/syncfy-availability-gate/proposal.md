@@ -14,7 +14,7 @@ FlowLedger's Syncfy credits are exhausted and the integration is not offered to 
   - The scheduler stays off.
   - Every outbound Syncfy request is refused at the single HTTP helper as a backstop.
 - Availability is an optional `isAvailable()` capability on `FinancialProviderAdapter`, read through one `isProviderAvailable()` helper. That helper is the documented extension point for future per-user Premium eligibility.
-- On the web, Accounts derives availability from the connectors list. The "Sync accounts" option, Resync and Reconnect are replaced by "Bank synchronization is currently unavailable."
+- On the web, Accounts derives availability from the connectors list. Sync accounts, Refresh, Resync and Reconnect stay visible but disabled, each with the accessible tooltip "Bank synchronization is temporarily unavailable." One notice says that existing accounts and transactions remain available. Stored Syncfy failure text, such as 402 errors, is hidden.
 - Existing accounts, provider metadata, imported transactions, balances and reports stay readable and are left unchanged.
 
 ## Non-goals
