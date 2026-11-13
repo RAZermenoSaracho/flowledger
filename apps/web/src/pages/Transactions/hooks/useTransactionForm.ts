@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { routes } from "../../../constants/routes";
 import { useFormDraft } from "../../../hooks/useFormDraft";
 import type { Account } from "../../../types/accounts.types";
@@ -24,7 +24,7 @@ const INVALIDATED_ON_SAVE = [
  * Transaction adapter over `useFormDraft`. `initial` is the draft to start from (`null` while
  * loading), `original` the stored transaction (or `null` for a new draft) and `accounts` the ones the cross-currency validation reads. Saving sends one
  * request (see `saveTransactionDraft`), invalidates every query a transaction feeds, and, for a
- * new draft, replaces the URL with the created transaction's view.
+ * new draft, replaces the URL with the created transaction's view while preserving router state.
  */
 export function useTransactionForm({
   initial,
@@ -37,6 +37,7 @@ export function useTransactionForm({
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
 
   return useFormDraft<TransactionDraft>({
     initial,
@@ -46,7 +47,7 @@ export function useTransactionForm({
       await Promise.all(
         INVALIDATED_ON_SAVE.map((key) => queryClient.invalidateQueries({ queryKey: [key] }))
       );
-      if (!original) navigate(routes.transaction(saved.id), { replace: true });
+      if (!original) navigate(routes.transaction(saved.id), { replace: true, state: location.state });
     }
   });
 }

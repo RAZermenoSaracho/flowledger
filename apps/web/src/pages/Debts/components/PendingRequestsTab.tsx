@@ -32,7 +32,9 @@ export function PendingRequestsTab({
   expenseOffsetCategoryOptionsFor,
   onApproveSettlement,
   onRejectSettlement,
-  onSubmitBatchApproval
+  onSubmitBatchApproval,
+  isLoading,
+  error
 }: {
   pendingFromMe: SettlementRequest[];
   pendingForMe: SettlementRequest[];
@@ -55,6 +57,8 @@ export function PendingRequestsTab({
   onApproveSettlement: (event: FormEvent, request: SettlementRequest) => void;
   onRejectSettlement: (settlementId: string) => void;
   onSubmitBatchApproval: (requests: SettlementRequest[]) => Promise<void>;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   const selectedApprovalRequests = visiblePendingForMe.filter((request) =>
     approvalSelection.isSelected(request.id)
@@ -84,6 +88,8 @@ export function PendingRequestsTab({
           />
         }
         items={visiblePendingFromMe}
+        isLoading={isLoading}
+        error={error}
         total={pendingFromMe.length}
         rowKey={(request) => request.id}
         emptyText={
@@ -110,6 +116,8 @@ export function PendingRequestsTab({
           />
         }
         items={visiblePendingForMe}
+        isLoading={isLoading}
+        error={error}
         total={pendingForMe.length}
         rowKey={(request) => request.id}
         emptyText={

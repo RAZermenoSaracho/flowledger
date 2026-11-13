@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
+import { FormView } from "../../components/FormView";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
@@ -12,7 +13,7 @@ import { listGroups } from "../../services/groups.client";
 import { isNonZero } from "../../utils/money";
 import { PersonDebtDetail } from "./components/PersonDebtDetail";
 import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
-import { availableSettlementAmount } from "./utils/debtDisplay";
+import { availableSettlementAmount, displayPerson } from "./utils/debtDisplay";
 
 /**
  * Independent detail page for a single counterparty's debt balance, reached by
@@ -88,14 +89,10 @@ export function PersonDebtDetailPage() {
   );
 
   return (
-    <div className="grid min-w-0 gap-4">
-      <Link
-        to={`${routes.debts}?tab=balances`}
-        className="inline-flex w-fit text-sm font-semibold text-pine dark:text-emerald-300"
-      >
-        Back to balances
-      </Link>
-
+    <FormView
+      title={balance ? displayPerson(balance) : "Balance"}
+      backLink={{ to: `${routes.debts}?tab=balances`, label: "Back to balances" }}
+    >
       {debtsQuery.isLoading ? (
         <Card>Loading balance...</Card>
       ) : debtsQuery.isError ? (
@@ -124,6 +121,6 @@ export function PersonDebtDetailPage() {
           }
         />
       )}
-    </div>
+    </FormView>
   );
 }

@@ -106,8 +106,9 @@ describe("DebtsPage", () => {
     mockBaseline();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    expect(screen.getByText("Loading debts...")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText("Loading debts...")).not.toBeInTheDocument());
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("Loading debts...")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Loading...")).not.toBeInTheDocument());
   });
 
   it("shows an error message when the debts query fails", async () => {
@@ -122,7 +123,7 @@ describe("DebtsPage", () => {
     );
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Could not load debts.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not load debts."));
   });
 
   it("lists proposed shares on the Awaiting Acceptance tab and flags an unknown invitation id", async () => {

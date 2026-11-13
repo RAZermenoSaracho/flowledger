@@ -145,7 +145,32 @@ describe("AwaitingAcceptanceTab", () => {
   it("does not report not found while loading or when the invitation is listed", () => {
     renderTab({ highlightedSharedExpenseId: "se-1" });
     expect(screen.queryByText("Invitation not found.")).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: "Dinner" })).toHaveClass("ring-2");
+    expect(document.getElementById("share-se-1")).toHaveClass("border-pine", "bg-mint");
+  });
+
+  it("links only the row title to the Shared Expense view", () => {
+    renderTab();
+    expect(screen.getByRole("link", { name: "Dinner" })).toHaveAttribute("href", "/debts/shared-expenses/se-1");
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("groups rows under Awaiting your response and Rejected, hiding an empty group", () => {
+    renderTab({
+      awaiting: [],
+      rejected: [makeDebt({ id: "p2", sharedExpenseId: "se-2" })]
+    });
+    expect(screen.getByRole("heading", { name: "Rejected" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Awaiting your response" })).not.toBeInTheDocument();
+    renderTab();
+    expect(screen.getByRole("heading", { name: "Awaiting your response" })).toBeInTheDocument();
+  });
+
+  it("shows loading and load-error states", () => {
+    const { unmount } = renderTab({ awaiting: [], isLoading: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Loading...");
+    unmount();
+    renderTab({ awaiting: [], error: "Could not load debts." });
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load debts.");
   });
 
   it("wraps the response buttons so they fit a narrow screen", () => {

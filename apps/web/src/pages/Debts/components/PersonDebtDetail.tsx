@@ -8,7 +8,7 @@ import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { isNonZero, sum } from "../../../utils/money";
 import type { SettlementDraft } from "../types/debts.types";
-import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
+import { availableSettlementAmount } from "../utils/debtDisplay";
 import type { ListSelection } from "../../../types/common.types";
 import { AccountAmountField } from "./AccountAmountField";
 import { DebtTable } from "./DebtTable";
@@ -75,7 +75,6 @@ export function PersonDebtDetail({
     <Card className="min-w-0">
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
         <div>
-          <h2 className="text-lg font-semibold">{displayPerson(balance)}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Net balance {formatMoney(balance.netBalance, summaryCurrency)}
           </p>

@@ -644,3 +644,15 @@ Still open:
 **Description:** `create_shared_expense` can send share invitations to any user id with only the global API rate limits. Consent and blocking limit the impact, and nothing counts financially until the share is accepted, but a key can still spam invitations.
 
 **Suggested fix:** Add a per-key invitation rate limit on invitation creation.
+
+---
+
+## [OPEN] #050 — Debts page and person balance detail duplicate their data setup
+
+**Found in:** `standardize-debts-views` simplicity review.
+
+**Scope:** `apps/web/src/pages/Debts/DebtsPage.tsx` and `apps/web/src/pages/Debts/PersonDebtDetailPage.tsx`.
+
+**Description:** Both pages repeat the same four queries (debts, accounts, categories, groups), the private income and expense category filters, `groupById`, and the `useDebtSettlementWorkflow` call. The change was UI-only, so this was left as is.
+
+**Suggested fix:** Extract one page-local `useDebtsData()` hook in `pages/Debts/hooks/` that returns the queries and the workflow, in a separate behaviour-preserving change.

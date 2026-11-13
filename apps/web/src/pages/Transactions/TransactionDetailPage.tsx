@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { FormView } from "../../components/FormView";
@@ -23,6 +23,7 @@ import { hasRelatedSettlements, TransactionSettlementsTab } from "./components/T
 import { TransactionSharingTab } from "./components/TransactionSharingTab";
 import { useTransactionForm } from "./hooks/useTransactionForm";
 import { draftFromTransaction, newTransactionDraft } from "./utils/transactionDraft";
+import { transactionBackTarget } from "./utils/transactionBackTarget";
 import { parseTransactionPrefill } from "./utils/transactionPrefill";
 import { selectAccount } from "./utils/transactionDraftReducers";
 
@@ -44,6 +45,8 @@ export function TransactionDetailPage() {
   const isNew = !id;
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backLink = transactionBackTarget(location.state?.from);
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [openedAt] = useState(transactionDateNowInputValue);
@@ -181,7 +184,7 @@ export function TransactionDetailPage() {
         }
         draft={draft}
         tabs={tabs}
-        backLink={{ to: routes.transactions, label: "Back to transactions" }}
+        backLink={backLink}
         isNew={isNew}
         actions={
           transaction ? (

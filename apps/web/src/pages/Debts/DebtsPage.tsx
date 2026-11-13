@@ -32,14 +32,10 @@ const debtsTabs: { id: DebtsTab; label: string }[] = [
   { id: "sharedExpenses", label: "Shared Expenses" }
 ];
 
+const DEBTS_LOAD_ERROR = "Could not load debts.";
+
 function isDebtsTab(value: string | null): value is DebtsTab {
-  return (
-    value === "balances" ||
-    value === "pending" ||
-    value === "settled" ||
-    value === "awaiting" ||
-    value === "sharedExpenses"
-  );
+  return debtsTabs.some((tab) => tab.id === value);
 }
 
 /** Debts page: outstanding balances, pending settlement requests, and settled-history tabs. */
@@ -94,6 +90,10 @@ export function DebtsPage() {
   });
 
   const debts = debtsQuery.data;
+  const listState = {
+    isLoading: debtsQuery.isLoading,
+    error: debtsQuery.isError ? DEBTS_LOAD_ERROR : null
+  };
   const privateExpenseCategories = useMemo(
     () =>
       (categoriesQuery.data ?? []).filter(
@@ -247,6 +247,7 @@ export function DebtsPage() {
               visibleBalances={visibleBalances}
               onBalanceQueryChange={setBalanceQuery}
               summaryCurrency={summaryCurrency}
+              {...listState}
             />
           ) : null}
           {activeTab === "pending" ? (
@@ -278,6 +279,7 @@ export function DebtsPage() {
                 workflow.rejectSettlement.mutate(settlementId)
               }
               onSubmitBatchApproval={workflow.submitBatchApproval}
+              {...listState}
             />
           ) : null}
           {activeTab === "settled" ? (
@@ -287,6 +289,7 @@ export function DebtsPage() {
               onSettledQueryChange={setSettledQuery}
               viewerUserId={auth.user?.id}
               highlightedDebtId={highlightedDebtId}
+              {...listState}
             />
           ) : null}
           {activeTab === "awaiting" ? (
@@ -295,23 +298,12 @@ export function DebtsPage() {
               rejected={debts?.rejectedShares ?? []}
               viewerUserId={auth.user?.id}
               highlightedSharedExpenseId={highlightedSharedExpenseId}
-              isLoading={debtsQuery.isLoading}
+              {...listState}
             />
           ) : null}
           {activeTab === "sharedExpenses" ? <SharedExpensesPage /> : null}
         </div>
       </div>
-
-      {debtsQuery.isLoading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Loading debts...
-        </p>
-      ) : null}
-      {debtsQuery.isError ? (
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">
-          Could not load debts.
-        </p>
-      ) : null}
     </div>
   );
 }

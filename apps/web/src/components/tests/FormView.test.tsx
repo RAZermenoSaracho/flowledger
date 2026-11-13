@@ -25,6 +25,23 @@ function renderView(ui: React.ReactElement, route = "/") {
 }
 
 describe("FormView", () => {
+  it("without a draft renders no Save/Cancel, ignores Ctrl+S and navigates back without a guard", async () => {
+    renderView(
+      <Routes>
+        <Route
+          path="/"
+          element={<FormView title="Thing" onSave={vi.fn()} isNew backLink={{ to: "/list", label: "Back" }} />}
+        />
+        <Route path="/list" element={<p>list page</p>} />
+      </Routes>
+    );
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: "s", ctrlKey: true })).toBe(true);
+    await userEvent.click(screen.getByRole("link", { name: "Back" }));
+    expect(screen.getByText("list page")).toBeInTheDocument();
+  });
+
   it("renders no Save or Cancel while clean, and no Edit button or bottom bar", () => {
     renderView(<FormView title="Thing" draft={draftOf()} />);
     expect(

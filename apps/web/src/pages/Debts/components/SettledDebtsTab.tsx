@@ -13,13 +13,17 @@ export function SettledDebtsTab({
   visibleSettledDebts,
   onSettledQueryChange,
   viewerUserId,
-  highlightedDebtId
+  highlightedDebtId,
+  isLoading,
+  error
 }: {
   settledDebts: Debt[];
   visibleSettledDebts: Debt[];
   onSettledQueryChange: (query: SearchBarQuery) => void;
   viewerUserId?: string;
   highlightedDebtId?: string | null;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   return (
     <ListView
@@ -34,6 +38,8 @@ export function SettledDebtsTab({
         />
       }
       items={visibleSettledDebts}
+      isLoading={isLoading}
+      error={error}
       total={settledDebts.length}
       rowKey={(debt) => debt.id}
       emptyText={

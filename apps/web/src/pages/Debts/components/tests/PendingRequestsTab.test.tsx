@@ -76,6 +76,14 @@ function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> 
 }
 
 describe("PendingRequestsTab", () => {
+  it("shows loading in both lists, and the error in both lists", () => {
+    const { unmount } = renderWithProviders(<PendingRequestsTab {...baseProps({ isLoading: true })} />);
+    expect(screen.getAllByText("Loading...")).toHaveLength(2);
+    unmount();
+    renderWithProviders(<PendingRequestsTab {...baseProps({ error: "Could not load debts." })} />);
+    expect(screen.getAllByText("Could not load debts.")).toHaveLength(2);
+  });
+
   it("shows empty states for both columns when there's nothing pending", () => {
     renderWithProviders(<PendingRequestsTab {...baseProps()} />);
     expect(screen.getByText("No outgoing requests.")).toBeInTheDocument();

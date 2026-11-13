@@ -20,14 +20,15 @@ const stored = {
 } as Transaction;
 
 function Probe() {
-  return <span>{useLocation().pathname}</span>;
+  const location = useLocation();
+  return <span>{location.pathname} {location.state?.from}</span>;
 }
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/transactions/new"]}>
+      <MemoryRouter initialEntries={[{ pathname: "/transactions/new", state: { from: "/debts" } }]}>
         <Routes>
           <Route path="*" element={<>{children}<Probe /></>} />
         </Routes>
@@ -86,7 +87,7 @@ describe("useTransactionForm", () => {
     act(() => result.current.update((d) => ({ ...d, name: "Dinner", amount: "10" })));
     await act(() => result.current.save());
 
-    await waitFor(() => expect(document.body).toHaveTextContent("/transactions/tx-9"));
+    await waitFor(() => expect(document.body).toHaveTextContent("/transactions/tx-9 /debts"));
   });
 
   it("puts a server field error on that field and keeps the draft", async () => {

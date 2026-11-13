@@ -16,12 +16,16 @@ export function BalancesTab({
   balances,
   visibleBalances,
   onBalanceQueryChange,
-  summaryCurrency
+  summaryCurrency,
+  isLoading,
+  error
 }: {
   balances: PersonBalance[];
   visibleBalances: PersonBalance[];
   onBalanceQueryChange: (query: SearchBarQuery) => void;
   summaryCurrency: string;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   return (
     <ListView
@@ -36,6 +40,8 @@ export function BalancesTab({
         />
       }
       items={visibleBalances}
+      isLoading={isLoading}
+      error={error}
       total={balances.length}
       rowKey={(balance) => balance.key}
       emptyText={
