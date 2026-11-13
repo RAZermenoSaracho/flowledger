@@ -11,7 +11,7 @@ import type { SettlementDraft } from "../types/debts.types";
 import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
 import { AccountAmountField } from "./AccountAmountField";
 import { DebtTable } from "./DebtTable";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Expanded per-person debt breakdown with settlement request form. */
 export function PersonDebtDetail({

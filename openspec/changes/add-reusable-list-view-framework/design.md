@@ -4,7 +4,7 @@
 
 See proposal.md for motivation and the measured impact. Current state (`apps/web/src`):
 
-- `components/Pagination.tsx` renders Previous / "Page X of Y · N results" / Next below the list (`TransactionsPage.tsx:307-317, 411-418`, `RelatedTransactionsList.tsx:83-92`).
+- `components/ListView/ListViewPagination.tsx` renders Previous / "Page X of Y · N results" / Next below the list (`TransactionsPage.tsx:307-317, 411-418`, `RelatedTransactionsList.tsx:83-92`).
 - `hooks/usePagination.ts` owns page, page size and the page-count clamp. Three callers repeat `useQuery` + `keepPreviousData` + `syncPageCount`: `TransactionsPage.tsx:120-134`, `useImportedTransactionsWorkflow.ts:35-52`, `useRelatedTransactions.ts:26-36`.
 - Only `GET /transactions` returns `{ data, meta: { total, page, pageSize, pageCount, hasNext, hasPrevious } }`. `GET /transactions/imported` returns `{ importedTransactions, total, pendingCount }` and passes pagination through the same sieve (`importedTransactionQuery.ts:217-221`). Other lists are small and unpaginated.
 - Verified API facts: `listPaginationSchema` (`packages/shared/src/schemas/common.ts:52-63`) accepts only `{kind:"offset",page,pageSize}` or `{kind:"cursor",...}`. The datasieve prisma adapter computes `skip=(page-1)*pageSize` (`datasieve/packages/prisma/src/translate/pagination.ts`), so a window such as 7-26 is not expressible today. `createSieve` clamps `pageSize` to `maxPageSize` (`apps/api/src/db/sieve.ts` ~64-67; `MAX_TRANSACTION_PAGE_SIZE` is 10000).
@@ -59,7 +59,7 @@ State is `{offset, limit}`. The user edits the window directly instead of choosi
 | Mobile | same control in its own full-width row under the title; `input type="text"` (a dash is needed) with at least 44px tap targets; fits 320px |
 | A11y | range button `aria-label` "Records 41 to 80 of 312, edit range"; arrows "Previous records" / "Next records"; range text `aria-live="polite"`; error linked via `aria-describedby` |
 
-`MAX_LIST_WINDOW` (500) is an unexported constant inside `components/Pagination.tsx`; the server clamp (`maxPageSize`) remains the hard bound.
+`MAX_LIST_WINDOW` (500) is an unexported constant inside `components/ListView/ListViewPagination.tsx`; the server clamp (`maxPageSize`) remains the hard bound.
 
 ### 5. Backend: additive `range` pagination kind
 Arbitrary windows are not expressible with page/pageSize, so datasieve gains `{kind:"range", offset:int>=0, limit:int>=1}` mapping to prisma `skip=offset, take=limit`. Meta: `total`, `hasNext = offset+limit < total`, `hasPrevious = offset > 0`, `page` and `pageCount` null. Work: the query-language schema, core build-response, prisma translate and tests in `/Users/razs/packages/datasieve`, then publish and bump the version in `apps/api/package.json`. FlowLedger adds the variant to `listPaginationSchema`, and `createSieve` clamps `limit` to `maxPageSize` like `pageSize`. The imported path needs no change beyond this because it uses the same sieve. Existing page and cursor kinds are untouched, so `/v1` and MCP are unaffected (`public-rest-api` already returns 400 for non-offset pagination; MCP tools take `page`/`pageSize` only), hence no delta for those specs.
@@ -151,7 +151,7 @@ Mobile (320px)
 | DELETE (move) | `pages/Debts/components/EmptyState.tsx` | to `components/EmptyState.tsx`; importers `PersonDebtDetail`, `PendingRequestsTab`, `SettledDebtsTab`, `DebtTable`, `BalancesTab`, `AwaitingAcceptanceTab` |
 | DELETE | `pages/Transactions/components/ImportedTransactionsPanel.tsx` | 148 lines; sole importer `TransactionsPage:14`. Its `batchError`/`getBatchErrors` block (87-97) moves into `ImportedTransactionSelectionToolbar`, which becomes the `bulkActions` content; card wiring moves into the `ListView` `renderItem` in `TransactionsPage` |
 | DELETE | `components/PageHeader.tsx` | 29 lines; importers `GroupsListCard`, `SharedExpensesListCard`, `TransactionsPage`, `ImportedTransactionsFiltersCard`, `AccountsPage`, `CategoriesPage` all move to the `ListView` header |
-| CREATE | `components/ListView.tsx`, `hooks/useListSelection.ts` | new shared files (2) |
+| CREATE | `components/ListView/ListView.tsx`, `hooks/useListSelection.ts` | new shared files (2) |
 | CREATE (move) | `utils/groupByFields.ts`, `components/EmptyState.tsx` | moved code (2) |
 | SIMPLIFY | `ImportedTransactionsFiltersCard.tsx` | toolbar-only `SearchBar` wrapper; keeps fields memo (31-45) and `initialDomain` (46-52); loses Card/PageHeader shell |
 | SIMPLIFY | `ImportedTransactionSelectionToolbar.tsx` | generic selection UI (26-40, 44-79) absorbed by the `ListView` selection bar; keeps batch category + Import/Ignore/Unignore (81-124) + `batchError`; props type at `types/transactions.types.ts:70-89` shrinks |
@@ -169,7 +169,7 @@ Mobile (320px)
 | SIMPLIFY | `useImportedTransactionsWorkflow.ts` | paging 35-52, memo 60-63, selection 64-67/169-189/204-212 |
 | SIMPLIFY | `useRelatedTransactions.ts` 26-36; `RelatedTransactionsList.tsx` footer pager 83-92 | onto `usePagination` / `headerActions` pager |
 | EXTEND | `RelatedList.tsx` | adds optional `headerActions` slot only (counted as extended, not simplified) |
-| SIMPLIFY | `Pagination.tsx`, `usePagination.ts` | rewritten in place |
+| SIMPLIFY | `ListViewPagination.tsx`, `usePagination.ts` | rewritten in place |
 | REPOINT | `SharedExpensesPage`, `PersonDebtDetail`, `DebtTable` | imports only |
 | KEEP | `ImportedTransactionCard`, `AccountListItem`, `CategoryCard`, `GroupCard`, `SharedExpenseListItem`, `SettlementRequestCard`, `DebtSummaryCard`, `DebtTable`/`PersonDebtDetail` bodies, `AddRecordButton`, `SearchBar`, `RecordCard`, `Card`, `FilterBuilder`, `NotificationsMenu`, ApiKeys/ConnectedApps | unchanged |
 

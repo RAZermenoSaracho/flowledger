@@ -13,9 +13,6 @@ import {
 import { SHARED_EXPENSE_GROUPABLE_FIELDS } from "./utils/sharedExpenseSearchFields";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
 
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
 const sharedExpenseGroupByDefsForBucketing = SHARED_EXPENSE_GROUPABLE_FIELDS.map(
   (field) => ({ id: field.name, label: field.label })
 );

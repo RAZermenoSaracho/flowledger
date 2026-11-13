@@ -6,7 +6,7 @@ import { Card } from "../../components/Card";
 import { CategoryCard } from "../../components/CategoryCard";
 import { CategoryForm } from "../../components/CategoryForm";
 import { PageHeader } from "../../components/PageHeader";
-import { groupByFields } from "../../components/SearchComponent";
+import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import {
   createConditionWithValue,
@@ -21,9 +21,6 @@ import {
   CATEGORY_SORTABLE_FIELDS
 } from "./utils/categorySearchFields";
 
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
 const categoryGroupByDefsForBucketing = CATEGORY_GROUPABLE_FIELDS.map((field) => ({
   id: field.name,
   label: field.label

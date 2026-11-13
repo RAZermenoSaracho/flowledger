@@ -1,7 +1,7 @@
 import { AddRecordButton } from "../../../components/AddRecordButton";
 import { Card } from "../../../components/Card";
 import { PageHeader } from "../../../components/PageHeader";
-import { groupByFields } from "../../../components/SearchComponent";
+import { groupByFields } from "../../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import {

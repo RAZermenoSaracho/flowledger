@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AddRecordButton } from "../../components/AddRecordButton";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { groupByFields } from "../../components/SearchComponent";
+import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import {
   createConditionWithValue,
@@ -33,9 +33,6 @@ const initialAccountDomain = {
   children: [createConditionWithValue("isArchived", "=", "false")]
 };
 
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
 const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map(
   (field) => ({
     id: field.name,

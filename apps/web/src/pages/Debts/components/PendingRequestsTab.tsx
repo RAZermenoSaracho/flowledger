@@ -11,7 +11,7 @@ import {
   settlementRequestSearchFields
 } from "../utils/debtSearchFields";
 import { ApprovalActions } from "./ApprovalActions";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 import { SettlementRequestCard } from "./SettlementRequestCard";
 
 /** Tab listing pending settlement requests both sent by and awaiting approval from the user. */

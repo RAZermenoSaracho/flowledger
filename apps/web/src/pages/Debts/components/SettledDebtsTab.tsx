@@ -6,7 +6,7 @@ import {
   settledDebtSearchFields
 } from "../utils/debtSearchFields";
 import { DebtSummaryCard } from "./DebtSummaryCard";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Tab listing fully settled debts. */
 export function SettledDebtsTab({

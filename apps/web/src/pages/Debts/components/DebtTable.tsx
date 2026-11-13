@@ -3,7 +3,7 @@ import { Button } from "../../../components/Button";
 import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { debtDescription, debtTitle, statusLabel } from "../utils/debtDisplay";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Table listing debts with row selection and highlight support. */
 export function DebtTable({

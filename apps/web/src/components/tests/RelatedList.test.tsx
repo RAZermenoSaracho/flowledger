@@ -98,3 +98,10 @@ describe("RelatedList", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Too short");
   });
 });
+
+describe("RelatedList headerActions", () => {
+  it("renders the slot in the title row", () => {
+    render(<RelatedList {...base} headerActions={<span>pager</span>} />);
+    expect(screen.getByText("pager")).toBeInTheDocument();
+  });
+});

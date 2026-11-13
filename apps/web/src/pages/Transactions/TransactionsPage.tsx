@@ -7,7 +7,7 @@ import { Card } from "../../components/Card";
 import { useCurrenciesQuery } from "../../components/CurrencySelect";
 import { Pagination } from "../../components/Pagination";
 import { PageHeader } from "../../components/PageHeader";
-import { groupByFields } from "../../components/SearchComponent";
+import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import { providerAccountLabel } from "./components/ImportedTransactionCard";
 import { ImportedTransactionsFiltersCard } from "./components/ImportedTransactionsFiltersCard";
@@ -32,9 +32,6 @@ import type { TransactionsTab } from "./types/transactions.types";
 
 const TRANSACTIONS_PAGE_SIZE = 50;
 
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` (matching the rest of the
-// generic field-config convention) — trivial adapter between the two.
 const transactionGroupByDefsForBucketing = TRANSACTION_GROUPABLE_FIELDS.map((field) => ({
   id: field.name,
   label: field.label

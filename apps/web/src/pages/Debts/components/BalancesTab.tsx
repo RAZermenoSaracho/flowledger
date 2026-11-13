@@ -10,7 +10,7 @@ import {
   BALANCE_DEFAULT_SEARCH_FIELD,
   balanceSearchFields
 } from "../utils/debtSearchFields";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Tab listing net balances per person as cards; clicking a card opens that person's independent detail page. */
 export function BalancesTab({

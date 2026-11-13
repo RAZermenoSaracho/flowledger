@@ -1,38 +1,109 @@
-import { useState } from "react";
-import type { OffsetPagination } from "../types/common.types";
+import { keepPreviousData, useQuery, type QueryKey } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import type { ListPagerState, RangePagination } from "../types/common.types";
+
+/** Largest window size accepted from storage; mirrors the pager's own edit limit. */
+const MAX_STORED_LIMIT = 500;
+const EMPTY: never[] = [];
+
+/** One fetched window: its rows plus whichever of `total` / `hasNext` the endpoint reports. */
+type PageResult<T> = { items: T[]; total?: number | null; hasNext?: boolean };
+
+function storageName(storageKey: string) {
+  return `flowledger:list-limit:${storageKey}`;
+}
+
+function readStoredLimit(storageKey: string | undefined, fallback: number) {
+  if (!storageKey) return fallback;
+  try {
+    const stored = Number(window.localStorage.getItem(storageName(storageKey)));
+    return Number.isInteger(stored) && stored >= 1 && stored <= MAX_STORED_LIMIT ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredLimit(storageKey: string | undefined, limit: number) {
+  if (!storageKey) return;
+  try {
+    window.localStorage.setItem(storageName(storageKey), String(limit));
+  } catch {
+    // Storage can be unavailable (private mode, quota); the window size then just is not remembered.
+  }
+}
 
 /**
- * Owns the page and page size of a server-paginated list. The page resets to 1 whenever `resetKey`
- * (the serialized where/sort) changes. Callers report the latest server page count by calling
- * `syncPageCount(count)` during render (a no-op while unchanged or `null`/`undefined`); `page` is
- * clamped to it here, the only place that clamp lives (e.g. after deleting the last row of the last page).
- * A page count of 0 (empty result) does not clamp.
+ * Owns the `{offset, limit}` window of a server-paginated list and fetches it with TanStack Query,
+ * keeping the previous rows visible while the next window loads.
+ *
+ * `queryKey` must cover everything that changes the result except the window (the hook appends
+ * offset and limit); `resetKey` (the serialized where/sort) returns to offset 0 and keeps `limit`.
+ * When the total shrinks so `offset >= total`, the window moves to `max(0, total - limit)`.
+ * Only `limit` is remembered, in `localStorage` under `flowledger:list-limit:<storageKey>`;
+ * invalid, out-of-bounds or unreadable values fall back to `defaultLimit`. `fetchPage` receives
+ * `{kind:"range", offset, limit}`; when it returns no `hasNext`, it is derived from `total`.
+ * `data` is the raw `fetchPage` result for callers that need extra response fields.
  */
-export function usePagination({ resetKey, pageSize: initialPageSize }: { resetKey: string; pageSize: number }) {
-  const [state, setState] = useState({ key: resetKey, page: 1 });
-  const [pageSize, setPageSizeState] = useState(initialPageSize);
-  const [pageCount, setPageCount] = useState<number | null>(null);
-  const requested = state.key === resetKey ? state.page : 1;
-  const page = pageCount ? Math.min(requested, pageCount) : requested;
+export function usePagination<T, R extends PageResult<T> = PageResult<T>>({
+  queryKey,
+  resetKey,
+  fetchPage,
+  defaultLimit,
+  storageKey
+}: {
+  queryKey: QueryKey;
+  resetKey: string;
+  fetchPage: (pagination: RangePagination) => Promise<R>;
+  defaultLimit: number;
+  storageKey?: string;
+}) {
+  const [state, setState] = useState(() => ({
+    key: resetKey,
+    offset: 0,
+    limit: readStoredLimit(storageKey, defaultLimit)
+  }));
+  const { limit } = state;
+  const requestedOffset = state.key === resetKey ? state.offset : 0;
 
-  const setPage = (next: number) => setState({ key: resetKey, page: Math.max(1, next) });
-  const setPageSize = (next: number) => {
-    setPageSizeState(next);
-    setPage(1);
-  };
-  const syncPageCount = (next: number | null | undefined) => {
-    if (next != null && next !== pageCount) setPageCount(next);
+  const [lastTotal, setLastTotal] = useState<number | null>(null);
+  const offset =
+    lastTotal != null && requestedOffset >= lastTotal ? Math.max(0, lastTotal - limit) : requestedOffset;
+
+  const query = useQuery({
+    queryKey: [...queryKey, offset, limit],
+    placeholderData: keepPreviousData,
+    queryFn: () => fetchPage({ kind: "range", offset, limit })
+  });
+  const data = query.data;
+  const total = data?.total ?? null;
+  if (total !== lastTotal && data) setLastTotal(total);
+
+  const items = useMemo(() => data?.items ?? (EMPTY as T[]), [data]);
+  const hasNext = data?.hasNext ?? (total != null ? offset + limit < total : false);
+
+  const onRangeChange = useCallback(
+    (nextOffset: number, nextLimit: number) => {
+      setState({ key: resetKey, offset: nextOffset, limit: nextLimit });
+      if (nextLimit !== limit) writeStoredLimit(storageKey, nextLimit);
+    },
+    [resetKey, limit, storageKey]
+  );
+
+  const pager: ListPagerState = {
+    offset,
+    limit,
+    total,
+    hasNext,
+    isFetching: query.isFetching,
+    onRangeChange
   };
 
-  const pagination: OffsetPagination = { kind: "offset", page, pageSize };
   return {
-    page,
-    pageSize,
-    pageCount,
-    hasNext: page < (pageCount ?? 0),
-    setPage,
-    setPageSize,
-    syncPageCount,
-    pagination
+    items,
+    pager,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error ? (query.error instanceof Error ? query.error.message : "Could not load records.") : null,
+    data
   };
 }
