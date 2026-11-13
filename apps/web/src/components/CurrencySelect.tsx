@@ -11,6 +11,7 @@ import {
 import { ChevronDown } from "lucide-react";
 import { listCurrencies } from "../services/currencies.client";
 import { DropdownMenu } from "./DropdownMenu";
+import { useDismiss } from "../hooks/useDismiss";
 
 /** React Query hook fetching the supported fiat/crypto currency list. */
 export function useCurrenciesQuery() {
@@ -117,32 +118,14 @@ export function CurrencySelect({
     setHighlightedIndex(0);
   }, [query, isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-        setQuery("");
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-        setQuery("");
-      }
-    };
-
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [isOpen]);
+  useDismiss(
+    containerRef,
+    () => {
+      setIsOpen(false);
+      setQuery("");
+    },
+    isOpen
+  );
 
   function selectOption(code: string) {
     onChange(code);

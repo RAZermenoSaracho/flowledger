@@ -1,10 +1,10 @@
 import { CATEGORY_TYPES } from "@flowledger/shared";
 import type { CategoryType } from "@flowledger/shared";
 import { FormEvent, useEffect, useState } from "react";
-import type { CategoryFormValues } from "../types/categories.types";
-import { formatEnumLabel } from "../utils/enumLabels";
-import { Button } from "./Button";
-import { SelectField, TextInput } from "./FormField";
+import type { CategoryFormValues } from "../../../types/categories.types";
+import { formatEnumLabel } from "../../../utils/enumLabels";
+import { Button } from "../../../components/Button";
+import { SelectField, TextInput } from "../../../components/FormField";
 
 const DEFAULT_VALUES: CategoryFormValues = {
   name: "",

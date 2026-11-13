@@ -364,7 +364,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Resolved:** The Group overview redesign (ST-024, B-004) removes the side-by-side layout and sticky column; the filter dropdown and modal were verified above all content on the overview and detail views at 375px and 1440px.
 
-**Scope:** `apps/web/src/components/FilterBuilder.tsx` (the "Filters" modal).
+**Scope:** `apps/web/src/components/SearchBar/FilterBuilder.tsx` (the "Filters" modal).
 
 **Description:** The modal has no Escape-key handling and no focus management: Escape does nothing, focus is not moved in on open or returned to the trigger on close. Found in browser QA; present before the date-filter changes.
 

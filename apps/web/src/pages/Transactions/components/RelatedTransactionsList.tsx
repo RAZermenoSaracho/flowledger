@@ -1,17 +1,17 @@
 import { Link } from "react-router-dom";
-import { routes } from "../constants/routes";
+import { routes } from "../../../constants/routes";
 import { useRelatedTransactions } from "../hooks/useRelatedTransactions";
-import { TRANSACTION_SORTABLE_FIELDS } from "../pages/Transactions/utils/transactionSearchFields";
+import { TRANSACTION_SORTABLE_FIELDS } from "../utils/transactionSearchFields";
 import type {
   RelatedTransactionsScope,
   Transaction
-} from "../types/transactions.types";
-import type { SearchFieldConfig } from "../utils/searchDomain";
-import { formatMoney } from "../utils/currency";
-import { formatTransactionDate } from "../utils/dateTime";
-import { ListViewPagination } from "./ListView/ListViewPagination";
-import { RelatedList } from "./RelatedList";
-import { SearchBar } from "./SearchBar";
+} from "../../../types/transactions.types";
+import type { SearchFieldConfig } from "../../../utils/searchDomain";
+import { formatMoney } from "../../../utils/currency";
+import { formatTransactionDate } from "../../../utils/dateTime";
+import { ListViewPagination } from "../../../components/ListView";
+import { RelatedList } from "../../../components/RelatedList";
+import { SearchBar } from "../../../components/SearchBar";
 
 const RELATED_TRANSACTION_SEARCH_FIELDS: SearchFieldConfig[] = [
   { name: "name", label: "Name", type: "string" }

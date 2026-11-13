@@ -11,7 +11,7 @@ import {
 import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
-import { RelatedTransactionsList } from "../../components/RelatedTransactionsList";
+import { RelatedTransactionsList } from "../Transactions/components/RelatedTransactionsList";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";

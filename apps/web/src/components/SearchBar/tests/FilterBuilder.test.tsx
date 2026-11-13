@@ -1,12 +1,12 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders } from "../../tests/utils/renderWithProviders";
+import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import {
   createEmptyGroup,
   type DomainGroupNode,
   type SearchFieldConfig
-} from "../../utils/searchDomain";
+} from "../../../utils/searchDomain";
 import { FilterBuilder } from "../FilterBuilder";
 
 const stringField: SearchFieldConfig = {

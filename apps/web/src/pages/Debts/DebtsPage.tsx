@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchBarQuery } from "../../components/SearchBar";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
+import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
 import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
 import * as debtsClient from "../../services/debts.client";
@@ -200,20 +201,15 @@ export function DebtsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.user?.id, debts, highlightedDebtId, highlightedSettlementId, requestedTab]);
 
-  useEffect(() => {
-    const targetId = highlightedSettlementId
+  useScrollToHighlight(
+    highlightedSettlementId
       ? `settlement-${highlightedSettlementId}`
       : highlightedDebtId
         ? `debt-${highlightedDebtId}`
-        : null;
-    if (!targetId || debtsQuery.isLoading) return;
-
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(targetId)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-  }, [activeTab, debtsQuery.isLoading, highlightedDebtId, highlightedSettlementId]);
+        : null,
+    debtsQuery.isLoading,
+    activeTab
+  );
 
   return (
     <div className="grid gap-6">

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import type { SearchBarQuery } from "../components/SearchBar";
-import * as transactionsClient from "../services/transactions.client";
-import type { RelatedTransactionsScope } from "../types/transactions.types";
-import { usePagination } from "./usePagination";
+import type { SearchBarQuery } from "../../../components/SearchBar";
+import * as transactionsClient from "../../../services/transactions.client";
+import type { RelatedTransactionsScope } from "../../../types/transactions.types";
+import { usePagination } from "../../../hooks/usePagination";
 
 /** Default window size of a Related transactions tab. */
 const RELATED_TRANSACTIONS_DEFAULT_LIMIT = 20;

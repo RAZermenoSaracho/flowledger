@@ -2,9 +2,9 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import { server } from "../../tests/mocks/server";
-import { renderWithProviders } from "../../tests/utils/renderWithProviders";
-import type { Transaction } from "../../types/transactions.types";
+import { server } from "../../../../tests/mocks/server";
+import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
+import type { Transaction } from "../../../../types/transactions.types";
 import { RelatedTransactionsList } from "../RelatedTransactionsList";
 
 const API_URL = "http://localhost:4000";
