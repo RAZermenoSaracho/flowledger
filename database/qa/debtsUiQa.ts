@@ -227,7 +227,8 @@ async function status(app: App): Promise<void> {
     const personKey = s.owner === "razs" ? (counter?.userId ?? `participant:${counter?.id}`) : ids[s.owner];
     const url: Record<string, string | null | undefined> = {
       balance: personKey && `/debts/balances/${personKey}`, se: se && `/debts/shared-expenses/${se.id}`,
-      tx: tx && `/transactions/${tx.id}?tab=sharing`, pending: pending && `/debts?tab=pending&settlementId=${pending.id}`,
+      // Transactions are owner-scoped, so only the owning viewer can open one.
+      tx: tx && s.owner === (s.viewer ?? "razs") && `/transactions/${tx.id}?tab=sharing`, pending: pending && `/debts?tab=pending&settlementId=${pending.id}`,
       awaiting: se && `/debts?tab=awaiting&sharedExpenseId=${se.id}`, settled: debtId && `/debts?tab=settled&debtId=${debtId}` };
     const links = s.links.map((k) => (url[k] ? `[${k}](${BASE_URL}${url[k]})` : null)).filter(Boolean).join(" ");
     const cell = (t: string) => t.replace(/\|/g, "\\|");

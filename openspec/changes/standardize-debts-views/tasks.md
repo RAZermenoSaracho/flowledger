@@ -30,5 +30,5 @@
 ## 4. Validation and delivery
 
 - [x] 4.1 Run `npm run typecheck`, `npm run lint`, the web test suite, `npm run build` and `openspec validate standardize-debts-views --strict`. All must pass.
-- [ ] 4.2 Add `database/qa/debtsUiQa.ts`, an idempotent staging-only seed and cleanup for `[UI QA]` Debts records driven through the staging API, plus `docs/qa/DEBTS_UI_QA.md`, the manual QA guide with direct links. Verify that a second run creates nothing new.
-- [ ] 4.3 Commit, push, open a PR against `razs_ai`, deploy to staging, seed, and smoke-test every Debts view in the browser. Verify that all scenarios in the QA guide render without console errors.
+- [x] 4.2 Add `database/qa/debtsUiQa.ts`, an idempotent staging-only seed and cleanup for `[UI QA]` Debts records driven through the staging API, plus `docs/qa/DEBTS_UI_QA.md`, the manual QA guide with direct links. Verify that a second run creates nothing new.
+- [x] 4.3 Commit, push, open a PR against `razs_ai`, deploy to staging, seed, and smoke-test every Debts view in the browser. Verify that all scenarios in the QA guide render without console errors.
