@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { ListSelection } from "../../../../types/common.types";
@@ -22,7 +23,9 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
   };
 }
 
-function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequest {
+function makeRequest(
+  overrides: Partial<SettlementRequest> = {}
+): SettlementRequest {
   return {
     id: "sr-1",
     sharedExpenseParticipantId: "debt-1",
@@ -30,7 +33,12 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     creditorUserId: "user-1",
     amount: "50",
     status: "pending",
-    debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
+    debtor: {
+      id: "user-2",
+      username: "sam",
+      nickname: null,
+      displayName: "Sam"
+    },
     sharedExpenseParticipant: {
       sharedExpense: { title: "Dinner split", transaction: { type: "expense" } }
     } as unknown as Debt,
@@ -53,7 +61,9 @@ function makeSelection(selectedIds: string[] = []): ListSelection {
   };
 }
 
-function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> = {}) {
+function baseProps(
+  overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> = {}
+) {
   return {
     pendingFromMe: [],
     pendingForMe: [],
@@ -64,7 +74,12 @@ function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> 
     approvalSelection: makeSelection(),
     accounts: [makeAccount()],
     isActing: false,
-    approvalDraftFor: () => ({ accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" }),
+    approvalDraftFor: () => ({
+      accountAmount: "",
+      accountId: "",
+      categoryId: "",
+      expenseOffsetCategoryId: ""
+    }),
     onApprovalDraftChange: vi.fn(),
     incomeCategoryOptionsFor: (): Category[] => [],
     expenseOffsetCategoryOptionsFor: (): Category[] => [],
@@ -76,19 +91,38 @@ function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> 
 }
 
 describe("PendingRequestsTab", () => {
-  it("shows empty states for both columns when there's nothing pending", () => {
+  it("shows loading and the error in the selected list only", () => {
+    const { unmount } = renderWithProviders(
+      <PendingRequestsTab {...baseProps({ isLoading: true })} />
+    );
+    expect(screen.getAllByText("Loading...")).toHaveLength(1);
+    unmount();
+    renderWithProviders(
+      <PendingRequestsTab {...baseProps({ error: "Could not load debts." })} />
+    );
+    expect(screen.getAllByText("Could not load debts.")).toHaveLength(1);
+  });
+
+  it("shows each list's empty state in its own tab", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<PendingRequestsTab {...baseProps()} />);
     expect(screen.getByText("No outgoing requests.")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Awaiting my approval" }));
     expect(screen.getByText("No requests to review.")).toBeInTheDocument();
   });
 
-  it("shows 'No requests match your search.' for a non-empty-but-filtered-out column", () => {
+  it("shows 'No requests match your search.' for a non-empty-but-filtered-out list", () => {
     renderWithProviders(
       <PendingRequestsTab
-        {...baseProps({ pendingFromMe: [makeRequest()], visiblePendingFromMe: [] })}
+        {...baseProps({
+          pendingFromMe: [makeRequest()],
+          visiblePendingFromMe: []
+        })}
       />
     );
-    expect(screen.getByText("No requests match your search.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No requests match your search.")
+    ).toBeInTheDocument();
   });
 
   it("renders outgoing requests as plain (non-selectable) cards", () => {
@@ -111,17 +145,24 @@ describe("PendingRequestsTab", () => {
           pendingForMe: [makeRequest()],
           visiblePendingForMe: [makeRequest()]
         })}
-      />
+      />,
+      { route: "/?pending=forMe" }
     );
-    expect(screen.getByRole("checkbox", { name: "Select Dinner split" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Select Dinner split" })
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   });
 
-  it("shows 'visible of total' per list when a search filters rows", () => {
+  it("shows 'visible of total' for the selected list when a search filters rows", async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <PendingRequestsTab
         {...baseProps({
-          pendingFromMe: [makeRequest({ id: "sr-1" }), makeRequest({ id: "sr-3" })],
+          pendingFromMe: [
+            makeRequest({ id: "sr-1" }),
+            makeRequest({ id: "sr-3" })
+          ],
           visiblePendingFromMe: [makeRequest({ id: "sr-1" })],
           pendingForMe: [makeRequest({ id: "sr-2" })],
           visiblePendingForMe: [makeRequest({ id: "sr-2" })]
@@ -129,6 +170,7 @@ describe("PendingRequestsTab", () => {
       />
     );
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /Awaiting my approval/ }));
     expect(screen.getByText("1 record")).toBeInTheDocument();
   });
 
@@ -138,11 +180,17 @@ describe("PendingRequestsTab", () => {
       pendingForMe: [makeRequest()],
       visiblePendingForMe: [makeRequest()]
     });
-    renderWithProviders(<PendingRequestsTab {...props} />);
+    renderWithProviders(<PendingRequestsTab {...props} />, {
+      route: "/?pending=forMe"
+    });
 
-    await user.click(screen.getByRole("checkbox", { name: "Select Dinner split" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Select Dinner split" })
+    );
 
-    expect(props.approvalSelection.toggle).toHaveBeenCalledWith("sr-1", ["sr-1"]);
+    expect(props.approvalSelection.toggle).toHaveBeenCalledWith("sr-1", [
+      "sr-1"
+    ]);
   });
 
   it("'Select page' and the batch-approval button wire to their callbacks", async () => {
@@ -158,10 +206,15 @@ describe("PendingRequestsTab", () => {
         expenseOffsetCategoryId: ""
       })
     });
-    renderWithProviders(<PendingRequestsTab {...props} />);
+    renderWithProviders(<PendingRequestsTab {...props} />, {
+      route: "/?pending=forMe"
+    });
 
     await user.click(screen.getByRole("button", { name: "Select page" }));
-    expect(props.approvalSelection.setWindow).toHaveBeenCalledWith(["sr-1"], true);
+    expect(props.approvalSelection.setWindow).toHaveBeenCalledWith(
+      ["sr-1"],
+      true
+    );
 
     await user.click(screen.getByRole("button", { name: "Settle all" }));
     expect(props.onSubmitBatchApproval).toHaveBeenCalledWith([request]);
@@ -176,9 +229,12 @@ describe("PendingRequestsTab", () => {
           visiblePendingForMe: [request],
           approvalSelection: makeSelection(["sr-1"])
         })}
-      />
+      />,
+      { route: "/?pending=forMe" }
     );
-    expect(screen.getByRole("button", { name: "Settle selected" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Settle selected" })
+    ).toBeInTheDocument();
   });
 
   it("disables the batch button when not every batch request's draft is complete", () => {
@@ -188,9 +244,15 @@ describe("PendingRequestsTab", () => {
         {...baseProps({
           pendingForMe: [request],
           visiblePendingForMe: [request],
-          approvalDraftFor: () => ({ accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" })
+          approvalDraftFor: () => ({
+            accountAmount: "",
+            accountId: "",
+            categoryId: "",
+            expenseOffsetCategoryId: ""
+          })
         })}
-      />
+      />,
+      { route: "/?pending=forMe" }
     );
     expect(screen.getByRole("button", { name: "Settle all" })).toBeDisabled();
   });
@@ -201,10 +263,158 @@ describe("PendingRequestsTab", () => {
       pendingForMe: [makeRequest()],
       visiblePendingForMe: [makeRequest()]
     });
-    renderWithProviders(<PendingRequestsTab {...props} />);
+    renderWithProviders(<PendingRequestsTab {...props} />, {
+      route: "/?pending=forMe"
+    });
 
     await user.click(screen.getByRole("button", { name: "Reject" }));
 
     expect(props.onRejectSettlement).toHaveBeenCalledWith("sr-1");
+  });
+
+  describe("sub-tabs", () => {
+    const fromMe = makeRequest({
+      id: "sr-out",
+      sharedExpenseParticipant: {
+        sharedExpense: {
+          title: "Outgoing dinner",
+          transaction: { type: "expense" }
+        }
+      } as unknown as Debt
+    });
+    const forMe = makeRequest({
+      id: "sr-in",
+      sharedExpenseParticipant: {
+        sharedExpense: {
+          title: "Incoming lunch",
+          transaction: { type: "expense" }
+        }
+      } as unknown as Debt
+    });
+    const lists = {
+      pendingFromMe: [fromMe],
+      visiblePendingFromMe: [fromMe],
+      pendingForMe: [forMe],
+      visiblePendingForMe: [forMe]
+    };
+
+    function LocationProbe() {
+      return <span data-testid="search">{useLocation().search}</span>;
+    }
+
+    it("renders only the selected list, defaulting to Requests by me", () => {
+      renderWithProviders(<PendingRequestsTab {...baseProps(lists)} />);
+      expect(screen.getByText("Outgoing dinner")).toBeInTheDocument();
+      expect(screen.queryByText("Incoming lunch")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: /Requests by me/ })
+      ).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("switches tabs on click, updating pending= and keeping other params", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <>
+          <PendingRequestsTab {...baseProps(lists)} />
+          <LocationProbe />
+        </>,
+        { route: "/?tab=pending" }
+      );
+      await user.click(
+        screen.getByRole("tab", { name: /Awaiting my approval/ })
+      );
+      expect(screen.getByText("Incoming lunch")).toBeInTheDocument();
+      expect(screen.queryByText("Outgoing dinner")).not.toBeInTheDocument();
+      expect(screen.getByTestId("search")).toHaveTextContent(
+        "?tab=pending&pending=forMe"
+      );
+      await user.click(screen.getByRole("tab", { name: /Requests by me/ }));
+      expect(screen.getByTestId("search")).toHaveTextContent(
+        "?tab=pending&pending=byMe"
+      );
+    });
+
+    it("honors pending= from the URL and ignores invalid values", () => {
+      const { unmount } = renderWithProviders(
+        <PendingRequestsTab {...baseProps(lists)} />,
+        {
+          route: "/?pending=forMe"
+        }
+      );
+      expect(screen.getByText("Incoming lunch")).toBeInTheDocument();
+      unmount();
+      renderWithProviders(<PendingRequestsTab {...baseProps(lists)} />, {
+        route: "/?pending=nope"
+      });
+      expect(screen.getByText("Outgoing dinner")).toBeInTheDocument();
+    });
+
+    it("opens the tab containing the highlighted settlement", () => {
+      const { unmount } = renderWithProviders(
+        <PendingRequestsTab
+          {...baseProps({ ...lists, highlightedSettlementId: "sr-in" })}
+        />
+      );
+      expect(screen.getByText("Incoming lunch")).toBeInTheDocument();
+      unmount();
+      renderWithProviders(
+        <PendingRequestsTab
+          {...baseProps({ ...lists, highlightedSettlementId: "sr-out" })}
+        />
+      );
+      expect(screen.getByText("Outgoing dinner")).toBeInTheDocument();
+    });
+
+    it("shows a count badge per non-empty list", () => {
+      renderWithProviders(
+        <PendingRequestsTab
+          {...baseProps({
+            ...lists,
+            pendingForMe: [forMe, makeRequest({ id: "sr-in2" })]
+          })}
+        />
+      );
+      expect(
+        screen.getByRole("tab", { name: "Requests by me1" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Awaiting my approval2" })
+      ).toBeInTheDocument();
+    });
+
+    it("omits badges for empty lists", () => {
+      renderWithProviders(<PendingRequestsTab {...baseProps()} />);
+      expect(
+        screen.getByRole("tab", { name: "Requests by me" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Awaiting my approval" })
+      ).toBeInTheDocument();
+    });
+
+    it("clears the hidden list's search filter when its tab remounts", async () => {
+      const user = userEvent.setup();
+      const props = baseProps(lists);
+      renderWithProviders(<PendingRequestsTab {...props} />);
+      vi.mocked(props.onPendingForMeQueryChange).mockClear();
+      await user.click(
+        screen.getByRole("tab", { name: /Awaiting my approval/ })
+      );
+      expect(props.onPendingForMeQueryChange).toHaveBeenCalled();
+    });
+
+    it("filters through the search box of the selected list", async () => {
+      const user = userEvent.setup();
+      const props = baseProps(lists);
+      renderWithProviders(<PendingRequestsTab {...props} />);
+      await user.type(
+        screen.getByLabelText("Search requests by me"),
+        "din{Enter}"
+      );
+      const lastQuery = vi
+        .mocked(props.onPendingFromMeQueryChange)
+        .mock.calls.at(-1)![0];
+      expect(lastQuery.where).toBeDefined();
+    });
   });
 });

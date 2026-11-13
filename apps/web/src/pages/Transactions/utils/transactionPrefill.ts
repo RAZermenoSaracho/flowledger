@@ -14,16 +14,19 @@ export type TransactionPrefill = Partial<
     | "groupId"
     | "name"
     | "date"
+    | "isShared"
   >
 >;
 
 /**
  * Reads the whitelisted `/transactions/new` query params (`type`, `amount`, `currency`, `accountId`,
- * `categoryId`, `groupId`, `description`, `date`). Unknown params and invalid values are ignored,
+ * `categoryId`, `groupId`, `description`, `date`, `shared`). Unknown params and invalid values are ignored,
  * so the form opens with its default for them. `date` accepts what `dateStringSchema` accepts.
  */
 export function parseTransactionPrefill(params: URLSearchParams): TransactionPrefill {
   const prefill: TransactionPrefill = {};
+
+  if (params.get("shared") === "1") prefill.isShared = true;
 
   const type = params.get("type");
   const knownType = TRANSACTION_TYPES.find((item) => item === type);

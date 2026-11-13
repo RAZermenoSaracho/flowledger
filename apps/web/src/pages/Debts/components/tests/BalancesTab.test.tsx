@@ -29,6 +29,14 @@ function baseProps(overrides: Partial<Parameters<typeof BalancesTab>[0]> = {}) {
 }
 
 describe("BalancesTab", () => {
+  it("shows the list's loading state and error alert", () => {
+    const { unmount } = renderWithProviders(<BalancesTab {...baseProps({ balances: [], visibleBalances: [], isLoading: true })} />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<BalancesTab {...baseProps({ error: "Could not load debts." })} />);
+    expect(screen.getByText("Could not load debts.")).toBeInTheDocument();
+  });
+
   it("shows 'No outstanding balances.' when the list is empty", () => {
     renderWithProviders(<BalancesTab {...baseProps({ balances: [], visibleBalances: [] })} />);
     expect(screen.getByText("No outstanding balances.")).toBeInTheDocument();

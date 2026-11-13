@@ -157,6 +157,34 @@ describe("TransactionsPage", () => {
     );
   });
 
+  it("renders a mobile-hidden tablist and writes ?tab= on selection", async () => {
+    mockBaseline({
+      importedTransactions: [makeImportedTransaction()],
+      pendingCount: 1
+    });
+    const user = userEvent.setup();
+    function SearchProbe() {
+      return <span data-testid="search">{useLocation().search}</span>;
+    }
+    renderWithProviders(
+      <>
+        <TransactionsPage />
+        <SearchProbe />
+      </>,
+      { withAuth: true, route: "/transactions" }
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("tablist")).toHaveClass("hidden");
+    await user.click(
+      screen.getByRole("tab", { name: "Imported Transactions (1 pending)" })
+    );
+    expect(screen.getByTestId("search")).toHaveTextContent("tab=imported");
+    expect(screen.getByText("Coffee shop")).toBeInTheDocument();
+  });
+
   it("switches to the Imported Transactions tab, showing a pending-count badge", async () => {
     mockBaseline({
       importedTransactions: [makeImportedTransaction()],
@@ -169,7 +197,7 @@ describe("TransactionsPage", () => {
       expect(screen.getByText("Groceries")).toBeInTheDocument()
     );
     await user.click(
-      screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
+      screen.getByRole("tab", { name: "Imported Transactions (1 pending)" })
     );
 
     expect(screen.getByText("Coffee shop")).toBeInTheDocument();
@@ -189,7 +217,7 @@ describe("TransactionsPage", () => {
       expect(screen.getByText("Groceries")).toBeInTheDocument()
     );
     await user.click(
-      screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
+      screen.getByRole("tab", { name: "Imported Transactions (1 pending)" })
     );
 
     await waitFor(() =>
@@ -344,7 +372,7 @@ describe("TransactionsPage", () => {
       expect(screen.getByText("Groceries")).toBeInTheDocument()
     );
     await user.click(
-      screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
+      screen.getByRole("tab", { name: "Imported Transactions (1 pending)" })
     );
     await waitFor(() =>
       expect(screen.getByText("Coffee shop")).toBeInTheDocument()

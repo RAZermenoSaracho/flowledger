@@ -5,15 +5,13 @@ import type { SearchBarQuery } from "../../components/SearchBar";
 import { useAuth } from "../../hooks/useAuth";
 import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
 import * as sharedExpensesClient from "../../services/sharedExpenses.client";
-import { SharedExpenseFormCard } from "./components/SharedExpenseFormCard";
 import {
   sharedExpenseGroupKey,
   SharedExpensesListCard
 } from "./components/SharedExpensesListCard";
 import { groupByFields } from "../../utils/groupByFields";
-import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
 
-/** Shared expenses list page with search/filter/group controls and create/edit form. */
+/** Shared expenses list page with search/filter/group controls; rows open the Shared Expense view. */
 export function SharedExpensesPage() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();
@@ -22,8 +20,6 @@ export function SharedExpensesPage() {
   const [sharedExpenseQuery, setSharedExpenseQuery] = useState<SearchBarQuery>(
     {}
   );
-
-  const form = useSharedExpenseForm();
 
   const sharedExpensesQuery = useQuery({
     queryKey: ["shared-expenses", sharedExpenseQuery],
@@ -54,10 +50,8 @@ export function SharedExpensesPage() {
 
   return (
     <div className="grid gap-6">
-      <SharedExpenseFormCard form={form} />
       <SharedExpensesListCard
         onQueryChange={setSharedExpenseQuery}
-        onAddSharedExpense={() => form.setIsFormOpen(true)}
         sharedExpenses={visibleSharedExpenses}
         groupedSharedExpenses={groupedSharedExpenses}
         isLoading={sharedExpensesQuery.isLoading}
@@ -65,7 +59,6 @@ export function SharedExpensesPage() {
         highlightedSharedExpenseId={highlightedSharedExpenseId}
         highlightedParticipantId={highlightedParticipantId}
         currentUserId={auth.user?.id}
-        onEdit={form.editSharedExpense}
       />
     </div>
   );

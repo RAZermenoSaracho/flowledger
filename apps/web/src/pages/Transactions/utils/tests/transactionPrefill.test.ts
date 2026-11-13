@@ -29,6 +29,14 @@ describe("parseTransactionPrefill", () => {
     });
   });
 
+  it("enables sharing only for shared=1", () => {
+    expect(parse("shared=1")).toEqual({ isShared: true });
+  });
+
+  it.each(["0", "yes", "true"])("ignores shared=%s", (value) => {
+    expect(parse(`shared=${value}`)).toEqual({});
+  });
+
   it("ignores unknown params", () => {
     expect(parse("foo=bar&tab=sharing")).toEqual({});
   });

@@ -1,9 +1,8 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { SharedExpense } from "../../../../types/sharedExpenses.types";
-import { SharedExpenseListItem, splitDirectionLabel } from "../SharedExpenseListItem";
+import { SharedExpenseListItem } from "../SharedExpenseListItem";
 
 function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpense {
   return {
@@ -36,107 +35,6 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
   };
 }
 
-describe("splitDirectionLabel", () => {
-  it("labels an expense transaction as 'Participants owe you' for the owner", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({ transaction: { type: "expense" } as never }),
-        "user-1"
-      )
-    ).toBe("Participants owe you");
-  });
-
-  it("labels an income transaction as 'You owe participants' for the owner", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({ transaction: { type: "income" } as never }),
-        "user-1"
-      )
-    ).toBe("You owe participants");
-  });
-
-  it("labels an expense transaction as 'You owe {owner}' for a participant", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({ transaction: { type: "expense" } as never }),
-        "user-2"
-      )
-    ).toBe("You owe Jane (@jane)");
-  });
-
-  it("labels an income transaction as '{owner} owes you' for a participant", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({ transaction: { type: "income" } as never }),
-        "user-2"
-      )
-    ).toBe("Jane (@jane) owes you");
-  });
-
-  it("falls back to a generic 'the owner' when the owner's name isn't in the response", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({ transaction: { type: "expense" } as never, owner: undefined }),
-        "user-2"
-      )
-    ).toBe("You owe the owner");
-  });
-
-  it("falls back to 'No debt direction' with no transaction", () => {
-    expect(
-      splitDirectionLabel(makeSharedExpense({ transaction: undefined }), "user-1")
-    ).toBe("No debt direction");
-  });
-
-  it("switches to past tense for a settled expense, owner perspective", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({
-          status: "settled",
-          transaction: { type: "expense" } as never
-        }),
-        "user-1"
-      )
-    ).toBe("Participants owed you");
-  });
-
-  it("switches to past tense for a settled income split, owner perspective", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({
-          status: "settled",
-          transaction: { type: "income" } as never
-        }),
-        "user-1"
-      )
-    ).toBe("You owed participants");
-  });
-
-  it("switches to past tense for a settled expense, participant perspective", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({
-          status: "settled",
-          transaction: { type: "expense" } as never
-        }),
-        "user-2"
-      )
-    ).toBe("You owed Jane (@jane)");
-  });
-
-  it("switches to past tense for a settled income split, participant perspective", () => {
-    expect(
-      splitDirectionLabel(
-        makeSharedExpense({
-          status: "settled",
-          transaction: { type: "income" } as never
-        }),
-        "user-2"
-      )
-    ).toBe("Jane (@jane) owed you");
-  });
-});
-
 describe("SharedExpenseListItem", () => {
   it("renders title, status, split direction, and total amount", () => {
     renderWithProviders(
@@ -145,9 +43,7 @@ describe("SharedExpenseListItem", () => {
         isHighlighted={false}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        canEdit={false}
-        onEdit={vi.fn()}
-      />
+              />
     );
 
     expect(screen.getByText("Dinner split")).toBeInTheDocument();
@@ -162,9 +58,7 @@ describe("SharedExpenseListItem", () => {
         isHighlighted={false}
         highlightedParticipantId={null}
         currentUserId="user-2"
-        canEdit={false}
-        onEdit={vi.fn()}
-      />
+              />
     );
 
     expect(screen.getByText(/open · You owe Jane \(@jane\)/)).toBeInTheDocument();
@@ -177,9 +71,7 @@ describe("SharedExpenseListItem", () => {
         isHighlighted={false}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        canEdit={false}
-        onEdit={vi.fn()}
-      />
+              />
     );
 
     expect(screen.getByText(/settled · Participants owed you/)).toBeInTheDocument();
@@ -192,9 +84,7 @@ describe("SharedExpenseListItem", () => {
         isHighlighted={false}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        canEdit={false}
-        onEdit={vi.fn()}
-      />
+              />
     );
 
     expect(screen.getByText(/App user/)).toBeInTheDocument();
@@ -202,40 +92,17 @@ describe("SharedExpenseListItem", () => {
     expect(screen.getByText(/\$20\.00 settled of \$50\.00/)).toBeInTheDocument();
   });
 
-  it("shows an Edit action only when canEdit is true", async () => {
-    const onEdit = vi.fn();
-    const user = userEvent.setup();
+  it("links the card to the Shared Expense view", () => {
     renderWithProviders(
       <SharedExpenseListItem
         sharedExpense={makeSharedExpense()}
         isHighlighted={false}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        canEdit
-        onEdit={onEdit}
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Actions for Dinner split" }));
-    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-
-    expect(onEdit).toHaveBeenCalledOnce();
-  });
-
-  it("omits the actions menu when canEdit is false", () => {
-    renderWithProviders(
-      <SharedExpenseListItem
-        sharedExpense={makeSharedExpense()}
-        isHighlighted={false}
-        highlightedParticipantId={null}
-        currentUserId="user-1"
-        canEdit={false}
-        onEdit={vi.fn()}
-      />
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "Actions for Dinner split" })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/debts/shared-expenses/se-1");
+    expect(screen.queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
   });
 });

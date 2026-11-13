@@ -160,9 +160,15 @@ export type ListViewProps<T> = {
 
 /** Props of the controlled `Tabs` strip. `idPrefix` namespaces tab/panel ids (`${idPrefix}tab-${id}`) so several tab sets can share a page. */
 export type TabsProps = {
+  /** Accessible name for the tablist. */
+  label?: string;
   tabs: FormViewTab[];
   activeId: string;
   onSelect: (id: string) => void;
   idPrefix?: string;
   compact?: boolean;
+  /** "underline" (default) is the bordered strip; "buttons" renders shared `Button`s (primary when selected). */
+  variant?: "underline" | "buttons";
+  /** Hides the strip below `lg`; the tabpanel still renders at every size. */
+  desktopOnly?: boolean;
 };

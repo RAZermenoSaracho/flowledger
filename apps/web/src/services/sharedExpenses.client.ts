@@ -5,16 +5,6 @@ import type { SharedExpenseStatus } from "@flowledger/shared";
 
 export type { SortDirection };
 
-/** Participant payload shape for creating or updating a shared expense. */
-export type SharedExpenseParticipantInput = {
-  id?: string;
-  userId?: string | null;
-  participantName: string;
-  shareAmount: string;
-  paidAmount?: string;
-  status?: "pending" | "partial" | "paid";
-};
-
 /** The wire shape `GET /shared-expenses` accepts — see apps/api's shared-expenses read.service.ts. */
 export type SharedExpensesQuery = {
   where?: WhereNode;
@@ -28,31 +18,20 @@ export function listSharedExpenses(query: SharedExpensesQuery = {}) {
   });
 }
 
-/** Creates a shared expense from a transaction and its participant splits. */
-export function createSharedExpense(body: {
-  transactionId: string;
-  title: string;
-  status: SharedExpenseStatus;
-  participants: SharedExpenseParticipantInput[];
-}) {
-  return apiRequest<{ sharedExpense: SharedExpense }>("/shared-expenses", {
-    method: "POST",
-    body
-  });
+/** Fetches one shared expense the caller owns or participates in. */
+export function getSharedExpense(sharedExpenseId: string) {
+  return apiRequest<{ sharedExpense: SharedExpense }>(
+    `/shared-expenses/${encodeURIComponent(sharedExpenseId)}`
+  );
 }
 
-/** Updates a shared expense's fields and participant splits. */
+/** Updates the owner-editable fields of a shared expense; only the keys present are changed. */
 export function updateSharedExpense(
   sharedExpenseId: string,
-  body: {
-    transactionId: string;
-    title: string;
-    status: SharedExpenseStatus;
-    participants: SharedExpenseParticipantInput[];
-  }
+  body: { title?: string; status?: SharedExpenseStatus }
 ) {
   return apiRequest<{ sharedExpense: SharedExpense }>(
-    `/shared-expenses/${sharedExpenseId}`,
+    `/shared-expenses/${encodeURIComponent(sharedExpenseId)}`,
     { method: "PUT", body }
   );
 }

@@ -1,234 +1,52 @@
-import type { SharedExpenseStatus } from "@flowledger/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useFormDraft } from "../../../hooks/useFormDraft";
 import * as sharedExpensesClient from "../../../services/sharedExpenses.client";
-import { listTransactions } from "../../../services/transactions.client";
-import { searchUsers } from "../../../services/users.client";
+import type { FormErrors } from "../../../types/common.types";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
-import type { PublicUser } from "../../../types/users.types";
-import type { ParticipantDraft } from "../types/sharedExpenses.types";
-import { compare, isNonZero, subtract, sum } from "../../../utils/money";
-import { formatPublicUser } from "../../../utils/publicUser";
+import type { SharedExpenseDraft } from "../types/sharedExpenses.types";
 
-function participantStatus(
-  shareAmount: string,
-  paidAmount: string,
-  currency: string
-): "pending" | "partial" | "paid" {
-  if (compare(paidAmount, shareAmount, currency) >= 0) return "paid";
-  if (isNonZero(paidAmount)) return "partial";
-  return "pending";
+const TITLE_MAX_LENGTH = 160;
+
+function validate(values: SharedExpenseDraft): FormErrors {
+  const title = values.title.trim();
+  if (!title) return { title: "Title is required" };
+  if (title.length > TITLE_MAX_LENGTH)
+    return { title: `Title must be at most ${TITLE_MAX_LENGTH} characters` };
+  return {};
 }
 
-/** State and handlers for the create/edit shared-expense form, including participant draft management. */
-export function useSharedExpenseForm() {
+/**
+ * Shared-expense adapter over `useFormDraft`: `initial` comes from the record (`null` while it
+ * loads), `save` sends one `PUT /shared-expenses/:id` with the changed keys only and then
+ * invalidates every query a title or status change can reach.
+ */
+export function useSharedExpenseForm(sharedExpense: SharedExpense | null) {
   const queryClient = useQueryClient();
-  const [transactionId, setTransactionId] = useState("");
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<SharedExpenseStatus>("open");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [participantName, setParticipantName] = useState("");
-  const [userSearch, setUserSearch] = useState("");
-  const [participants, setParticipants] = useState<ParticipantDraft[]>([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const trimmedUserSearch = userSearch.trim();
 
-  const transactionsQuery = useQuery({
-    queryKey: ["transactions", "shared-options"],
-    queryFn: async () => (await listTransactions()).data
-  });
-  const userSearchQuery = useQuery({
-    queryKey: ["users", "search", trimmedUserSearch],
-    enabled: trimmedUserSearch.length >= 3,
-    queryFn: async () => (await searchUsers(trimmedUserSearch)).users
-  });
-  const selectedTransaction = (transactionsQuery.data ?? []).find(
-    (transaction) => transaction.id === transactionId
+  const initial = useMemo<SharedExpenseDraft | null>(
+    () =>
+      sharedExpense && {
+        title: sharedExpense.title,
+        status: sharedExpense.status
+      },
+    [sharedExpense]
   );
-  const currency = selectedTransaction?.executionCurrency ?? "USD";
-  const participantShareTotal = sum(
-    participants.map((participant) => participant.shareAmount),
-    currency
-  );
-  const sharesExceedTransactionAmount = Boolean(
-    selectedTransaction && compare(participantShareTotal, selectedTransaction.amount, currency) > 0
-  );
-  const remainingAmount = selectedTransaction
-    ? subtract(selectedTransaction.amount, participantShareTotal, currency)
-    : "0";
-  const participantInputs = () =>
-    participants.map((participant) => {
-      const paidAmount = participant.paidAmount.trim() || "0";
-      return {
-        userId: participant.userId ?? null,
-        participantName: participant.participantName,
-        shareAmount: participant.shareAmount.trim(),
-        paidAmount,
-        status: participantStatus(participant.shareAmount.trim() || "0", paidAmount, currency)
-      };
-    });
 
-  async function refreshAfterSave() {
-    closeForm();
-    await queryClient.invalidateQueries({ queryKey: ["shared-expenses"] });
-    await queryClient.invalidateQueries({ queryKey: ["debts"] });
-    await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-  }
-
-  const createSharedExpense = useMutation({
-    mutationFn: () =>
-      sharedExpensesClient.createSharedExpense({
-        transactionId,
-        title,
-        status,
-        participants: participantInputs()
-      }),
-    onSuccess: refreshAfterSave
-  });
-  const updateSharedExpense = useMutation({
-    mutationFn: () =>
-      sharedExpensesClient.updateSharedExpense(editingId!, {
-        transactionId,
-        title,
-        status,
-        participants: participantInputs()
-      }),
-    onSuccess: refreshAfterSave
-  });
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (editingId) {
-      await updateSharedExpense.mutateAsync();
-      return;
+  return useFormDraft<SharedExpenseDraft>({
+    initial,
+    validate,
+    save: async (values, changedKeys) => {
+      if (!sharedExpense) return;
+      const body: Parameters<typeof sharedExpensesClient.updateSharedExpense>[1] = {};
+      if (changedKeys.includes("title")) body.title = values.title.trim();
+      if (changedKeys.includes("status")) body.status = values.status;
+      await sharedExpensesClient.updateSharedExpense(sharedExpense.id, body);
+      await Promise.all(
+        ["shared-expenses", "shared-expense", "debts", "transactions", "notifications"].map(
+          (key) => queryClient.invalidateQueries({ queryKey: [key] })
+        )
+      );
     }
-
-    await createSharedExpense.mutateAsync();
-  }
-
-  function closeForm() {
-    setTransactionId("");
-    setTitle("");
-    setStatus("open");
-    setEditingId(null);
-    setParticipantName("");
-    setUserSearch("");
-    setParticipants([]);
-    setIsFormOpen(false);
-  }
-
-  function addManualParticipant() {
-    const name = participantName.trim();
-    if (!name) return;
-
-    setParticipants((current) => [
-      ...current,
-      {
-        draftId: crypto.randomUUID(),
-        participantName: name,
-        source: "manual",
-        shareAmount: "",
-        paidAmount: "0"
-      }
-    ]);
-    setParticipantName("");
-  }
-
-  function addUserParticipant(user: PublicUser) {
-    setParticipants((current) => {
-      if (current.some((participant) => participant.userId === user.id)) {
-        return current;
-      }
-
-      return [
-        ...current,
-        {
-          draftId: crypto.randomUUID(),
-          userId: user.id,
-          participantName: formatPublicUser(user),
-          source: "app",
-          shareAmount: "",
-          paidAmount: "0"
-        }
-      ];
-    });
-    setUserSearch("");
-  }
-
-  function updateParticipant(
-    draftId: string,
-    field: "shareAmount" | "paidAmount",
-    value: string
-  ) {
-    setParticipants((current) =>
-      current.map((participant) =>
-        participant.draftId === draftId
-          ? { ...participant, [field]: value }
-          : participant
-      )
-    );
-  }
-
-  function removeParticipant(draftId: string) {
-    setParticipants((current) =>
-      current.filter((participant) => participant.draftId !== draftId)
-    );
-  }
-
-  function editSharedExpense(sharedExpense: SharedExpense) {
-    setTransactionId(sharedExpense.transactionId);
-    setTitle(sharedExpense.title);
-    setStatus(sharedExpense.status);
-    setEditingId(sharedExpense.id);
-    setParticipantName("");
-    setUserSearch("");
-    setParticipants(
-      sharedExpense.participants.map((participant) => ({
-        draftId: participant.id,
-        userId: participant.userId,
-        participantName: participant.participantName,
-        source: participant.userId ? "app" : "manual",
-        shareAmount: participant.shareAmount,
-        paidAmount: participant.paidAmount
-      }))
-    );
-    setIsFormOpen(true);
-  }
-
-  const isSaving =
-    createSharedExpense.isPending || updateSharedExpense.isPending;
-
-  return {
-    transactionId,
-    setTransactionId,
-    title,
-    setTitle,
-    status,
-    setStatus,
-    editingId,
-    participantName,
-    setParticipantName,
-    userSearch,
-    setUserSearch,
-    trimmedUserSearch,
-    participants,
-    isFormOpen,
-    setIsFormOpen,
-    transactionsQuery,
-    userSearchQuery,
-    selectedTransaction,
-    participantShareTotal,
-    remainingAmount,
-    sharesExceedTransactionAmount,
-    createSharedExpense,
-    updateSharedExpense,
-    submit,
-    closeForm,
-    addManualParticipant,
-    addUserParticipant,
-    updateParticipant,
-    removeParticipant,
-    editSharedExpense,
-    isSaving
-  };
+  });
 }

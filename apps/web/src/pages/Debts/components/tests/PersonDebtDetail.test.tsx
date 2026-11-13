@@ -117,9 +117,9 @@ function baseProps(overrides: Partial<Parameters<typeof PersonDebtDetail>[0]> = 
 }
 
 describe("PersonDebtDetail", () => {
-  it("renders the person's name, net balance, and they-owe-me/I-owe-them totals", () => {
+  it("renders the net balance (the name lives in the page title), and they-owe-me/I-owe-them totals", () => {
     renderWithProviders(<PersonDebtDetail {...baseProps()} />);
-    expect(screen.getByText("Sam (@sam)")).toBeInTheDocument();
+    expect(screen.queryByText("Sam (@sam)")).not.toBeInTheDocument();
     expect(screen.getByText("Net balance $60.00")).toBeInTheDocument();
     expect(screen.getByText("They Owe Me")).toBeInTheDocument();
     expect(screen.getByText("I Owe Them")).toBeInTheDocument();

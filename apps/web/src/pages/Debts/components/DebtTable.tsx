@@ -42,10 +42,12 @@ export function DebtTable({
           variant="secondary"
           className="min-h-8 px-3 py-1 text-xs"
           disabled={selectableDebts.length === 0}
-          onClick={() => selection.setWindow(
+          onClick={() =>
+            selection.setWindow(
               selectableDebts.map((debt) => debt.id),
               !allSelected
-            )}
+            )
+          }
         >
           {allSelected ? "Clear Selection" : "Select All"}
         </Button>
@@ -90,7 +92,12 @@ export function DebtTable({
                         className="h-4 w-4 rounded border-slate-300 text-pine focus:ring-mint disabled:opacity-50 dark:border-slate-700"
                         checked={selection.isSelected(debt.id)}
                         disabled={!isSelectable}
-                        onChange={() => selection.toggle(debt.id)}
+                        onChange={() =>
+                          selection.toggle(
+                            debt.id,
+                            debts.map((row) => row.id)
+                          )
+                        }
                         aria-label={`Select ${debtTitle(debt)}`}
                       />
                     </td>
