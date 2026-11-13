@@ -42,9 +42,9 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-006 | Account Form View | High | ST-005 | Completed | None |
 | ST-007 | Transaction Form View | Medium | ST-005 | Completed | None |
 | ST-008 | Personal Financial Metrics | Medium | None | Completed | None |
-| ST-010 | Notification processing models (sandboxed Python) | Medium | ST-005 | Planned | None |
-| ST-011 | Asynchronous notification ingestion endpoint | Medium | ST-010 | Planned | None |
-| ST-032 | Community notification model library and versioning | Medium | ST-010 | Planned | None |
+| ST-010 | Notification processing models (sandboxed Python) | Medium | ST-005 | In review (PR #52) | None |
+| ST-011 | Asynchronous notification ingestion endpoint | Medium | ST-010 | In review (PR #52) | None |
+| ST-032 | Community notification model library and versioning | Medium | ST-010 | In review (PR #52) | None |
 | ST-013 | Credit-card limit and available credit | Medium | ST-006 | Planned | None |
 | ST-014 | Credit-card statements, payment tracking, and reminders | Medium | ST-013, ST-007, ST-023 | Planned | None |
 | ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Planned | None |
@@ -817,7 +817,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-004 | ST-005, ST-006, ST-007, ST-003, ST-024, ST-008 | Odoo-inspired directly-editable Form View with tabs and `RelatedList`, Profile, then Account, Transaction (with prefilled drafts, Details/Sharing/Related tabs, atomic save), convert and edit shared transactions with participant consent, blocking, public usernames and universal invitations (one migration, owned by ST-003), Group views with card overview, and Financial overview counting accepted shares only, all in one PR | S-001 to S-005 (sequencing only) | XL (grew with consent, blocking, and public identity) | Completed (PR #40, deployed 2026-11-12; also shipped: Form View tabs General/Transactions, Group category cards and create modal, server-side pagination through `createSieve`, immutable settled allocations with extra allocation lines, MCP OAuth for Meta AI Muse (hosted client document) and Grok, and per-client AI connection guide) |
 | B-005 | None | Retired; ST-008 was absorbed into B-004 | None | n/a | Retired |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Completed (PR #44, deployed 2026-11-12. Also shipped: a unified `Decimal(38,18)` money model with exact decimal-string API/MCP contracts; crypto Sharing and settlements with exact largest-remainder splits; per-currency group summaries; the account currency lock (#013); and the `TransactionCorrection` audit. Production kept its 24 transactions via the idempotent fill.) |
-| B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Planned |
+| B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | In review (PR #52) |
 | B-008 | ST-013, ST-014 | Credit-card limit, available credit, statements, payments with their accounting, and reminders | B-004, B-006 | XL | Planned |
 | B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Planned |
 | B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
