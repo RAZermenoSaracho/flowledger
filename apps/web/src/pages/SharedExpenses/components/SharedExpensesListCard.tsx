@@ -1,6 +1,8 @@
+import { useNavigate } from "react-router-dom";
 import { AddRecordButton } from "../../../components/AddRecordButton";
 import { ListView } from "../../../components/ListView";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
+import { routes } from "../../../constants/routes";
 import type { ListGroup } from "../../../types/common.types";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import {
@@ -24,21 +26,18 @@ export function sharedExpenseGroupKey(
 
 const sharedExpenseSearchFields = buildSharedExpenseSearchFields();
 
-/** Search/filter/group/sort controls and list container for shared expenses. */
+/** Search/filter/group/sort controls and list container for shared expenses. "Add shared expense" opens a new-transaction draft on its Sharing tab. */
 export function SharedExpensesListCard({
   onQueryChange,
-  onAddSharedExpense,
   sharedExpenses,
   groupedSharedExpenses,
   isLoading,
   error,
   highlightedSharedExpenseId,
   highlightedParticipantId,
-  currentUserId,
-  onEdit
+  currentUserId
 }: {
   onQueryChange: (query: SearchBarQuery) => void;
-  onAddSharedExpense: () => void;
   sharedExpenses: SharedExpense[];
   groupedSharedExpenses?: ListGroup<SharedExpense>[];
   isLoading?: boolean;
@@ -46,13 +45,22 @@ export function SharedExpensesListCard({
   highlightedSharedExpenseId: string | null;
   highlightedParticipantId: string | null;
   currentUserId: string | undefined;
-  onEdit: (sharedExpense: SharedExpense) => void;
 }) {
+  const navigate = useNavigate();
+
   return (
     <ListView
       title="Shared expenses"
+      subtitle="Open a shared expense to edit it. To share an existing transaction, open it and use its Sharing tab."
       actions={
-        <AddRecordButton label="shared expense" onClick={onAddSharedExpense} />
+        <AddRecordButton
+          label="shared expense"
+          onClick={() =>
+            navigate(`${routes.newTransaction}?shared=1&tab=sharing`, {
+              state: { from: `${routes.debts}?tab=sharedExpenses` }
+            })
+          }
+        />
       }
       toolbar={
         <SearchBar
@@ -74,8 +82,6 @@ export function SharedExpensesListCard({
           isHighlighted={highlightedSharedExpenseId === sharedExpense.id}
           highlightedParticipantId={highlightedParticipantId}
           currentUserId={currentUserId}
-          canEdit={sharedExpense.ownerUserId === currentUserId}
-          onEdit={() => onEdit(sharedExpense)}
         />
       )}
       isLoading={isLoading}

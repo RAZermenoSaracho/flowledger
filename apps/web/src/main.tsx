@@ -15,6 +15,7 @@ import { CategoriesPage } from "./pages/Categories/CategoriesPage";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { DebtsPage } from "./pages/Debts/DebtsPage";
 import { PersonDebtDetailPage } from "./pages/Debts/PersonDebtDetailPage";
+import { SharedExpenseDetailPage } from "./pages/SharedExpenses/SharedExpenseDetailPage";
 import { LoginPage } from "./pages/Login/LoginPage";
 import { GroupDetailPage } from "./pages/Groups/GroupDetailPage";
 import { GroupsPage } from "./pages/Groups/GroupsPage";
@@ -85,6 +86,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route
                   path="/debts/balances/:personKey"
                   element={<PersonDebtDetailPage />}
+                />
+                <Route
+                  path="/debts/shared-expenses/:id"
+                  element={<SharedExpenseDetailPage />}
                 />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route

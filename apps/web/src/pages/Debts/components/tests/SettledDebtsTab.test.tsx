@@ -35,6 +35,15 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
 }
 
 describe("SettledDebtsTab", () => {
+  it("shows the list's loading state and error alert", () => {
+    const props = { settledDebts: [], visibleSettledDebts: [], onSettledQueryChange: vi.fn() };
+    const { unmount } = renderWithProviders(<SettledDebtsTab {...props} isLoading />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<SettledDebtsTab {...props} error="Could not load debts." />);
+    expect(screen.getByText("Could not load debts.")).toBeInTheDocument();
+  });
+
   it("shows 'No settled debts yet.' when the underlying list is empty", () => {
     renderWithProviders(
       <SettledDebtsTab

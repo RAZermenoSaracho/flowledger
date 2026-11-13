@@ -1,5 +1,4 @@
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
@@ -33,55 +32,16 @@ function mockBaseline(sharedExpenses: SharedExpense[] = []) {
 }
 
 describe("SharedExpensesPage", () => {
-  it("renders the list card and keeps the form card closed by default", async () => {
+  it("renders the list with rows linking to the Shared Expense view and no inline form", async () => {
     mockBaseline([makeSharedExpense()]);
     renderWithProviders(<SharedExpensesPage />, { withAuth: true });
 
     await waitFor(() => expect(screen.getByText("Dinner split")).toBeInTheDocument());
-    expect(screen.queryByText("New shared expense")).not.toBeInTheDocument();
-  });
-
-  it("opens the create form via the AddRecordButton", async () => {
-    mockBaseline([]);
-    const user = userEvent.setup();
-    renderWithProviders(<SharedExpensesPage />, { withAuth: true });
-
-    await waitFor(() => expect(screen.getByText("No shared expenses found.")).toBeInTheDocument());
-    await user.click(screen.getAllByRole("button", { name: "Add shared expense" })[0]!);
-
-    expect(screen.getByText("New shared expense")).toBeInTheDocument();
-  });
-
-  it("opens the edit form pre-filled when editing an owned shared expense", async () => {
-    mockBaseline([makeSharedExpense({ title: "Dinner split", ownerUserId: "user-1" })]);
-    server.use(
-      http.post(`${API_URL}/auth/refresh`, () =>
-        HttpResponse.json({
-          token: "tok",
-          user: {
-            id: "user-1",
-            name: "Jane",
-            email: "jane@example.com",
-            planType: "free",
-            mobileSidebarSide: "left",
-            createdAt: "2024-01-01T00:00:00.000Z",
-            updatedAt: "2024-01-01T00:00:00.000Z"
-          }
-        })
-      )
+    expect(screen.getByRole("link", { name: /Dinner split/ })).toHaveAttribute(
+      "href",
+      "/debts/shared-expenses/se-1"
     );
-    const user = userEvent.setup();
-    renderWithProviders(<SharedExpensesPage />, {
-      withAuth: true,
-      route: "/shared-expenses"
-    });
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Actions for Dinner split" })).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Actions for Dinner split" }));
-    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-
-    expect(screen.getByText("Edit shared expense")).toBeInTheDocument();
-    expect(screen.getByLabelText("Title")).toHaveValue("Dinner split");
+    expect(screen.queryByText("New shared expense")).not.toBeInTheDocument();
   });
 
   it("scrolls the highlighted shared expense into view when sharedExpenseId is in the URL", async () => {

@@ -80,7 +80,16 @@ describe("DebtTable", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Select Dinner split" }));
 
-    expect(props.selection.toggle).toHaveBeenCalledWith("debt-1");
+    expect(props.selection.toggle).toHaveBeenCalledWith("debt-1", ["debt-1"]);
+  });
+
+  it("passes every visible row id as the toggle window", async () => {
+    const props = baseProps({ debts: [makeDebt({ id: "a" }), makeDebt({ id: "b" })] });
+    renderWithProviders(<DebtTable {...props} />);
+
+    await userEvent.click(screen.getAllByRole("checkbox")[1]!);
+
+    expect(props.selection.toggle).toHaveBeenCalledWith("b", ["a", "b"]);
   });
 
   it("disables a debt's checkbox when it isn't in selectableDebts", () => {

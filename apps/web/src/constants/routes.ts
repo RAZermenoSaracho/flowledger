@@ -15,6 +15,7 @@ export const routes = {
   group: (id: string) => `/groups/${id}`,
   reports: "/reports",
   debts: "/debts",
+  sharedExpense: (id: string) => `/debts/shared-expenses/${id}`,
   profile: "/profile",
   developer: "/profile/developer"
 } as const;

@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { SharedExpense } from "../../../../types/sharedExpenses.types";
@@ -23,6 +24,11 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
   };
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <p data-testid="location">{location.pathname + location.search}</p>;
+}
+
 describe("sharedExpenseGroupKey", () => {
   it("groups by status", () => {
     expect(sharedExpenseGroupKey(makeSharedExpense({ status: "settled" }), "status")).toEqual({
@@ -41,12 +47,10 @@ describe("SharedExpensesListCard", () => {
     renderWithProviders(
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
-        onAddSharedExpense={vi.fn()}
         sharedExpenses={[]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        onEdit={vi.fn()}
       />
     );
 
@@ -56,79 +60,69 @@ describe("SharedExpensesListCard", () => {
     expect(screen.getByLabelText("Search shared expenses")).toBeInTheDocument();
   });
 
-  it("calls onAddSharedExpense when the add button is clicked", async () => {
+  it("opens a new shared transaction draft when the add button is clicked", async () => {
     const user = userEvent.setup();
-    const onAddSharedExpense = vi.fn();
     renderWithProviders(
-      <SharedExpensesListCard
-        onQueryChange={vi.fn()}
-        onAddSharedExpense={onAddSharedExpense}
-        sharedExpenses={[]}
-        highlightedSharedExpenseId={null}
-        highlightedParticipantId={null}
-        currentUserId="user-1"
-        onEdit={vi.fn()}
-      />
+      <>
+        <SharedExpensesListCard
+          onQueryChange={vi.fn()}
+          sharedExpenses={[]}
+          highlightedSharedExpenseId={null}
+          highlightedParticipantId={null}
+          currentUserId="user-1"
+        />
+        <LocationProbe />
+      </>
     );
 
     await user.click(screen.getAllByRole("button", { name: "Add shared expense" })[0]!);
 
-    expect(onAddSharedExpense).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("location")).toHaveTextContent("/transactions/new?shared=1&tab=sharing");
   });
 
   it("shows 'No shared expenses found.' when the list is empty", () => {
     renderWithProviders(
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
-        onAddSharedExpense={vi.fn()}
         sharedExpenses={[]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        onEdit={vi.fn()}
       />
     );
 
     expect(screen.getByText("No shared expenses found.")).toBeInTheDocument();
   });
 
-  it("renders grouped sections with headers and list items, gating edit access by ownerUserId", async () => {
-    const onEdit = vi.fn();
-    const user = userEvent.setup();
+  it("renders grouped sections with headers and rows linking to the Shared Expense view", () => {
     const owned = makeSharedExpense({ id: "se-1", title: "Owned", ownerUserId: "user-1" });
     const notOwned = makeSharedExpense({ id: "se-2", title: "Not owned", ownerUserId: "user-2" });
     renderWithProviders(
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
-        onAddSharedExpense={vi.fn()}
         sharedExpenses={[owned, notOwned]}
         groupedSharedExpenses={[{ key: "open", label: "open", items: [owned, notOwned] }]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
-        onEdit={onEdit}
       />
     );
 
     expect(screen.getByRole("heading", { level: 3, name: "open" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Actions for Owned" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Actions for Not owned" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Actions for Owned" }));
-    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-
-    expect(onEdit).toHaveBeenCalledWith(owned);
+    expect(screen.getByRole("link", { name: /Not owned/ })).toHaveAttribute(
+      "href",
+      "/debts/shared-expenses/se-2"
+    );
+    expect(screen.queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
   });
 
   it("shows loading and error states instead of the empty text", () => {
     const base = {
       onQueryChange: vi.fn(),
-      onAddSharedExpense: vi.fn(),
       sharedExpenses: [],
       highlightedSharedExpenseId: null,
       highlightedParticipantId: null,
-      currentUserId: "user-1",
-      onEdit: vi.fn()
+      currentUserId: "user-1"
     };
     const { rerender } = renderWithProviders(<SharedExpensesListCard {...base} isLoading />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();

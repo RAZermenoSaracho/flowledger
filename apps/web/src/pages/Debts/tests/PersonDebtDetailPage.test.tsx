@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -138,9 +139,114 @@ describe("PersonDebtDetailPage", () => {
     renderPage("/debts/balances/user-2");
 
     await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
-    expect(screen.getByText("Back to balances").closest("a")).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Sam (@sam)" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to balances" })).toHaveAttribute(
       "href",
       "/debts?tab=balances"
     );
+  });
+
+  it("renders the back link, title and both debt tables inside a single card", async () => {
+    mockBaseline();
+    const { container } = renderPage("/debts/balances/user-2");
+
+    await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
+    const card = screen.getByRole("link", { name: "Back to balances" }).closest(".rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByRole("heading", { name: "Sam (@sam)" })).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText("They owe me")).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText("I owe them")).toBeInTheDocument();
+    expect(container.querySelectorAll(".rounded-lg.border.bg-white")).toHaveLength(1);
+  });
+
+  it("keeps the back arrow while loading and when the balance is not found", async () => {
+    mockBaseline();
+    renderPage("/debts/balances/no-such-person");
+
+    expect(screen.getByRole("link", { name: "Back to balances" })).toBeInTheDocument();
+    await screen.findByText("This balance is no longer outstanding, or could not be found.");
+    expect(screen.getByRole("link", { name: "Back to balances" })).toHaveAttribute(
+      "href",
+      "/debts?tab=balances"
+    );
+  });
+
+  describe("settling what I owe", () => {
+    const owed = makeDebt({
+      id: "debt-9",
+      debtorUserId: "user-1",
+      creditorUserId: "user-2",
+      userId: "user-1"
+    });
+    const response = makeDebtsResponse({
+      owedToMe: [],
+      iOwe: [owed],
+      balances: [
+        {
+          key: "user-2",
+          person: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
+          fallbackName: "Sam",
+          theyOweMe: [],
+          iOweThem: [owed],
+          theyOweMeTotal: 0,
+          iOweThemTotal: 60,
+          netBalance: -60
+        }
+      ]
+    });
+
+    function mockSettlementData() {
+      mockBaseline(response);
+      server.use(
+        http.get(`${API_URL}/accounts`, () =>
+          HttpResponse.json({
+            accounts: [{ id: "acc-1", name: "Checking", currency: "USD", type: "checking", balance: 0 }]
+          })
+        ),
+        http.get(`${API_URL}/categories`, () =>
+          HttpResponse.json({
+            categories: [{ id: "cat-1", name: "Food", type: "expense", groupId: null }]
+          })
+        )
+      );
+    }
+
+    it("submits a single settlement request", async () => {
+      mockSettlementData();
+      const bodies: unknown[] = [];
+      server.use(
+        http.post(`${API_URL}/debts/debt-9/settlement-request`, async ({ request }) => {
+          bodies.push(await request.json());
+          return HttpResponse.json({ settlementRequest: {} });
+        })
+      );
+      renderPage("/debts/balances/user-2");
+
+      await waitFor(() => expect(screen.getByLabelText("Account")).toHaveValue("acc-1"));
+      await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+      await userEvent.click(screen.getByRole("button", { name: "Request settlement" }));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toMatchObject({ amount: "60.00", accountId: "acc-1", categoryId: "cat-1" });
+    });
+
+    it("submits the selected debts as a batch", async () => {
+      mockSettlementData();
+      const bodies: unknown[] = [];
+      server.use(
+        http.post(`${API_URL}/debts/settlement-requests/batch`, async ({ request }) => {
+          bodies.push(await request.json());
+          return HttpResponse.json({ settlementRequests: [] });
+        })
+      );
+      renderPage("/debts/balances/user-2");
+
+      await waitFor(() => expect(screen.getByLabelText("Category")).toHaveValue("cat-1"));
+      await userEvent.click(screen.getByRole("checkbox", { name: /^Select / }));
+      await userEvent.click(screen.getByRole("button", { name: "Request Selected" }));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toMatchObject({ requests: [{ debtId: "debt-9", accountId: "acc-1", categoryId: "cat-1" }] });
+    });
   });
 });

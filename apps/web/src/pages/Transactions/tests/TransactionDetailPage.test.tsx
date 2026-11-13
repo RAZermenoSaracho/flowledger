@@ -180,13 +180,13 @@ function mockPost(response: () => Response) {
   return state;
 }
 
-function renderPage(entry = "/transactions/tx-1") {
+function renderPage(entry = "/transactions/tx-1", state?: unknown) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}>
+      <MemoryRouter initialEntries={[{ pathname: entry.split("?")[0], search: entry.includes("?") ? `?${entry.split("?")[1]}` : "", state }]}>
         <AuthProvider>
           <Routes>
             <Route
@@ -276,6 +276,23 @@ describe("TransactionDetailPage (existing transaction)", () => {
     vi.restoreAllMocks();
     process.env.TZ = originalTz;
   });
+
+  it.each(["/debts", "/groups/group-1?tab=debts"])("uses the safe back origin %s", async (from) => {
+    mockBaseline();
+    renderPage("/transactions/tx-1", { from });
+    await loaded();
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", from);
+  });
+
+  it.each([undefined, { from: "//evil.com" }, { from: "https://x" }])(
+    "falls back for router state %j",
+    async (state) => {
+      mockBaseline();
+      renderPage("/transactions/tx-1", state);
+      await loaded();
+      expect(screen.getByRole("link", { name: "Back to transactions" })).toHaveAttribute("href", "/transactions");
+    }
+  );
 
   it("shows a loading message before the transaction loads", () => {
     mockBaseline();
@@ -1183,6 +1200,41 @@ describe("TransactionDetailPage (new draft)", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(saveButton()).toBeDisabled();
     expect(post.calls).toBe(0);
+  });
+
+  it("opens the Sharing tab with shared=1 and blocks an invalid shared draft", async () => {
+    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const user = userEvent.setup();
+    mockBaseline();
+    renderPage("/transactions/new?shared=1&tab=sharing");
+    expect(await screen.findByRole("checkbox", { name: "Shared transaction" })).toBeChecked();
+    expect(screen.getByRole("tab", { name: "Sharing" })).toHaveAttribute("aria-selected", "true");
+    await user.click(saveButton());
+    expect(await screen.findByText("Add at least one participant to share this transaction")).toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+    expect(post.calls).toBe(0);
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await user.type(screen.getByLabelText("Name"), "Dinner");
+    await user.type(screen.getByLabelText("Amount"), "10");
+    expect(saveButton()).toBeDisabled();
+    await user.click(screen.getByRole("tab", { name: "Sharing" }));
+    await user.type(screen.getByLabelText("Manual participant"), "Pat");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Share"), "5");
+    expect(saveButton()).toBeEnabled();
+    expect(post.calls).toBe(0);
+  });
+
+  it("preserves the origin after creating a transaction", async () => {
+    mockBaseline();
+    const post = mockPost(() => HttpResponse.json({ transaction: makeTransaction() }));
+    const user = userEvent.setup();
+    renderPage("/transactions/new?description=Dinner&amount=10", { from: "/debts" });
+    await screen.findByLabelText("Name");
+    await user.click(saveButton());
+    await loaded();
+    expect(post.calls).toBe(1);
+    expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/debts");
   });
 
   it("defaults the date and time to now", async () => {

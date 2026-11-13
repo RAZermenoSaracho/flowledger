@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
@@ -102,12 +102,33 @@ describe("DebtsPage", () => {
     );
   });
 
+  it("renders a mobile-hidden tablist and writes ?tab= on selection", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    function SearchProbe() {
+      return <span data-testid="search">{useLocation().search}</span>;
+    }
+    renderWithProviders(
+      <>
+        <DebtsPage />
+        <SearchProbe />
+      </>,
+      { withAuth: true, route: "/debts" }
+    );
+
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
+    expect(screen.getByRole("tablist")).toHaveClass("hidden");
+    await user.click(screen.getByRole("tab", { name: "Settled History" }));
+    expect(screen.getByTestId("search")).toHaveTextContent("tab=settled");
+  });
+
   it("shows a loading indicator, then debts once loaded", async () => {
     mockBaseline();
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    expect(screen.getByText("Loading debts...")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText("Loading debts...")).not.toBeInTheDocument());
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("Loading debts...")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Loading...")).not.toBeInTheDocument());
   });
 
   it("shows an error message when the debts query fails", async () => {
@@ -122,7 +143,7 @@ describe("DebtsPage", () => {
     );
     renderWithProviders(<DebtsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Could not load debts.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not load debts."));
   });
 
   it("lists proposed shares on the Awaiting Acceptance tab and flags an unknown invitation id", async () => {
@@ -149,7 +170,7 @@ describe("DebtsPage", () => {
     await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Pending Settlement Requests" }));
 
-    expect(screen.getByText("Requests by me")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Requests by me" })).toBeInTheDocument();
   });
 
   it("switches to the Settled History tab", async () => {

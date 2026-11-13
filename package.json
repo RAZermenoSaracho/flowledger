@@ -25,7 +25,10 @@
     "prisma:seed": "tsx database/seed.ts",
     "start": "npm run build && npm-run-all --parallel start:api start:web",
     "start:api": "node apps/api/dist/server.js",
-    "start:web": "npm run preview -w @flowledger/web -- --host 127.0.0.1 --port 5174"
+    "start:web": "npm run preview -w @flowledger/web -- --host 127.0.0.1 --port 5174",
+    "qa:debts:seed": "tsx database/qa/debtsUiQa.ts seed",
+    "qa:debts:cleanup": "tsx database/qa/debtsUiQa.ts cleanup",
+    "qa:debts:status": "tsx database/qa/debtsUiQa.ts status"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

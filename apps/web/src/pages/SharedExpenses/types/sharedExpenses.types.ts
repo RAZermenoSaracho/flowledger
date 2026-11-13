@@ -1,9 +1,7 @@
-/** In-progress participant row in the shared-expense create/edit form. */
-export type ParticipantDraft = {
-  draftId: string;
-  userId?: string | null;
-  participantName: string;
-  source: "app" | "manual";
-  shareAmount: string;
-  paidAmount: string;
+import type { SharedExpenseStatus } from "@flowledger/shared";
+
+/** Editable fields of the Shared Expense Form View; participants are managed on the transaction's Sharing tab. */
+export type SharedExpenseDraft = {
+  title: string;
+  status: SharedExpenseStatus;
 };

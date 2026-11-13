@@ -615,7 +615,7 @@ Still open:
 
 **Found in:** Implementing `st005-reusable-editable-form-view`.
 
-**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView.tsx`.
+**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView/FormView.tsx`.
 
 **Description:** A dirty draft is protected by a `beforeunload` guard and by a confirm on the view's own Discard and Back controls. Clicking a sidebar or other in-app link while dirty leaves the page and silently drops the edits, because React Router's `useBlocker` needs a data router and the app uses `BrowserRouter`.
 
@@ -644,3 +644,31 @@ Still open:
 **Description:** `create_shared_expense` can send share invitations to any user id with only the global API rate limits. Consent and blocking limit the impact, and nothing counts financially until the share is accepted, but a key can still spam invitations.
 
 **Suggested fix:** Add a per-key invitation rate limit on invitation creation.
+
+---
+
+## [RESOLVED] #050 — Debts page and person balance detail duplicate their data setup
+
+**Resolved:** Both pages call the page-local `useDebtsData()` hook (`pages/Debts/hooks/useDebtsData.ts`). It holds the four queries under their original keys, the private category filters, `groupById` and one settlement workflow per page (`standardize-debts-views`).
+
+**Found in:** `standardize-debts-views` simplicity review.
+
+**Scope:** `apps/web/src/pages/Debts/DebtsPage.tsx` and `apps/web/src/pages/Debts/PersonDebtDetailPage.tsx`.
+
+**Description:** Both pages repeat the same four queries (debts, accounts, categories, groups), the private income and expense category filters, `groupById`, and the `useDebtSettlementWorkflow` call. The change was UI-only, so this was left as is.
+
+**Suggested fix:** Extract one page-local `useDebtsData()` hook in `pages/Debts/hooks/` that returns the queries and the workflow, in a separate behaviour-preserving change.
+
+---
+
+## [RESOLVED] #051 — Debts page tab strip is hand-rolled instead of the shared `Tabs`
+
+**Resolved:** The desktop section strips of Debts and Transactions both render the shared `Tabs` with `variant="buttons"` and `desktopOnly`, and mobile keeps the sidebar submenus (`standardize-debts-views`).
+
+**Found in:** `standardize-debts-views` staging-review simplicity pass.
+
+**Scope:** `apps/web/src/pages/Debts/DebtsPage.tsx`, the `role="tablist"` grid of pill buttons for the five Debts tabs.
+
+**Description:** The page-level Debts tab bar builds its own tablist markup instead of `components/Tabs`. It also has no arrow-key navigation, and it is desktop-only: mobile uses the sidebar drawer's subpage links. It was left as is because its pill styling is part of the Debts look the product owner wants kept.
+
+**Suggested fix:** If the pill look is kept, add a `variant` to `Tabs` and reuse it here. Otherwise switch to the standard underline tabs in a separate change.
