@@ -7,7 +7,7 @@ import {
   type SearchFieldConfig
 } from "../../utils/searchDomain";
 import { Button } from "../Button";
-import { DomainGroupEditor } from "./ConditionEditor";
+import { DomainGroupEditor } from "./DomainGroupEditor";
 
 /**
  * Odoo-style domain builder popup: an unbounded AND/OR condition tree

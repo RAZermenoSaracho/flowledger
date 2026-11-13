@@ -8,14 +8,14 @@
 
 Behaviour-preserving refactor. No UI redesign, no new dependencies, no API or schema change.
 
-- New directory `components/SearchBar/` holding `SearchBar.tsx`, `FilterBuilder.tsx` (private) and a new private `ConditionEditor.tsx` (FilterBuilder's four sub-editors) plus `index.ts` exporting `SearchBar` and `SearchBarQuery`. 14 page-level importers plus the 2 moved files are repointed to the directory index; the two tests move to `SearchBar/tests/`.
+- New directory `components/SearchBar/` holding `SearchBar.tsx`, `FilterBuilder.tsx` (private) and a new private `DomainGroupEditor.tsx` (FilterBuilder's four sub-editors) plus `index.ts` exporting `SearchBar` and `SearchBarQuery`. 14 page-level importers plus the 2 moved files are repointed to the directory index; the two tests move to `SearchBar/tests/`.
 - Model-specific UI moves to its owning page module: `CategoryCard`, `CategoryForm` to `pages/Categories/components/`; `RelatedTransactionsList` and `useRelatedTransactions` to `pages/Transactions/components/` and `pages/Transactions/hooks/`. Other modules import them from there (as Groups already imports `pages/Categories/utils/categorySearchFields`). This removes the only `components/` to `pages/` import and the deep import of `./ListView/ListViewPagination`.
 - New `hooks/useDismiss.ts` replaces the three hand-rolled outside-pointerdown + Escape effects in `ActionMenu`, `SearchBar`, `CurrencySelect`. `CurrencySelect` currently listens to `mousedown` on `document` and `keydown` on `window`; it standardises on `pointerdown`/`keydown` on `document` (negligible for mouse and touch, see design).
 - New `hooks/useScrollToHighlight.ts` replaces the identical `requestAnimationFrame` + `getElementById` + `scrollIntoView` effect in `DebtsPage`, `PersonDebtDetailPage`, `SharedExpensesPage`.
 - Delete unreferenced `apps/web/public/logo.svg` and `apps/web/src/utils/search.ts` with its test.
 - Kept flat on purpose (single file, no private member): GoogleIcon (with its only consumer GoogleOAuthButton), Button, Card, RecordCard, RelatedList, ModalDialog, ActionMenu, DropdownMenu, AddRecordButton, CopyButton, FormField, EditableField, CurrencySelect, DateTimeFilterInput, FormView, Tabs, BrandLogo, EmptyState; `ListView/` is already organized.
 
-Counts (verified against the tree unless marked estimate): new directories 1 (`components/SearchBar/`, plus its `tests/`); files moved 12 (6 sources, 6 tests); merged 0; new files 6 (`SearchBar/index.ts`, `SearchBar/ConditionEditor.tsx`, `useDismiss.ts` + test, `useScrollToHighlight.ts` + test); deleted 3 (`logo.svg`, `search.ts`, `search.test.ts`); simplified 6 (`ActionMenu`, `SearchBar`, `CurrencySelect`, `DebtsPage`, `PersonDebtDetailPage`, `SharedExpensesPage`). Net line change is an estimate: roughly -150 to -200 lines of source.
+Counts (verified against the tree unless marked estimate): new directories 1 (`components/SearchBar/`, plus its `tests/`); files moved 12 (6 sources, 6 tests); merged 0; new files 6 (`SearchBar/index.ts`, `SearchBar/DomainGroupEditor.tsx`, `useDismiss.ts` + test, `useScrollToHighlight.ts` + test); deleted 3 (`logo.svg`, `search.ts`, `search.test.ts`); simplified 6 (`ActionMenu`, `SearchBar`, `CurrencySelect`, `DebtsPage`, `PersonDebtDetailPage`, `SharedExpensesPage`). Net line change is an estimate: roughly -150 to -200 lines of source.
 
 ## Capabilities
 
