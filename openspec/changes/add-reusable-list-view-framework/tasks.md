@@ -4,10 +4,10 @@ Every new or changed `components/`, `hooks/`, `utils/`, `controllers/`, `service
 
 ## 0. Backend range kind (sequential; blocks everything that sends `range`)
 
-- [ ] 0.1 In `/Users/razs/packages/datasieve` (outside this repo): add `{kind:"range", offset>=0, limit>=1}` to the query-language pagination schema, core build-response (`total`, `hasNext = offset+limit<total`, `hasPrevious = offset>0`, `page`/`pageCount` null) and prisma translate (`skip=offset, take=limit`). Tests in each package: window rows, last/partial window, offset past end, invalid values, existing page/cursor kinds unchanged. Publish (`pnpm publish`) once verified.
-- [ ] 0.2 Bump the datasieve packages in `apps/api/package.json` and reinstall. Verify: `npm run typecheck -w apps/api`.
-- [ ] 0.3 Add the `range` variant to `listPaginationSchema` (`packages/shared/src/schemas/common.ts:52-63`). Test in `packages/shared/src/schemas/tests/common.test.ts`: valid range, negative offset, limit 0, fractional, page/cursor still valid.
-- [ ] 0.4 Clamp `limit` to `maxPageSize` in `createSieve` (`apps/api/src/db/sieve.ts` ~64-67). API tests (route/integration, real Postgres via Docker per `CLAUDE.local.md`): a range request returns the exact window with `total`; offset beyond total returns empty `data` with the full total; oversized limit is clamped; `/v1/transactions` still returns 400 for the range kind; the imported endpoint accepts a range.
+- [x] 0.1 In `/Users/razs/packages/datasieve` (outside this repo): add `{kind:"range", offset>=0, limit>=1}` to the query-language pagination schema, core build-response (`total`, `hasNext = offset+limit<total`, `hasPrevious = offset>0`, `page`/`pageCount` null) and prisma translate (`skip=offset, take=limit`). Tests in each package: window rows, last/partial window, offset past end, invalid values, existing page/cursor kinds unchanged. Publish (`pnpm publish`) once verified.
+- [x] 0.2 Bump the datasieve packages in `apps/api/package.json` and reinstall. Verify: `npm run typecheck -w apps/api`.
+- [x] 0.3 Add the `range` variant to `listPaginationSchema` (`packages/shared/src/schemas/common.ts:52-63`). Test in `packages/shared/src/schemas/tests/common.test.ts`: valid range, negative offset, limit 0, fractional, page/cursor still valid.
+- [x] 0.4 Clamp `limit` to `maxPageSize` in `createSieve` (`apps/api/src/db/sieve.ts` ~64-67). API tests (route/integration, real Postgres via Docker per `CLAUDE.local.md`): a range request returns the exact window with `total`; offset beyond total returns empty `data` with the full total; oversized limit is clamped; `/v1/transactions` still returns 400 for the range kind; the imported endpoint accepts a range.
 
 ## 1. Foundations (1.1 to 1.6 are independent; 1.7 needs 1.1, 1.3 to 1.6; 1.8 needs 1.7; 1.3 to 1.6 need 0.3)
 
