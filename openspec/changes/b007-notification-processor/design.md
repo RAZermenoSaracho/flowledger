@@ -11,7 +11,7 @@ See proposal.md, Why. Facts verified in the repository on 2026-11-13 at `370098a
 
 **Deployment**
 - One API process, bound to `127.0.0.1` behind an edge proxy.
-- Deployed by `.github/workflows/deploy-prod.yml`, which calls a script outside the repo. The process manager is not in the repo.
+- Deployed by `.github/workflows/deploy-prod.yml` on a self-hosted runner, which calls `~/scripts/deploy-flowledger-prod.sh`. The script is outside the repo; it runs `prisma migrate deploy`, then the build, then `pm2 restart` of `flowledger-prod-api` and `flowledger-prod-web`. PM2 (verified) runs the API as `npm start` in `apps/api`, and is resurrected at boot.
 - Node 24.
 
 **Transactions**
@@ -47,20 +47,20 @@ See proposal.md, Why. Facts verified in the repository on 2026-11-13 at `370098a
 
 ## Decisions
 
-### 1. Architecture: extend `apps/api`, with untrusted code out of process (Option A), not `apps/engine`
+### 1. Architecture: `apps/api` code run as two processes (HTTP API and notification worker), untrusted code in sandbox children, not `apps/engine`
 
-| | A: `apps/api` module + in-process worker + sandbox child processes (chosen) | B: separate `apps/engine` | C: shared packages + separate worker app |
+| | A: `apps/api` module with a separate worker process (`dist/worker.js`) + sandbox child processes (chosen) | B: separate `apps/engine` | C: shared packages + separate worker app |
 |---|---|---|---|
 | Isolation of untrusted Python | Same in every option: a separate sandbox process | Same | Same |
-| Load on API traffic | Python CPU runs in child processes. The worker's own work is small DB calls | Fully separate | Fully separate |
-| Operations | No new deploy unit. The external deploy script is unchanged | New process in an external script that the repo cannot see, plus env, restart and monitoring | Same as B, plus a new package build step |
+| Load on API traffic | None: claiming, execution and creation run in the worker process. The API only persists rows | Fully separate | Fully separate |
+| Operations | One more PM2 process from the same build, plus one restart line in the existing deploy script (§12) | New process in an external script that the repo cannot see, plus env, restart and monitoring | Same as B, plus a new package build step |
 | Database and auth boundary | Calls `createTransaction(ownerId, …)` directly, like MCP does | Either imports api services across apps (a second api entrypoint in disguise) or calls the API over HTTP, which needs a privileged service credential | Requires moving transaction services into a package, a large refactor |
 | Lambda path | Swap the body of `runScript()` for a Lambda invoke | Same | Same |
 | Testing | Existing vitest, supertest and testcontainers setup | New workspace setup | New workspace and package setup |
 
 The expensive and dangerous part, Python execution, is isolated in all three options. B and C only move the cheap orchestration, and they cost a new deployable, cross-app imports or a privileged credential.
 
-**Extraction trigger.** Revisit if worker load measurably affects API latency, or if the API runs more than one instance. The worker is already multi-instance safe (Decision 5), so the first step would be a second entrypoint (`dist/worker.js`) of the same app, not a new app.
+**Two processes, one codebase.** The worker is a second entrypoint of `apps/api` (§12), so it reuses the Prisma schema, services, validation, env conventions and `createTransaction` without cross-app imports or a privileged credential. Revisit a separate app only if the worker needs a different runtime or deploy cadence.
 
 The proposal contract is the only shared piece (Option C's real benefit). It goes in `packages/shared`.
 
@@ -207,7 +207,7 @@ The resulting transaction input. `date` is `receivedAt`; `card` is bound to the 
 5. **Queue capacity:** the owner has fewer than 500 `queued` runs across all models. Otherwise 429 with `Retry-After: 60`.
    `// ponytail: count-then-insert soft cap; concurrent requests can overshoot by a few rows, which is harmless for a backpressure cap.`
 
-It then inserts `NotificationRun(status=queued, text, userId, modelId, dedupeKey)` and returns `202 { runId, status: "queued", duplicate: false }` **only after the insert commits**. Any database error returns 503 and nothing is acknowledged. After the response, the route calls `worker.wake()` as a best-effort nudge; polling covers a missed wake.
+It then inserts `NotificationRun(status=queued, text, userId, modelId, dedupeKey)` and returns `202 { runId, status: "queued", duplicate: false }` **only after the insert commits**. Any database error returns 503 and nothing is acknowledged. After the response, the API does nothing else: the worker process finds the run by polling.
 
 **Dedupe.** The dedupe key is:
 - the optional `Idempotency-Key` header (≤128 characters), when present;
@@ -234,7 +234,7 @@ The limits count only queued-notification executions. The playground runs outsid
    - the user's processing count, ascending;
    - the model's processing count, ascending;
    - the head's `receivedAt`, ascending.
-4. Take that model's oldest `queued` run (`receivedAt`, then `id`). Update it to `processing` with `workerId` (random per process start), `startedAt` and `heartbeatAt`, guarded by `where: { id, status: "queued" }`.
+4. Take that model's oldest `queued` run (`receivedAt`, then `id`). Update it to `processing` with `workerId` (random per process start) and `startedAt`, guarded by `where: { id, status: "queued" }`.
 
 Postgres serializable isolation aborts one of two concurrent claims that would together exceed a limit or take the same row. The aborted claim (Prisma `P2034`) is retried up to 3 times, then left for the next tick. A worker claims one run per transaction and loops while it gets one. It never holds more than the global limit in flight, so memory is bounded by the limit, never by backlog size.
 
@@ -243,10 +243,12 @@ Postgres serializable isolation aborts one of two concurrent claims that would t
 **FIFO.** Each model's runs start in arrival order. Up to the per-user limit, runs of the same model may execute at the same time, so completion order is not guaranteed. This is harmless because each transaction's `date` defaults to its own `receivedAt`.
 `// ponytail: start-order FIFO only; one-at-a-time per model if strict completion order is ever required.`
 
-**Worker** (`notificationRunWorker.ts`, started and stopped in `server.ts`):
-- It claims on `wake()` and every 5 s.
-- Every 15 s it heartbeats its in-flight runs with one `updateMany({ where: { workerId, status: "processing" } })`.
+**Worker** (`notificationRunWorker.ts`, started and stopped only by the worker process `src/worker.ts`, §12):
+- It polls for claims every 2 s. This is a cheap indexed `groupBy` and needs no API-to-worker signal.
+- Every 15 s it touches its `NotificationWorker` row.
 - Every minute it runs recovery and retention (Decision 6).
+
+`// ponytail: 2 s polling; LISTEN/NOTIFY (raw SQL + pg dependency) only if ingest-to-start latency ever matters.`
 
 Each claimed run:
 1. Reloads the model. If the model is inactive, the run becomes `skipped` / `model_inactive`, which covers deactivation while queued.
@@ -270,15 +272,16 @@ queued ──claim──▶ processing ──▶ completed   (transaction create
 
 **A. Never started.** A `queued` run is a durable row. It survives restarts and crashes, and is claimed when capacity allows. Nothing deletes it except the owner deleting the model.
 
-**B. Claimed or executing when its worker crashed.** It is never re-executed automatically. Recovery runs every minute on any instance and sets `processing` runs whose `heartbeatAt` is older than 2 minutes to `failed` / `worker_lost`, with `finishedAt`. A live worker heartbeats every 15 s, and the sandbox's hard lifetime is 15 s, so a 2-minute-stale heartbeat reliably means the worker is gone.
+**B. Claimed or executing when its worker crashed.** It is never re-executed automatically. Recovery runs every minute in every worker. It sets `processing` runs whose `workerId` has no `NotificationWorker` row seen within 2 minutes to `failed` / `worker_lost`, with `finishedAt`. A live worker touches its row every 15 s, and the sandbox's hard lifetime is 15 s, so a 2-minute-stale row reliably means the process is gone.
 
 Because creation and `completed` commit together, a `worker_lost` run **never** has a transaction. A worker that was presumed dead but finishes late fails its guarded update, and its transaction rolls back. Logs show the reason as "processing was interrupted; no transaction was created". Retrying would mean sending the notification again: a new text bucket or `Idempotency-Key`, and a new run.
 
-**Graceful shutdown** (`SIGTERM`/`SIGINT`, awaited in `server.ts` before `prisma.$disconnect()`):
+**Graceful shutdown of the worker process** (`SIGTERM`/`SIGINT` in `src/worker.ts`, awaited before `prisma.$disconnect()`; PM2 `--kill-timeout 15000`). The API's own shutdown is unchanged.
 1. Stop claiming.
 2. Let runs in the create step finish, since that is one short DB transaction.
 3. Kill sandbox children still executing and return their runs to `queued` (`where: { id, status: "processing", workerId }`). This is certain to be safe: no create step has started, so there is no side effect.
 4. Wait at most 10 s overall. Anything still unfinished is left `processing` and handled by rule B.
+5. Delete its `NotificationWorker` row.
 
 **Retention** (the minute tick, any instance, idempotent `updateMany`/`deleteMany` filtered on terminal status and `finishedAt`):
 - `text` is set to null on `completed`, `skipped` and `failed` runs with `finishedAt` older than 7 days.
@@ -339,7 +342,6 @@ model NotificationRun {
   proposal      Json?
   reason        String?               // skip reason or error (≤500 chars, never contains credentials)
   workerId      String?               // claiming process
-  heartbeatAt   DateTime?
   transactionId String?  @unique
   receivedAt    DateTime @default(now())
   startedAt     DateTime?
@@ -350,6 +352,15 @@ model NotificationRun {
   @@index([status, userId])
   @@index([modelId, status, receivedAt])
   @@index([status, finishedAt])
+}
+
+model NotificationWorker {
+  id         String   @id              // workerId, random per worker process start
+  hostname   String
+  pid        Int
+  startedAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  @@index([lastSeenAt])
 }
 ```
 
@@ -442,11 +453,66 @@ Declining an update is doing nothing, and the copy stays usable.
 - The ingest route uses `auditV1Write("notification.ingest")` and never logs text.
 - The body is JSON `{ "text": string }` only, parsed by the existing global `express.json`, with `.strict()` validation. Callers send nothing else: no app id, title, type, amount or ids.
 
+### 12. Worker process, deployment and operations
+
+**Entry points** (both in `apps/api`, both built by the existing `tsc` build, both bootstrap-only and excluded from coverage like `server.ts`):
+
+| Process | Entry point | Responsibility |
+|---|---|---|
+| HTTP API | `src/server.ts` → `dist/server.js` (unchanged) | Auth, model management, validation, persisting ingests, `202`, `/health`, `/health/notification-worker`. **Never claims or executes runs.** |
+| Notification worker | `src/worker.ts` → `dist/worker.js` (new) | Schema readiness check, then `notificationRunWorker.start()`. Handles `SIGTERM`/`SIGINT` with `await worker.stop()`, `prisma.$disconnect()`, then `exit(0)`. Has no HTTP listener. |
+
+Both processes import the same `env`, the Prisma singleton, services and sandbox. Each validates its own environment at startup. A worker failure, crash or restart cannot affect the API process: the only thing they share is Postgres, and accepted runs are rows.
+
+**Scripts.** In `apps/api/package.json`:
+- `"start:worker": "node dist/worker.js"`
+- `"dev:worker": "tsx watch src/worker.ts"`
+
+The root `dev` and `start` scripts add the worker to their existing `npm-run-all --parallel` lists, so local development runs all three processes.
+
+**Worker liveness.** The `NotificationWorker` table holds one row per running process: `id` = `workerId`, `hostname`, `pid`, `startedAt`, `lastSeenAt`.
+- The worker inserts its row at start and touches `lastSeenAt` every 15 s.
+- It deletes its row on graceful stop.
+- Recovery uses this one heartbeat (Decision 6): a `processing` run whose `workerId` has no row seen within 2 minutes is lost. Rows not seen for 1 hour are deleted by the minute tick.
+- **Health check:** `GET /health/notification-worker` on the API returns `200 { workers: n }` when at least one worker was seen within 60 s, and `503 { workers: 0 }` otherwise. It is unauthenticated, like `/health`, and exposes only that count. It can be polled by an uptime monitor or checked after deploy.
+
+**Migration safety.** Before starting, `worker.ts` probes the schema with `prisma.notificationRun.findFirst({ select: { id: true } })` and `prisma.notificationWorker.count()`. If a table is missing (Prisma `P2021`/`P2022`), it logs `notification worker: schema not migrated` and exits with code 1, and PM2 restarts it with backoff. A worker can therefore never claim against an unmigrated database. For later migrations, the deploy order below guarantees it.
+
+**Deployment (production, PM2 on the existing host, verified).** `deploy-prod.yml` runs `~/scripts/deploy-flowledger-prod.sh`, which lives outside this repo. The script:
+1. pulls the code;
+2. runs `npm install`;
+3. runs `pg_dump`;
+4. runs `prisma migrate deploy`;
+5. runs `prisma:generate` and `npm run build`;
+6. runs `pm2 restart flowledger-prod-api` and `flowledger-prod-web`;
+7. runs `pm2 save`.
+
+The owner makes two manual changes, recorded as a task because the script is not in the repo:
+- **One-time registration**, from `~/production/flowledger/apps/api`:
+
+  ```
+  pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker
+  pm2 save
+  ```
+
+  This is the same `npm`-in-`apps/api` convention as `flowledger-prod-api`. The 15 s kill timeout exceeds the worker's 10 s graceful stop.
+- **Deploy script:** add `pm2 restart flowledger-prod-worker --update-env` immediately after `pm2 restart flowledger-prod-api`, before `pm2 save`.
+
+The resulting order is migrate → build → API → worker. The API restarting first means ingestion resumes immediately while the worker is still draining.
+
+**Operations**
+- Each process is started, stopped and restarted independently: `pm2 restart|stop flowledger-prod-worker`.
+- `pm2 status` and `pm2 logs flowledger-prod-worker` cover monitoring.
+- Stopping the worker only pauses processing: ingests keep returning `202` and the Queue tab shows the backlog.
+- Staging (`flowledger-dev`) has no deploy script in the repo or on the host. It uses the same two PM2 commands with its own process name.
+
+**Scaling and Lambda.** More workers are more `dist/worker.js` processes, on this host or another one with the same `DATABASE_URL`. The Serializable claim and the global and per-user limits already hold across all of them. Replacing the execution layer with Lambda means changing the body of `runScript()` (sandbox child → function invoke). The queue, claim and recovery logic stay the same. No AWS code or dependency is added now.
+
 ## Risks / Trade-offs
 
 - **[Sandbox escape to network]** Node 24 does not restrict net. → Three layers; the malicious-script test suite gates merge; the risk is documented; Lambda without egress is the upgrade.
 - **[Pyodide cold start ~1–2 s and ~100 MB per child]** → Global concurrency defaults to 4 and is tuned by env var to the host's memory. Processing is asynchronous, so the cold start is not user-visible.
-- **[After a crash, lost runs hold slots for up to 2 minutes]** The dead worker's `processing` runs count against the limits until their heartbeat goes stale. → Queued runs are only delayed, never lost. A short stale window would risk failing live runs.
+- **[After a crash, lost runs hold slots for up to 2 minutes]** The dead worker's `processing` runs count against the limits until its `NotificationWorker` row goes stale. → Queued runs are only delayed, never lost. A short stale window would risk failing live runs.
 - **[Serializable claim contention]** With several workers at once, some claims abort and retry. → Claims are one row each and the retry is bounded; throughput at personal-finance volume is far below the contention point.
   `// ponytail: Serializable groupBy claim; SKIP LOCKED raw SQL (needs approval) if claim latency ever matters.`
 - **[A worker crash fails its in-flight runs (`worker_lost`) instead of retrying them]** → This is deliberate: there is never a duplicate or an uncertain transaction, the failure is visible in Logs, and queued runs are unaffected. The sender can resend.
@@ -456,8 +522,8 @@ Declining an update is doing nothing, and the copy stays usable.
 
 ## Migration Plan
 
-1. Run one additive Prisma migration (three tables, two enums). The only change to existing code paths is `createTransaction`'s optional `tx` parameter. No backfill. Rollback is dropping them.
-2. Ship in the B-007 PR to `razs_ai`. The `pyodide` package is installed by `npm ci` on the host, so the deploy script needs no change.
+1. Run one additive Prisma migration (four tables, two enums). The only change to existing code paths is `createTransaction`'s optional `tx` parameter. No backfill. Rollback is dropping them.
+2. Ship in the B-007 PR to `razs_ai`. The `pyodide` package is installed by the deploy script's `npm install`. Before the first production deploy that contains this change, the owner registers `flowledger-prod-worker` in PM2 and adds its restart line to the deploy script (§12). Deploying without registering it is safe: ingests are accepted and queued until the worker starts.
 3. Staging acceptance on `flowledger-dev`:
    - create, test, activate;
    - an ingest key;
@@ -466,6 +532,7 @@ Declining an update is doing nothing, and the copy stays usable.
    - a promotion is skipped;
    - the malicious-script suite fails safely;
    - a backlog beyond the concurrency limits drains with the limits respected;
-   - restarting the API mid-queue keeps the queued runs;
-   - killing it mid-execution yields `worker_lost` with no transaction.
+   - stopping the worker leaves the API serving and ingests queuing, and restarting it drains them;
+   - `kill -9` of the worker mid-execution yields `worker_lost` with no transaction, and the API stays up;
+   - `/health/notification-worker` reports 503 while the worker is stopped and 200 after it starts.
 4. Feature rollback: deactivate models, or revert the PR. Runs and models are independent of existing data.

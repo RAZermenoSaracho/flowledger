@@ -74,14 +74,14 @@ Duplicate deliveries to the same model SHALL be collapsed. Two requests with the
 
 ### Requirement: Persistent queue and concurrency
 
-Accepted notifications SHALL be kept in a persistent queue per model and processed asynchronously. The number of runs executing at once across all service instances SHALL NOT exceed `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` (default 4, integer 1 to 64), and per user SHALL NOT exceed `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` (default 2, integer 1 to 64, at most the global limit). Invalid values SHALL stop the service from starting with an error naming the variable. Scheduling SHALL be fair: users with fewer running runs first, then models with fewer running runs, then the oldest queued run. Runs of one model SHALL start in the order received, though completion order is not guaranteed. A run SHALL be claimed by exactly one worker across all instances. A run queued when its model is deactivated SHALL be skipped with reason `model_inactive`. Run states are `queued`, `processing`, `completed`, `skipped` and `failed`.
+Accepted notifications SHALL be kept in a persistent queue per model and processed asynchronously by a separate worker process from the same codebase. An HTTP API instance SHALL only authenticate, validate and persist ingests and acknowledge them; it SHALL never claim or execute runs. The API and workers SHALL coordinate only through shared Postgres. Workers SHALL poll every 2 seconds without an API-to-worker signal. Claims SHALL enforce the limits atomically through a Serializable database transaction. The number of runs executing at once across all worker processes SHALL NOT exceed `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` (default 4, integer 1 to 64), and per user SHALL NOT exceed `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` (default 2, integer 1 to 64, at most the global limit). Invalid values SHALL stop the service from starting with an error naming the variable. Scheduling SHALL be fair: users with fewer running runs first, then models with fewer running runs, then the oldest queued run. Runs of one model SHALL start in the order received, though completion order is not guaranteed. A run SHALL be claimed by exactly one worker across all worker processes. A run queued when its model is deactivated SHALL be skipped with reason `model_inactive`. Run states are `queued`, `processing`, `completed`, `skipped` and `failed`.
 
 #### Scenario: Acknowledged before processing
 - **WHEN** a notification is accepted
 - **THEN** the response does not wait for the script and the run later reaches a final status
 
 #### Scenario: Concurrency limits
-- **WHEN** many runs are queued
+- **WHEN** many runs are queued and multiple worker processes claim them concurrently
 - **THEN** no more than the global limit run at once, and no user has more than the per-user limit running
 
 #### Scenario: Misconfigured limits
@@ -97,12 +97,40 @@ Accepted notifications SHALL be kept in a persistent queue per model and process
 - **THEN** they start in the order received
 
 #### Scenario: No double claim
-- **WHEN** several service instances look for work at the same time
+- **WHEN** several worker processes look for work at the same time
 - **THEN** each run is claimed by only one of them
 
 #### Scenario: Deactivated while queued
 - **WHEN** the owner deactivates the model before a queued run starts
 - **THEN** the run ends as skipped with reason `model_inactive`
+
+### Requirement: Acceptance during worker unavailability
+
+Worker unavailability SHALL NOT affect acceptance of otherwise valid ingests within queue capacity. The API SHALL persist them and return 202; runs SHALL remain queued until a worker starts.
+
+#### Scenario: Worker stopped
+- **WHEN** no worker is running and a valid notification arrives within queue capacity
+- **THEN** the API returns 202 after persistence, the run stays queued, and a worker processes it after starting
+
+### Requirement: Worker schema readiness
+
+A worker SHALL verify that the required database schema is migrated before claiming or processing any run. If it is not migrated, the worker SHALL exit with status 1 and its supervisor SHALL restart it with backoff.
+
+#### Scenario: Missing migration
+- **WHEN** a worker starts against an unmigrated schema
+- **THEN** it exits with status 1 without claiming or processing a run, and its supervisor restarts it with backoff
+
+### Requirement: Worker health
+
+The API SHALL expose unauthenticated `GET /health/notification-worker`, returning only a worker count. A worker SHALL be live for this endpoint when last seen within 60 seconds. The response SHALL be 200 with `{ workers: n }` when at least one worker is live, otherwise 503 with `{ workers: 0 }`.
+
+#### Scenario: Live workers
+- **WHEN** two workers have been seen within 60 seconds and another has not
+- **THEN** the endpoint returns 200 with `{ workers: 2 }` without authentication or worker details
+
+#### Scenario: No live worker
+- **WHEN** no worker has been seen within 60 seconds
+- **THEN** the endpoint returns 503 with `{ workers: 0 }` without authentication
 
 ### Requirement: Transaction creation
 
@@ -138,14 +166,14 @@ Each run SHALL link to at most one transaction. A run SHALL be `completed` if an
 
 ### Requirement: Recovery without retries
 
-The system SHALL NOT retry runs automatically. Queued runs SHALL survive restarts and be processed later. A `processing` run whose worker stopped reporting for more than 2 minutes SHALL become `failed` with reason `worker_lost`, SHALL never be executed again and SHALL never have a transaction.
+The system SHALL NOT retry runs automatically. Queued runs SHALL survive worker crashes and restarts and be processed later. Each worker process SHALL have one liveness row, refreshed every 15 seconds; recovery SHALL use worker liveness rather than individual run activity. Worker failure or restart SHALL NOT take the HTTP API down or lose queued runs. A `processing` run whose worker liveness row is missing or whose last-seen time is stale for more than 2 minutes SHALL become `failed` with reason `worker_lost`, SHALL never be executed again and SHALL never have a transaction.
 
 #### Scenario: Restart keeps queued
-- **WHEN** the service restarts while runs are queued
-- **THEN** they are processed after the restart and none is lost
+- **WHEN** the worker crashes or restarts while runs are queued
+- **THEN** the API stays available, none of the queued runs is lost, and they are processed when a worker starts
 
 #### Scenario: Crashed in-flight run
-- **WHEN** a worker crashes while a run is processing and its heartbeat is stale for more than 2 minutes
+- **WHEN** a worker crashes while a run is processing and its worker liveness row is missing or stale for more than 2 minutes
 - **THEN** the run is `failed` with reason `worker_lost`, has no transaction, and is not executed again
 
 #### Scenario: Script failure not retried
@@ -154,7 +182,7 @@ The system SHALL NOT retry runs automatically. Queued runs SHALL survive restart
 
 ### Requirement: Graceful shutdown
 
-On shutdown the service SHALL stop claiming new runs and give in-flight runs a short time to finish. A run whose sandbox execution is aborted before transaction creation SHALL return to `queued`.
+On shutdown the worker process SHALL stop claiming new runs and give in-flight runs a short time to finish. A run whose sandbox execution is aborted before transaction creation SHALL return to `queued`.
 
 #### Scenario: Shutdown with in-flight runs
 - **WHEN** shutdown is requested while runs are in flight
