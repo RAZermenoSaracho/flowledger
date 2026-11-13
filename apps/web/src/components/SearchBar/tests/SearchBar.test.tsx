@@ -1,14 +1,14 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders } from "../../tests/utils/renderWithProviders";
+import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import {
   createConditionWithValue,
   createEmptyGroup,
   type GroupableField,
   type SearchFieldConfig,
   type SortableField
-} from "../../utils/searchDomain";
+} from "../../../utils/searchDomain";
 import { SearchBar } from "../SearchBar";
 
 const nameField: SearchFieldConfig = { name: "name", label: "Name", type: "string" };
@@ -136,6 +136,16 @@ describe("SearchBar", () => {
     await user.click(screen.getByRole("button", { name: "Outside" }));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("keeps the panel open when pressing inside it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SearchBar fields={fields} onQueryChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.pointer({ keys: "[MouseLeft>]", target: screen.getByRole("menu") });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("closes the panel on Escape", async () => {
