@@ -27,6 +27,8 @@ describe("GroupsListCard", () => {
         onAddGroup={vi.fn()}
         visibleGroups={[makeGroup()]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
@@ -45,6 +47,8 @@ describe("GroupsListCard", () => {
         onAddGroup={vi.fn()}
         visibleGroups={[]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
@@ -60,11 +64,23 @@ describe("GroupsListCard", () => {
         onAddGroup={onAddGroup}
         visibleGroups={[]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
     await user.click(screen.getAllByRole("button", { name: "Add group" })[0]!);
 
     expect(onAddGroup).toHaveBeenCalledOnce();
+  });
+
+  it("shows loading and error states instead of the empty text", () => {
+    const props = { onQueryChange: vi.fn(), onAddGroup: vi.fn(), visibleGroups: [], currentUserId: "user-1", isLoading: false, error: null };
+    const { rerender } = renderWithProviders(<GroupsListCard {...props} isLoading />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("No groups found.")).not.toBeInTheDocument();
+
+    rerender(<GroupsListCard {...props} error="Boom" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Boom");
   });
 });

@@ -231,36 +231,29 @@ describe("useDebtSettlementWorkflow — approval drafts", () => {
 });
 
 describe("useDebtSettlementWorkflow — selection", () => {
-  it("toggleDebtSelection adds and removes a debt id", () => {
+  it("debtSelection toggles a debt id and setWindow selects/deselects a batch", () => {
     const { result } = renderWorkflow();
 
-    act(() => result.current.toggleDebtSelection("debt-1"));
-    expect(result.current.selectedDebtIds.has("debt-1")).toBe(true);
+    act(() => result.current.debtSelection.toggle("debt-1"));
+    expect(result.current.debtSelection.selectedIds.has("debt-1")).toBe(true);
+    act(() => result.current.debtSelection.toggle("debt-1"));
+    expect(result.current.debtSelection.selectedIds.has("debt-1")).toBe(false);
 
-    act(() => result.current.toggleDebtSelection("debt-1"));
-    expect(result.current.selectedDebtIds.has("debt-1")).toBe(false);
+    act(() => result.current.debtSelection.setWindow(["debt-1", "debt-2"], true));
+    expect(result.current.debtSelection.selectedIds).toEqual(new Set(["debt-1", "debt-2"]));
+    act(() => result.current.debtSelection.setWindow(["debt-1", "debt-2"], false));
+    expect(result.current.debtSelection.selectedIds.size).toBe(0);
   });
 
-  it("setDetailSelection selects/deselects a batch of debts", () => {
+  it("approvalSelection is independent of debtSelection", () => {
     const { result } = renderWorkflow();
-    const debts = [makeDebt({ id: "debt-1" }), makeDebt({ id: "debt-2" })];
 
-    act(() => result.current.setDetailSelection(debts, true));
-    expect(result.current.selectedDebtIds).toEqual(new Set(["debt-1", "debt-2"]));
+    act(() => result.current.approvalSelection.toggle("sr-1"));
+    expect(result.current.approvalSelection.isSelected("sr-1")).toBe(true);
+    expect(result.current.debtSelection.isSelected("sr-1")).toBe(false);
 
-    act(() => result.current.setDetailSelection(debts, false));
-    expect(result.current.selectedDebtIds.size).toBe(0);
-  });
-
-  it("toggleApprovalSelection and setApprovalSelection mirror the debt-selection behavior", () => {
-    const { result } = renderWorkflow();
-    const requests = [makeRequest({ id: "sr-1" }), makeRequest({ id: "sr-2" })];
-
-    act(() => result.current.toggleApprovalSelection("sr-1"));
-    expect(result.current.selectedApprovalIds.has("sr-1")).toBe(true);
-
-    act(() => result.current.setApprovalSelection(requests, true));
-    expect(result.current.selectedApprovalIds).toEqual(new Set(["sr-1", "sr-2"]));
+    act(() => result.current.approvalSelection.setWindow(["sr-1", "sr-2"], true));
+    expect(result.current.approvalSelection.selectedIds).toEqual(new Set(["sr-1", "sr-2"]));
   });
 });
 
@@ -275,14 +268,14 @@ describe("useDebtSettlementWorkflow — mutations", () => {
     );
     const { result } = renderWorkflow();
     const debt = makeDebt();
-    act(() => result.current.toggleDebtSelection(debt.id));
+    act(() => result.current.debtSelection.toggle(debt.id));
 
     await act(async () => {
       await result.current.submitSettlement({ preventDefault: () => {} } as React.FormEvent, debt);
     });
 
     expect(postedBody).toMatchObject({ amount: "100.00", accountId: "acc-1" });
-    expect(result.current.selectedDebtIds.has(debt.id)).toBe(false);
+    expect(result.current.debtSelection.isSelected(debt.id)).toBe(false);
   });
 
   it("submitSettlement sends accountAmount as a string when the account currency differs", async () => {

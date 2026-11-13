@@ -6,19 +6,11 @@ import { useAuth } from "../../hooks/useAuth";
 import * as sharedExpensesClient from "../../services/sharedExpenses.client";
 import { SharedExpenseFormCard } from "./components/SharedExpenseFormCard";
 import {
-  groupByFields,
   sharedExpenseGroupKey,
   SharedExpensesListCard
 } from "./components/SharedExpensesListCard";
-import { SHARED_EXPENSE_GROUPABLE_FIELDS } from "./utils/sharedExpenseSearchFields";
+import { groupByFields } from "../../utils/groupByFields";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
-
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
-const sharedExpenseGroupByDefsForBucketing = SHARED_EXPENSE_GROUPABLE_FIELDS.map(
-  (field) => ({ id: field.name, label: field.label })
-);
 
 /** Shared expenses list page with search/filter/group controls and create/edit form. */
 export function SharedExpensesPage() {
@@ -44,16 +36,10 @@ export function SharedExpensesPage() {
   });
 
   const visibleSharedExpenses = useMemo(() => sharedExpensesQuery.data ?? [], [sharedExpensesQuery.data]);
-  const activeGroupBys = useMemo(() => sharedExpenseQuery.groupBy ?? [], [sharedExpenseQuery.groupBy]);
   const groupedSharedExpenses = useMemo(
     () =>
-      groupByFields(
-        visibleSharedExpenses,
-        activeGroupBys,
-        sharedExpenseGroupByDefsForBucketing,
-        sharedExpenseGroupKey
-      ),
-    [visibleSharedExpenses, activeGroupBys]
+      groupByFields(visibleSharedExpenses, sharedExpenseQuery.groupBy, sharedExpenseGroupKey),
+    [visibleSharedExpenses, sharedExpenseQuery.groupBy]
   );
 
   useEffect(() => {
@@ -81,8 +67,10 @@ export function SharedExpensesPage() {
       <SharedExpensesListCard
         onQueryChange={setSharedExpenseQuery}
         onAddSharedExpense={() => form.setIsFormOpen(true)}
+        sharedExpenses={visibleSharedExpenses}
         groupedSharedExpenses={groupedSharedExpenses}
-        visibleCount={visibleSharedExpenses.length}
+        isLoading={sharedExpensesQuery.isLoading}
+        error={sharedExpensesQuery.error?.message}
         highlightedSharedExpenseId={highlightedSharedExpenseId}
         highlightedParticipantId={highlightedParticipantId}
         currentUserId={auth.user?.id}

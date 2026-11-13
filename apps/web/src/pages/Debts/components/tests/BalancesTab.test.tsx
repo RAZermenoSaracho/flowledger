@@ -39,12 +39,12 @@ describe("BalancesTab", () => {
     expect(screen.getByText("No balances match your search.")).toBeInTheDocument();
   });
 
-  it("renders each balance as a card with amounts and the visible/total count", () => {
+  it("renders each balance as a card with amounts and the record count", () => {
     renderWithProviders(<BalancesTab {...baseProps()} />);
     expect(screen.getByText("Sam (@sam)")).toBeInTheDocument();
     expect(screen.queryByText(/@example\.com/)).not.toBeInTheDocument();
     expect(screen.getAllByText("$100.00").length).toBeGreaterThan(0);
-    expect(screen.getByText("1 of 1")).toBeInTheDocument();
+    expect(screen.getByText("1 record")).toBeInTheDocument();
   });
 
   it("links each card to that person's detail page", () => {

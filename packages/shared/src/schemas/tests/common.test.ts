@@ -138,7 +138,17 @@ describe("listPaginationSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a range window", () => {
+    expect(listPaginationSchema.safeParse({ kind: "range", offset: 0, limit: 1 }).success).toBe(true);
+    expect(listPaginationSchema.safeParse({ kind: "range", offset: 40, limit: 20 }).success).toBe(true);
+  });
+
   it.each([
+    { kind: "range", offset: -1, limit: 10 },
+    { kind: "range", offset: 0, limit: 0 },
+    { kind: "range", offset: 0.5, limit: 10 },
+    { kind: "range", offset: 0, limit: 1.5 },
+    { kind: "range", offset: 0 },
     { kind: "offset", page: 0, pageSize: 10 },
     { kind: "offset", page: 1, pageSize: 0 },
     { kind: "offset", page: 1, pageSize: 1.5 },

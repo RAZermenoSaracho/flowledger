@@ -239,11 +239,11 @@ is usage, not potential:
 - **Used by exactly one page module** → belongs in that page's own `components/`/`hooks/`/`utils/`,
   not the top-level folder — move it there rather than leaving it global "in case" something else
   needs it later. `pages/Transactions/utils/transactions.ts` (`parseTransactionAmount`) is an
-  example: nothing outside `Transactions/components/TransactionList.tsx` uses it.
+  example: nothing outside `Transactions/components/TransactionRow.tsx` uses it.
 - **Not imported anywhere** → don't silently delete it; it may be dead code or something meant to
   be wired up and never was. Flag it instead.
 
-Current shared components living in `src/components/`: `Card`, `Button`, `FormField` (TextInput/SelectField/TextArea), `RecordCard` (list-row layout with mobile three-dot actions), `SearchBar`/`FilterBuilder` (the query-building UI), `AddRecordButton`, `PageHeader` (title+action row above a full-width `SearchBar`), `ActionMenu`. A new component belongs here only once a second page module actually needs it — see the bar above; don't add to this list preemptively.
+Current shared components living in `src/components/`: `Card`, `Button`, `FormField` (TextInput/SelectField/TextArea), `RecordCard` (list-row layout with mobile three-dot actions), `SearchBar`/`FilterBuilder` (the query-building UI), `AddRecordButton`, `ActionMenu`, `EmptyState` (the one empty-text paragraph), and the `ListView/` folder: `ListView` (model-agnostic list card: header, toolbar slot, optional selection bar, `items` or labelled `groups`, `stack`/`grid` layout, optional `itemLabel` for selection checkbox names), `ListViewPagination` (editable-range pager: edit the `from–to` range, previous/next, per-window limit) and `ListViewSelectionBar`. Shared hooks in `src/hooks/`: `usePagination` (owns the `{offset, limit}` window, infers its item type from `fetchPage`, remembers only `limit` in localStorage) and `useListSelection` (row ids plus an `allMatching` flag so a selection can span windows). Nothing in `components/ListView/`, `EmptyState`, `usePagination` or `useListSelection` may import from `pages/`. A new component belongs here only once a second page module actually needs it — see the bar above; don't add to this list preemptively.
 
 **Target: no page-module file over ~500 lines.** When a page grows past that, look first for filtering/sorting/grouping/calculation logic that's still living client-side (move it to the backend's `read.service.ts`), then extract the remaining UI sections into `components/`, and pull mutation/query/state clusters into a `hooks/` file if a single section's state management is large enough to be its own concern (e.g. an entire tab's CRUD workflow).
 

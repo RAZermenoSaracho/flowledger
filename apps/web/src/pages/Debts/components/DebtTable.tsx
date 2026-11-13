@@ -1,38 +1,35 @@
 import type { ReactNode } from "react";
 import { Button } from "../../../components/Button";
+import type { ListSelection } from "../../../types/common.types";
 import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { debtDescription, debtTitle, statusLabel } from "../utils/debtDisplay";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Table listing debts with row selection and highlight support. */
 export function DebtTable({
   title,
   debts,
   viewerUserId,
-  selectedDebtIds,
+  selection,
   highlightedDebtId,
   emptyText,
   selectableDebts = debts,
-  onToggleDebt,
-  onSelectDebts,
   renderAction
 }: {
   title: string;
   debts: Debt[];
   viewerUserId?: string;
-  selectedDebtIds: Set<string>;
+  selection: ListSelection;
   highlightedDebtId?: string | null;
   emptyText: string;
   selectableDebts?: Debt[];
-  onToggleDebt: (debtId: string) => void;
-  onSelectDebts: (debts: Debt[], selected: boolean) => void;
   renderAction?: (debt: Debt) => ReactNode;
 }) {
   const selectableIds = new Set(selectableDebts.map((debt) => debt.id));
   const allSelected =
     selectableDebts.length > 0 &&
-    selectableDebts.every((debt) => selectedDebtIds.has(debt.id));
+    selectableDebts.every((debt) => selection.isSelected(debt.id));
 
   return (
     <div>
@@ -45,7 +42,10 @@ export function DebtTable({
           variant="secondary"
           className="min-h-8 px-3 py-1 text-xs"
           disabled={selectableDebts.length === 0}
-          onClick={() => onSelectDebts(selectableDebts, !allSelected)}
+          onClick={() => selection.setWindow(
+              selectableDebts.map((debt) => debt.id),
+              !allSelected
+            )}
         >
           {allSelected ? "Clear Selection" : "Select All"}
         </Button>
@@ -88,9 +88,9 @@ export function DebtTable({
                       <input
                         type="checkbox"
                         className="h-4 w-4 rounded border-slate-300 text-pine focus:ring-mint disabled:opacity-50 dark:border-slate-700"
-                        checked={selectedDebtIds.has(debt.id)}
+                        checked={selection.isSelected(debt.id)}
                         disabled={!isSelectable}
-                        onChange={() => onToggleDebt(debt.id)}
+                        onChange={() => selection.toggle(debt.id)}
                         aria-label={`Select ${debtTitle(debt)}`}
                       />
                     </td>

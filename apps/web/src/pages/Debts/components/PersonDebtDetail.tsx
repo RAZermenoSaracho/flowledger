@@ -9,16 +9,17 @@ import { formatMoney } from "../../../utils/currency";
 import { isNonZero, sum } from "../../../utils/money";
 import type { SettlementDraft } from "../types/debts.types";
 import { availableSettlementAmount, displayPerson } from "../utils/debtDisplay";
+import type { ListSelection } from "../../../types/common.types";
 import { AccountAmountField } from "./AccountAmountField";
 import { DebtTable } from "./DebtTable";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 
 /** Expanded per-person debt breakdown with settlement request form. */
 export function PersonDebtDetail({
   balance,
   summaryCurrency,
   viewerUserId,
-  selectedDebtIds,
+  selection,
   selectedIOweThem,
   accounts,
   isActing,
@@ -27,15 +28,13 @@ export function PersonDebtDetail({
   isSettlementDraftComplete,
   updateDraft,
   categoryOptionsFor,
-  onToggleDebt,
-  onSelectDebts,
   onSubmitSettlement,
   onSubmitBatchSettlement
 }: {
   balance: PersonBalance;
   summaryCurrency: string;
   viewerUserId?: string;
-  selectedDebtIds: Set<string>;
+  selection: ListSelection;
   selectedIOweThem: Debt[];
   accounts: Account[];
   isActing: boolean;
@@ -48,14 +47,13 @@ export function PersonDebtDetail({
     value: string
   ) => void;
   categoryOptionsFor: (debt: Debt) => Category[];
-  onToggleDebt: (debtId: string) => void;
-  onSelectDebts: (debts: Debt[], selected: boolean) => void;
   onSubmitSettlement: (event: FormEvent, debt: Debt) => Promise<void>;
   onSubmitBatchSettlement: (event: FormEvent) => Promise<void>;
 }) {
   const selectableIOweThem = balance.iOweThem.filter(
     (debt) => isNonZero(availableSettlementAmount(debt))
   );
+  const selectableIdsIOweThem = selectableIOweThem.map((debt) => debt.id);
   const batchAmountsByCurrency = new Map<string, string[]>();
   for (const debt of selectedIOweThem) {
     const amounts = batchAmountsByCurrency.get(debt.currency) ?? [];
@@ -107,11 +105,9 @@ export function PersonDebtDetail({
           title="They Owe Me"
           debts={balance.theyOweMe}
           viewerUserId={viewerUserId}
-          selectedDebtIds={selectedDebtIds}
+          selection={selection}
           highlightedDebtId={highlightedDebtId}
           emptyText="This person does not owe you on any open debt records."
-          onToggleDebt={onToggleDebt}
-          onSelectDebts={onSelectDebts}
         />
 
         <div className="grid gap-3">
@@ -134,7 +130,7 @@ export function PersonDebtDetail({
                 variant="secondary"
                 className="w-full"
                 disabled={selectableIOweThem.length === 0}
-                onClick={() => onSelectDebts(selectableIOweThem, true)}
+                onClick={() => selection.setWindow(selectableIdsIOweThem, true)}
               >
                 Select All
               </Button>
@@ -143,7 +139,7 @@ export function PersonDebtDetail({
                 variant="secondary"
                 className="w-full"
                 disabled={selectedIOweThem.length === 0}
-                onClick={() => onSelectDebts(selectableIOweThem, false)}
+                onClick={() => selection.setWindow(selectableIdsIOweThem, false)}
               >
                 Clear Selection
               </Button>
@@ -166,12 +162,10 @@ export function PersonDebtDetail({
             title="I Owe Them"
             debts={balance.iOweThem}
             viewerUserId={viewerUserId}
-            selectedDebtIds={selectedDebtIds}
+            selection={selection}
             highlightedDebtId={highlightedDebtId}
             emptyText="You do not owe this person on any open debt records."
             selectableDebts={selectableIOweThem}
-            onToggleDebt={onToggleDebt}
-            onSelectDebts={onSelectDebts}
             renderAction={(debt) => {
               const draft = draftFor(debt);
               const availableAmount = availableSettlementAmount(debt);

@@ -2,11 +2,14 @@ import { Link } from "react-router-dom";
 import { routes } from "../constants/routes";
 import { useRelatedTransactions } from "../hooks/useRelatedTransactions";
 import { TRANSACTION_SORTABLE_FIELDS } from "../pages/Transactions/utils/transactionSearchFields";
-import type { RelatedTransactionsScope, Transaction } from "../types/transactions.types";
+import type {
+  RelatedTransactionsScope,
+  Transaction
+} from "../types/transactions.types";
 import type { SearchFieldConfig } from "../utils/searchDomain";
 import { formatMoney } from "../utils/currency";
 import { formatTransactionDate } from "../utils/dateTime";
-import { Pagination } from "./Pagination";
+import { ListViewPagination } from "./ListView/ListViewPagination";
 import { RelatedList } from "./RelatedList";
 import { SearchBar } from "./SearchBar";
 
@@ -15,8 +18,8 @@ const RELATED_TRANSACTION_SEARCH_FIELDS: SearchFieldConfig[] = [
 ];
 
 /**
- * "Transactions" tab body for an account or group Form View: a name search, the scope's
- * transactions (newest first by default) and a server-paging footer. Render it with `key` set to
+ * "Transactions" tab body for an account or group Form View: a name search and the scope's
+ * transactions (newest first by default) with the range pager in the header. Render it with `key` set to
  * the record id so paging and search reset when the record changes.
  */
 export function RelatedTransactionsList({
@@ -58,7 +61,11 @@ export function RelatedTransactionsList({
               </Link>
             )
           },
-          { key: "date", header: "Date", cell: (row) => formatTransactionDate(row) },
+          {
+            key: "date",
+            header: "Date",
+            cell: (row) => formatTransactionDate(row)
+          },
           ...(scope.field === "groupId"
             ? [
                 {
@@ -80,16 +87,7 @@ export function RelatedTransactionsList({
             cell: (row) => formatMoney(row.amount, row.executionCurrency)
           }
         ]}
-        footer={
-          <Pagination
-            page={list.paging.page}
-            pageCount={list.paging.pageCount}
-            total={list.meta?.total}
-            hasNext={list.paging.hasNext}
-            isFetching={list.isFetching}
-            onPageChange={list.paging.setPage}
-          />
-        }
+        headerActions={<ListViewPagination {...list.pager} />}
       />
     </div>
   );

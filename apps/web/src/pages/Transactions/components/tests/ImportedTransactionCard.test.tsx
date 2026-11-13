@@ -42,16 +42,15 @@ function makeCategory(overrides: Partial<Category> = {}): Category {
   };
 }
 
-function baseProps(overrides: Partial<Parameters<typeof ImportedTransactionCard>[0]> = {}) {
+function baseProps(
+  overrides: Partial<Parameters<typeof ImportedTransactionCard>[0]> = {}
+) {
   return {
     transaction: makeTransaction(),
     categories: [makeCategory()],
-    isSelected: false,
-    isSelectionLocked: false,
     isImporting: false,
     isIgnoring: false,
     isUnignoring: false,
-    onSelectedChange: vi.fn(),
     onCategoryChange: vi.fn(),
     onImport: vi.fn(),
     onIgnore: vi.fn(),
@@ -62,15 +61,21 @@ function baseProps(overrides: Partial<Parameters<typeof ImportedTransactionCard>
 
 describe("importedTransactionType", () => {
   it("classifies a negative amount as expense", () => {
-    expect(importedTransactionType(makeTransaction({ amount: "-5" }))).toBe("expense");
+    expect(importedTransactionType(makeTransaction({ amount: "-5" }))).toBe(
+      "expense"
+    );
   });
 
   it("classifies a positive amount as income", () => {
-    expect(importedTransactionType(makeTransaction({ amount: "5" }))).toBe("income");
+    expect(importedTransactionType(makeTransaction({ amount: "5" }))).toBe(
+      "income"
+    );
   });
 
   it("returns null for a zero amount", () => {
-    expect(importedTransactionType(makeTransaction({ amount: "0" }))).toBeNull();
+    expect(
+      importedTransactionType(makeTransaction({ amount: "0" }))
+    ).toBeNull();
   });
 });
 
@@ -83,14 +88,22 @@ describe("providerAccountLabel", () => {
         provider: "syncfy",
         providerAccountId: "pa-1",
         accountMetadata: { name: "Checking ••1234" },
-        connection: { id: "conn-1", institutionName: "Test Bank", status: "active" }
+        connection: {
+          id: "conn-1",
+          institutionName: "Test Bank",
+          status: "active"
+        }
       }
     });
-    expect(providerAccountLabel(transaction)).toBe("Checking ••1234 · Test Bank · pa-1");
+    expect(providerAccountLabel(transaction)).toBe(
+      "Checking ••1234 · Test Bank · pa-1"
+    );
   });
 
   it("falls back to just providerAccountId when no metadata/institution is available", () => {
-    expect(providerAccountLabel(makeTransaction({ providerAccountId: "pa-1" }))).toBe("pa-1");
+    expect(
+      providerAccountLabel(makeTransaction({ providerAccountId: "pa-1" }))
+    ).toBe("pa-1");
   });
 });
 
@@ -112,7 +125,9 @@ describe("ImportedTransactionCard", () => {
   it("omits the needs-classification message once a category is set", () => {
     renderWithProviders(
       <ImportedTransactionCard
-        {...baseProps({ transaction: makeTransaction({ categoryId: "cat-1" }) })}
+        {...baseProps({
+          transaction: makeTransaction({ categoryId: "cat-1" })
+        })}
       />
     );
     expect(
@@ -124,12 +139,17 @@ describe("ImportedTransactionCard", () => {
     renderWithProviders(
       <ImportedTransactionCard
         {...baseProps({
-          categories: [makeCategory({ id: "cat-expense", type: "expense" }), makeCategory({ id: "cat-income", name: "Salary", type: "income" })]
+          categories: [
+            makeCategory({ id: "cat-expense", type: "expense" }),
+            makeCategory({ id: "cat-income", name: "Salary", type: "income" })
+          ]
         })}
       />
     );
     expect(screen.getByRole("option", { name: "Coffee" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Salary" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Salary" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows Import/Ignore for a pending row, disabling Import until a category is set", () => {
@@ -140,7 +160,9 @@ describe("ImportedTransactionCard", () => {
 
   it("enables Import once a category is set and calls onImport", async () => {
     const user = userEvent.setup();
-    const props = baseProps({ transaction: makeTransaction({ categoryId: "cat-1" }) });
+    const props = baseProps({
+      transaction: makeTransaction({ categoryId: "cat-1" })
+    });
     renderWithProviders(<ImportedTransactionCard {...props} />);
 
     const importButton = screen.getByRole("button", { name: "Import" });
@@ -156,35 +178,33 @@ describe("ImportedTransactionCard", () => {
         {...baseProps({ transaction: makeTransaction({ status: "ignored" }) })}
       />
     );
-    expect(screen.getByRole("button", { name: "Unignore" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Unignore" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Import" })
+    ).not.toBeInTheDocument();
   });
 
   it("disables the category select once the row is no longer pending", () => {
     renderWithProviders(
       <ImportedTransactionCard
-        {...baseProps({ transaction: makeTransaction({ status: "processed" }) })}
+        {...baseProps({
+          transaction: makeTransaction({ status: "processed" })
+        })}
       />
     );
     expect(screen.getByLabelText("Category")).toBeDisabled();
   });
 
-  it("calls onSelectedChange/onCategoryChange from their controls", async () => {
+  it("calls onCategoryChange from the category control", async () => {
     const user = userEvent.setup();
-    const props = baseProps({ transaction: makeTransaction({ categoryId: "cat-1" }) });
+    const props = baseProps({
+      transaction: makeTransaction({ categoryId: "cat-1" })
+    });
     renderWithProviders(<ImportedTransactionCard {...props} />);
-
-    await user.click(screen.getByRole("checkbox", { name: "Select imported transaction Coffee shop" }));
-    expect(props.onSelectedChange).toHaveBeenCalledOnce();
 
     await user.selectOptions(screen.getByLabelText("Category"), "");
     expect(props.onCategoryChange).toHaveBeenCalledWith(null);
-  });
-
-  it("locks the selection checkbox when isSelectionLocked", () => {
-    renderWithProviders(<ImportedTransactionCard {...baseProps({ isSelectionLocked: true })} />);
-    expect(
-      screen.getByRole("checkbox", { name: "Select imported transaction Coffee shop" })
-    ).toBeDisabled();
   });
 });

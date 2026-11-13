@@ -149,7 +149,7 @@ describe("DebtsPage", () => {
     await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Pending Settlement Requests" }));
 
-    expect(screen.getByText("Pending settlement requests")).toBeInTheDocument();
+    expect(screen.getByText("Requests by me")).toBeInTheDocument();
   });
 
   it("switches to the Settled History tab", async () => {

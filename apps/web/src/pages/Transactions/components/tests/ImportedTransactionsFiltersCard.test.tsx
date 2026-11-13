@@ -16,7 +16,9 @@ describe("ImportedTransactionsFiltersCard", () => {
       />
     );
 
-    expect(screen.getByLabelText("Search imported transactions")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Search imported transactions")
+    ).toBeInTheDocument();
   });
 
   it("seeds a status filter pill from initialStatus", () => {

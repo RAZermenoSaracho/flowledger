@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
+import { renderWithProviders } from "../../tests/utils/renderWithProviders";
 import { EmptyState } from "../EmptyState";
 
 describe("EmptyState", () => {

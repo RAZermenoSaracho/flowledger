@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
+import { useListSelection } from "../../../hooks/useListSelection";
 import * as debtsClient from "../../../services/debts.client";
 import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
@@ -13,7 +14,11 @@ import { amountPrecisionError } from "../../../utils/currency";
 import { compare, isPositive } from "../../../utils/money";
 import { availableSettlementAmount } from "../utils/debtDisplay";
 
-/** State and handlers for creating settlement requests and approving/rejecting incoming ones. */
+/**
+ * State and handlers for creating settlement requests and approving/rejecting incoming ones.
+ * `debtSelection` (person detail debts) and `approvalSelection` (pending approvals) are `useListSelection`
+ * instances; successful batch mutations drop the settled ids from them.
+ */
 export function useDebtSettlementWorkflow({
   groupById,
   privateExpenseCategories,
@@ -30,12 +35,8 @@ export function useDebtSettlementWorkflow({
   const [approvalDrafts, setApprovalDrafts] = useState<
     Record<string, SettlementApprovalDraft>
   >({});
-  const [selectedDebtIds, setSelectedDebtIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [selectedApprovalIds, setSelectedApprovalIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const debtSelection = useListSelection({ resetKey: "debts" });
+  const approvalSelection = useListSelection({ resetKey: "approvals" });
 
   function settlementRequestBody(draft: SettlementDraft) {
     return {
@@ -78,11 +79,7 @@ export function useDebtSettlementWorkflow({
         delete next[variables.debtId];
         return next;
       });
-      setSelectedDebtIds((current) => {
-        const next = new Set(current);
-        next.delete(variables.debtId);
-        return next;
-      });
+      debtSelection.setWindow([variables.debtId], false);
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
@@ -96,14 +93,10 @@ export function useDebtSettlementWorkflow({
       );
     },
     onSuccess: async (_data, variables) => {
-      const settledIds = new Set(
-        variables.selectedDebts.map((debt) => debt.id)
+      debtSelection.setWindow(
+        variables.selectedDebts.map((debt) => debt.id),
+        false
       );
-      setSelectedDebtIds((current) => {
-        const next = new Set(current);
-        settledIds.forEach((id) => next.delete(id));
-        return next;
-      });
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
     }
   });
@@ -132,14 +125,10 @@ export function useDebtSettlementWorkflow({
       );
     },
     onSuccess: async (_data, variables) => {
-      const approvedIds = new Set(
-        variables.map((approval) => approval.settlementId)
+      approvalSelection.setWindow(
+        variables.map((approval) => approval.settlementId),
+        false
       );
-      setSelectedApprovalIds((current) => {
-        const next = new Set(current);
-        approvedIds.forEach((id) => next.delete(id));
-        return next;
-      });
       await queryClient.invalidateQueries({ queryKey: ["debts"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
     }
@@ -287,26 +276,6 @@ export function useDebtSettlementWorkflow({
     }));
   }
 
-  function toggleDebtSelection(debtId: string) {
-    setSelectedDebtIds((current) => {
-      const next = new Set(current);
-      if (next.has(debtId)) next.delete(debtId);
-      else next.add(debtId);
-      return next;
-    });
-  }
-
-  function setDetailSelection(debtsToSelect: Debt[], selected: boolean) {
-    setSelectedDebtIds((current) => {
-      const next = new Set(current);
-      debtsToSelect.forEach((debt) => {
-        if (selected) next.add(debt.id);
-        else next.delete(debt.id);
-      });
-      return next;
-    });
-  }
-
   async function submitSettlement(event: FormEvent, debt: Debt) {
     event.preventDefault();
     await requestSettlement.mutateAsync({
@@ -331,29 +300,6 @@ export function useDebtSettlementWorkflow({
     });
   }
 
-  function toggleApprovalSelection(settlementId: string) {
-    setSelectedApprovalIds((current) => {
-      const next = new Set(current);
-      if (next.has(settlementId)) next.delete(settlementId);
-      else next.add(settlementId);
-      return next;
-    });
-  }
-
-  function setApprovalSelection(
-    requests: SettlementRequest[],
-    selected: boolean
-  ) {
-    setSelectedApprovalIds((current) => {
-      const next = new Set(current);
-      requests.forEach((request) => {
-        if (selected) next.add(request.id);
-        else next.delete(request.id);
-      });
-      return next;
-    });
-  }
-
   async function submitBatchApproval(requests: SettlementRequest[]) {
     await approveBatchSettlements.mutateAsync(
       requests.map((request) => ({
@@ -371,10 +317,8 @@ export function useDebtSettlementWorkflow({
     rejectSettlement.isPending;
 
   return {
-    selectedDebtIds,
-    setSelectedDebtIds,
-    selectedApprovalIds,
-    setSelectedApprovalIds,
+    debtSelection,
+    approvalSelection,
     isActing,
     draftFor,
     isSettlementDraftComplete,
@@ -384,12 +328,8 @@ export function useDebtSettlementWorkflow({
     expenseOffsetCategoryOptionsFor,
     approvalDraftFor,
     updateApprovalDraft,
-    toggleDebtSelection,
-    setDetailSelection,
     submitSettlement,
     submitBatchSettlement,
-    toggleApprovalSelection,
-    setApprovalSelection,
     submitBatchApproval,
     approveSettlement,
     rejectSettlement

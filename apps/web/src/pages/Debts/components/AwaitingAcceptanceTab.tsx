@@ -4,7 +4,7 @@ import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
 import { formatPublicUser } from "../../../utils/publicUser";
 import { useShareResponse } from "../hooks/useShareResponse";
-import { EmptyState } from "./EmptyState";
+import { EmptyState } from "../../../components/EmptyState";
 import { participantName } from "../utils/debtDisplay";
 
 function InvitationRow({

@@ -7,16 +7,10 @@ import { formatPublicUser } from "../../../utils/publicUser";
 export function SettlementRequestCard({
   request,
   isHighlighted,
-  selectable,
-  isSelected,
-  onSelectedChange,
   actions
 }: {
   request: SettlementRequest;
   isHighlighted?: boolean;
-  selectable?: boolean;
-  isSelected?: boolean;
-  onSelectedChange?: () => void;
   actions?: ReactNode;
 }) {
   const debt = request.sharedExpenseParticipant;
@@ -32,15 +26,6 @@ export function SettlementRequestCard({
     >
       <div className="flex flex-col justify-between gap-2 sm:flex-row">
         <div className="flex gap-3">
-          {selectable ? (
-            <input
-              type="checkbox"
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-pine focus:ring-mint dark:border-slate-700"
-              checked={Boolean(isSelected)}
-              onChange={onSelectedChange}
-              aria-label={`Select ${debt?.sharedExpense.title ?? "settlement request"}`}
-            />
-          ) : null}
           <div>
             <p className="font-semibold">
               {debt?.sharedExpense.title ?? "Settlement request"}
