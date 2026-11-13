@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
+import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
 import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
 import * as debtsClient from "../../services/debts.client";
@@ -81,14 +82,10 @@ export function PersonDebtDetailPage() {
     [balance?.iOweThem, workflow.debtSelection]
   );
 
-  useEffect(() => {
-    if (!highlightedDebtId || debtsQuery.isLoading) return;
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(`debt-${highlightedDebtId}`)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-  }, [debtsQuery.isLoading, highlightedDebtId]);
+  useScrollToHighlight(
+    highlightedDebtId ? `debt-${highlightedDebtId}` : null,
+    debtsQuery.isLoading
+  );
 
   return (
     <div className="grid min-w-0 gap-4">

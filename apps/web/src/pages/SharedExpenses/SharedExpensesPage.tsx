@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { SearchBarQuery } from "../../components/SearchBar";
 import { useAuth } from "../../hooks/useAuth";
+import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
 import * as sharedExpensesClient from "../../services/sharedExpenses.client";
 import { SharedExpenseFormCard } from "./components/SharedExpenseFormCard";
 import {
@@ -42,24 +43,14 @@ export function SharedExpensesPage() {
     [visibleSharedExpenses, sharedExpenseQuery.groupBy]
   );
 
-  useEffect(() => {
-    const targetId = highlightedParticipantId
+  useScrollToHighlight(
+    highlightedParticipantId
       ? `shared-participant-${highlightedParticipantId}`
       : highlightedSharedExpenseId
         ? `shared-expense-${highlightedSharedExpenseId}`
-        : null;
-    if (!targetId || sharedExpensesQuery.isLoading) return;
-
-    window.requestAnimationFrame(() => {
-      document
-        .getElementById(targetId)
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-  }, [
-    highlightedParticipantId,
-    highlightedSharedExpenseId,
+        : null,
     sharedExpensesQuery.isLoading
-  ]);
+  );
 
   return (
     <div className="grid gap-6">

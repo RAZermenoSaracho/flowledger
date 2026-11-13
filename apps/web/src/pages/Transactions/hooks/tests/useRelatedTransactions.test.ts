@@ -3,8 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import { server } from "../../tests/mocks/server";
-import type { RelatedTransactionsScope } from "../../types/transactions.types";
+import { server } from "../../../../tests/mocks/server";
+import type { RelatedTransactionsScope } from "../../../../types/transactions.types";
 import { useRelatedTransactions } from "../useRelatedTransactions";
 
 const API_URL = "http://localhost:4000";

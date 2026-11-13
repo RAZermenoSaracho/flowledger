@@ -317,6 +317,28 @@ describe("CurrencySelect", () => {
     );
   });
 
+  it("stays open and keeps the typed query when pressing inside the list", async () => {
+    mockCurrencies();
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CurrencySelect label="Currency" value="USD" onChange={vi.fn()} />
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Currency" })
+      ).not.toBeDisabled()
+    );
+    const input = screen.getByRole("combobox", { name: "Currency" });
+    await user.click(input);
+    await user.type(input, "eur");
+
+    fireEvent.pointerDown(screen.getByRole("listbox"));
+
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(input).toHaveValue("eur");
+  });
+
   it("exposes the highlighted option through combobox semantics and closes on Tab", async () => {
     mockCurrencies();
     const user = userEvent.setup();

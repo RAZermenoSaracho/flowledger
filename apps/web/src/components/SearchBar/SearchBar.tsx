@@ -13,10 +13,11 @@ import {
   type SortDirection,
   type SortableField,
   type WhereNode
-} from "../utils/searchDomain";
-import { Button } from "./Button";
+} from "../../utils/searchDomain";
+import { Button } from "../Button";
 import { FilterBuilder } from "./FilterBuilder";
-import { SelectField } from "./FormField";
+import { SelectField } from "../FormField";
+import { useDismiss } from "../../hooks/useDismiss";
 
 /** Shape of the where/sort/groupBy state `<SearchBar>` produces. */
 export type SearchBarQuery = {
@@ -92,25 +93,7 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (!isPanelOpen) return;
-
-    function handlePointerDown(event: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsPanelOpen(false);
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsPanelOpen(false);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isPanelOpen]);
+  useDismiss(containerRef, () => setIsPanelOpen(false), isPanelOpen);
 
   const query = useMemo<SearchBarQuery>(
     () => ({

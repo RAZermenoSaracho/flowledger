@@ -1,7 +1,7 @@
-import type { Category, CategoryCardActions, CategoryFormValues } from "../types/categories.types";
-import { formatEnumLabel } from "../utils/enumLabels";
+import type { Category, CategoryCardActions, CategoryFormValues } from "../../../types/categories.types";
+import { formatEnumLabel } from "../../../utils/enumLabels";
 import { CategoryForm } from "./CategoryForm";
-import { RecordCard, type RecordCardAction } from "./RecordCard";
+import { RecordCard, type RecordCardAction } from "../../../components/RecordCard";
 
 /**
  * Category list card: color dot, name, Archived badge and type. Pass `actions` to offer

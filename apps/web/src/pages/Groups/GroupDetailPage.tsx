@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
-import { RelatedTransactionsList } from "../../components/RelatedTransactionsList";
+import { RelatedTransactionsList } from "../Transactions/components/RelatedTransactionsList";
 import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";

@@ -1,8 +1,8 @@
 import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { CategoryCard } from "../../../components/CategoryCard";
-import { CategoryForm } from "../../../components/CategoryForm";
+import { CategoryCard } from "../../Categories/components/CategoryCard";
+import { CategoryForm } from "../../Categories/components/CategoryForm";
 import { ListView } from "../../../components/ListView";
 import { ModalDialog } from "../../../components/ModalDialog";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";

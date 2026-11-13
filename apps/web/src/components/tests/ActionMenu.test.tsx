@@ -79,6 +79,16 @@ describe("ActionMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("stays open when pressing inside the menu", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Row actions" }));
+    await user.pointer({ keys: "[MouseLeft>]", target: screen.getByRole("menu") });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
   it("closes on Escape", async () => {
     const user = userEvent.setup();
     renderMenu();

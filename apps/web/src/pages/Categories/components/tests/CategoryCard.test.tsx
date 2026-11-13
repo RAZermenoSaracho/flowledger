@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Category } from "../../types/categories.types";
+import type { Category } from "../../../../types/categories.types";
 import { CategoryCard } from "../CategoryCard";
 
 function makeCategory(overrides: Partial<Category> = {}): Category {
