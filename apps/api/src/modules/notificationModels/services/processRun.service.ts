@@ -5,7 +5,7 @@ import { HttpError } from "../../../utils/httpError.js";
 import { createTransaction } from "../../transactions/services/create.service.js";
 import { runScript } from "../sandbox/runScript.js";
 import type { ModelBindings, ModelSlots } from "../types/notificationModels.types.js";
-import { mapProposalToTransactionInput } from "../utils/mapProposal.js";
+import { invalidResultMessage, mapProposalToTransactionInput } from "../utils/mapProposal.js";
 
 type ClaimedRun = Pick<NotificationRun, "id" | "userId" | "modelId" | "text" | "receivedAt" | "workerId">;
 
@@ -49,7 +49,7 @@ export async function processRun(run: ClaimedRun, options: { signal?: AbortSigna
   }
 
   const parsed = notificationProposalSchema.safeParse(result.proposal);
-  if (!parsed.success) return finish("failed", "invalid_result");
+  if (!parsed.success) return finish("failed", invalidResultMessage(parsed.error));
   if (parsed.data.kind === "skip") return finish("skipped", parsed.data.reason);
   const proposal = parsed.data as Prisma.InputJsonValue;
 

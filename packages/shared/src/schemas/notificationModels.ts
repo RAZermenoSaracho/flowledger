@@ -70,21 +70,25 @@ export const notificationIngestSchema = z.object({ text: z.string().min(1).max(4
 const proposalBase = {
   name: z.string().trim().min(1).max(160),
   amount: positiveDecimalAmountSchema,
-  currency: currencyCodeSchema,
+  currency: currencyCodeSchema.optional(),
   date: dateStringSchema.optional(),
-  account: slotKey,
   category: slotKey.optional(),
   group: slotKey.optional(),
   notes: z.string().max(1000).optional()
 };
 
-/** A script's result, discriminated on `kind`; slot references are keys, resolved through the model's bindings. */
+/**
+ * A script's result, discriminated on `kind`; slot references are keys, resolved through the model's bindings.
+ * Expense/income need only `name` and `amount`; omitted `account`/`currency` fall back to the transaction domain's
+ * currency rule. Transfers require both `account` and `to_account`.
+ */
 export const notificationProposalSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("expense"), ...proposalBase }),
-  z.object({ kind: z.literal("income"), ...proposalBase }),
+  z.object({ kind: z.literal("expense"), ...proposalBase, account: slotKey.optional() }),
+  z.object({ kind: z.literal("income"), ...proposalBase, account: slotKey.optional() }),
   z.object({
     kind: z.literal("transfer"),
     ...proposalBase,
+    account: slotKey,
     to_account: slotKey,
     destination_amount: positiveDecimalAmountSchema.optional()
   }),

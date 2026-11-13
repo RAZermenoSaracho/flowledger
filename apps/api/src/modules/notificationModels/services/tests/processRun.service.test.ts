@@ -51,10 +51,10 @@ describe("processRun", () => {
     expect(lastUpdate().data).toMatchObject({ status: "failed", reason: "ValueError: no amount (line 7)" });
   });
 
-  it("fails with invalid_result when the proposal does not validate", async () => {
-    runScript.mockResolvedValue({ kind: "proposal", proposal: { kind: "expense" }, stdout: "" });
+  it("fails naming the offending field when the proposal does not validate", async () => {
+    runScript.mockResolvedValue({ kind: "proposal", proposal: { kind: "expense", name: "X", amount: "1.2.3" }, stdout: "" });
     await expect(processRun(run)).resolves.toBe("failed");
-    expect(lastUpdate().data).toMatchObject({ reason: "invalid_result" });
+    expect(lastUpdate().data).toMatchObject({ reason: expect.stringMatching(/^invalid result: amount: /) });
   });
 
   it("fails with mapping_missing:<key> for an unbound slot", async () => {
@@ -118,5 +118,57 @@ describe("processRun", () => {
     runScript.mockRejectedValue(new DOMException("Aborted", "AbortError"));
     await expect(processRun(run)).rejects.toMatchObject({ name: "AbortError" });
     expect(prismaMock.notificationRun.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("processRun optional fields and currency", () => {
+  const propose = (proposal: object) => runScript.mockResolvedValue({ kind: "proposal", proposal, stdout: "" });
+  const created = () => createTransaction.mock.calls.at(-1)![1];
+
+  it.each(["expense", "income"])("creates a %s from only amount and name, leaving currency to createTransaction", async (kind) => {
+    model({ bindings: {}, slots: [] });
+    propose({ kind, name: "X", amount: "1234.50" });
+    await expect(processRun(run)).resolves.toBe("completed");
+    expect(created()).toMatchObject({ type: kind, amount: "1234.50", name: "X" });
+    expect(created()).not.toHaveProperty("executionCurrency");
+    expect(created()).not.toHaveProperty("accountId");
+  });
+
+  it("passes an explicit currency with no account or category", async () => {
+    model({ bindings: {}, slots: [] });
+    propose({ kind: "expense", name: "X", amount: "1.00", currency: "USD" });
+    await processRun(run);
+    expect(created()).toMatchObject({ executionCurrency: "USD" });
+    expect(created()).not.toHaveProperty("accountId");
+  });
+
+  it("passes the bound account without a currency so the account's currency applies", async () => {
+    propose({ kind: "expense", name: "X", amount: "1.00", account: "card" });
+    await processRun(run);
+    expect(created()).toMatchObject({ accountId: "acc1" });
+    expect(created()).not.toHaveProperty("executionCurrency");
+  });
+
+  it("fails with mapping_missing for an explicitly referenced unbound category", async () => {
+    model({ bindings: {}, slots: [] });
+    propose({ kind: "expense", name: "X", amount: "1.00", category: "general" });
+    await expect(processRun(run)).resolves.toBe("failed");
+    expect(lastUpdate().data).toMatchObject({ reason: "mapping_missing:general" });
+  });
+
+  it.each([
+    ["an invalid explicit currency", "Exchange rate is unavailable for ZZZ"],
+    ["a foreign account binding", "Account does not exist or is archived"]
+  ])("fails with the domain message for %s", async (_label, message) => {
+    propose({ kind: "expense", name: "X", amount: "1.00", account: "card", currency: "ZZZ" });
+    createTransaction.mockRejectedValue(new HttpError(400, message));
+    await expect(processRun(run)).resolves.toBe("failed");
+    expect(lastUpdate().data).toMatchObject({ status: "failed", reason: message });
+  });
+
+  it("preserves decimal precision", async () => {
+    propose({ kind: "expense", name: "X", amount: "1234.50", account: "card" });
+    await processRun(run);
+    expect(created().amount).toBe("1234.50");
   });
 });

@@ -2,7 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { assertAllowedQueryFields } from "../../../db/sieveFieldGuard.js";
-import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
+import { HttpError, notFound } from "../../../utils/httpError.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import type {
   SharedExpenseListRecord,
   SharedExpensesQueryInput,
@@ -109,29 +110,12 @@ async function getVisibleSharedExpenseIds(userId: string) {
   return rows.map((row) => row.id);
 }
 
-function parseSharedExpensesQueryParam(raw: string | undefined) {
-  if (!raw) return {} as SharedExpensesQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid shared-expenses query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid shared-expenses query: must be a JSON object");
-  }
-
-  return decoded as SharedExpensesQueryInput;
-}
-
 /** Lists shared expenses where `userId` is the owner or a participant, per a DSQL query; non-owners get the public transaction fields only, with `groupId` nulled when they are not in that Group. */
 export async function listSharedExpenses(
   userId: string,
   rawQuery: string | undefined
 ) {
-  const input = parseSharedExpensesQueryParam(rawQuery);
+  const input = parseQueryParam<SharedExpensesQueryInput>(rawQuery, "shared-expenses");
   assertAllowedQueryFields({ where: input.where, sort: input.sort }, QUERYABLE_FIELDS);
   const visibleIds = await getVisibleSharedExpenseIds(userId);
   const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };

@@ -2,8 +2,8 @@ import type { NotificationRunStatus } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
-import type { ModelBindings, ModelSlots } from "../types/notificationModels.types.js";
-import { parseListQuery } from "../utils/parseListQuery.js";
+import type { ModelBindings, ModelSlots, NotificationListQueryInput } from "../types/notificationModels.types.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 
 const modelsSieve = createSieve(prisma.notificationModel, { maxPageSize: 100 });
 const runsSieve = createSieve(prisma.notificationRun, { maxPageSize: 100 });
@@ -91,7 +91,7 @@ async function latestRunStatuses(modelIds: string[]) {
 
 /** Lists the caller's models per a DSQL `query` param, paginated (default page size 50), each with its latest run status. */
 export async function listModels(userId: string, rawQuery: string | undefined) {
-  const input = parseListQuery(rawQuery);
+  const input = parseQueryParam<NotificationListQueryInput>(rawQuery);
   const scope = { field: "userId", op: "=" as const, value: userId };
   const result = await modelsSieve.query<{ id: string; [key: string]: unknown }>({
     where: input.where ? { and: [scope, input.where] } : scope,
@@ -156,7 +156,7 @@ export async function getModelById(userId: string, id: string) {
 
 async function listRuns(userId: string, modelId: string, rawQuery: string | undefined, statuses: NotificationRunStatus[], direction: "asc" | "desc") {
   await getOwnedModel(userId, modelId);
-  const input = parseListQuery(rawQuery);
+  const input = parseQueryParam<NotificationListQueryInput>(rawQuery);
   const scope = {
     and: [
       { field: "modelId", op: "=" as const, value: modelId },

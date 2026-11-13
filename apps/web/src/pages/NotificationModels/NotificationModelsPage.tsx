@@ -1,48 +1,43 @@
-import { Link, useNavigate } from "react-router-dom";
-import { AddRecordButton } from "../../components/AddRecordButton";
-import { ListView } from "../../components/ListView";
-import { routes } from "../../constants/routes";
-import { usePagination } from "../../hooks/usePagination";
-import * as notificationModelsClient from "../../services/notificationModels.client";
-import { NotificationModelListItem } from "./components/NotificationModelListItem";
+import { useSearchParams } from "react-router-dom";
+import { Tabs } from "../../components/Tabs";
+import { MyModelsList } from "./components/MyModelsList";
+import { NotificationLibraryPage } from "./NotificationLibraryPage";
 
-/** Notification models list at `/notification-models`: a server-paginated `ListView` whose rows open the model, with a New button. */
+type NotificationModelsTab = "my" | "public";
+
+const notificationModelsTabs: { id: NotificationModelsTab; label: string }[] = [
+  { id: "my", label: "My Models" },
+  { id: "public", label: "Public Models" }
+];
+
+/**
+ * Notification models page at `/notification-models`: a desktop section strip switching between the
+ * user's models and the public library. The `?tab=` param is the source of truth (`my` when absent or
+ * invalid), written by both the strip and the mobile drawer's submenu links.
+ */
 export function NotificationModelsPage() {
-  const navigate = useNavigate();
-  const list = usePagination({
-    queryKey: ["notification-models"],
-    resetKey: "notification-models",
-    defaultLimit: 20,
-    storageKey: "notification-models",
-    fetchPage: async (pagination) => {
-      const { data, meta } = await notificationModelsClient.listNotificationModels(pagination);
-      return { items: data, total: meta.total, hasNext: meta.hasNext };
-    }
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get("tab");
+  const activeTab: NotificationModelsTab = requested === "public" ? "public" : "my";
+  const content = { my: <MyModelsList />, public: <NotificationLibraryPage /> };
 
   return (
-    <ListView
-      title="Notification models"
-      subtitle="Scripts that turn bank notification text into transactions."
-      actions={
-        <div className="flex items-center gap-2">
-          <Link className="text-sm text-pine underline" to={routes.notificationLibrary}>
-            Library
-          </Link>
-          <AddRecordButton label="model" onClick={() => navigate(routes.newNotificationModel)} />
-        </div>
-      }
-      items={list.items}
-      rowKey={(model) => model.id}
-      renderItem={(model) => <NotificationModelListItem model={model} />}
-      isLoading={list.isLoading}
-      error={list.error}
-      emptyText={
-        <>
-          No notification models yet. <Link className="text-pine underline" to={routes.newNotificationModel}>Create one</Link>.
-        </>
-      }
-      pager={list.pager}
-    />
+    <div className="grid gap-6">
+      <Tabs
+        label="Notification model views"
+        variant="buttons"
+        desktopOnly
+        idPrefix="notification-models-"
+        activeId={activeTab}
+        onSelect={(id) =>
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            next.set("tab", id);
+            return next;
+          })
+        }
+        tabs={notificationModelsTabs.map((tab) => ({ ...tab, content: content[tab.id] }))}
+      />
+    </div>
   );
 }

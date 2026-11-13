@@ -1,6 +1,6 @@
 import type { NotificationProposal } from "@flowledger/shared";
 import { describe, expect, it } from "vitest";
-import { mapProposalToTransactionInput } from "../mapProposal.js";
+import { invalidResultMessage, mapProposalToTransactionInput } from "../mapProposal.js";
 
 const slots = [
   { key: "card", kind: "account" as const, label: "Card", required: true },
@@ -58,5 +58,39 @@ describe("mapProposalToTransactionInput", () => {
 
   it("reports a slot used with the wrong kind", () => {
     expect(mapProposalToTransactionInput({ ...expense, category: "card" }, bindings, slots, receivedAt)).toEqual({ missingSlot: "card" });
+  });
+});
+
+describe("mapProposalToTransactionInput optional fields", () => {
+  it("maps an expense with only amount and name, leaving currency and relations unset", () => {
+    const result = mapProposalToTransactionInput({ kind: "expense", name: "OXXO", amount: "1234.50" }, {}, [], receivedAt);
+    expect(result).toEqual({
+      input: { name: "OXXO", amount: "1234.50", type: "expense", date: "2026-11-13T18:04:11.000Z" }
+    });
+    expect(result).not.toHaveProperty("input.executionCurrency");
+  });
+
+  it("maps an income with an explicit currency and no account", () => {
+    expect(mapProposalToTransactionInput({ kind: "income", name: "Pay", amount: "10.00", currency: "EUR" }, {}, [], receivedAt)).toEqual({
+      input: expect.objectContaining({ type: "income", executionCurrency: "EUR" })
+    });
+  });
+
+  it("still reports an explicitly referenced but unbound slot", () => {
+    expect(mapProposalToTransactionInput({ kind: "expense", name: "X", amount: "1.00", category: "general" }, {}, slots, receivedAt)).toEqual({
+      missingSlot: "general"
+    });
+  });
+});
+
+describe("invalidResultMessage", () => {
+  it("names the first issue's field path and message", () => {
+    expect(invalidResultMessage({ issues: [{ path: ["amount"], message: "Expected decimal string" }, { path: ["name"], message: "x" }] })).toBe(
+      "invalid result: amount: Expected decimal string"
+    );
+  });
+
+  it("omits an empty path", () => {
+    expect(invalidResultMessage({ issues: [{ path: [], message: "Invalid input" }] })).toBe("invalid result: Invalid input");
   });
 });

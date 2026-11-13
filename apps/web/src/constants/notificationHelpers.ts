@@ -11,19 +11,20 @@ export const notificationHelpers: NotificationHelper[] = [
   {
     name: "expense",
     signature: "expense(amount, name, account=None, category=None, group=None, date=None, currency=None, notes=None)",
-    description: "Proposes an expense. account, category and group are slot keys, not record ids; amount is a string.",
-    example: 'return expense(amount="1234.50", name="OXXO", account="card", category="general")'
+    description:
+      "Proposes an expense. Only amount (a string) and name are required. account, category and group are optional slot keys, not record ids; omitted ones are never resolved. Currency when omitted: the bound account's currency, else your preferred currency (USD if you have none).",
+    example: 'return expense(amount="1234.50", name="OXXO")  # or add account="card", category="general", currency="MXN"'
   },
   {
     name: "income",
     signature: "income(amount, name, account=None, category=None, group=None, date=None, currency=None, notes=None)",
-    description: "Proposes an income; same arguments as expense.",
+    description: "Proposes an income; same arguments and currency resolution as expense.",
     example: 'return income(amount="2000.00", name="Juan Perez", account="card")'
   },
   {
     name: "transfer",
     signature: "transfer(amount, name, account, to_account, date=None, currency=None, destination_amount=None, notes=None)",
-    description: "Proposes a transfer between two account slots; destination_amount is for cross-currency transfers.",
+    description: "Proposes a transfer between two account slots (both required); destination_amount is for cross-currency transfers. currency is optional and resolves like expense.",
     example: 'return transfer(amount="500.00", name="Savings", account="card", to_account="savings")'
   },
   {

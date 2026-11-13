@@ -1,11 +1,13 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { MobilePrimaryNavLinks } from "../MobilePrimaryNavLinks";
 
 const items = [
   ["Dashboard", "/"],
-  ["Debts", "/debts"]
+  ["Debts", "/debts"],
+  ["Notification models", "/notification-models"]
 ] as const;
 
 describe("MobilePrimaryNavLinks", () => {
@@ -19,5 +21,13 @@ describe("MobilePrimaryNavLinks", () => {
 
     expect(screen.queryByRole("link", { name: "Debts" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Debts" })).toBeInTheDocument();
+  });
+
+  it("expands Notification models into My Models and Public Models tab links", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MobilePrimaryNavLinks items={items} />);
+    await user.click(screen.getByRole("button", { name: "Notification models" }));
+    expect(screen.getByRole("link", { name: "My Models" })).toHaveAttribute("href", "/notification-models?tab=my");
+    expect(screen.getByRole("link", { name: "Public Models" })).toHaveAttribute("href", "/notification-models?tab=public");
   });
 });

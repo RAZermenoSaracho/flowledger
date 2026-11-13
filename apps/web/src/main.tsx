@@ -12,7 +12,6 @@ import { ProtectedRoute } from "./layout/ProtectedRoute";
 import { AccountDetailPage } from "./pages/Accounts/AccountDetailPage";
 import { AccountsPage } from "./pages/Accounts/AccountsPage";
 import { NotificationModelDetailPage } from "./pages/NotificationModels/NotificationModelDetailPage";
-import { NotificationLibraryPage } from "./pages/NotificationModels/NotificationLibraryPage";
 import { NotificationModelsPage } from "./pages/NotificationModels/NotificationModelsPage";
 import { CategoriesPage } from "./pages/Categories/CategoriesPage";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
@@ -82,8 +81,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   element={<NotificationModelsPage />}
                 />
                 <Route
-                  path={routes.notificationLibrary}
-                  element={<NotificationLibraryPage />}
+                  path={routes.legacyNotificationLibrary}
+                  element={<Navigate to={routes.notificationLibrary} replace />}
                 />
                 <Route
                   path={routes.newNotificationModel}

@@ -257,4 +257,71 @@ describe("notification queue (real sandbox)", () => {
     expect(res.headers["retry-after"]).toBe("60");
     expect(await prisma.notificationRun.count({ where: { userId: owner.userId } })).toBe(500);
   }, 60_000);
+
+  it("resolves currency: user currency without account, bound account's currency, explicit currency overrides the user's", async () => {
+    const script = (call: string) => `
+def process(text, ctx):
+    m = re.search(r"pay (\\$[\\d,.]+) at (.+)", text, re.I)
+    return ${call}
+`;
+    const createScripted = async (owner: Owner, call: string, bound: boolean) => {
+      const res = await request(app)
+        .post("/notification-models")
+        .set(bearer(owner.token))
+        .send({
+          name: "Currency model",
+          code: script(call),
+          slots: bound ? [{ key: "card", kind: "account", label: "Card", required: true }] : [],
+          bindings: bound ? { card: owner.accountId } : {},
+          isActive: true
+        });
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+      return res.body.model.id as string;
+    };
+    const minimal = 'expense(amount=amount(m.group(1)), name=m.group(2).strip())';
+
+    const userOwner = await createOwner();
+    await prisma.user.update({ where: { id: userOwner.userId }, data: { preferredCurrency: "MXN" } });
+    const userModel = await createScripted(userOwner, minimal, false);
+
+    const accountOwner = await createOwner();
+    await prisma.user.update({ where: { id: accountOwner.userId }, data: { preferredCurrency: null } });
+    await prisma.account.update({ where: { id: accountOwner.accountId }, data: { currency: "EUR" } });
+    const accountModel = await createScripted(accountOwner, 'expense(amount=amount(m.group(1)), name=m.group(2).strip(), account="card")', true);
+    const overrideModel = await createScripted(
+      accountOwner,
+      'expense(amount=amount(m.group(1)), name=m.group(2).strip(), currency="GBP")',
+      false
+    );
+
+    const a = await ingestOk(userOwner, userModel, "pay $1,234.50 at Cafe Uno");
+    const b = await ingestOk(accountOwner, accountModel, "pay $20.10 at Cafe Dos");
+    const c = await ingestOk(accountOwner, overrideModel, "pay $300.00 at Cafe Tres");
+    await drain([userModel, accountModel, overrideModel]);
+
+    const created = async (runId: string) => {
+      const run = await prisma.notificationRun.findUniqueOrThrow({ where: { id: runId } });
+      expect(run, JSON.stringify(run)).toMatchObject({ status: "completed", reason: null });
+      return prisma.transaction.findUniqueOrThrow({ where: { id: run.transactionId! } });
+    };
+    const [ta, tb, tc] = [await created(a.runId), await created(b.runId), await created(c.runId)];
+    expect(ta).toMatchObject({ executionCurrency: "MXN", accountId: null });
+    expect(ta.amount.toString()).toBe("1234.5");
+    expect(tb).toMatchObject({ executionCurrency: "EUR", accountId: accountOwner.accountId });
+    expect(tb.amount.toString()).toBe("20.1");
+    expect(tc).toMatchObject({ executionCurrency: "GBP", accountId: null });
+
+    const mismatchModel = await createScripted(
+      accountOwner,
+      'expense(amount=amount(m.group(1)), name=m.group(2).strip(), account="card", currency="GBP")',
+      true
+    );
+    const d = await ingestOk(accountOwner, mismatchModel, "pay $5.00 at Cafe Cuatro");
+    await drain([mismatchModel]);
+    expect(await prisma.notificationRun.findUniqueOrThrow({ where: { id: d.runId } })).toMatchObject({
+      status: "failed",
+      reason: "accountAmount is required when GBP differs from EUR"
+    });
+    expect(tc.amount.toString()).toBe("300");
+  }, 120_000);
 });

@@ -2,7 +2,8 @@ import { notificationProposalSchema, transactionSchema } from "@flowledger/share
 import { HttpError } from "../../../utils/httpError.js";
 import { acquirePlaygroundSlot, runScript, validateScript } from "../sandbox/runScript.js";
 import type { ModelBindings, ModelSlots, NotificationTestResult } from "../types/notificationModels.types.js";
-import { mapProposalToTransactionInput } from "../utils/mapProposal.js";
+import { prepareTransactionInput } from "../../transactions/services/prepareTransaction.service.js";
+import { invalidResultMessage, mapProposalToTransactionInput } from "../utils/mapProposal.js";
 import { getOwnedModel, resolveBindingNames } from "./read.service.js";
 
 /** Creates the shared response when sandbox playground capacity is exhausted. */
@@ -24,7 +25,7 @@ export async function validateCode(userId: string, code: string) {
 /**
  * Runs the model's draft (or saved) code and settings against sample `text` using the model's bindings.
  * Writes nothing and creates no run. 404 for a missing or foreign model, 503 when the playground cap is reached.
- * A proposal comes back with a `transactionPreview` (slot keys resolved to record names) and any
+ * A proposal comes back with a `transactionPreview` (slot keys resolved to record names, currency resolved exactly as `createTransaction` does) and any
  * `transactionSchema` problems in `validationErrors`; an unbound or unknown slot is an `error` outcome `mapping_missing:<key>`.
  */
 export async function testModel(
@@ -52,9 +53,10 @@ export async function testModel(
   if (result.kind === "skip") return { outcome: "skip", reason: result.reason, stdout: result.stdout };
 
   const parsed = notificationProposalSchema.safeParse(result.proposal);
-  if (!parsed.success || parsed.data.kind === "skip") {
-    return { outcome: "error", error: { message: "invalid result" }, stdout: result.stdout };
+  if (!parsed.success) {
+    return { outcome: "error", error: { message: invalidResultMessage(parsed.error) }, stdout: result.stdout };
   }
+  if (parsed.data.kind === "skip") return { outcome: "skip", reason: parsed.data.reason, stdout: result.stdout };
 
   const slots = model.slots as ModelSlots;
   const bindings = model.bindings as ModelBindings;
@@ -69,9 +71,19 @@ export async function testModel(
   }
 
   const names = await resolveBindingNames(userId, slots, bindings);
-  const checked = transactionSchema.safeParse(mapped.input);
   const proposal = parsed.data;
+  const fail = (message: string) => ({ outcome: "error" as const, proposal, error: { message }, stdout: result.stdout });
+  const checked = transactionSchema.safeParse(mapped.input);
   const { input } = mapped;
+  let currency = input.executionCurrency;
+  if (checked.success) {
+    try {
+      currency = (await prepareTransactionInput(userId, checked.data)).executionCurrency;
+    } catch (error) {
+      if (error instanceof HttpError) return fail(error.message);
+      throw error;
+    }
+  }
   return {
     outcome: "proposal",
     proposal,
@@ -80,8 +92,8 @@ export async function testModel(
       amount: input.amount,
       type: input.type,
       date: input.date,
-      executionCurrency: input.executionCurrency,
-      account: names[proposal.account],
+      executionCurrency: currency,
+      ...(proposal.account ? { account: names[proposal.account] } : {}),
       ...(proposal.kind === "transfer" ? { transferToAccount: names[proposal.to_account] } : {}),
       ...(proposal.category ? { category: names[proposal.category] } : {}),
       ...(proposal.group ? { group: names[proposal.group] } : {}),

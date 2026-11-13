@@ -74,6 +74,25 @@ describe("notificationProposalSchema", () => {
     expect(notificationProposalSchema.safeParse({ ...expense, amount: 12.5 }).success).toBe(false);
   });
 
+  it.each(["expense", "income"])("accepts a %s with only amount and name", (kind) => {
+    const parsed = notificationProposalSchema.safeParse({ kind, name: "OXXO", amount: "1234.50" });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toEqual({ kind, name: "OXXO", amount: "1234.50" });
+  });
+
+  it("accepts an expense with a currency but no account or category", () => {
+    expect(notificationProposalSchema.safeParse({ kind: "expense", name: "X", amount: "1.00", currency: "usd" }).success).toBe(true);
+  });
+
+  it("still requires amount and name, and both accounts for a transfer", () => {
+    expect(notificationProposalSchema.safeParse({ kind: "expense", name: "X" }).success).toBe(false);
+    expect(notificationProposalSchema.safeParse({ kind: "income", amount: "1.00" }).success).toBe(false);
+    const base = { kind: "transfer", name: "T", amount: "1.00" };
+    expect(notificationProposalSchema.safeParse({ ...base, to_account: "b" }).success).toBe(false);
+    expect(notificationProposalSchema.safeParse({ ...base, account: "a" }).success).toBe(false);
+    expect(notificationProposalSchema.safeParse({ ...base, account: "a", to_account: "b" }).success).toBe(true);
+  });
+
   it("requires to_account for a transfer", () => {
     const transfer = { ...expense, kind: "transfer" };
     expect(notificationProposalSchema.safeParse(transfer).success).toBe(false);

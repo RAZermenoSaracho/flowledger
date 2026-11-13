@@ -1,6 +1,7 @@
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
-import { badRequest, notFound } from "../../../utils/httpError.js";
+import { notFound } from "../../../utils/httpError.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import { getGroupAdmin, getGroupMembership } from "../../groups/services/read.service.js";
 import type {
   CategoriesQueryInput,
@@ -60,30 +61,13 @@ async function getVisibleCategoryIds(
   return rows.map((row) => row.id);
 }
 
-function parseCategoriesQueryParam(raw: string | undefined) {
-  if (!raw) return {} as CategoriesQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid categories query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid categories query: must be a JSON object");
-  }
-
-  return decoded as CategoriesQueryInput;
-}
-
 /** Lists categories visible to `userId` for the given scope (all/group/personal), per a DSQL query within that scope. */
 export async function listCategories(
   userId: string,
   scope: { groupId?: string; scope?: "all" },
   rawQuery: string | undefined
 ) {
-  const input = parseCategoriesQueryParam(rawQuery);
+  const input = parseQueryParam<CategoriesQueryInput>(rawQuery, "categories");
   const visibleIds = await getVisibleCategoryIds(userId, scope);
   const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
   const where = input.where

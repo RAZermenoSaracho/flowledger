@@ -29,7 +29,10 @@ describe("createSieve — pagination", () => {
 
   it("rejects a malformed sort with a 400, with or without pagination", async () => {
     for (const query of [
-      { sort: { field: "name" }, pagination: { kind: "offset", page: 1, pageSize: 5 } },
+      {
+        sort: { field: "name" },
+        pagination: { kind: "offset", page: 1, pageSize: 5 }
+      },
       { sort: [null] },
       { sort: "name" },
       { sort: [{ field: "name", direction: "sideways" }] }
@@ -56,7 +59,9 @@ describe("createSieve — pagination", () => {
     prismaMock.account.count.mockResolvedValue(0);
     prismaMock.account.findMany.mockResolvedValue([]);
 
-    await sieve.query({ pagination: { kind: "range", offset: 7, limit: 100000 } });
+    await sieve.query({
+      pagination: { kind: "range", offset: 7, limit: 100000 }
+    });
     expect(lastFindManyArgs()).toMatchObject({ skip: 7, take: 50 });
 
     await sieve.query({ pagination: { kind: "range", offset: 0, limit: 20 } });
@@ -94,7 +99,10 @@ describe("createSieve — pagination", () => {
     await sieve.query({ pagination });
     expect(lastFindManyArgs().orderBy).toEqual([{ id: "desc" }]);
 
-    await sieve.query({ sort: [{ field: "id", direction: "asc" }], pagination });
+    await sieve.query({
+      sort: [{ field: "id", direction: "asc" }],
+      pagination
+    });
     expect(lastFindManyArgs().orderBy).toEqual([{ id: "asc" }]);
   });
 
@@ -105,5 +113,70 @@ describe("createSieve — pagination", () => {
 
     expect(lastFindManyArgs().orderBy).toEqual([{ name: "asc" }]);
     expect(lastFindManyArgs().take).toBeUndefined();
+  });
+});
+
+describe("createSieve — operator validation", () => {
+  const sieve = createSieve(prismaMock.account);
+
+  async function rejection(query: unknown) {
+    const error = await sieve.query(query).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(HttpError);
+    expect((error as HttpError).statusCode).toBe(400);
+  }
+
+  it("rejects an unknown operator with a 400 and never queries", async () => {
+    prismaMock.account.findMany.mockClear();
+    await rejection({ where: { field: "userId", op: "eq", value: "u1" } });
+    await rejection({ where: { field: "userId", value: "u1" } });
+    await rejection({ where: { field: "userId", op: "childOf", value: "u1" } });
+    expect(prismaMock.account.findMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown operator nested in and/or/not", async () => {
+    await rejection({
+      where: {
+        and: [{ field: "a", op: "=", value: 1 }, { or: [{ field: "b", op: "eq", value: 2 }] }]
+      }
+    });
+    await rejection({ where: { not: { field: "a", op: "equals", value: 1 } } });
+  });
+
+  it("checks every branch of a node that combines and/or/not and op", async () => {
+    const ok = { field: "a", op: "=", value: 1 };
+    await rejection({ where: { and: [ok], or: [{ field: "b", op: "eq", value: 2 }] } });
+    await rejection({ where: { and: [ok], not: { field: "b", op: "eq", value: 2 } } });
+    await rejection({ where: { and: [ok], op: "eq", field: "c", value: 3 } });
+    await rejection({ where: { and: { field: "b", op: "=", value: 2 } } });
+    await rejection({ where: {} });
+    await rejection({ where: null });
+    await rejection({ include: { account: { where: { field: "b", op: "eq", value: 2 } } } });
+  });
+
+  it("never returns unscoped rows when a server scope filter is mistyped", async () => {
+    prismaMock.account.findMany.mockResolvedValue([{ id: "other-users-row" }] as never);
+    const scoped = {
+      where: {
+        and: [
+          { field: "userId", op: "eq", value: "me" },
+          { field: "name", op: "ilike", value: "x" }
+        ]
+      }
+    };
+    await expect(sieve.query(scoped)).rejects.toBeInstanceOf(HttpError);
+  });
+
+  it("leaves valid operators unchanged", async () => {
+    prismaMock.account.findMany.mockResolvedValue([]);
+    await sieve.query({
+      where: {
+        and: [{ field: "userId", op: "=", value: "u1" }, { not: { field: "name", op: "isNull" } }]
+      }
+    });
+    expect(prismaMock.account.findMany.mock.calls.at(-1)?.[0]).toMatchObject({
+      where: {
+        AND: [{ userId: { equals: "u1" } }, { NOT: { name: { equals: null } } }]
+      }
+    });
   });
 });

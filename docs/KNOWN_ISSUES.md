@@ -675,7 +675,9 @@ Still open:
 
 ---
 
-## [OPEN] #052 — datasieve silently ignores unknown filter operators
+## [RESOLVED] #052 — datasieve silently ignores unknown filter operators
+
+**Resolved:** `createSieve().query` runs `assertKnownOperators` before every query. It walks each `where` tree (and/or/not, nested) and throws a 400 for a missing, unknown or reserved operator, whether the filter is user-supplied or server-built, so a mistyped scope fails closed. datasieve has no strict option; the upstream fix (reject unknown operators in `translateOperator`, `datasieve-prisma`) is still worth making.
 
 **Found in:** B-007 notification models list implementation.
 
@@ -687,7 +689,9 @@ Still open:
 
 ---
 
-## [OPEN] #053 — The datasieve `query` parameter parser is copied across modules
+## [RESOLVED] #053 — The datasieve `query` parameter parser is copied across modules
+
+**Resolved:** All copies (including accounts, categories and imported-transactions, which the original list missed) now call `parseQueryParam(raw, label?)` in `apps/api/src/utils/parseQueryParam.ts`; error messages are unchanged. `notificationModels/utils/parseListQuery.ts` was deleted.
 
 **Found in:** B-007 simplicity review.
 
