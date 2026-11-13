@@ -56,7 +56,9 @@ export function SharedExpensesListCard({
         <AddRecordButton
           label="shared expense"
           onClick={() =>
-            navigate(`${routes.newTransaction}?shared=1&tab=sharing`)
+            navigate(`${routes.newTransaction}?shared=1&tab=sharing`, {
+              state: { from: `${routes.debts}?tab=sharedExpenses` }
+            })
           }
         />
       }
