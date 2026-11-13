@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
+import type { ListSelection } from "../../../../types/common.types";
 import type { Debt } from "../../../../types/debts.types";
 import { DebtTable } from "../DebtTable";
 
@@ -35,14 +36,25 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
   };
 }
 
+function makeSelection(selectedIds: string[] = []): ListSelection {
+  return {
+    count: selectedIds.length,
+    allMatching: false,
+    canSelectAllMatching: false,
+    isSelected: (id) => selectedIds.includes(id),
+    toggle: vi.fn(),
+    setWindow: vi.fn(),
+    selectAllMatching: vi.fn(),
+    clear: vi.fn()
+  };
+}
+
 function baseProps(overrides: Partial<Parameters<typeof DebtTable>[0]> = {}) {
   return {
     title: "They Owe Me",
     debts: [makeDebt()],
-    selectedDebtIds: new Set<string>(),
+    selection: makeSelection(),
     emptyText: "Nothing here.",
-    onToggleDebt: vi.fn(),
-    onSelectDebts: vi.fn(),
     ...overrides
   };
 }
@@ -61,14 +73,14 @@ describe("DebtTable", () => {
     expect(screen.getByText("Nothing here.")).toBeInTheDocument();
   });
 
-  it("calls onToggleDebt when a row's checkbox is clicked", async () => {
+  it("toggles the selection when a row's checkbox is clicked", async () => {
     const user = userEvent.setup();
     const props = baseProps();
     renderWithProviders(<DebtTable {...props} />);
 
     await user.click(screen.getByRole("checkbox", { name: "Select Dinner split" }));
 
-    expect(props.onToggleDebt).toHaveBeenCalledWith("debt-1");
+    expect(props.selection.toggle).toHaveBeenCalledWith("debt-1");
   });
 
   it("disables a debt's checkbox when it isn't in selectableDebts", () => {
@@ -84,18 +96,18 @@ describe("DebtTable", () => {
     const selectAllButton = screen.getByRole("button", { name: "Select All" });
     await user.click(selectAllButton);
 
-    expect(props.onSelectDebts).toHaveBeenCalledWith([makeDebt()], true);
+    expect(props.selection.setWindow).toHaveBeenCalledWith(["debt-1"], true);
   });
 
   it("shows 'Clear Selection' and clears when all selectable debts are already selected", async () => {
     const user = userEvent.setup();
-    const props = baseProps({ selectedDebtIds: new Set(["debt-1"]) });
+    const props = baseProps({ selection: makeSelection(["debt-1"]) });
     renderWithProviders(<DebtTable {...props} />);
 
     const clearButton = screen.getByRole("button", { name: "Clear Selection" });
     await user.click(clearButton);
 
-    expect(props.onSelectDebts).toHaveBeenCalledWith([makeDebt()], false);
+    expect(props.selection.setWindow).toHaveBeenCalledWith(["debt-1"], false);
   });
 
   it("disables 'Select All' when there are no selectable debts", () => {

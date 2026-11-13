@@ -19,7 +19,8 @@ export function RelatedList<Row>({
   addLabel = "Add",
   onRemove,
   canRemove = () => true,
-  footer
+  footer,
+  headerActions
 }: RelatedListProps<Row>) {
   const showRows = !isLoading && !error && rows.length > 0;
 
@@ -27,10 +28,15 @@ export function RelatedList<Row>({
     <section aria-label={title} className="grid gap-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-semibold">{title}</h3>
-        {onAdd ? (
-          <Button type="button" variant="secondary" onClick={onAdd}>
-            {addLabel}
-          </Button>
+        {onAdd || headerActions ? (
+          <div className="flex min-w-0 items-center gap-2">
+            {headerActions}
+            {onAdd ? (
+              <Button type="button" variant="secondary" onClick={onAdd}>
+                {addLabel}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {isLoading ? (

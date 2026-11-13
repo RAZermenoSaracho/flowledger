@@ -57,12 +57,9 @@ function metadataLine(transaction: ProviderImportedTransaction) {
 export function ImportedTransactionCard({
   transaction,
   categories,
-  isSelected,
-  isSelectionLocked,
   isImporting,
   isIgnoring,
   isUnignoring,
-  onSelectedChange,
   onCategoryChange,
   onImport,
   onIgnore,
@@ -77,7 +74,7 @@ export function ImportedTransactionCard({
 
   return (
     <div
-      className={`grid gap-3 rounded-md border p-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center ${
+      className={`grid gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center ${
         needsCategory
           ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"
           : transaction.status === "pending"
@@ -85,15 +82,6 @@ export function ImportedTransactionCard({
             : "border-slate-200 bg-slate-50 opacity-80 dark:border-slate-800 dark:bg-slate-950/40"
       }`}
     >
-      <input
-        type="checkbox"
-        aria-label={`Select imported transaction ${transaction.description}`}
-        className="h-4 w-4 accent-pine"
-        checked={isSelected}
-        disabled={isSelectionLocked}
-        onChange={onSelectedChange}
-      />
-
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-semibold">{transaction.description}</p>

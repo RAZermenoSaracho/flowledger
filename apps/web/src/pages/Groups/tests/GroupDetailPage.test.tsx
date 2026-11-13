@@ -118,7 +118,7 @@ describe("GroupDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("loads the Transactions tab server-paginated and scoped to the group", async () => {
+  it("loads the Transactions tab range-paginated and scoped to the group", async () => {
     const queries: { where: unknown; pagination: unknown }[] = [];
     mock(makeGroup());
     server.use(
@@ -136,7 +136,7 @@ describe("GroupDetailPage", () => {
     expect(await screen.findByText("No transactions for this group yet.")).toBeInTheDocument();
     expect(queries[0]).toMatchObject({
       where: { field: "groupId", op: "=", value: "group-1" },
-      pagination: { kind: "offset", page: 1, pageSize: 20 }
+      pagination: { kind: "range", offset: 0, limit: 20 }
     });
   });
 

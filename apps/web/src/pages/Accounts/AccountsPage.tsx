@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AddRecordButton } from "../../components/AddRecordButton";
-import { Card } from "../../components/Card";
-import { PageHeader } from "../../components/PageHeader";
-import { groupByFields } from "../../components/SearchComponent";
+import { ListView } from "../../components/ListView";
+import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import {
   createConditionWithValue,
@@ -32,16 +31,6 @@ const initialAccountDomain = {
   ...createEmptyGroup("and"),
   children: [createConditionWithValue("isArchived", "=", "false")]
 };
-
-// groupByFields (components/SearchComponent.tsx) keys its group defs by
-// `id`; SearchBar's GroupableField uses `name` — trivial adapter between
-// the two (see TransactionsPage.tsx for the same pattern).
-const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map(
-  (field) => ({
-    id: field.name,
-    label: field.label
-  })
-);
 
 function accountGroupKey(account: Account, groupById: string) {
   if (groupById === "type") {
@@ -80,19 +69,10 @@ export function AccountsPage() {
     () => accountsQuery.data ?? [],
     [accountsQuery.data]
   );
-  const activeGroupBys = useMemo(
-    () => accountQuery.groupBy ?? [],
-    [accountQuery.groupBy]
-  );
   const groupedAccounts = useMemo(
     () =>
-      groupByFields(
-        visibleAccounts,
-        activeGroupBys,
-        accountGroupByDefsForBucketing,
-        accountGroupKey
-      ),
-    [visibleAccounts, activeGroupBys]
+      groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
+    [visibleAccounts, accountQuery.groupBy]
   );
 
   return (
@@ -101,19 +81,18 @@ export function AccountsPage() {
 
       {sync.isBankSyncUnavailable ? <BankSyncUnavailableNotice /> : null}
 
-      <Card>
-        <PageHeader
-          title="Accounts"
-          action={
-            <AddRecordButton
-              label="account"
-              onClick={() => {
-                sync.setAddMode(null);
-                sync.setIsFormOpen(true);
-              }}
-            />
-          }
-        >
+      <ListView
+        title="Accounts"
+        actions={
+          <AddRecordButton
+            label="account"
+            onClick={() => {
+              sync.setAddMode(null);
+              sync.setIsFormOpen(true);
+            }}
+          />
+        }
+        toolbar={
           <SearchBar
             fields={accountSearchFields}
             groupableFields={ACCOUNT_GROUPABLE_FIELDS}
@@ -124,35 +103,20 @@ export function AccountsPage() {
             placeholder="Search accounts"
             onQueryChange={setAccountQuery}
           />
-        </PageHeader>
-
-        <div className="mt-4 grid gap-4">
-          {groupedAccounts.map((section) => (
-            <div key={section.key || "all"} className="grid gap-3">
-              {section.label ? (
-                <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-                  {section.label}
-                </h3>
-              ) : null}
-              <div className="grid gap-3">
-                {section.items.map((account) => (
-                  <AccountListItem
-                    key={account.id}
-                    account={account}
-                    preferredCurrency={auth.user?.preferredCurrency}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {visibleAccounts.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No accounts found.
-            </p>
-          ) : null}
-        </div>
-      </Card>
+        }
+        items={visibleAccounts}
+        groups={groupedAccounts}
+        rowKey={(account) => account.id}
+        renderItem={(account) => (
+          <AccountListItem
+            account={account}
+            preferredCurrency={auth.user?.preferredCurrency}
+          />
+        )}
+        isLoading={accountsQuery.isLoading}
+        error={accountsQuery.error?.message}
+        emptyText="No accounts found."
+      />
     </div>
   );
 }

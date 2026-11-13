@@ -1,6 +1,4 @@
 import { useMemo } from "react";
-import { Card } from "../../../components/Card";
-import { PageHeader } from "../../../components/PageHeader";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import {
   createConditionWithValue,
@@ -13,7 +11,7 @@ import {
   IMPORTED_TRANSACTION_DEFAULT_SEARCH_FIELD
 } from "../utils/importedTransactionSearchFields";
 
-/** Search/filter controls for the imported-transactions review list. */
+/** Toolbar-only `SearchBar` for the imported-transactions `ListView`; the card chrome comes from the list. */
 export function ImportedTransactionsFiltersCard({
   resetKey,
   initialStatus,
@@ -54,17 +52,13 @@ export function ImportedTransactionsFiltersCard({
     : undefined;
 
   return (
-    <Card>
-      <PageHeader title="Imported transactions">
-        <SearchBar
-          key={resetKey}
-          fields={fields}
-          defaultSearchField={IMPORTED_TRANSACTION_DEFAULT_SEARCH_FIELD}
-          initialDomain={initialDomain}
-          placeholder="Search imported transactions"
-          onQueryChange={onQueryChange}
-        />
-      </PageHeader>
-    </Card>
+    <SearchBar
+      key={resetKey}
+      fields={fields}
+      defaultSearchField={IMPORTED_TRANSACTION_DEFAULT_SEARCH_FIELD}
+      initialDomain={initialDomain}
+      placeholder="Search imported transactions"
+      onQueryChange={onQueryChange}
+    />
   );
 }

@@ -116,6 +116,31 @@ describe("list pagination", () => {
       expect(res.body.meta.total).toBe(25);
     });
 
+    it("returns the exact range window with the total, a partial last window, and empty past the end", async () => {
+      const first = await listG({ kind: "range", offset: 0, limit: 10 });
+      const mid = await listG({ kind: "range", offset: 10, limit: 10 });
+      const last = await listG({ kind: "range", offset: 20, limit: 10 });
+      for (const res of [first, mid, last]) {
+        expect(res.status).toBe(200);
+        expect(res.body.meta.total).toBe(25);
+      }
+      expect([first, mid, last].map((r) => r.body.data.length)).toEqual([10, 10, 5]);
+      expect(new Set([first, mid, last].flatMap((r) => r.body.data.map((t: { id: string }) => t.id)))).toEqual(new Set(aIds));
+
+      const past = await listG({ kind: "range", offset: 500, limit: 10 });
+      expect(past.body.data).toEqual([]);
+      expect(past.body.meta.total).toBe(25);
+    });
+
+    it("clamps an oversized range limit and rejects invalid range values", async () => {
+      const res = await listG({ kind: "range", offset: 0, limit: 100000 });
+      expect(res.status).toBe(200);
+      expect(res.body.meta.pageSize).toBeLessThanOrEqual(10000);
+      expect(res.body.data).toHaveLength(25);
+      expect((await listG({ kind: "range", offset: -1, limit: 10 })).status).toBe(400);
+      expect((await listG({ kind: "range", offset: 0, limit: 0 })).status).toBe(400);
+    });
+
     it.each([0, 1.5, "x"])("rejects pageSize %j with 400", async (pageSize) => {
       expect((await listG({ kind: "offset", page: 1, pageSize })).status).toBe(400);
     });
@@ -150,6 +175,16 @@ describe("list pagination", () => {
       }
       expect(new Set(seen)).toEqual(new Set(importedIds));
       expect(seen).toHaveLength(12);
+    });
+
+    it("accepts a range window and reports the full total", async () => {
+      const res = await listImported({ pagination: { kind: "range", offset: 5, limit: 5 } });
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(12);
+      expect(res.body.importedTransactions).toHaveLength(5);
+      const past = await listImported({ pagination: { kind: "range", offset: 50, limit: 5 } });
+      expect(past.body.importedTransactions).toEqual([]);
+      expect(past.body.total).toBe(12);
     });
 
     it("leaves an unpaginated call returning every row", async () => {
