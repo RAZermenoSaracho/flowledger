@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   classificationSchema,
   transactionFilterTypeSchema,
@@ -261,23 +261,23 @@ export async function getTransactionsSummary(
     aggregations: [{ fn: "sum", field: "amountInPreferredCurrency", alias: "total" }]
   });
 
-  // Not serialize(): it converts Prisma.Decimal via a JSON.stringify
-  // replacer, but Decimal.js defines its own toJSON() (returning a
-  // string), which JSON.stringify calls before the replacer ever sees
-  // the value — so the replacer's `instanceof Prisma.Decimal` check
-  // never fires here. Number() sidesteps that (Decimal.js supports
-  // numeric coercion via toString()), giving a real number instead of a
-  // numeric string sneaking into a `number`-typed response field.
+  // Not serialize(): its JSON replacer never sees Decimal (toJSON runs first); sums are rebuilt exactly below.
   const rows = result.data as unknown as {
     type: "income" | "expense" | "transfer";
     total: unknown;
   }[];
-  const income = Number(rows.find((row) => row.type === "income")?.total ?? 0);
-  const expenses = Number(
-    rows.find((row) => row.type === "expense")?.total ?? 0
+  const income = new Prisma.Decimal(
+    String(rows.find((row) => row.type === "income")?.total ?? 0)
+  );
+  const expenses = new Prisma.Decimal(
+    String(rows.find((row) => row.type === "expense")?.total ?? 0)
   );
 
-  return { income, expenses, balance: income - expenses };
+  return {
+    income: income.toNumber(),
+    expenses: expenses.toNumber(),
+    balance: income.minus(expenses).toNumber()
+  };
 }
 
 /** Fetches one transaction by id, scoped to `userId`, with its account/category/group relations and settlement/shared-expense data. */
@@ -359,7 +359,7 @@ async function loadRelatedTransactions(
       settlements.set(request.id, {
         id: request.id,
         status: request.status,
-        amount: Number(request.amount),
+        amount: request.amount.toFixed(),
         currency: request.sharedExpenseParticipant.currency,
         createdAt: request.createdAt,
         approvedAt: request.approvedAt,
@@ -375,7 +375,7 @@ async function loadRelatedTransactions(
       origins.set(tx.id, {
         id: tx.id,
         description: tx.name,
-        amount: Number(tx.amount),
+        amount: tx.amount.toFixed(),
         currency: tx.executionCurrency,
         date: tx.date,
         type: tx.type,
@@ -384,7 +384,7 @@ async function loadRelatedTransactions(
     } else {
       settlementOrigin = {
         title: expense.title,
-        amount: Number(expense.totalAmount),
+        amount: expense.totalAmount.toFixed(),
         currency: expense.transaction.executionCurrency,
         date: expense.transaction.date,
         type: expense.transaction.type,

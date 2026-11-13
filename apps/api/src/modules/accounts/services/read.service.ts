@@ -1,10 +1,11 @@
+import { Prisma } from "@prisma/client";
 import type { WhereInput } from "datasieve";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { badRequest } from "../../../utils/httpError.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { withAccountBalances } from "../../transactions/utils/transactionCalculations.js";
 import { accountListItemWithSyncSummary } from "../utils/accountSyncSummary.js";
 import type { AccountListRecord, AccountsQueryInput } from "../types/accounts.types.js";
@@ -33,23 +34,25 @@ const accountInclude = {
 } as const;
 
 async function withPreferredCurrencyBalances<
-  TAccount extends { currency: string; currentBalance: number }
+  TAccount extends { currency: string; currentBalance: Prisma.Decimal }
 >(accounts: TAccount[], preferredCurrency: string | null) {
   return Promise.all(
     accounts.map(async (account) => {
       if (!preferredCurrency || account.currency === preferredCurrency) {
         return {
           ...account,
-          currentBalanceInPreferredCurrency: account.currentBalance
+          currentBalanceInPreferredCurrency: account.currentBalance.toNumber()
         };
       }
 
       const rate = await getExchangeRate(account.currency, preferredCurrency);
       return {
         ...account,
-        currentBalanceInPreferredCurrency: roundMoney(
-          account.currentBalance * rate
-        )
+        currentBalanceInPreferredCurrency: valueInCurrency(
+          account.currentBalance,
+          rate,
+          preferredCurrency
+        ).toNumber()
       };
     })
   );
@@ -166,7 +169,8 @@ export async function listAccounts(userId: string, rawQuery: string | undefined)
         accountId: true,
         transferToAccountId: true,
         type: true,
-        amount: true
+        accountAmount: true,
+        destinationAmount: true
       }
     })
   ]);

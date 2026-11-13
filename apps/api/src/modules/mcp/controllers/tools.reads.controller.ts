@@ -58,7 +58,7 @@ export function registerPersonalReadTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "get_exchange_rate",
     {
-      description: "Get the current exchange rate between two currency codes (for example USD to MXN).",
+      description: "Get the current exchange rate between two currency codes (for example USD to MXN). A suggestion only: cross-currency transactions must state their own applied amounts.",
       inputSchema: exchangeRateToolSchema.shape,
       annotations: READ_ONLY
     },

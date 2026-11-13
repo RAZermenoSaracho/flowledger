@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -9,7 +10,7 @@ const { getExchangeRate } = await import("../../../currencies/services/read.serv
 const { getFinancialOverview } = await import("../financialOverview.service.js");
 const rateMock = vi.mocked(getExchangeRate);
 
-const dec = (n: number) => ({ toNumber: () => n });
+const dec = (n: number | string) => new Prisma.Decimal(n);
 const NOW = new Date("2026-11-10T12:00:00Z");
 
 function account(id: string, extra: Record<string, unknown> = {}) {
@@ -26,7 +27,7 @@ function account(id: string, extra: Record<string, unknown> = {}) {
 }
 
 function tx(extra: Record<string, unknown>) {
-  return {
+  const merged = {
     accountId: null,
     transferToAccountId: null,
     type: "income",
@@ -37,6 +38,7 @@ function tx(extra: Record<string, unknown>) {
     expenseOffsetCategoryId: null,
     ...extra
   };
+  return { accountAmount: merged.amount, destinationAmount: merged.amount, ...merged };
 }
 
 function debt(
@@ -119,7 +121,33 @@ describe("net worth", () => {
     });
     const result = await overview();
     expect(result.netWorth.total).toBe(500);
-    expect(result.disclosures).not.toContain("cross_currency_effects");
+    expect(result.disclosures).toEqual([]);
+  });
+
+  it("keeps native balances correct for a cross-currency transfer and shows no disclosure", async () => {
+    rateMock.mockImplementation(async (from, to) => (from === "MXN" && to === "USD" ? 0.05 : 1));
+    seed({
+      accounts: [
+        account("usd", { initialBalance: dec(500) }),
+        account("mxn", { currency: "MXN" })
+      ],
+      transactions: [
+        tx({
+          accountId: "usd",
+          transferToAccountId: "mxn",
+          type: "transfer",
+          amount: dec(100),
+          executionCurrency: "USD",
+          accountAmount: dec(100),
+          destinationAmount: dec("1700")
+        })
+      ]
+    });
+
+    const result = await overview();
+
+    expect(result.netWorth.total).toBe(485);
+    expect(result.disclosures).toEqual([]);
   });
 
   it("leaves net worth unchanged by a debt settlement", async () => {
@@ -258,28 +286,27 @@ describe("disclosures", () => {
     expect((await overview()).disclosures).toEqual([]);
   });
 
-  it("flags investment, synced and cross-currency accounts", async () => {
+  it("flags investment and synced accounts", async () => {
     seed({
       accounts: [
         account("inv", { type: "investment" }),
-        account("sync", { providerAccounts: [{ id: "p" }] }),
-        account("eur", { currency: "EUR" })
-      ],
-      transactions: [tx({ accountId: "sync", transferToAccountId: "eur", type: "transfer", amount: dec(5) })]
+        account("sync", { providerAccounts: [{ id: "p" }] })
+      ]
     });
-    rateMock.mockResolvedValue(1);
     expect((await overview()).disclosures).toEqual(
-      expect.arrayContaining(["investment_recorded_balance", "synced_balances", "cross_currency_effects"])
+      expect.arrayContaining(["investment_recorded_balance", "synced_balances"])
     );
   });
 
-  it("flags a transaction in a currency other than its account's", async () => {
+  it("does not disclose a transaction in a currency other than its account's", async () => {
     rateMock.mockResolvedValue(1);
     seed({
       accounts: [account("a")],
-      transactions: [tx({ accountId: "a", type: "expense", amount: dec(5), executionCurrency: "EUR" })]
+      transactions: [
+        tx({ accountId: "a", type: "expense", amount: dec(5), executionCurrency: "EUR", accountAmount: dec(5.5), date: new Date("2026-11-02T12:00:00Z") })
+      ]
     });
-    expect((await overview()).disclosures).toContain("cross_currency_effects");
+    expect((await overview()).disclosures).toEqual([]);
   });
 
   it("flags past-month amounts not in the preferred currency", async () => {

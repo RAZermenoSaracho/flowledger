@@ -83,13 +83,13 @@ describe("updateSharedExpense", () => {
     applyMock.mockResolvedValue({ id: "se-1" } as never);
 
     await updateSharedExpense("owner-1", "se-1", {
-      participants: [{ userId: "user-2", participantName: "x", shareAmount: 30, paidAmount: 30, status: "paid" }]
+      participants: [{ userId: "user-2", participantName: "x", shareAmount: "30", paidAmount: "30", status: "paid" }]
     } as never);
 
     expect(applyMock.mock.calls[0]?.[4]).toEqual({
       enabled: true,
       title: undefined,
-      participants: [{ userId: "user-2", share: 30 }]
+      participants: [{ userId: "user-2", share: "30" }]
     });
   });
 });

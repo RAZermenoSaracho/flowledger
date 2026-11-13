@@ -32,7 +32,7 @@ describe("personal finance journey (register -> use -> logout)", () => {
     const accountResponse = await request(app)
       .post("/accounts")
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ name: "Checking", type: "checking", initialBalance: 500 });
+      .send({ name: "Checking", type: "checking", initialBalance: "500" });
     expect(accountResponse.status).toBe(201);
     const accountId = accountResponse.body.account.id as string;
 
@@ -47,7 +47,7 @@ describe("personal finance journey (register -> use -> logout)", () => {
       .set("Authorization", `Bearer ${accessToken}`)
       .send({
         name: "Weekly groceries",
-        amount: 85.5,
+        amount: "85.5",
         type: "expense",
         date: "2024-03-01",
         accountId,
@@ -63,7 +63,7 @@ describe("personal finance journey (register -> use -> logout)", () => {
     const accountsResponse = await request(app)
       .get("/accounts")
       .set("Authorization", `Bearer ${accessToken}`);
-    expect(accountsResponse.body.accounts[0].currentBalance).toBe(500 - 85.5);
+    expect(accountsResponse.body.accounts[0].currentBalance).toBe("414.5");
 
     const summaryResponse = await request(app)
       .get("/reports/summary")

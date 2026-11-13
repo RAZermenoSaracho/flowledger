@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { serialize } from "../../../../utils/serialize.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -162,5 +164,37 @@ describe("listAccounts — currency enrichment", () => {
 
     const [account] = await listAccounts("user-1", undefined);
     expect(account?.source).toBe("manual");
+  });
+});
+
+describe("listAccounts — native balances", () => {
+  it("selects the applied-amount columns and balances each account by its own applied amounts", async () => {
+    prismaMock.account.findMany.mockResolvedValue([
+      { id: "usd", currency: "USD", initialBalance: new Prisma.Decimal("500"), providerAccounts: [] },
+      { id: "mxn", currency: "MXN", initialBalance: new Prisma.Decimal("0"), providerAccounts: [] }
+    ] as never);
+    prismaMock.transaction.findMany.mockResolvedValue([
+      {
+        accountId: "usd",
+        transferToAccountId: "mxn",
+        type: "transfer",
+        accountAmount: new Prisma.Decimal("100"),
+        destinationAmount: new Prisma.Decimal("1712.5")
+      }
+    ] as never);
+
+    const result = await listAccounts("user-1", undefined);
+
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1" },
+      select: {
+        accountId: true,
+        transferToAccountId: true,
+        type: true,
+        accountAmount: true,
+        destinationAmount: true
+      }
+    });
+    expect(serialize(result).map((account) => account.currentBalance)).toEqual(["400", "1712.5"]);
   });
 });

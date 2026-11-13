@@ -17,13 +17,13 @@ async function shareExpense(owner: Actor, participant: Actor, accept = false) {
   const category = await as(owner, request(app).post("/categories")).send({ name: "Dinner", type: "expense" });
   const transaction = await as(owner, request(app).post("/transactions")).send({
     name: "Dinner",
-    amount: 100,
+    amount: "100",
     type: "expense",
     date: "2024-01-15",
     categoryId: category.body.category.id,
     sharedExpense: {
       title: "Dinner split",
-      participants: [{ userId: participant.user.id, participantName: "Stale Snapshot", shareAmount: 50 }]
+      participants: [{ userId: participant.user.id, participantName: "Stale Snapshot", shareAmount: "50" }]
     }
   });
   expect(transaction.status).toBe(201);
@@ -64,7 +64,7 @@ describe("public identity across modules", () => {
     const settlement = await as(
       friend,
       request(app).post(`/debts/${debts.body.iOwe[0].id}/settlement-request`)
-    ).send({ amount: 10, accountId: account.body.account.id, categoryId: friendCategory.body.category.id });
+    ).send({ amount: "10", accountId: account.body.account.id, categoryId: friendCategory.body.category.id });
     expect(settlement.status).toBe(201);
 
     const responses = [
@@ -140,11 +140,11 @@ describe("public identity across modules", () => {
     const category = await as(owner, request(app).post("/categories")).send({ name: "Lunch", type: "expense" });
     const refused = await as(owner, request(app).post("/transactions")).send({
       name: "Lunch",
-      amount: 20,
+      amount: "20",
       type: "expense",
       date: "2024-01-16",
       categoryId: category.body.category.id,
-      sharedExpense: { title: "Lunch", participants: [{ userId: blocker.user.id, participantName: "x", shareAmount: 10 }] }
+      sharedExpense: { title: "Lunch", participants: [{ userId: blocker.user.id, participantName: "x", shareAmount: "10" }] }
     });
     expect(refused.status).toBe(400);
     expect(refused.body.message).toBe("This user can't be invited.");

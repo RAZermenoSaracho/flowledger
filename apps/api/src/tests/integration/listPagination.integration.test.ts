@@ -20,7 +20,7 @@ describe("list pagination", () => {
   async function createTransaction(user: Actor, accountId: string, categoryId: string, gid: string | null, n: number) {
     const res = await as(user, request(app).post("/transactions")).send({
       name: `t${n}`,
-      amount: 1,
+      amount: "1",
       type: "expense",
       date: "2024-01-15",
       accountId,

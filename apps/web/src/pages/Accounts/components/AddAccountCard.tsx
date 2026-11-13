@@ -112,7 +112,7 @@ export function AddAccountCard({
           <TextInput
             label="Initial balance"
             type="number"
-            step="0.01"
+            step="any"
             value={sync.initialBalance}
             onChange={(event) => sync.setInitialBalance(event.target.value)}
           />

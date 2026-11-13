@@ -1,5 +1,6 @@
 import type { Debt, PersonBalance } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
+import { compare, isPositive, subtract } from "../../../utils/money";
 import { formatPublicUser } from "../../../utils/publicUser";
 
 /** Shared expense title for a debt. */
@@ -79,13 +80,15 @@ export function debtDescription(debt: Debt, viewerUserId?: string) {
 
 /** Derives a "settled" / "settlement pending" / raw status label for a debt. */
 export function statusLabel(debt: Debt) {
-  if (debt.outstandingAmount <= 0) return "settled";
-  if (debt.pendingSettlementAmount > 0) return "settlement pending";
+  if (!isPositive(debt.outstandingAmount, debt.currency)) return "settled";
+  if (isPositive(debt.pendingSettlementAmount, debt.currency)) return "settlement pending";
   return debt.status;
 }
 
-/** Outstanding amount still available to settle, i.e. outstanding minus already-pending settlement amount. */
-export function availableSettlementAmount(debt: Debt) {
-  return Math.max(0, debt.outstandingAmount - debt.pendingSettlementAmount);
+/** Outstanding amount still available to settle as an exact decimal string in the debt's currency: outstanding minus already-pending settlement amount, floored at zero. */
+export function availableSettlementAmount(debt: Debt): string {
+  return compare(debt.outstandingAmount, debt.pendingSettlementAmount, debt.currency) > 0
+    ? subtract(debt.outstandingAmount, debt.pendingSettlementAmount, debt.currency)
+    : "0";
 }
 

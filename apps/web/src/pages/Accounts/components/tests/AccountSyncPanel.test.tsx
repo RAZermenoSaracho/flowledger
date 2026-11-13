@@ -29,7 +29,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 0,
+    initialBalance: "0",
     isArchived: false,
     source: "synced",
     sync: [makeSync()],

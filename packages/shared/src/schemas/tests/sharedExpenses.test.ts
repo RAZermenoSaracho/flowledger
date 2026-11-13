@@ -8,27 +8,27 @@ import {
 } from "../sharedExpenses.js";
 
 describe("sharedExpenseParticipantSchema", () => {
-  const valid = { participantName: "Sam", shareAmount: 25 };
+  const valid = { participantName: "Sam", shareAmount: "25" };
 
   it("accepts a valid participant, defaulting paidAmount and status", () => {
     expect(sharedExpenseParticipantSchema.parse(valid)).toEqual({
       participantName: "Sam",
-      shareAmount: 25,
-      paidAmount: 0,
+      shareAmount: "25",
+      paidAmount: "0",
       status: "pending"
     });
   });
 
   it("rejects a zero shareAmount", () => {
     expect(
-      sharedExpenseParticipantSchema.safeParse({ ...valid, shareAmount: 0 })
+      sharedExpenseParticipantSchema.safeParse({ ...valid, shareAmount: "0" })
         .success
     ).toBe(false);
   });
 
   it("rejects a negative paidAmount", () => {
     expect(
-      sharedExpenseParticipantSchema.safeParse({ ...valid, paidAmount: -1 })
+      sharedExpenseParticipantSchema.safeParse({ ...valid, paidAmount: "-1" })
         .success
     ).toBe(false);
   });
@@ -42,7 +42,7 @@ describe("sharedExpenseParticipantSchema", () => {
 });
 
 describe("sharedExpenseSchema", () => {
-  const validParticipant = { participantName: "Sam", shareAmount: 25 };
+  const validParticipant = { participantName: "Sam", shareAmount: "25" };
 
   it("accepts a valid shared expense, defaulting status to 'open'", () => {
     const result = sharedExpenseSchema.parse({
@@ -108,6 +108,6 @@ describe("respondSharedExpenseSchema", () => {
   });
 
   it("lets a legacy participant carry an existing row id", () => {
-    expect(sharedExpenseParticipantSchema.parse({ id: "p1", participantName: "Ana", shareAmount: 10 })).toMatchObject({ id: "p1" });
+    expect(sharedExpenseParticipantSchema.parse({ id: "p1", participantName: "Ana", shareAmount: "10" })).toMatchObject({ id: "p1" });
   });
 });

@@ -14,7 +14,7 @@ src/
     accounts.ts
     auth.ts
     categories.ts
-    common.ts       Reusable primitives (moneySchema, optionalDateStringSchema, etc.)
+    common.ts       Reusable primitives (optionalDateStringSchema, etc.)
     debts.ts
     groups.ts
     notifications.ts
@@ -93,7 +93,7 @@ If you change a schema or type and the apps aren't picking it up, rebuild shared
 | Request/response Zod schemas | Route handler logic |
 | TypeScript types for API shapes | UI components, hooks, pages |
 | Enum-like constants shared by both apps | App-specific utilities |
-| Reusable schema primitives (e.g., `moneySchema`) | Database query logic (Prisma) |
+| Reusable schema primitives (e.g., `decimalAmountSchema`) | Database query logic (Prisma) |
 
 **Rule:** if only one app needs it, it does not belong here. If adding it here requires importing from an app, it definitely does not belong here.
 

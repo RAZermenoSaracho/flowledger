@@ -60,14 +60,19 @@ Every `Transaction` is denominated in `executionCurrency` (defaults to the accou
 
 ### Account balance calculation
 
-`calculateAccountBalance(accountId, transactions, initialBalance?)` in `transactionCalculations.ts`:
+`calculateAccountBalance` in `transactionCalculations.ts` is the only balance function (accounts list and financial overview). It sums in exact `Prisma.Decimal` using persisted native amounts:
 
-- income with `accountId = accountId` → +amount
-- expense with `accountId = accountId` → -amount
-- transfer with `accountId = accountId` (source) → -amount
-- transfer with `transferToAccountId = accountId` (destination) → +amount
+`initialBalance + Σ income.accountAmount − Σ (expense | transfer-out).accountAmount + Σ transfer-in.destinationAmount`
 
-Balance = `initialBalance + (sum of above)`, computed in the account's own native currency (`amount`, not `amountInPreferredCurrency`). `GET /accounts` additionally converts each account's balance to the user's `preferredCurrency` at the live rate, returned as `currentBalanceInPreferredCurrency`.
+- **Native amounts:** `resolveAppliedAmounts()` in `transactions/utils/appliedAmounts.ts` sets `accountAmount`/`destinationAmount` on every write path (web, `/v1`, MCP, import, settlement). Equal currencies copy `amount`; different currencies require the stated value (400 otherwise). No rate lookup is involved, so a current rate is only ever a suggestion.
+- **Valuations:** `currentBalanceInPreferredCurrency` converts the native balance at the current rate after the sum. A rate change never alters a native balance or a recorded amount.
+- **Fee:** `feeAmount` is detail only. The applied amounts already include it, so it is neither subtracted again nor reported as an expense (transfers stay out of reports). The effective rate is `destinationAmount / amount` (or `accountAmount / amount`); the rate before fee is `destinationAmount / (amount − fee)` for a source-currency fee or `(destinationAmount + fee) / amount` for a destination-currency fee.
+- **Account currency lock:** an account's currency cannot change once any transaction references it (400 naming `currency`).
+- **Any currency is shareable:** shared-expense and settlement columns are `Decimal(38,18)`; shares and settlement amounts are exact decimal strings validated against the transaction/debt currency's minor units (`exceedsCurrencyPrecision`, 400 otherwise). All share, paid and outstanding arithmetic is `Prisma.Decimal` (precision 50, half-up, set in `db/prisma.ts`).
+
+### Correction history
+
+`updateTransaction` appends a `TransactionCorrection` row, in the same database transaction, only when a financial field changed (`type`, `amount`, `executionCurrency`, accounts, applied amounts, fee, `date`); `deleteTransaction` always appends a final row that survives the deletion. Rows are never updated or deleted, except by deleting their owner, and are scoped by `userId`.
 
 ### Transaction relationships
 
@@ -172,7 +177,7 @@ Each debt is also converted to the viewer's `preferredCurrency` at the live rate
 ### Settlement request (debtor-initiated)
 
 1. Debtor calls `POST /debts/:participantId/settlement-request`
-2. Body: `{ amount, accountId, categoryId, note?, paymentInfo? }`
+2. Body: `{ amount, accountId, categoryId, accountAmount?, note?, paymentInfo? }`
    - `accountId` — debtor's payment account (expense transaction will be created here)
    - `categoryId` — debtor's expense category for the settlement
 3. Validates: outstanding balance > 0, amount ≤ outstanding - pending, no duplicate pending request
@@ -183,7 +188,7 @@ Each debt is also converted to the viewer's `preferredCurrency` at the live rate
 
 `POST /settlements/:requestId/approve`
 
-Body: `{ accountId, categoryId, expenseOffsetCategoryId? }`
+Body: `{ accountId, categoryId, accountAmount?, expenseOffsetCategoryId? }`
 - `accountId` — creditor's income account
 - `categoryId` — creditor's income category
 - `expenseOffsetCategoryId` — optional; if the original transaction was an expense, this links the income to offset that expense category
@@ -192,9 +197,9 @@ Body: `{ accountId, categoryId, expenseOffsetCategoryId? }`
 2. Verifies amount still fits outstanding balance
 3. Updates `SharedExpenseParticipant.paidAmount += amount`, recalculates `status`
 4. Marks `SettlementRequest.status = "approved"`
-5. Converts `SettlementRequest.amount` (denominated in the debt's `currency`) into the debtor's account currency and, separately, the creditor's account currency, each at the live exchange rate at approval time (`convertSettlementAmount()` in `debts/utils/settlementCurrency.ts`) — **not** the rate captured when the debt was created, and not necessarily the same converted amount on both sides if the two accounts use different currencies
-6. Creates debtor transaction: `type = "expense"`, the debtor-currency-converted amount, date = now, account/category from request
-7. Creates creditor transaction: `type = "income"`, the creditor-currency-converted amount, date = now, account/category from approval, `expenseOffsetCategoryId` if applicable
+5. Applied amounts are stated, never converted at a live rate: the debtor side uses `SettlementRequest.debtorAccountAmount` and the creditor side the approval's `accountAmount`, each required when that account's currency differs from the debt's `currency` (400 naming `accountAmount` otherwise) and equal to `amount` when it matches
+6. Creates debtor transaction: `type = "expense"`, `amount` in the debt currency with the debtor `accountAmount`, date = now, account/category from request
+7. Creates creditor transaction: `type = "income"`, `amount` in the debt currency with the creditor `accountAmount`, date = now, account/category from approval, `expenseOffsetCategoryId` if applicable
 8. Creates `TransactionRelation` pairs between debtor and creditor transactions
 9. Links both transactions to the `SettlementRequest`
 10. Notifies debtor: `settlement_approved` notification with transaction IDs

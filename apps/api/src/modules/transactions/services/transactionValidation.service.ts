@@ -163,3 +163,25 @@ export function assertTransferAllowed(input: {
     );
   }
 }
+
+/** Returns the currencies of the user's source and destination accounts (null where unset), for resolving applied amounts. */
+export async function findAccountCurrencies(
+  userId: string,
+  accountId: string | null | undefined,
+  transferToAccountId: string | null | undefined
+) {
+  const ids = [accountId, transferToAccountId].filter((id): id is string => !!id);
+  const accounts = ids.length
+    ? await prisma.account.findMany({
+        where: { id: { in: ids }, userId },
+        select: { id: true, currency: true }
+      })
+    : [];
+  const currencyOf = (id: string | null | undefined) =>
+    accounts.find((account) => account.id === id)?.currency ?? null;
+
+  return {
+    accountCurrency: currencyOf(accountId),
+    destinationCurrency: currencyOf(transferToAccountId)
+  };
+}

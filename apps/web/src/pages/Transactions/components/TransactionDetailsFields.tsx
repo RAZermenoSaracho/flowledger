@@ -6,6 +6,7 @@ import type { Category } from "../../../types/categories.types";
 import type { FormDraft } from "../../../types/common.types";
 import type { Group } from "../../../types/groups.types";
 import type { Transaction } from "../../../types/transactions.types";
+import { useRateSuggestion } from "../../../hooks/useRateSuggestion";
 import { formatMoney } from "../../../utils/currency";
 import { formatTransactionDate, transactionDateNowInputValue } from "../../../utils/dateTime";
 import { formatEnumLabel } from "../../../utils/enumLabels";
@@ -17,12 +18,22 @@ import {
   selectGroup,
   selectTransferAccount
 } from "../utils/transactionDraftReducers";
+import {
+  differingCurrency,
+  destinationAccountId,
+  feeApplies,
+  feeCurrencyOptions,
+  reconcileCurrencyFields
+} from "../utils/transactionCurrencies";
 
 /**
  * Details tab of the Transaction Form View: every core field as an always-editable control. Every
  * coupling between fields goes through the pure reducers in `transactionDraftReducers` via
  * `draft.update`. `isNew` enables the create-time sharing couplings (a group suggests a split).
  * `transaction` (existing only) adds the read-only amount in the user's preferred currency.
+ * When the execution currency differs from the source account's (or a transfer's destination's),
+ * the required "Amount in account currency" / "Amount received" field and an optional fee appear,
+ * prefilled from the current rate (`useRateSuggestion`) but always editable; hidden ones are cleared by `reconcileCurrencyFields`.
  */
 export function TransactionDetailsFields({
   draft,
@@ -48,6 +59,33 @@ export function TransactionDetailsFields({
   const selectedGroup = groups.find((group) => group.id === values.groupId);
   const categoryOptions = values.groupId ? (selectedGroup?.categories ?? []) : categories;
 
+  const accountCurrency = differingCurrency(values, accounts, values.accountId);
+  const destinationCurrency = differingCurrency(values, accounts, destinationAccountId(values));
+  const showFee = feeApplies(values, accounts);
+
+  function update(change: (current: TransactionDraft) => TransactionDraft) {
+    draft.update((current) => reconcileCurrencyFields(change(current), accounts));
+  }
+
+  useRateSuggestion({
+    enabled: accountCurrency !== null,
+    from: values.executionCurrency,
+    to: accountCurrency,
+    amount: values.amount,
+    current: values.accountAmount,
+    resetKey: values.accountId,
+    onSuggest: (accountAmount) => draft.update((current) => ({ ...current, accountAmount }))
+  });
+  useRateSuggestion({
+    enabled: destinationCurrency !== null,
+    from: values.executionCurrency,
+    to: destinationCurrency,
+    amount: values.amount,
+    current: values.destinationAmount,
+    resetKey: values.transferToAccountId,
+    onSuggest: (destinationAmount) => draft.update((current) => ({ ...current, destinationAmount }))
+  });
+
   function field(key: keyof TransactionDraft) {
     return {
       error: draft.fieldErrors[key],
@@ -69,7 +107,7 @@ export function TransactionDetailsFields({
         <input
           className={editableControlClassName}
           type="number"
-          step="0.01"
+          step="any"
           value={values.amount}
           onChange={(event) => {
             const amount = event.target.value;
@@ -79,6 +117,64 @@ export function TransactionDetailsFields({
           }}
         />
       </EditableField>
+      {accountCurrency ? (
+        <EditableField label="Amount in account currency" {...field("accountAmount")}>
+          <input
+            className={editableControlClassName}
+            type="number"
+            step="any"
+            placeholder={accountCurrency}
+            value={values.accountAmount}
+            onChange={(event) => draft.setField("accountAmount", event.target.value)}
+          />
+        </EditableField>
+      ) : null}
+      {destinationCurrency ? (
+        <EditableField label="Amount received" {...field("destinationAmount")}>
+          <input
+            className={editableControlClassName}
+            type="number"
+            step="any"
+            placeholder={destinationCurrency}
+            value={values.destinationAmount}
+            onChange={(event) => draft.setField("destinationAmount", event.target.value)}
+          />
+        </EditableField>
+      ) : null}
+      {showFee ? (
+        <>
+          <EditableField label="Fee (optional)" {...field("feeAmount")}>
+            <input
+              className={editableControlClassName}
+              type="number"
+              step="any"
+              value={values.feeAmount}
+              onChange={(event) => {
+                const feeAmount = event.target.value;
+                draft.update((current) => ({
+                  ...current,
+                  feeAmount,
+                  feeCurrency: current.feeCurrency || current.executionCurrency
+                }));
+              }}
+            />
+          </EditableField>
+          <EditableField label="Fee currency" {...field("feeCurrency")}>
+            <select
+              className={editableControlClassName}
+              value={values.feeCurrency}
+              onChange={(event) => draft.setField("feeCurrency", event.target.value)}
+            >
+              <option value="">Select currency</option>
+              {feeCurrencyOptions(values, accounts).map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency}
+                </option>
+              ))}
+            </select>
+          </EditableField>
+        </>
+      ) : null}
       {transaction && preferredCurrency && preferredCurrency !== transaction.executionCurrency ? (
         <EditableField
           label="Amount in your currency"
@@ -93,7 +189,7 @@ export function TransactionDetailsFields({
           className={editableControlClassName}
           value={values.accountId}
           onChange={(event) =>
-            draft.update((current) => selectAccount(current, event.target.value, accounts))
+            update((current) => selectAccount(current, event.target.value, accounts))
           }
         >
           <option value="">{isTransfer ? "Select account" : "None"}</option>
@@ -110,7 +206,7 @@ export function TransactionDetailsFields({
         <CurrencySelect
           label="Currency"
           value={values.executionCurrency}
-          onChange={(value) => draft.setField("executionCurrency", value)}
+          onChange={(value) => update((current) => ({ ...current, executionCurrency: value }))}
           disabled={draft.isSaving}
         />
       </EditableField>
@@ -119,7 +215,7 @@ export function TransactionDetailsFields({
           className={editableControlClassName}
           value={values.type}
           onChange={(event) =>
-            draft.update((current) =>
+            update((current) =>
               changeType(current, event.target.value as TransactionDraft["type"], categoryOptions)
             )
           }
@@ -155,7 +251,7 @@ export function TransactionDetailsFields({
             className={editableControlClassName}
             value={values.transferToAccountId}
             onChange={(event) =>
-              draft.update((current) => selectTransferAccount(current, event.target.value))
+              update((current) => selectTransferAccount(current, event.target.value))
             }
           >
             <option value="">Select account</option>

@@ -1,12 +1,15 @@
+import { Prisma } from "@prisma/client";
+
 type TransactionType = "income" | "expense" | "transfer";
 
-type AmountValue = number | { toNumber(): number };
+type AmountValue = Prisma.Decimal.Value;
 
 type AccountBalanceTransaction = {
   accountId: string | null;
   transferToAccountId?: string | null;
   type: TransactionType;
-  amount: AmountValue;
+  accountAmount: AmountValue | null;
+  destinationAmount?: AmountValue | null;
 };
 
 type CashflowTransaction = {
@@ -20,28 +23,28 @@ type CashflowTransaction = {
 export const REPORT_TRANSACTION_TYPES = ["income", "expense"] as const;
 type ReportTransactionType = (typeof REPORT_TRANSACTION_TYPES)[number];
 
-function amountToNumber(amount: AmountValue) {
-  return typeof amount === "number" ? amount : amount.toNumber();
-}
-
 function isReportTransactionType(
   type: TransactionType
 ): type is ReportTransactionType {
   return REPORT_TRANSACTION_TYPES.some((reportType) => reportType === type);
 }
 
+/**
+ * Computes an account's native balance with exact decimal arithmetic:
+ * `initialBalance + income.accountAmount - (expense|transfer-out).accountAmount + transfer-in.destinationAmount`.
+ * A transfer fee is never subtracted here; the applied amounts already include its effect.
+ */
 export function calculateAccountBalance(
   accountId: string,
   transactions: AccountBalanceTransaction[],
   initialBalance: AmountValue = 0
-) {
+): Prisma.Decimal {
   return transactions.reduce((balance, transaction) => {
-    const amount = amountToNumber(transaction.amount);
-
     if (transaction.accountId === accountId) {
-      if (transaction.type === "income") return balance + amount;
+      const applied = new Prisma.Decimal(transaction.accountAmount ?? 0);
+      if (transaction.type === "income") return balance.plus(applied);
       if (transaction.type === "expense" || transaction.type === "transfer") {
-        return balance - amount;
+        return balance.minus(applied);
       }
     }
 
@@ -49,13 +52,14 @@ export function calculateAccountBalance(
       transaction.type === "transfer" &&
       transaction.transferToAccountId === accountId
     ) {
-      return balance + amount;
+      return balance.plus(transaction.destinationAmount ?? 0);
     }
 
     return balance;
-  }, amountToNumber(initialBalance));
+  }, new Prisma.Decimal(initialBalance));
 }
 
+/** Attaches `currentBalance` (a `Prisma.Decimal`, see {@link calculateAccountBalance}) to each account. */
 export function withAccountBalances<
   TAccount extends { id: string; initialBalance?: AmountValue }
 >(accounts: TAccount[], transactions: AccountBalanceTransaction[]) {
@@ -71,7 +75,7 @@ export function withAccountBalances<
 
 /**
  * Aggregates transactions into per-month cashflow buckets, optionally narrowed by category.
- * Months are bucketed in `timeZone` (an IANA name), defaulting to UTC.
+ * Months are bucketed in `timeZone` (an IANA name), defaulting to UTC. Sums are exact `Decimal`s; the returned figures are numbers.
  */
 export function calculateMonthlyCashflow(
   transactions: CashflowTransaction[],
@@ -94,15 +98,15 @@ export function calculateMonthlyCashflow(
     string,
     {
       month: string;
-      income: number;
-      expenses: number;
-      grossExpenses: number;
-      expenseReimbursements: number;
-      netExpenses: number;
-      grossIncome: number;
-      incomeOffsets: number;
-      netIncome: number;
-      balance: number;
+      income: Prisma.Decimal;
+      expenses: Prisma.Decimal;
+      grossExpenses: Prisma.Decimal;
+      expenseReimbursements: Prisma.Decimal;
+      netExpenses: Prisma.Decimal;
+      grossIncome: Prisma.Decimal;
+      incomeOffsets: Prisma.Decimal;
+      netIncome: Prisma.Decimal;
+      balance: Prisma.Decimal;
     }
   >();
 
@@ -115,17 +119,17 @@ export function calculateMonthlyCashflow(
     const month = `${parts.find(({ type }) => type === "year")!.value}-${parts.find(({ type }) => type === "month")!.value}`;
     const row = monthly.get(month) ?? {
       month,
-      income: 0,
-      expenses: 0,
-      grossExpenses: 0,
-      expenseReimbursements: 0,
-      netExpenses: 0,
-      grossIncome: 0,
-      incomeOffsets: 0,
-      netIncome: 0,
-      balance: 0
+      income: new Prisma.Decimal(0),
+      expenses: new Prisma.Decimal(0),
+      grossExpenses: new Prisma.Decimal(0),
+      expenseReimbursements: new Prisma.Decimal(0),
+      netExpenses: new Prisma.Decimal(0),
+      grossIncome: new Prisma.Decimal(0),
+      incomeOffsets: new Prisma.Decimal(0),
+      netIncome: new Prisma.Decimal(0),
+      balance: new Prisma.Decimal(0)
     };
-    const amount = amountToNumber(transaction.amount);
+    const amount = new Prisma.Decimal(transaction.amount);
     const matchesCategory =
       !categoryIdSet.size ||
       (transaction.categoryId
@@ -138,33 +142,44 @@ export function calculateMonthlyCashflow(
         : false);
 
     if (transaction.type === "income" && matchesCategory) {
-      row.income += amount;
-      row.grossIncome += amount;
+      row.income = row.income.plus(amount);
+      row.grossIncome = row.grossIncome.plus(amount);
     }
     if (
       transaction.type === "income" &&
       transaction.expenseOffsetCategoryId &&
       matchesOffsetCategory
     ) {
-      row.expenseReimbursements += amount;
+      row.expenseReimbursements = row.expenseReimbursements.plus(amount);
     }
     if (
       transaction.type === "income" &&
       transaction.expenseOffsetCategoryId &&
       matchesCategory
     ) {
-      row.incomeOffsets += amount;
+      row.incomeOffsets = row.incomeOffsets.plus(amount);
     }
     if (transaction.type === "expense" && matchesCategory) {
-      row.expenses += amount;
-      row.grossExpenses += amount;
+      row.expenses = row.expenses.plus(amount);
+      row.grossExpenses = row.grossExpenses.plus(amount);
     }
 
-    row.netExpenses = row.grossExpenses - row.expenseReimbursements;
-    row.netIncome = row.grossIncome - row.incomeOffsets;
-    row.balance = row.income - row.expenses;
+    row.netExpenses = row.grossExpenses.minus(row.expenseReimbursements);
+    row.netIncome = row.grossIncome.minus(row.incomeOffsets);
+    row.balance = row.income.minus(row.expenses);
     monthly.set(month, row);
   }
 
-  return [...monthly.values()];
+  return [...monthly.values()].map((row) => ({
+    month: row.month,
+    income: row.income.toNumber(),
+    expenses: row.expenses.toNumber(),
+    grossExpenses: row.grossExpenses.toNumber(),
+    expenseReimbursements: row.expenseReimbursements.toNumber(),
+    netExpenses: row.netExpenses.toNumber(),
+    grossIncome: row.grossIncome.toNumber(),
+    incomeOffsets: row.incomeOffsets.toNumber(),
+    netIncome: row.netIncome.toNumber(),
+    balance: row.balance.toNumber()
+  }));
 }

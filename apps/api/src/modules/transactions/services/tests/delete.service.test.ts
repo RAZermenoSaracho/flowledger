@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import { deleteTransaction } from "../delete.service.js";
@@ -6,6 +7,7 @@ import { deleteTransaction } from "../delete.service.js";
 function mockTx(found: unknown) {
   const tx = {
     notification: { deleteMany: vi.fn() },
+    transactionCorrection: { create: vi.fn() },
     transaction: { findFirst: vi.fn().mockResolvedValue(found), delete: vi.fn() }
   };
   (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
@@ -25,6 +27,56 @@ describe("deleteTransaction", () => {
     expect(tx.transaction.delete).not.toHaveBeenCalled();
   });
 
+  it("appends a deletion correction row with the last financial values before deleting", async () => {
+    const tx = mockTx({
+      id: "txn-1",
+      type: "transfer",
+      amount: new Prisma.Decimal("100"),
+      executionCurrency: "USD",
+      accountId: "acc-usd",
+      transferToAccountId: "acc-mxn",
+      accountAmount: new Prisma.Decimal("100"),
+      destinationAmount: new Prisma.Decimal("1712.5"),
+      feeAmount: null,
+      feeCurrency: null,
+      date: new Date("2026-11-05T00:00:00.000Z"),
+      sharedExpense: null
+    });
+
+    await deleteTransaction("user-1", "txn-1");
+
+    expect(tx.transactionCorrection.create).toHaveBeenCalledWith({
+      data: {
+        transactionId: "txn-1",
+        userId: "user-1",
+        action: "delete",
+        previous: {
+          type: "transfer",
+          amount: "100",
+          executionCurrency: "USD",
+          accountId: "acc-usd",
+          transferToAccountId: "acc-mxn",
+          accountAmount: "100",
+          destinationAmount: "1712.5",
+          feeAmount: null,
+          feeCurrency: null,
+          date: "2026-11-05T00:00:00.000Z"
+        }
+      }
+    });
+    expect(tx.transactionCorrection.create.mock.invocationCallOrder[0]!).toBeLessThan(
+      tx.transaction.delete.mock.invocationCallOrder[0]!
+    );
+  });
+
+  it("does not delete when the correction row cannot be written", async () => {
+    const tx = mockTx({ id: "txn-1", sharedExpense: null });
+    tx.transactionCorrection.create.mockRejectedValue(new Error("insert failed"));
+
+    await expect(deleteTransaction("user-1", "txn-1")).rejects.toThrow("insert failed");
+    expect(tx.transaction.delete).not.toHaveBeenCalled();
+  });
+
   it("deletes a plain transaction with no shared expense", async () => {
     const tx = mockTx({ id: "txn-1", sharedExpense: null });
 
@@ -41,8 +93,8 @@ describe("deleteTransaction", () => {
       sharedExpense: {
         id: "se-1",
         participants: [
-          { id: "p1", participantName: "@a", paidAmount: { toNumber: () => 0 }, settlementRequests: [{ id: "sr-1", status: "rejected", amount: { toNumber: () => 1 } }] },
-          { id: "p2", participantName: "@b", paidAmount: { toNumber: () => 0 }, settlementRequests: [] }
+          { id: "p1", participantName: "@a", paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ id: "sr-1", status: "rejected", amount: new Prisma.Decimal("1") }] },
+          { id: "p2", participantName: "@b", paidAmount: new Prisma.Decimal("0"), settlementRequests: [] }
         ]
       }
     });
@@ -55,9 +107,9 @@ describe("deleteTransaction", () => {
   });
 
   it.each([
-    ["a payment", { paidAmount: { toNumber: () => 5 }, settlementRequests: [] }],
-    ["a pending settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "pending", amount: { toNumber: () => 5 } }] }],
-    ["an approved settlement", { paidAmount: { toNumber: () => 0 }, settlementRequests: [{ status: "approved", amount: { toNumber: () => 5 } }] }]
+    ["a payment", { paidAmount: new Prisma.Decimal("5"), settlementRequests: [] }],
+    ["a pending settlement", { paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ status: "pending", amount: new Prisma.Decimal("5") }] }],
+    ["an approved settlement", { paidAmount: new Prisma.Decimal("0"), settlementRequests: [{ status: "approved", amount: new Prisma.Decimal("5") }] }]
   ])("is blocked with 400 by %s, checked on rows reloaded inside the transaction, and deletes nothing", async (_label, overrides) => {
     const tx = mockTx({
       id: "txn-1",

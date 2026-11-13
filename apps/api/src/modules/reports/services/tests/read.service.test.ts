@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -33,7 +34,7 @@ function groupByRow(
   executionCurrency = "USD",
   extra: Record<string, unknown> = {}
 ) {
-  return { _sum: { amount: { toNumber: () => amount } }, executionCurrency, ...extra };
+  return { _sum: { amount: new Prisma.Decimal(amount) }, executionCurrency, ...extra };
 }
 
 describe("getSummaryReport", () => {
@@ -201,13 +202,13 @@ describe("getMonthlyCashflowReport", () => {
       {
         date: new Date("2024-01-15"),
         type: "income",
-        amount: { toNumber: () => 100 },
+        amount: new Prisma.Decimal(100),
         executionCurrency: "USD",
         categoryId: "salary",
         expenseOffsetCategoryId: null
       }
     ] as never);
-    convertAmountMock.mockResolvedValue(1700);
+    convertAmountMock.mockResolvedValue(new Prisma.Decimal(1700));
 
     const result = await getMonthlyCashflowReport("user-1", { currency: "MXN" });
 
@@ -221,13 +222,13 @@ describe("getMonthlyCashflowReport", () => {
       {
         date: new Date("2026-06-01T03:00:00.000Z"),
         type: "income",
-        amount: { toNumber: () => 100 },
+        amount: new Prisma.Decimal(100),
         executionCurrency: "USD",
         categoryId: "salary",
         expenseOffsetCategoryId: null
       }
     ] as never);
-    convertAmountMock.mockResolvedValue(100);
+    convertAmountMock.mockResolvedValue(new Prisma.Decimal(100));
 
     const local = await getMonthlyCashflowReport("user-1", {
       currency: "USD",
@@ -244,13 +245,13 @@ describe("getMonthlyCashflowReport", () => {
       {
         date: new Date("2024-01-15"),
         type: "income",
-        amount: { toNumber: () => 100 },
+        amount: new Prisma.Decimal(100),
         executionCurrency: "USD",
         categoryId: "settlement",
         expenseOffsetCategoryId: "food"
       }
     ] as never);
-    convertAmountMock.mockResolvedValue(100);
+    convertAmountMock.mockResolvedValue(new Prisma.Decimal(100));
 
     const result = await getMonthlyCashflowReport("user-1", {
       currency: "USD",

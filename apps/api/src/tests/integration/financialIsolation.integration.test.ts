@@ -49,7 +49,7 @@ async function post(who: Actor, path: string, body: object) {
 
 async function seedTransaction(who: Actor, accountId: string, categoryId: string, extra: object = {}) {
   const body = await post(who, "/transactions", {
-    name: "Dinner", amount: 100, type: "expense", date: "2024-02-01", accountId, categoryId, notes: "private note", ...extra
+    name: "Dinner", amount: "100", type: "expense", date: "2024-02-01", accountId, categoryId, notes: "private note", ...extra
   });
   return body.transaction as { id: string; sharedExpense?: { id: string } };
 }
@@ -247,7 +247,7 @@ describe("financial data isolation", () => {
 
       it("a top-level `or` on /transactions returns only the caller's rows", async () => {
         const bAccount = await seedOwnerData(ctx.b);
-        const own = await seedTransaction(ctx.b, bAccount.accountId, bAccount.categoryId, { name: "B only", amount: 55 });
+        const own = await seedTransaction(ctx.b, bAccount.accountId, bAccount.categoryId, { name: "B only", amount: "55" });
         const res = await send(ctx.b.token, { method: "get", path: "/transactions", query: dsql(anyOwnerWhere) });
         expect(res.status, JSON.stringify(res.body)).toBe(200);
         expect(res.body.data.map((t: { id: string }) => t.id)).toEqual([own.id]);
@@ -301,7 +301,7 @@ describe("financial data isolation", () => {
       const { accountId, categoryId } = await seedOwnerData(owner);
       const tx = await seedTransaction(owner, accountId, categoryId, {
         type: transactionType,
-        sharedExpense: { title: "Split", participants: [{ userId: who.userId, participantName: "P", shareAmount: 40 }] }
+        sharedExpense: { title: "Split", participants: [{ userId: who.userId, participantName: "P", shareAmount: "40" }] }
       });
       await send(who.token, { method: "post", path: `/shared-expenses/${tx.sharedExpense!.id}/accept` });
       const debt = await prisma.sharedExpenseParticipant.findFirstOrThrow({ where: { sharedExpenseId: tx.sharedExpense!.id } });
@@ -334,7 +334,7 @@ describe("financial data isolation", () => {
       const { debtId, accountId } = await sharedExpenseWith(participant, "expense");
       const pAccount = await seedOwnerData(participant);
       const created = await post(participant, `/debts/${debtId}/settlement-request`, {
-        amount: 10, accountId: pAccount.accountId, categoryId: pAccount.categoryId
+        amount: "10", accountId: pAccount.accountId, categoryId: pAccount.categoryId
       });
       const requestId = created.settlementRequest.id as string;
 
@@ -413,7 +413,7 @@ describe("financial data isolation", () => {
         { method: "put", path: `/v1/accounts/${accountId}`, body: { name: "hijacked" } },
         { method: "delete", path: `/v1/accounts/${accountId}` },
         { method: "delete", path: `/v1/categories/${categoryId}` },
-        { method: "post", path: "/v1/transactions", body: { name: "new", amount: 1, type: "expense", date: "2024-01-01", accountId, categoryId } }
+        { method: "post", path: "/v1/transactions", body: { name: "new", amount: "1", type: "expense", date: "2024-01-01", accountId, categoryId } }
       ];
       const before = await prisma.transaction.count({ where: { userId: owner.userId } });
       for (const call of writes) {

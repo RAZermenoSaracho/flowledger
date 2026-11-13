@@ -5,8 +5,9 @@ import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
 import type { SettlementRequest } from "../../../types/debts.types";
 import type { SettlementApprovalDraft } from "../types/debts.types";
+import { AccountAmountField } from "./AccountAmountField";
 
-/** Approve/reject controls and account/category selection for a settlement request. */
+/** Approve/reject controls and account/category selection for a settlement request; shows the required "Amount in account currency" when the deposit account's currency differs from the debt's. */
 export function ApprovalActions({
   request,
   accounts,
@@ -46,6 +47,16 @@ export function ApprovalActions({
           </option>
         ))}
       </SelectField>
+      {request.sharedExpenseParticipant ? (
+        <AccountAmountField
+          accounts={accounts}
+          accountId={draft.accountId}
+          currency={request.sharedExpenseParticipant.currency}
+          amount={request.amount}
+          value={draft.accountAmount}
+          onChange={(value) => onDraftChange("accountAmount", value)}
+        />
+      ) : null}
       <SelectField
         label="Income category"
         value={draft.categoryId}

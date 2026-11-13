@@ -128,10 +128,10 @@ describe("group CRUD tool schemas", () => {
   });
 
   it("requestSettlementToolSchema needs the debt id and the settlement request fields", () => {
-    const valid = { debtId: "d", amount: 5, accountId: "a", categoryId: "c" };
+    const valid = { debtId: "d", amount: "5", accountId: "a", categoryId: "c" };
     expect(requestSettlementToolSchema.safeParse(valid).success).toBe(true);
     expect(requestSettlementToolSchema.safeParse({ ...valid, debtId: undefined }).success).toBe(false);
-    expect(requestSettlementToolSchema.safeParse({ ...valid, amount: 0 }).success).toBe(false);
+    expect(requestSettlementToolSchema.safeParse({ ...valid, amount: "0" }).success).toBe(false);
   });
 
   it("optionalIdToolSchema accepts no id or one id and rejects unknown keys", () => {

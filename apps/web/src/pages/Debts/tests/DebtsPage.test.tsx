@@ -26,20 +26,20 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
     userId: "user-2",
     participantName: "Friend",
     currency: "USD",
-    shareAmount: 100,
-    paidAmount: 40,
+    shareAmount: "100",
+    paidAmount: "40",
     status: "partial",
     sharedExpenseId: "se-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    outstandingAmount: 60,
-    pendingSettlementAmount: 0,
+    outstandingAmount: "60",
+    pendingSettlementAmount: "0",
     sharedExpense: {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 100,
+      totalAmount: "100",
       status: "open",
       owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       user: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
@@ -180,7 +180,7 @@ describe("DebtsPage", () => {
       sharedExpenseParticipantId: "debt-1",
       debtorUserId: "user-2",
       creditorUserId: "user-1",
-      amount: 50,
+      amount: "50",
       status: "pending",
       sharedExpenseParticipant: makeDebt(),
       createdAt: "",
@@ -219,7 +219,7 @@ describe("DebtsPage", () => {
   });
 
   it("auto-selects the Settled tab when ?debtId= matches a settled debt", async () => {
-    const settled = makeDebt({ id: "debt-settled", outstandingAmount: 0 });
+    const settled = makeDebt({ id: "debt-settled", outstandingAmount: "0" });
     mockBaseline(makeDebtsResponse({ settledDebts: [settled] }));
     renderWithProviders(<DebtsPage />, {
       withAuth: true,

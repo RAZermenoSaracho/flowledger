@@ -63,14 +63,14 @@ describe("normalizeSharedExpenseParticipants", () => {
     prismaMock.userBlock.findMany.mockResolvedValue([{ blockerId: "user-2", blockedId: "owner-1" }] as never);
 
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: "50" }])
     ).rejects.toMatchObject({ statusCode: 400, message: "This user can't be invited." });
   });
 
   it("does not re-check blocks for users already on the shared expense", async () => {
     prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "friend" }] as never);
 
-    await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }], {
+    await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: "50" }], {
       existingUserIds: new Set(["user-2"])
     });
 
@@ -78,22 +78,22 @@ describe("normalizeSharedExpenseParticipants", () => {
   });
 
   it("names manual participants by manualName without touching the database", async () => {
-    const result = await normalizeSharedExpenseParticipants("owner-1", [{ manualName: "Cash Friend", share: 50 }]);
-    expect(result).toEqual([{ manualName: "Cash Friend", share: 50, participantName: "Cash Friend" }]);
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ manualName: "Cash Friend", share: "50" }]);
+    expect(result).toEqual([{ manualName: "Cash Friend", share: "50", participantName: "Cash Friend" }]);
     expect(prismaMock.user.findMany).not.toHaveBeenCalled();
   });
 
   it("throws a 400 when a participant is the owner themself", async () => {
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [{ userId: "owner-1", share: 50 }])
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "owner-1", share: "50" }])
     ).rejects.toThrow("Shared transaction participants cannot include the owner");
   });
 
   it("throws a 400 when the same app user is listed twice", async () => {
     await expect(
       normalizeSharedExpenseParticipants("owner-1", [
-        { userId: "user-2", share: 10 },
-        { userId: "user-2", share: 20 }
+        { userId: "user-2", share: "10" },
+        { userId: "user-2", share: "20" }
       ])
     ).rejects.toThrow("A participant can only be added once");
   });
@@ -102,8 +102,8 @@ describe("normalizeSharedExpenseParticipants", () => {
     prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "outsider" }] as never);
 
     const result = await normalizeSharedExpenseParticipants("owner-1", [
-      { userId: "user-2", share: 10 },
-      { manualName: "Cash Friend", share: 5 }
+      { userId: "user-2", share: "10" },
+      { manualName: "Cash Friend", share: "5" }
     ]);
 
     expect(result).toHaveLength(2);
@@ -114,14 +114,14 @@ describe("normalizeSharedExpenseParticipants", () => {
     prismaMock.user.findMany.mockResolvedValue([]);
 
     await expect(
-      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }])
+      normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: "50" }])
     ).rejects.toThrow("One or more participants do not exist");
   });
 
   it("stores a username snapshot, never the name, for each registered participant", async () => {
     prismaMock.user.findMany.mockResolvedValue([{ id: "user-2", username: "current" }] as never);
 
-    const result = await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: 50 }]);
+    const result = await normalizeSharedExpenseParticipants("owner-1", [{ userId: "user-2", share: "50" }]);
 
     expect(result[0]).toMatchObject({ participantName: "@current" });
   });

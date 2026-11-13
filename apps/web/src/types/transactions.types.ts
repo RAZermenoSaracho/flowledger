@@ -9,7 +9,14 @@ import type { SharedExpense } from "./sharedExpenses.types";
 export type Transaction = {
   id: string;
   name: string;
-  amount: number;
+  amount: string;
+  /** Amount in the account's currency; equals `amount` when the currencies match. */
+  accountAmount?: string | null;
+  /** Received amount in the destination account's currency (transfers only). */
+  destinationAmount?: string | null;
+  feeAmount?: string | null;
+  /** Execution or destination currency of the recorded fee. */
+  feeCurrency?: string | null;
   executionCurrency: string;
   exchangeRate: number;
   amountInPreferredCurrency: number;
@@ -43,7 +50,7 @@ export type Transaction = {
 export type RelatedTransaction = {
   id: string;
   description: string;
-  amount: number;
+  amount: string;
   currency: string;
   date: string;
   type: string;
@@ -54,7 +61,7 @@ export type RelatedTransaction = {
 export type RelatedSettlement = {
   id: string;
   status: string;
-  amount: number;
+  amount: string;
   currency: string;
   createdAt: string;
   approvedAt: string | null;
@@ -66,7 +73,7 @@ export type RelatedSettlement = {
 /** What a participant may see of the shared expense behind their settlement. */
 export type SettlementOrigin = {
   title: string;
-  amount: number;
+  amount: string;
   currency: string;
   date: string;
   type: string;
@@ -86,7 +93,7 @@ export type ProviderImportedTransaction = {
   providerAccountId: string;
   providerTransactionId: string;
   description: string;
-  amount: number;
+  amount: string;
   currency: string;
   transactionDate: string;
   refreshDate?: string | null;

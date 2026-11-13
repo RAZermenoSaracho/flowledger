@@ -23,7 +23,7 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: "tx-1",
     name: "Groceries",
-    amount: 42.5,
+    amount: "42.5",
     executionCurrency: "USD",
     exchangeRate: 1,
     amountInPreferredCurrency: 42.5,
@@ -219,7 +219,7 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 42.5,
+      totalAmount: "42.5",
       status: "open",
       participants: [
         {
@@ -227,8 +227,8 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
           userId: "user-2",
           participantName: "@sam",
           currency: "USD",
-          shareAmount: 20,
-          paidAmount: 10,
+          shareAmount: "20",
+          paidAmount: "10",
           status: "partial",
           acceptance: "accepted"
         },
@@ -237,8 +237,8 @@ function sharedTransaction(overrides: Record<string, unknown> = {}) {
           userId: "user-3",
           participantName: "@kim",
           currency: "USD",
-          shareAmount: 10,
-          paidAmount: 0,
+          shareAmount: "10",
+          paidAmount: "0",
           status: "pending",
           acceptance: "proposed"
         }
@@ -640,6 +640,11 @@ describe("TransactionDetailPage (existing transaction)", () => {
 
     it("sends the type-coupled fields when switching to transfer", async () => {
       mockBaseline();
+      server.use(
+        http.get(`${API_URL}/currencies/rate`, () =>
+          HttpResponse.json({ from: "USD", to: "EUR", rate: 0.9 })
+        )
+      );
       const put = mockPut(() =>
         HttpResponse.json({ transaction: makeTransaction() })
       );
@@ -649,12 +654,17 @@ describe("TransactionDetailPage (existing transaction)", () => {
       await loaded();
       await user.selectOptions(screen.getByLabelText("Type"), "transfer");
       await user.selectOptions(screen.getByLabelText("To account"), "acc-2");
+      const received = screen.getByLabelText("Amount received");
+      await waitFor(() => expect(received).toHaveValue(38.25));
+      await user.clear(received);
+      await user.type(received, "38");
       await user.click(saveButton());
 
       await waitFor(() => expect(put.calls).toBe(1));
       expect(put.body).toMatchObject({
         type: "transfer",
         transferToAccountId: "acc-2",
+        destinationAmount: "38",
         categoryId: null,
         groupId: null
       });
@@ -823,7 +833,7 @@ describe("TransactionDetailPage (existing transaction)", () => {
             {
               id: "tx-2",
               description: "Original tx-2",
-              amount: 10,
+              amount: "10",
               currency: "USD",
               date: "2026-05-31T12:00:00.000Z",
               type: "expense",
@@ -853,7 +863,7 @@ describe("TransactionDetailPage (existing transaction)", () => {
             {
               id: "req-1",
               status: "pending",
-              amount: 10,
+              amount: "10",
               currency: "USD",
               createdAt: "2026-05-31T12:00:00.000Z",
               approvedAt: null,
@@ -953,8 +963,8 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
       sharedExpense: {
         enabled: true,
         participants: [
-          { userId: "user-9", share: 10 },
-          { manualName: "Pat", share: 5 }
+          { userId: "user-9", share: "10" },
+          { manualName: "Pat", share: "5" }
         ]
       }
     });
@@ -998,7 +1008,7 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
       sharedExpense: {
         enabled: true,
         title: "Dinner split",
-        participants: [{ id: "p1", userId: "user-2", share: 25 }]
+        participants: [{ id: "p1", userId: "user-2", share: "25" }]
       }
     });
   });
@@ -1008,7 +1018,7 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
     const refreshed = sharedTransaction();
     refreshed.sharedExpense!.participants[0] = {
       ...refreshed.sharedExpense!.participants[0]!,
-      shareAmount: 25,
+      shareAmount: "25",
       acceptance: "proposed"
     };
     let saved = false;
@@ -1048,8 +1058,8 @@ describe("TransactionDetailPage (sharing an existing transaction)", () => {
             userId: "user-3",
             participantName: "@kim",
             currency: "USD",
-            shareAmount: 10,
-            paidAmount: 0,
+            shareAmount: "10",
+            paidAmount: "0",
             status: "pending",
             acceptance: "proposed"
           }
@@ -1251,7 +1261,7 @@ describe("TransactionDetailPage (new draft)", () => {
     await waitFor(() => expect(post.calls).toBe(1));
     expect(post.body).toMatchObject({
       name: "Dinner",
-      amount: 10,
+      amount: "10",
       type: "expense",
       date: "2026-11-05T20:30:00.000Z"
     });
@@ -1331,8 +1341,8 @@ describe("TransactionDetailPage (new draft)", () => {
       {
         userId: "user-2",
         participantName: "Sam (@sam)",
-        shareAmount: 50,
-        paidAmount: 0,
+        shareAmount: "50.00",
+        paidAmount: "0",
         status: "pending"
       }
     ]);
@@ -1403,5 +1413,113 @@ describe("TransactionDetailPage (new draft)", () => {
     expect(
       screen.getByRole("checkbox", { name: "Shared transaction" })
     ).not.toBeChecked();
+  });
+});
+
+describe("TransactionDetailPage (cross-currency)", () => {
+  function mockRate(rate: number) {
+    server.use(
+      http.get(`${API_URL}/currencies/rate`, () =>
+        HttpResponse.json({ from: "USD", to: "EUR", rate })
+      )
+    );
+  }
+
+  async function fillTransfer(user: ReturnType<typeof userEvent.setup>) {
+    mockBaseline();
+    renderPage("/transactions/new");
+    await screen.findByLabelText("Name");
+    await user.type(screen.getByLabelText("Name"), "Move");
+    await user.type(screen.getByLabelText("Amount"), "100");
+    await user.selectOptions(screen.getByLabelText("Type"), "transfer");
+    await user.selectOptions(screen.getByLabelText("From account"), "acc-1");
+    await user.selectOptions(screen.getByLabelText("To account"), "acc-2");
+  }
+
+  it("prefills the received amount from the rate and sends the user's override as a string", async () => {
+    mockRate(0.92);
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction({ id: "tx-1" }) })
+    );
+    const user = userEvent.setup();
+    await fillTransfer(user);
+
+    const received = screen.getByLabelText("Amount received");
+    await waitFor(() => expect(received).toHaveValue(92));
+    await user.clear(received);
+    await user.type(received, "90.5");
+    await user.click(saveButton());
+
+    await waitFor(() => expect(post.calls).toBe(1));
+    expect(post.body).toMatchObject({
+      type: "transfer",
+      amount: "100",
+      destinationAmount: "90.5"
+    });
+    expect(post.body).not.toHaveProperty("accountAmount");
+  });
+
+  it("blocks Save with an inline error for a received amount beyond the currency's decimals", async () => {
+    mockRate(0.92);
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction() })
+    );
+    const user = userEvent.setup();
+    await fillTransfer(user);
+
+    const received = screen.getByLabelText("Amount received");
+    await waitFor(() => expect(received).toHaveValue(92));
+    await user.clear(received);
+    await user.type(received, "90.123");
+    await user.click(saveButton());
+
+    expect(await screen.findByText(/at most 2 decimal places/)).toBeInTheDocument();
+    expect(post.calls).toBe(0);
+  });
+
+  it("sends a fee with its currency", async () => {
+    mockRate(0.92);
+    const post = mockPost(() =>
+      HttpResponse.json({ transaction: makeTransaction({ id: "tx-1" }) })
+    );
+    const user = userEvent.setup();
+    await fillTransfer(user);
+    await waitFor(() => expect(screen.getByLabelText("Amount received")).toHaveValue(92));
+    await user.type(screen.getByLabelText("Fee (optional)"), "2");
+    await user.click(saveButton());
+
+    await waitFor(() => expect(post.calls).toBe(1));
+    expect(post.body).toMatchObject({ feeAmount: "2", feeCurrency: "USD" });
+  });
+
+  it("hides the received-amount and fee fields when the currencies match", async () => {
+    mockRate(0.92);
+    const user = userEvent.setup();
+    await fillTransfer(user);
+    await waitFor(() => expect(screen.getByLabelText("Amount received")).toHaveValue(92));
+
+    await user.selectOptions(screen.getByLabelText("To account"), "");
+    expect(screen.queryByLabelText("Amount received")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Fee (optional)")).not.toBeInTheDocument();
+  });
+
+  it("shows the cross-currency record on a saved transfer", async () => {
+    mockBaseline({
+      transaction: makeTransaction({
+        type: "transfer",
+        amount: "100",
+        executionCurrency: "USD",
+        accountId: "acc-1",
+        transferToAccountId: "acc-2",
+        destinationAmount: "92",
+        account: { id: "acc-1", name: "Checking", currency: "USD" } as Transaction["account"],
+        transferToAccount: { id: "acc-2", name: "Savings", currency: "EUR" } as Transaction["transferToAccount"]
+      })
+    });
+    renderPage();
+    await loaded();
+
+    expect(screen.getByRole("region", { name: "Cross-currency record" })).toBeInTheDocument();
+    expect(screen.getByText("1 USD = 0.92 EUR")).toBeInTheDocument();
   });
 });

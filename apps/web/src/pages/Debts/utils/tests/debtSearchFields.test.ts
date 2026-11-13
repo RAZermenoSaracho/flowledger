@@ -18,20 +18,20 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
     userId: "user-2",
     participantName: "Friend",
     currency: "USD",
-    shareAmount: 100,
-    paidAmount: 40,
+    shareAmount: "100",
+    paidAmount: "40",
     status: "partial",
     sharedExpenseId: "se-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    outstandingAmount: 60,
-    pendingSettlementAmount: 0,
+    outstandingAmount: "60",
+    pendingSettlementAmount: "0",
     sharedExpense: {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 100,
+      totalAmount: "100",
       status: "open",
       owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { name: "Dinner out", type: "expense" } as Debt["sharedExpense"]["transaction"],
@@ -88,7 +88,7 @@ describe("toSettlementRequestSearchRow", () => {
       sharedExpenseParticipantId: "debt-1",
       debtorUserId: "user-2",
       creditorUserId: "user-1",
-      amount: 50,
+      amount: "50",
       status: "pending",
       note: "Paying you back",
       debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
@@ -109,7 +109,7 @@ describe("toSettlementRequestSearchRow", () => {
       creditorName: "Jane",
       creditorUsername: "jane",
       note: "Paying you back",
-      amount: 50,
+      amount: "50",
       status: "pending"
     });
   });
@@ -157,7 +157,7 @@ describe("settlementRequestSearchFields", () => {
 
 describe("toSettledDebtSearchRow", () => {
   it("flattens a settled Debt's searchable fields", () => {
-    const debt = makeDebt({ outstandingAmount: 0 });
+    const debt = makeDebt({ outstandingAmount: "0" });
     expect(toSettledDebtSearchRow(debt, "user-2")).toEqual({
       title: "Dinner split",
       description: "Jane (@jane) · expense split · $40.00 settled of $100.00",
@@ -168,9 +168,9 @@ describe("toSettledDebtSearchRow", () => {
       ownerName: "Jane",
       ownerUsername: "jane",
       transactionName: "Dinner out",
-      shareAmount: 100,
-      paidAmount: 40,
-      outstandingAmount: 0
+      shareAmount: "100",
+      paidAmount: "40",
+      outstandingAmount: "0"
     });
   });
 });

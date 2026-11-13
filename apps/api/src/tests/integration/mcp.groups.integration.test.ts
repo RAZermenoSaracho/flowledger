@@ -132,7 +132,7 @@ describe("MCP group tools", () => {
       ["set_group_archived", { id: "x", archived: true }],
       ["remove_group_member", { groupId: "x" }],
       ["create_shared_expense", { transactionId: "x", title: "t" }],
-      ["request_settlement", { debtId: "x", amount: 1, accountId: "a", categoryId: "c" }],
+      ["request_settlement", { debtId: "x", amount: "1", accountId: "a", categoryId: "c" }],
       ["add_group_member", { groupId: "x", userId: "y" }],
       ["create_group_category", { groupId: "x", name: "n", type: "expense" }]
     ] as const) {
@@ -179,15 +179,15 @@ describe("MCP group tools", () => {
 
   it("creates shared expenses on personal and group transactions", async () => {
     const personal = await prisma.transaction.create({
-      data: { userId: a.userId, name: "Solo", amount: 50, amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: a.accountId }
+      data: { userId: a.userId, name: "Solo", amount: 50, accountAmount: "50", amountInPreferredCurrency: 50, type: "expense", date: new Date("2024-02-01"), accountId: a.accountId }
     });
     const tx = await request(app).post("/transactions").set(bearer(a.jwt)).send({
-      name: "Dinner", amount: 100, type: "expense", date: "2024-02-01", accountId: a.accountId, categoryId: expenseCategoryId, groupId
+      name: "Dinner", amount: "100", type: "expense", date: "2024-02-01", accountId: a.accountId, categoryId: expenseCategoryId, groupId
     });
     const transactionId = tx.body.transaction.id as string;
-    const participant = (userId: string, shareAmount: number) => ({ userId, participantName: "P", shareAmount });
+    const participant = (userId: string, shareAmount: string) => ({ userId, participantName: "P", shareAmount });
 
-    const universal = await call(a.write, "create_shared_expense", { transactionId: personal.id, title: "t", participants: [participant(c.userId, 50)] });
+    const universal = await call(a.write, "create_shared_expense", { transactionId: personal.id, title: "t", participants: [participant(c.userId, "50")] });
     expect(universal.isError).toBeFalsy();
     const personalShareId = universal.structuredContent!.sharedExpense.id;
     const awaiting = (await call(c.read, "list_debts")).structuredContent!;
@@ -198,10 +198,10 @@ describe("MCP group tools", () => {
     await prisma.notification.deleteMany({ where: { userId: c.userId } });
     const before = await counts();
 
-    expect((await call(b.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(b.userId, 50)] })).isError).toBe(true);
+    expect((await call(b.write, "create_shared_expense", { transactionId, title: "t", participants: [participant(b.userId, "50")] })).isError).toBe(true);
     expect(await counts()).toEqual(before);
 
-    const created = await call(a.write, "create_shared_expense", { transactionId, title: "Dinner", participants: [participant(b.userId, 40)] });
+    const created = await call(a.write, "create_shared_expense", { transactionId, title: "Dinner", participants: [participant(b.userId, "40")] });
     expect(created.isError).toBeFalsy();
     sharedExpenseId = created.structuredContent!.sharedExpense.id;
     expect(await prisma.notification.count({ where: { userId: b.userId, type: "shared_expense_invited" } })).toBe(1);
@@ -218,8 +218,8 @@ describe("MCP group tools", () => {
 
   it("matches REST for blocks and own identity, and blocks invitations without changing accepted debt", async () => {
     expect((await call(c.write, "block_user", { userId: a.userId })).isError).toBeFalsy();
-    const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Blocked", amount: 10, amountInPreferredCurrency: 10, type: "expense", date: new Date(), accountId: a.accountId, groupId } });
-    const args = { transactionId: tx.id, title: "Blocked", participants: [{ userId: c.userId, participantName: "C", shareAmount: 5 }] };
+    const tx = await prisma.transaction.create({ data: { userId: a.userId, name: "Blocked", amount: 10, accountAmount: "10", amountInPreferredCurrency: 10, type: "expense", date: new Date(), accountId: a.accountId, groupId } });
+    const args = { transactionId: tx.id, title: "Blocked", participants: [{ userId: c.userId, participantName: "C", shareAmount: "5" }] };
     const refused = await call(a.write, "create_shared_expense", args);
     expect(refused.isError).toBe(true);
     expect(refused.content[0]!.text).toContain("This user can't be invited.");
@@ -244,7 +244,7 @@ describe("MCP group tools", () => {
   });
 
   it("lets only the debtor request a settlement, once, leaving approval to REST", async () => {
-    const args = { debtId, amount: 40, accountId: b.accountId, categoryId: expenseCategoryId };
+    const args = { debtId, amount: "40", accountId: b.accountId, categoryId: expenseCategoryId };
     const before = await counts();
     expect((await call(a.write, "request_settlement", { ...args, accountId: a.accountId })).isError).toBe(true);
     expect((await call(c.write, "request_settlement", args)).isError).toBe(true);

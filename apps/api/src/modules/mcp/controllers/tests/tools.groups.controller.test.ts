@@ -119,7 +119,7 @@ describe("group write tools", () => {
     const forced = new Map<string, Handler>();
     registerGroupWriteTools({ registerTool: (n: string, _c: unknown, h: Handler) => forced.set(n, h) } as never, auth);
 
-    const result = await forced.get("request_settlement")!({ debtId: "d", amount: 5, accountId: "a", categoryId: "c" });
+    const result = await forced.get("request_settlement")!({ debtId: "d", amount: "5", accountId: "a", categoryId: "c" });
 
     expect(result.isError).toBe(true);
     expect(createSettlementRequest).not.toHaveBeenCalled();
@@ -173,9 +173,9 @@ describe("group write tools", () => {
   it("request_settlement splits the debt id from the body", async () => {
     vi.mocked(createSettlementRequest).mockResolvedValue({ id: "r1" } as never);
 
-    await run("request_settlement", { debtId: "d1", amount: 5, accountId: "a", categoryId: "c" });
+    await run("request_settlement", { debtId: "d1", amount: "5", accountId: "a", categoryId: "c" });
 
-    expect(createSettlementRequest).toHaveBeenCalledWith("u1", "d1", { amount: 5, accountId: "a", categoryId: "c" });
+    expect(createSettlementRequest).toHaveBeenCalledWith("u1", "d1", { amount: "5", accountId: "a", categoryId: "c" });
   });
 
   it("add_group_member adds the picked user as the credential user and audits the group", async () => {

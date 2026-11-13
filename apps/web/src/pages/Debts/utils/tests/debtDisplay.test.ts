@@ -18,20 +18,20 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
     userId: "user-2",
     participantName: "Friend",
     currency: "USD",
-    shareAmount: 100,
-    paidAmount: 40,
+    shareAmount: "100",
+    paidAmount: "40",
     status: "partial",
     sharedExpenseId: "se-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    outstandingAmount: 60,
-    pendingSettlementAmount: 0,
+    outstandingAmount: "60",
+    pendingSettlementAmount: "0",
     sharedExpense: {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 100,
+      totalAmount: "100",
       status: "open",
       owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { type: "expense" } as Debt["sharedExpense"]["transaction"],
@@ -177,18 +177,18 @@ describe("debtDescription", () => {
 
 describe("statusLabel", () => {
   it("labels a fully-settled debt as 'settled'", () => {
-    expect(statusLabel(makeDebt({ outstandingAmount: 0 }))).toBe("settled");
+    expect(statusLabel(makeDebt({ outstandingAmount: "0" }))).toBe("settled");
   });
 
   it("labels a debt with a pending settlement as 'settlement pending'", () => {
     expect(
-      statusLabel(makeDebt({ outstandingAmount: 60, pendingSettlementAmount: 20 }))
+      statusLabel(makeDebt({ outstandingAmount: "60", pendingSettlementAmount: "20" }))
     ).toBe("settlement pending");
   });
 
   it("falls back to the raw status otherwise", () => {
     expect(
-      statusLabel(makeDebt({ outstandingAmount: 60, pendingSettlementAmount: 0, status: "partial" }))
+      statusLabel(makeDebt({ outstandingAmount: "60", pendingSettlementAmount: "0", status: "partial" }))
     ).toBe("partial");
   });
 });
@@ -197,16 +197,28 @@ describe("availableSettlementAmount", () => {
   it("subtracts already-pending settlement amount from outstanding", () => {
     expect(
       availableSettlementAmount(
-        makeDebt({ outstandingAmount: 60, pendingSettlementAmount: 20 })
+        makeDebt({ outstandingAmount: "60", pendingSettlementAmount: "20" })
       )
-    ).toBe(40);
+    ).toBe("40.00");
+  });
+
+  it("subtracts exactly for crypto debts", () => {
+    expect(
+      availableSettlementAmount(
+        makeDebt({
+          currency: "BTC",
+          outstandingAmount: "1.234567890123456789",
+          pendingSettlementAmount: "0.62"
+        })
+      )
+    ).toBe("0.614567890123456789");
   });
 
   it("never goes below zero", () => {
     expect(
       availableSettlementAmount(
-        makeDebt({ outstandingAmount: 10, pendingSettlementAmount: 20 })
+        makeDebt({ outstandingAmount: "10", pendingSettlementAmount: "20" })
       )
-    ).toBe(0);
+    ).toBe("0");
   });
 });

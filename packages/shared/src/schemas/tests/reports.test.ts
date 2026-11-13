@@ -112,6 +112,16 @@ describe("financialOverviewResponseSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("rejects the removed cross_currency_effects disclosure code", () => {
+    const parsed = financialOverviewResponseSchema.safeParse({
+      currency: "USD",
+      netWorth,
+      savingsRate: { status: "error" },
+      disclosures: ["cross_currency_effects"]
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects an unknown disclosure code", () => {
     const parsed = financialOverviewResponseSchema.safeParse({
       currency: "USD",

@@ -42,7 +42,7 @@ After any `schema.prisma` change: run `prisma:migrate` (creates the migration SQ
 | Field names | `camelCase` | `createdAt`, `providerCredentialId` |
 | Enums | `PascalCase` name, values `snake_case` | `AccountType { credit_card }` |
 | IDs | `String @id @default(cuid())` | All primary keys |
-| Money fields | `Decimal @db.Decimal(12, 2)` | `amount`, `shareAmount`, `initialBalance` |
+| Money fields | `Decimal @db.Decimal(38, 18)` | `amount`, `shareAmount`, `initialBalance` |
 | Soft deletes | `isArchived Boolean`, `archivedAt DateTime?` | `Account`, `Category`, `Group` |
 | Timestamps | `createdAt @default(now())`, `updatedAt @updatedAt` | All models |
 | Migration names | `<timestamp>_<short_description>` | `20260607120000_add_syncfy_integration_models` |

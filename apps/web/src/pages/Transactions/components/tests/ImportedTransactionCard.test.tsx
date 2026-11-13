@@ -19,7 +19,7 @@ function makeTransaction(
     providerAccountId: "pa-1",
     providerTransactionId: "raw-1",
     description: "Coffee shop",
-    amount: -5.5,
+    amount: "-5.5",
     currency: "USD",
     transactionDate: "2024-01-15T00:00:00.000Z",
     status: "pending",
@@ -62,15 +62,15 @@ function baseProps(overrides: Partial<Parameters<typeof ImportedTransactionCard>
 
 describe("importedTransactionType", () => {
   it("classifies a negative amount as expense", () => {
-    expect(importedTransactionType(makeTransaction({ amount: -5 }))).toBe("expense");
+    expect(importedTransactionType(makeTransaction({ amount: "-5" }))).toBe("expense");
   });
 
   it("classifies a positive amount as income", () => {
-    expect(importedTransactionType(makeTransaction({ amount: 5 }))).toBe("income");
+    expect(importedTransactionType(makeTransaction({ amount: "5" }))).toBe("income");
   });
 
   it("returns null for a zero amount", () => {
-    expect(importedTransactionType(makeTransaction({ amount: 0 }))).toBeNull();
+    expect(importedTransactionType(makeTransaction({ amount: "0" }))).toBeNull();
   });
 });
 

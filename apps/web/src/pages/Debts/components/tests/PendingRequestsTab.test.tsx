@@ -13,7 +13,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 0,
+    initialBalance: "0",
     isArchived: false,
     createdAt: "",
     updatedAt: "",
@@ -27,7 +27,7 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     sharedExpenseParticipantId: "debt-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    amount: 50,
+    amount: "50",
     status: "pending",
     debtor: { id: "user-2", username: "sam", nickname: null, displayName: "Sam" },
     sharedExpenseParticipant: {
@@ -53,7 +53,7 @@ function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> 
     onClearApprovalSelection: vi.fn(),
     accounts: [makeAccount()],
     isActing: false,
-    approvalDraftFor: () => ({ accountId: "", categoryId: "", expenseOffsetCategoryId: "" }),
+    approvalDraftFor: () => ({ accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" }),
     onApprovalDraftChange: vi.fn(),
     incomeCategoryOptionsFor: (): Category[] => [],
     expenseOffsetCategoryOptionsFor: (): Category[] => [],
@@ -140,6 +140,7 @@ describe("PendingRequestsTab", () => {
       pendingForMe: [request],
       visiblePendingForMe: [request],
       approvalDraftFor: () => ({
+        accountAmount: "",
         accountId: "acc-1",
         categoryId: "cat-1",
         expenseOffsetCategoryId: ""
@@ -175,7 +176,7 @@ describe("PendingRequestsTab", () => {
         {...baseProps({
           pendingForMe: [request],
           visiblePendingForMe: [request],
-          approvalDraftFor: () => ({ accountId: "", categoryId: "", expenseOffsetCategoryId: "" })
+          approvalDraftFor: () => ({ accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" })
         })}
       />
     );

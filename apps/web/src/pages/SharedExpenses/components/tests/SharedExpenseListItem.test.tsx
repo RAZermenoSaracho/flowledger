@@ -11,7 +11,7 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
     transactionId: "tx-1",
     ownerUserId: "user-1",
     title: "Dinner split",
-    totalAmount: 100,
+    totalAmount: "100",
     status: "open",
     transaction: {
       id: "tx-1",
@@ -25,8 +25,8 @@ function makeSharedExpense(overrides: Partial<SharedExpense> = {}): SharedExpens
         userId: "user-2",
         participantName: "Friend",
         currency: "USD",
-        shareAmount: 50,
-        paidAmount: 20,
+        shareAmount: "50",
+        paidAmount: "20",
         status: "partial"
       }
     ],

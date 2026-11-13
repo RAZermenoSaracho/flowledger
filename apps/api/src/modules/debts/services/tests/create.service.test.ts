@@ -29,8 +29,9 @@ function debtRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "debt-1",
     userId: "user-1",
-    shareAmount: { toNumber: () => 100 },
-    paidAmount: { toNumber: () => 0 },
+    currency: "USD",
+    shareAmount: new Prisma.Decimal("100"),
+    paidAmount: new Prisma.Decimal("0"),
     acceptance: "accepted",
     sharedExpense: {
       ownerUserId: "owner-1",
@@ -48,7 +49,7 @@ describe("createSettlementRequest", () => {
 
     await expect(
       createSettlementRequest("user-1", "debt-1", {
-        amount: 50,
+        amount: "50",
         accountId: "acc-1",
         categoryId: "cat-1"
       })
@@ -61,7 +62,7 @@ describe("createSettlementRequest", () => {
     );
 
     await expect(
-      createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" })
+      createSettlementRequest("user-1", "debt-1", { amount: "50", accountId: "acc-1", categoryId: "cat-1" })
     ).rejects.toThrow("This share has not been accepted");
   });
 
@@ -72,7 +73,7 @@ describe("createSettlementRequest", () => {
 
     await expect(
       createSettlementRequest("someone-else", "debt-1", {
-        amount: 50,
+        amount: "50",
         accountId: "acc-1",
         categoryId: "cat-1"
       })
@@ -82,16 +83,16 @@ describe("createSettlementRequest", () => {
   it("throws a 400 when the debt is already settled", async () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow({
-        shareAmount: { toNumber: () => 100 },
-        paidAmount: { toNumber: () => 100 }
+        shareAmount: new Prisma.Decimal("100"),
+        paidAmount: new Prisma.Decimal("100")
       }) as never
     );
-    assertSettlementAccountMock.mockResolvedValue({} as never);
+    assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
     assertSettlementCategoryMock.mockResolvedValue(undefined as never);
 
     await expect(
       createSettlementRequest("user-1", "debt-1", {
-        amount: 50,
+        amount: "50",
         accountId: "acc-1",
         categoryId: "cat-1"
       })
@@ -102,12 +103,12 @@ describe("createSettlementRequest", () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow() as never
     );
-    assertSettlementAccountMock.mockResolvedValue({} as never);
+    assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
     assertSettlementCategoryMock.mockResolvedValue(undefined as never);
 
     await expect(
       createSettlementRequest("user-1", "debt-1", {
-        amount: 150,
+        amount: "150",
         accountId: "acc-1",
         categoryId: "cat-1"
       })
@@ -118,7 +119,7 @@ describe("createSettlementRequest", () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow() as never
     );
-    assertSettlementAccountMock.mockResolvedValue({} as never);
+    assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
     assertSettlementCategoryMock.mockResolvedValue(undefined as never);
     prismaMock.settlementRequest.findFirst.mockResolvedValue({
       id: "existing"
@@ -126,7 +127,7 @@ describe("createSettlementRequest", () => {
 
     await expect(
       createSettlementRequest("user-1", "debt-1", {
-        amount: 50,
+        amount: "50",
         accountId: "acc-1",
         categoryId: "cat-1"
       })
@@ -139,12 +140,12 @@ describe("createSettlementRequest", () => {
     );
 
     await expect(
-      createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" })
+      createSettlementRequest("user-1", "debt-1", { amount: "50", accountId: "acc-1", categoryId: "cat-1" })
     ).rejects.toMatchObject({ statusCode: 409, message: "Please retry" });
 
     prismaMock.$transaction.mockClear();
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(null);
-    await createSettlementRequest("user-1", "debt-1", { amount: 50, accountId: "acc-1", categoryId: "cat-1" }).catch(
+    await createSettlementRequest("user-1", "debt-1", { amount: "50", accountId: "acc-1", categoryId: "cat-1" }).catch(
       () => undefined
     );
     expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
@@ -156,23 +157,24 @@ describe("createSettlementRequest", () => {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
       debtRow() as never
     );
-    assertSettlementAccountMock.mockResolvedValue({} as never);
+    assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
     assertSettlementCategoryMock.mockResolvedValue(undefined as never);
     prismaMock.settlementRequest.findFirst.mockResolvedValue(null);
     prismaMock.settlementRequest.create.mockResolvedValue({
       id: "sr-1",
       creditorUserId: "owner-1",
       debtor: { name: "User One" },
-      amount: { toNumber: () => 50 },
+      amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: "USD",
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }
     } as never);
 
     const result = await createSettlementRequest("user-1", "debt-1", {
-      amount: 50,
+      amount: "50",
       accountId: "acc-1",
       categoryId: "cat-1"
     });
@@ -187,28 +189,101 @@ describe("createSettlementRequest", () => {
   });
 });
 
-describe("createBatchSettlementRequests", () => {
-  it("creates a request for each entry, sequentially", async () => {
+describe("createSettlementRequest currencies", () => {
+  const body = { amount: "50", accountId: "acc-1", categoryId: "cat-1" };
+
+  function setup(debtCurrency: string, accountCurrency: string) {
     prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
-      debtRow() as never
+      debtRow({ currency: debtCurrency }) as never
     );
-    assertSettlementAccountMock.mockResolvedValue({} as never);
+    assertSettlementAccountMock.mockResolvedValue({ currency: accountCurrency } as never);
     assertSettlementCategoryMock.mockResolvedValue(undefined as never);
     prismaMock.settlementRequest.findFirst.mockResolvedValue(null);
     prismaMock.settlementRequest.create.mockResolvedValue({
       id: "sr-1",
       creditorUserId: "owner-1",
       debtor: { name: "User One" },
-      amount: { toNumber: () => 50 },
+      amount: new Prisma.Decimal("50"),
       sharedExpenseParticipantId: "debt-1",
       sharedExpenseParticipant: {
+        currency: debtCurrency,
+        sharedExpenseId: "se-1",
+        sharedExpense: { title: "Dinner", transaction: { groupId: null } }
+      }
+    } as never);
+  }
+
+  it.each(["BTC", "KWD"])("accepts a %s debt with valid precision", async (currency) => {
+    setup(currency, currency);
+    await expect(createSettlementRequest("user-1", "debt-1", body)).resolves.toMatchObject({ id: "sr-1" });
+  });
+
+  it("requires accountAmount for a cross-currency account", async () => {
+    setup("USD", "BTC");
+
+    await expect(createSettlementRequest("user-1", "debt-1", body)).rejects.toMatchObject({
+      statusCode: 400
+    });
+  });
+
+  it("accepts MXN", async () => {
+    setup("MXN", "MXN");
+
+    await expect(createSettlementRequest("user-1", "debt-1", body)).resolves.toMatchObject({
+      id: "sr-1"
+    });
+  });
+
+  it("rejects over-precise amounts for the debt currency", async () => {
+    setup("USD", "USD");
+
+    await expect(
+      createSettlementRequest("user-1", "debt-1", { ...body, amount: "50.005" })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("requires accountAmount for an account in another currency than the debt, naming it", async () => {
+    setup("USD", "MXN");
+
+    await expect(createSettlementRequest("user-1", "debt-1", body)).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { accountAmount: expect.any(Array) } } }
+    });
+  });
+
+  it("stores the debtor's accountAmount for a cross-currency account", async () => {
+    setup("USD", "MXN");
+
+    await createSettlementRequest("user-1", "debt-1", { ...body, accountAmount: "850" });
+
+    const data = prismaMock.settlementRequest.create.mock.calls[0]?.[0].data as unknown as Record<string, Prisma.Decimal>;
+    expect(data.debtorAccountAmount?.toFixed()).toBe("850");
+  });
+});
+
+describe("createBatchSettlementRequests", () => {
+  it("creates a request for each entry, sequentially", async () => {
+    prismaMock.sharedExpenseParticipant.findFirst.mockResolvedValue(
+      debtRow() as never
+    );
+    assertSettlementAccountMock.mockResolvedValue({ currency: "USD" } as never);
+    assertSettlementCategoryMock.mockResolvedValue(undefined as never);
+    prismaMock.settlementRequest.findFirst.mockResolvedValue(null);
+    prismaMock.settlementRequest.create.mockResolvedValue({
+      id: "sr-1",
+      creditorUserId: "owner-1",
+      debtor: { name: "User One" },
+      amount: new Prisma.Decimal("50"),
+      sharedExpenseParticipantId: "debt-1",
+      sharedExpenseParticipant: {
+        currency: "USD",
         sharedExpenseId: "se-1",
         sharedExpense: { title: "Dinner", transaction: { groupId: null } }
       }
     } as never);
 
     const results = await createBatchSettlementRequests("user-1", [
-      { debtId: "debt-1", amount: 50, accountId: "acc-1", categoryId: "cat-1" }
+      { debtId: "debt-1", amount: "50", accountId: "acc-1", categoryId: "cat-1" }
     ]);
 
     expect(results).toHaveLength(1);

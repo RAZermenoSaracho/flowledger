@@ -1,8 +1,9 @@
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
+import { financialSnapshot } from "../utils/transactionCorrection.js";
 import { assertNoSettlementActivity } from "../../shared-expenses/utils/shareGuards.js";
 
-/** Deletes a transaction owned by `userId`, cascading notifications tied to it and any linked shared expense/participants; throws 400 while the shared expense has payments or pending/approved settlements. */
+/** Deletes a transaction owned by `userId`, appending a final `TransactionCorrection` row that outlives it, cascading notifications tied to it and any linked shared expense/participants; throws 400 while the shared expense has payments or pending/approved settlements. */
 export async function deleteTransaction(userId: string, id: string) {
   await prisma.$transaction(async (tx) => {
     const existing = await tx.transaction.findFirst({
@@ -54,6 +55,15 @@ export async function deleteTransaction(userId: string, id: string) {
             }
           }))
         ]
+      }
+    });
+
+    await tx.transactionCorrection.create({
+      data: {
+        transactionId: existing.id,
+        userId,
+        action: "delete",
+        previous: financialSnapshot(existing)
       }
     });
 
