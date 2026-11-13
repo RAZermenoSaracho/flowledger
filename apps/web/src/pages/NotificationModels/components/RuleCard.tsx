@@ -108,7 +108,7 @@ export function RuleCard({
   return (
     <div className="grid gap-4 rounded-md border border-slate-200 p-3 dark:border-slate-800" role="group" aria-label={`Rule ${n}`}>
       <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="w-full sm:w-auto sm:min-w-0 sm:flex-1">
           <TextInput label={`Rule ${n} label`} value={rule.label ?? ""} onChange={(event) => onChange({ ...rule, label: event.target.value || undefined })} />
         </div>
         <Button type="button" variant="secondary" aria-label={`Move rule ${n} up`} disabled={index === 0} onClick={() => onMove(-1)}>

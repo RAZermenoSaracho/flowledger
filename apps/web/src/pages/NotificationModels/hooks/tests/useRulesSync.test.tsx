@@ -105,6 +105,22 @@ describe("useRulesSync", () => {
     await waitFor(() => expect(result.current.state.kind).toBe("failed"));
   });
 
+  it("sends one parse request when asked twice for the same code at once", async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${API}/notification-models/parse-rules`, async () => {
+        calls += 1;
+        if (calls > 1) return HttpResponse.json({ message: "busy" }, { status: 503 });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return HttpResponse.json({ unsupported: [{ line: 2, message: "loop" }] });
+      })
+    );
+    const { result } = renderHook(() => useHarness(CUSTOM), { wrapper });
+    await act(() => Promise.all([result.current.ensureParsed(), result.current.ensureParsed()]));
+    expect(calls).toBe(1);
+    expect(result.current.state.kind).toBe("unsupported");
+  });
+
   it("replaces the whole script with the default rules", async () => {
     const { result } = renderHook(() => useHarness(CUSTOM), { wrapper });
     act(() => result.current.replaceWithDefault());

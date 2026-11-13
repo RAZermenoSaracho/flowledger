@@ -24,17 +24,21 @@ export type RulesSync = { kind: "loading" } | Parsed;
 export function useRulesSync(code: string, setCode: (code: string) => void) {
   const [result, setResult] = useState<{ code: string; parsed: Parsed } | null>(null);
   const request = useRef(0);
+  // Form-open and leave-Code can both ask for the same code at once; a second sandbox call would get 503.
+  const inFlight = useRef<string | null>(null);
   const latest = useRef({ code, result });
   latest.current = { code, result };
 
   const ensureParsed = useCallback(async () => {
     const { code, result } = latest.current;
     if (result?.code === code && result.parsed.kind !== "failed") return;
+    if (inFlight.current === code) return;
     const id = ++request.current;
     const done = (parsed: Parsed) => {
       if (id === request.current) setResult({ code, parsed });
     };
     if (code === DEFAULT_CODE) return done({ kind: "rules", rules: DEFAULT_NOTIFICATION_RULES, errors: [], rewritesCode: false });
+    inFlight.current = code;
     try {
       const answer = await parseNotificationRules(code);
       if ("rules" in answer) {
@@ -43,12 +47,15 @@ export function useRulesSync(code: string, setCode: (code: string) => void) {
       else done({ kind: "syntax", items: answer.errors });
     } catch {
       done({ kind: "failed" });
+    } finally {
+      if (inFlight.current === code) inFlight.current = null;
     }
   }, []);
 
   const applyRules = useCallback(
     (rules: NotificationRules) => {
       ++request.current;
+      inFlight.current = null;
       const checked = notificationRulesSchema.safeParse(rules);
       if (!checked.success) {
         const errors = checked.error.issues.map((issue) => {
@@ -67,6 +74,7 @@ export function useRulesSync(code: string, setCode: (code: string) => void) {
 
   const replaceWithDefault = useCallback(() => {
     ++request.current;
+    inFlight.current = null;
     setCode(DEFAULT_CODE);
     setResult({ code: DEFAULT_CODE, parsed: { kind: "rules", rules: DEFAULT_NOTIFICATION_RULES, errors: [], rewritesCode: false } });
   }, [setCode]);
