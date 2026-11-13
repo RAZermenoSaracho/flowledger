@@ -615,7 +615,7 @@ Still open:
 
 **Found in:** Implementing `st005-reusable-editable-form-view`.
 
-**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView.tsx`.
+**Scope:** `apps/web/src/main.tsx` (`BrowserRouter`), `apps/web/src/hooks/useFormDraft.ts`, `apps/web/src/components/FormView/FormView.tsx`.
 
 **Description:** A dirty draft is protected by a `beforeunload` guard and by a confirm on the view's own Discard and Back controls. Clicking a sidebar or other in-app link while dirty leaves the page and silently drops the edits, because React Router's `useBlocker` needs a data router and the app uses `BrowserRouter`.
 

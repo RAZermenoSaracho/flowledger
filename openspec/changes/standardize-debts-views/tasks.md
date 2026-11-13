@@ -2,7 +2,7 @@
 
 ## 1. Shared foundations
 
-- [x] 1.1 Make `FormView`'s `draft` optional: with no draft, hide Save and Cancel, skip the save shortcut, and let the back link navigate without the dirty guard. Verify that `components/tests/FormView.test.tsx` covers the no-draft case and that the existing cases still pass.
+- [x] 1.1 Make `FormView`'s `draft` optional: with no draft, hide Save and Cancel, skip the save shortcut, and let the back link navigate without the dirty guard. Verify that `components/FormView/tests/FormView.test.tsx` covers the no-draft case and that the existing cases still pass.
 - [x] 1.2 Add the `shared=1` prefill (`isShared: true`) to `transactionPrefill.ts`. Verify with `utils/tests/transactionPrefill.test.ts`, which must also check that `shared=0` and `shared=yes` are ignored.
 - [x] 1.3 Make the `TransactionDetailPage` back arrow use a safe `location.state.from` (app-relative only) with a fallback to `/transactions`, and keep that state through the post-create redirect. Verify with `tests/TransactionDetailPage.test.tsx`, covering the from-state case, the unsafe-value case and the fallback case.
 
@@ -38,4 +38,9 @@
 - [x] 5.1 Render the person balance detail as `Card` → `FormView`, so the back arrow and title sit inside the card, and drop `PersonDebtDetail`'s own outer `Card`. Verify that `PersonDebtDetailPage.test.tsx` asserts one card containing the header and the debt tables, and that the settlement tests still pass.
 - [x] 5.2 Pass Accept, Reject and Reject-and-block to `RecordCard` `actions` in Awaiting Acceptance, so they show inline on the right when they fit and in the card's three-dot menu otherwise. Verify with `AwaitingAcceptanceTab.test.tsx`: the menu has the three actions, owner rows have no menu, and the requests are unchanged.
 - [x] 5.3 Turn Pending Settlement Requests into two shared `Tabs` ("Requests by me", "Awaiting my approval") with count badges and a `?pending=` URL param. A highlighted request opens its own tab. Verify with `PendingRequestsTab.test.tsx`: one list at a time, switching, default rules, approve and batch approve still work.
-- [ ] 5.4 Re-run typecheck, lint, the web suite, the build and strict validation. Redeploy staging, run the desktop and mobile smoke, check the QA dataset is intact, and update the PR #50 description.
+- [x] 5.4 Re-run typecheck, lint, the web suite, the build and strict validation. Redeploy staging, run the desktop and mobile smoke, check the QA dataset is intact, and update the PR #50 description.
+
+## 6. FormView component directory
+
+- [x] 6.1 Move `components/FormView/FormView.tsx` and its test into `components/FormView/`, with an `index.ts` exporting only `FormView`, and extract the private `FormViewHeader` with identical DOM. Verify that consumers compile unchanged through the index, that the FormView tests pass and that `FormViewHeader.test.tsx` is added.
+- [x] 6.2 Update the references in `apps/web/CLAUDE.md` and `docs/KNOWN_ISSUES.md`, run the regression tests for every FormView consumer (Accounts, Transactions, Groups, Profile, Debts, Shared Expenses), the full gates and a simplicity review, then redeploy staging and smoke-test it with the QA dataset intact.

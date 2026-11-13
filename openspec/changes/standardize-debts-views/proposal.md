@@ -27,6 +27,8 @@ The Debts module is the last area that does not follow FlowLedger's list and rec
   - the obsolete page-local participant draft type
 - **Debt table selection** passes the visible row ids to `toggle`, as `ListView` does, so range selection works the same way.
 
+- **`FormView` becomes a component directory**, following `ListView/` and `SearchBar/`: `components/FormView/FormView.tsx`, a private `FormViewHeader.tsx`, an `index.ts`, and the tests in `FormView/tests/`. The public API and behaviour are unchanged, and consumers keep importing `components/FormView`.
+
 No backend, schema or API changes. Debt calculations, settlement requests, approvals, consent and permissions are untouched.
 
 ## Capabilities
@@ -36,6 +38,7 @@ No backend, schema or API changes. Debt calculations, settlement requests, appro
 
 ### Modified Capabilities
 - `editable-form-view`: `FormView` accepts no draft for non-editable record views.
+- `web-component-organization`: `FormView/` is added as a cohesive component directory.
 - `transaction-form-view`: a `shared` prefill parameter and an origin-aware back arrow.
 
 ## Impact
@@ -44,7 +47,7 @@ No backend, schema or API changes. Debt calculations, settlement requests, appro
   - `pages/Debts/`: `DebtsPage`, `PersonDebtDetailPage`, `PersonDebtDetail`, `DebtTable`, `AwaitingAcceptanceTab`, and the tabs' loading and error props.
   - `pages/SharedExpenses/`: a new `SharedExpenseDetailPage`, a rewritten `useSharedExpenseForm`, and the list item and list card. `SharedExpenseFormCard` is deleted.
   - `pages/Transactions/`: prefill and the back target.
-  - `components/FormView.tsx`
+  - `components/FormView/FormView.tsx`
   - `services/sharedExpenses.client.ts`: add `getSharedExpense`, drop `createSharedExpense`.
   - `constants/routes.ts`, `main.tsx`
 - Tests are updated alongside each changed file.
