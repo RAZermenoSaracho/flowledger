@@ -5,6 +5,7 @@ import type {
   NotificationModel,
   NotificationModelSummary,
   NotificationPage,
+  NotificationRulesParseResult,
   NotificationRun,
   NotificationTestResult
 } from "../types/notificationModels.types";
@@ -75,6 +76,11 @@ export function validateNotificationCode(code: string) {
     method: "POST",
     body: { code }
   });
+}
+
+/** Reads a script as visual rules in the sandbox; rejects (503) when the sandbox is busy. */
+export function parseNotificationRules(code: string) {
+  return apiRequest<NotificationRulesParseResult>("/notification-models/parse-rules", { method: "POST", body: { code } });
 }
 
 /** Runs sample text through the model, optionally with unsaved `code` and `settings`; creates nothing. */

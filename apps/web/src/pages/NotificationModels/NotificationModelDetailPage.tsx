@@ -13,6 +13,7 @@ import { ModelPlaygroundTab } from "./components/ModelPlaygroundTab";
 import { NotificationLogsList } from "./components/NotificationLogsList";
 import { NotificationQueueList } from "./components/NotificationQueueList";
 import { publicationLabel } from "./utils/notificationDisplay";
+import { useRulesSync } from "./hooks/useRulesSync";
 import { useNotificationModelForm } from "./hooks/useNotificationModelForm";
 
 const SAVE_FIRST = <p className="text-sm text-slate-500 dark:text-slate-400">Save the model first.</p>;
@@ -37,6 +38,7 @@ export function NotificationModelDetailPage() {
   });
   const model = modelQuery.data ?? null;
   const draft = useNotificationModelForm(model, isNew);
+  const rules = useRulesSync(draft.values.code, (code) => draft.setField("code", code));
 
   const deleteModel = useMutation({
     mutationFn: () => notificationModelsClient.deleteNotificationModel(id!),
@@ -110,7 +112,7 @@ export function NotificationModelDetailPage() {
   }
 
   const tabs: FormViewTab[] = [
-    { id: "form", label: "Form", content: <ModelFormTab draft={draft} model={model} /> },
+    { id: "form", label: "Form", content: <ModelFormTab draft={draft} model={model} rules={rules} /> },
     { id: "code", label: "Code", content: <ModelCodeTab draft={draft} /> },
     { id: "playground", label: "Playground", content: <ModelPlaygroundTab modelId={model?.id ?? null} draft={draft} /> },
     { id: "queue", label: "Queue", content: model ? <NotificationQueueList modelId={model.id} /> : SAVE_FIRST },

@@ -571,7 +571,7 @@ The generator follows these rules:
   - a missing final `return skip(...)`.
 
 **Round-trip guarantee**, enforced by tests:
-- `parse(generate(rules))` deep-equals `rules`.
+- `parse(generate(rules))` deep-equals `canonicalizeNotificationRules(rules)`, which lower-cases `contains` text that has `ignoreCase` set and gives a single-condition rule `match: "all"`. Both forms run identically. The builder stores rules in canonical form after each edit.
 - For any accepted code, `generate(parse(code))` runs identically in the sandbox. It is textually canonical, so comments other than rule labels, and custom formatting, are not kept.
 
 **Synchronization (web, one `useFormDraft`).** The rules are local view state derived from `draft.values.code`.

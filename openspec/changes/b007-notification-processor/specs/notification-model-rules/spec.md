@@ -28,7 +28,7 @@ When the user returns to Form after editing the script, the system SHALL parse i
 
 #### Scenario: Round trip
 - **WHEN** any supported rule set is converted to code and parsed back
-- **THEN** the parsed rules equal the original rules
+- **THEN** the parsed rules equal the original rules in canonical form: case-insensitive text is lower-cased, and a single condition counts as "all"
 
 ### Requirement: Unsupported code is never lost
 

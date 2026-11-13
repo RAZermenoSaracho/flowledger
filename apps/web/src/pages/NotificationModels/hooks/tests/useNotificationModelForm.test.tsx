@@ -31,7 +31,7 @@ describe("useNotificationModelForm", () => {
     );
     const { result } = renderHook(() => useNotificationModelForm(null, true), { wrapper });
     expect(result.current.values.code).toBe(NEW_MODEL_CODE);
-    expect(result.current.values.slots.map((slot) => slot.key)).toEqual(["card", "general"]);
+    expect(result.current.values.slots.map((slot) => slot.key)).toEqual([]);
 
     act(() => result.current.setField("name", "  Plata  "));
     await act(() => result.current.save());

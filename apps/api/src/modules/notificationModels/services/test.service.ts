@@ -1,6 +1,6 @@
 import { notificationProposalSchema, transactionSchema } from "@flowledger/shared";
 import { HttpError } from "../../../utils/httpError.js";
-import { acquirePlaygroundSlot, runScript, validateScript } from "../sandbox/runScript.js";
+import { acquirePlaygroundSlot, parseRules, runScript, validateScript } from "../sandbox/runScript.js";
 import type { ModelBindings, ModelSlots, NotificationTestResult } from "../types/notificationModels.types.js";
 import { prepareTransactionInput } from "../../transactions/services/prepareTransaction.service.js";
 import { invalidResultMessage, mapProposalToTransactionInput } from "../utils/mapProposal.js";
@@ -20,6 +20,11 @@ export async function validateCode(userId: string, code: string) {
   } finally {
     release();
   }
+}
+
+/** Parses `code` into visual rules in the sandbox: `{ rules }`, `{ unsupported }` or `{ errors }`; throws 503 when the playground is busy. */
+export function parseCodeToRules(userId: string, code: string) {
+  return parseRules(code, userId);
 }
 
 /**

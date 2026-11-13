@@ -10,12 +10,14 @@ import type { NotificationModel } from "../../../types/notificationModels.types"
 import { publicationLabel } from "../utils/notificationDisplay";
 import { useBindingOptions } from "../hooks/useBindingOptions";
 import type { NotificationModelDraft } from "../types/notificationModels.types";
+import type { useRulesSync } from "../hooks/useRulesSync";
+import { ModelRulesBuilder } from "./ModelRulesBuilder";
 import { ModelSettingsList } from "./ModelSettingsList";
 import { ModelSlotsTable } from "./ModelSlotsTable";
 import { ModelUpdateDialog } from "./ModelUpdateDialog";
 
-/** Form tab: name, description, active state, read-only publication status, ingest endpoint with request example (saved models), slots with bindings, settings, and library origin/version. */
-export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationModelDraft>; model: NotificationModel | null }) {
+/** Form tab: name, description, active state, read-only publication status, ingest endpoint with request example (saved models), slots with bindings, the processing rules builder, settings, and library origin/version. */
+export function ModelFormTab({ draft, model, rules }: { draft: FormDraft<NotificationModelDraft>; model: NotificationModel | null; rules: ReturnType<typeof useRulesSync> }) {
   const options = useBindingOptions();
   const [updating, setUpdating] = useState(false);
   const { values } = draft;
@@ -82,6 +84,7 @@ export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationMo
         error={draft.fieldErrors.slots}
         onChange={draft.update}
       />
+      <ModelRulesBuilder sync={rules} slots={values.slots} />
       <ModelSettingsList settings={values.settings} error={draft.fieldErrors.settings} onChange={(next) => draft.setField("settings", next)} />
 
       {model?.sourceVersionId ? (

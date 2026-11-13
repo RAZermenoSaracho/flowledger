@@ -11,6 +11,7 @@ export * from "./schemas/identity.js";
 export * from "./schemas/mcp.js";
 export * from "./schemas/mcpGroups.js";
 export * from "./schemas/notificationModels.js";
+export * from "./schemas/notificationRules.js";
 export * from "./schemas/notifications.js";
 export * from "./schemas/oauth.js";
 export * from "./schemas/providers.js";

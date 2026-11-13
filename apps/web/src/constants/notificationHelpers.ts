@@ -61,6 +61,6 @@ export const notificationHelpers: NotificationHelper[] = [
     name: "re",
     signature: "re.search(pattern, string) / re.match / re.findall / re.sub",
     description: "The standard regular-expression module, available without an import.",
-    example: 're.search(r"compraste \\$([\\d,]+\\.\\d{2})", t)'
+    example: 're.search(r"\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)", t)  # the amount pattern of the default visual rule'
   }
 ];

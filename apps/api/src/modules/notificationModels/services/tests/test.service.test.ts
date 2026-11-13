@@ -3,17 +3,18 @@ import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../../sandbox/runScript.js", () => ({
   acquirePlaygroundSlot: vi.fn(),
+  parseRules: vi.fn(),
   runScript: vi.fn(),
   validateScript: vi.fn()
 }));
 vi.mock("../../../transactions/utils/transactionCurrency.js", () => ({ resolveTransactionCurrencyFields: vi.fn() }));
 vi.mock("../read.service.js", () => ({ getOwnedModel: vi.fn(), resolveBindingNames: vi.fn() }));
 
-const { acquirePlaygroundSlot, runScript, validateScript } = await import("../../sandbox/runScript.js");
+const { acquirePlaygroundSlot, parseRules, runScript, validateScript } = await import("../../sandbox/runScript.js");
 const { getOwnedModel, resolveBindingNames } = await import("../read.service.js");
 const { resolveTransactionCurrencyFields } = await import("../../../transactions/utils/transactionCurrency.js");
 const { HttpError } = await import("../../../../utils/httpError.js");
-const { testModel, validateCode } = await import("../test.service.js");
+const { parseCodeToRules, testModel, validateCode } = await import("../test.service.js");
 
 const slots = [
   { key: "card", kind: "account", label: "Card", required: true },
@@ -209,5 +210,13 @@ describe("testModel optional fields and currency", () => {
 
   it("keeps decimal precision exactly", async () => {
     expect(await run({ kind: "expense", name: "X", amount: "1234.50" }, unbound)).toMatchObject({ transactionPreview: { amount: "1234.50" } });
+  });
+});
+
+describe("parseCodeToRules", () => {
+  it("delegates to parseRules with the caller's id", async () => {
+    vi.mocked(parseRules).mockResolvedValue({ errors: [] });
+    expect(await parseCodeToRules("u1", "code")).toEqual({ errors: [] });
+    expect(parseRules).toHaveBeenCalledWith("code", "u1");
   });
 });

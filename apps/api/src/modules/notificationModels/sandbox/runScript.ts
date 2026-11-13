@@ -4,6 +4,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { notificationRulesSchema, type NotificationRules } from "@flowledger/shared";
+
+import { HttpError } from "../../../utils/httpError.js";
 import type { SandboxRequest, SandboxResult, ScriptValidationError } from "./types.js";
 
 const SANDBOX_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -142,6 +145,38 @@ export async function validateScript(code: string, options: { signal?: AbortSign
   if (Array.isArray(res.errors)) return res.errors as ScriptValidationError[];
   const message = (res.error as { message?: string } | undefined)?.message ?? "validation failed";
   return [{ line: 1, col: 0, message: `validation failed: ${message}` }];
+}
+
+/** Outcome of `parseRules`: the visual rules, the constructs the visual editor cannot represent, or code validation errors. */
+export type ParseRulesResult =
+  | { rules: NotificationRules }
+  | { unsupported: { line: number; message: string }[] }
+  | { errors: ScriptValidationError[] };
+
+/**
+ * Maps canonical visual-rules code to rules JSON in the sandbox (`ast` only, nothing is executed).
+ * The sandbox output is re-checked with `notificationRulesSchema`; a mismatch is reported as unsupported
+ * rather than returning rules that could differ from the code. Takes the user's playground slot; throws a 503 `HttpError` when busy.
+ */
+export async function parseRules(code: string, userId: string, options: { signal?: AbortSignal } = {}): Promise<ParseRulesResult> {
+  const release = acquirePlaygroundSlot(userId);
+  if (!release) throw new HttpError(503, "Test playground is busy, try again shortly");
+  let res: Record<string, unknown>;
+  try {
+    res = await execChild({ mode: "parse", code }, options.signal);
+  } finally {
+    release();
+  }
+  if (Array.isArray(res.errors)) return { errors: res.errors as ScriptValidationError[] };
+  if (Array.isArray(res.unsupported)) return { unsupported: res.unsupported as { line: number; message: string }[] };
+  if (res.rules) {
+    const checked = notificationRulesSchema.safeParse(res.rules);
+    if (checked.success) return { rules: checked.data };
+    const issue = checked.error.issues[0];
+    return { unsupported: [{ line: 1, message: `script does not fit the visual editor: ${issue?.path.join(".")} ${issue?.message}` }] };
+  }
+  const message = (res.error as { message?: string } | undefined)?.message ?? "parse failed";
+  return { errors: [{ line: 1, col: 0, message: `parse failed: ${message}` }] };
 }
 
 const slotsByUser = new Map<string, number>();

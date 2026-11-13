@@ -22,6 +22,7 @@ delete globalThis.WebSocket;
 pyodide.runPython(readFileSync(path.join(here, "prelude.py"), "utf8"));
 const run = pyodide.globals.get("run");
 const validate = pyodide.globals.get("validate");
+const parse = pyodide.globals.get("parse");
 pyodide.runPython(`
 import sys
 for _m in ("js", "pyodide", "pyodide_js", "_pyodide", "pyodide_js._api"):
@@ -38,6 +39,8 @@ rl.once("line", (line) => {
     const req = JSON.parse(line);
     if (req.mode === "validate") {
       out = { errors: validate(req.code).toJs({ dict_converter: Object.fromEntries }) };
+    } else if (req.mode === "parse") {
+      out = parse(req.code).toJs({ dict_converter: Object.fromEntries });
     } else {
       const ctx = pyodide.toPy(req.ctx ?? {});
       out = run(req.code, String(req.text ?? ""), ctx).toJs({ dict_converter: Object.fromEntries });

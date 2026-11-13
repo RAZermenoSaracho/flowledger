@@ -143,3 +143,11 @@ describe("notificationIdempotencyKeySchema", () => {
     expect(notificationIdempotencyKeySchema.safeParse(key).success).toBe(false);
   });
 });
+
+describe("parseNotificationRulesSchema", () => {
+  it("requires code", async () => {
+    const { parseNotificationRulesSchema } = await import("../notificationModels.js");
+    expect(parseNotificationRulesSchema.safeParse({}).success).toBe(false);
+    expect(parseNotificationRulesSchema.safeParse({ code: "x" }).success).toBe(true);
+  });
+});

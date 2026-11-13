@@ -1,3 +1,4 @@
+import { DEFAULT_NOTIFICATION_RULES, generateNotificationCode } from "@flowledger/shared";
 import { EditorView } from "@codemirror/view";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -76,7 +77,7 @@ describe("NotificationModelDetailPage", () => {
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
-  it("starts a new model from the commented template", async () => {
+  it("starts a new model from the default rules' code", async () => {
     server.use(...notificationModelHandlers());
     renderPage("/notification-models/new?tab=code");
     const view = await waitFor(() => {
@@ -84,7 +85,7 @@ describe("NotificationModelDetailPage", () => {
       expect(element).not.toBeNull();
       return EditorView.findFromDOM(element)!;
     });
-    expect(view.state.doc.toString()).toContain("# Called once per notification");
+    expect(view.state.doc.toString()).toBe(generateNotificationCode(DEFAULT_NOTIFICATION_RULES));
   });
 
   it("checks code and lists errors by line, then lists the helper reference", async () => {
@@ -266,5 +267,107 @@ describe("NotificationModelDetailPage", () => {
     );
     renderPage("/notification-models/missing");
     expect(await screen.findByText("Notification model not found")).toBeInTheDocument();
+  });
+});
+
+describe("NotificationModelDetailPage processing rules", () => {
+  const CANONICAL = generateNotificationCode(DEFAULT_NOTIFICATION_RULES);
+  const CUSTOM = "def process(text, ctx):\n    # mine\n    return skip('x')\n";
+  const parseWith = (body: unknown, status = 200) =>
+    http.post(`${API}/notification-models/parse-rules`, () => HttpResponse.json(body as object, { status }));
+  const currentCode = () => EditorView.findFromDOM(document.querySelector(".cm-editor") as HTMLElement)!.state.doc.toString();
+
+  function renderModel(code: string, ...handlers: ReturnType<typeof parseWith>[]) {
+    server.use(...handlers, ...notificationModelHandlers({ model: makeNotificationModel({ code }) }));
+    return renderPage();
+  }
+
+  it("shows the default rule on a new model", async () => {
+    server.use(...notificationModelHandlers());
+    renderPage("/notification-models/new");
+    expect(await screen.findByLabelText("Rule 1 label")).toHaveValue("Purchase");
+    expect(screen.queryByText(/rewrites the code/)).not.toBeInTheDocument();
+  });
+
+  it("rewrites the draft code as rules are built, without saving, and keeps it across tabs", async () => {
+    let saved = false;
+    server.use(http.put(`${API}/notification-models/nm-1`, () => ((saved = true), HttpResponse.json({ model: makeNotificationModel() }))));
+    const user = userEvent.setup();
+    renderModel(CANONICAL);
+    await user.click(await screen.findByRole("button", { name: "Add rule" }));
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(currentCode()).toContain('"keyword" in t.lower()');
+    await user.click(screen.getByRole("tab", { name: "Form" }));
+    expect(await screen.findByLabelText("Rule 2 label")).toBeInTheDocument();
+    expect(saved).toBe(false);
+  });
+
+  it("re-reads edited code when returning to Form", async () => {
+    const user = userEvent.setup();
+    renderModel(CANONICAL);
+    await screen.findByLabelText("Rule 1 label");
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    editCode(CUSTOM);
+    server.use(parseWith({ rules: { ...DEFAULT_NOTIFICATION_RULES, fallbackReason: "from code" } }));
+    await user.click(screen.getByRole("tab", { name: "Form" }));
+    expect(await screen.findByLabelText("Otherwise skip, with reason")).toHaveValue("from code");
+    expect(screen.getByText(/rewrites the code in a standard form/)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(currentCode()).toBe(CUSTOM);
+  });
+
+  it("explains unsupported code, leaves it untouched, and replaces it only after confirming", async () => {
+    const user = userEvent.setup();
+    renderModel(CUSTOM, parseWith({ unsupported: [{ line: 2, message: "loops are not supported" }] }));
+    expect(await screen.findByText(/can't represent/)).toBeInTheDocument();
+    expect(screen.getByText("Line 2: loops are not supported")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add rule" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Replace with visual rules" }));
+    expect(screen.getByText("This replaces your entire script, including comments and unsupported logic. This cannot be undone after saving.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(currentCode()).toBe(CUSTOM);
+
+    server.use(parseWith({ unsupported: [{ line: 2, message: "loops are not supported" }] }));
+    await user.click(screen.getByRole("tab", { name: "Form" }));
+    await user.click(await screen.findByRole("button", { name: "Replace with visual rules" }));
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+    expect(await screen.findByLabelText("Rule 1 label")).toHaveValue("Purchase");
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(currentCode()).toBe(CANONICAL);
+  });
+
+  it("shows syntax errors without rules", async () => {
+    renderModel(CUSTOM, parseWith({ errors: [{ line: 3, col: 1, message: "invalid syntax" }] }));
+    expect(await screen.findByText("Line 3: invalid syntax")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add rule" })).not.toBeInTheDocument();
+  });
+
+  it("saves the generated code and shows the same rules after reload", async () => {
+    let body: { code?: string } = {};
+    server.use(
+      http.put(`${API}/notification-models/nm-1`, async ({ request }) => {
+        body = (await request.json()) as { code?: string };
+        return HttpResponse.json({ model: makeNotificationModel({ code: body.code }) });
+      })
+    );
+    const user = userEvent.setup();
+    renderModel(CANONICAL);
+    const fallback = await screen.findByLabelText("Otherwise skip, with reason");
+    await user.clear(fallback);
+    await user.type(fallback, "other");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(body.code).toBe(generateNotificationCode({ ...DEFAULT_NOTIFICATION_RULES, fallbackReason: "other" })));
+  });
+
+  it("does not write code while an edit is invalid", async () => {
+    const user = userEvent.setup();
+    renderModel(CANONICAL);
+    const fallback = await screen.findByLabelText("Otherwise skip, with reason");
+    await user.clear(fallback);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(currentCode()).toBe(CANONICAL);
   });
 });

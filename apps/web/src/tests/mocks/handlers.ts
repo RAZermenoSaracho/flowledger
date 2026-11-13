@@ -1,3 +1,4 @@
+import { DEFAULT_NOTIFICATION_RULES } from "@flowledger/shared";
 import { HttpResponse, http, type HttpHandler } from "msw";
 import type { DataSieveMeta } from "../../types/transactions.types";
 import type { NotificationLibraryEntry, NotificationModel, NotificationRun } from "../../types/notificationModels.types";
@@ -72,6 +73,7 @@ export function notificationModelHandlers({
     http.get(`${API}/categories`, () => HttpResponse.json({ categories: [{ id: "cat-1", name: "General", isArchived: false }] })),
     http.get(`${API}/groups`, () => HttpResponse.json({ groups: [] })),
     http.get(`${API}/notification-models`, () => HttpResponse.json(notificationPage([model]))),
+    http.post(`${API}/notification-models/parse-rules`, () => HttpResponse.json({ rules: DEFAULT_NOTIFICATION_RULES })),
     http.get(`${API}/notification-models/${model.id}`, () => HttpResponse.json({ model })),
     http.get(`${API}/notification-models/${model.id}/queue`, () => HttpResponse.json(notificationPage(queue))),
     http.get(`${API}/notification-models/${model.id}/logs`, () => HttpResponse.json(notificationPage(logs)))

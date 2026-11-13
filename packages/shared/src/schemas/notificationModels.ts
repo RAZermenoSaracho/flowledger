@@ -120,6 +120,9 @@ export type NotificationProposal = z.infer<typeof notificationProposalSchema>;
 /** POST /notification-models/validate body. */
 export const validateNotificationCodeSchema = z.object({ code: notificationCodeSchema });
 
+/** POST /notification-models/parse-rules body. */
+export const parseNotificationRulesSchema = z.object({ code: notificationCodeSchema });
+
 /** Query string of the model, queue and log list routes: an optional DSQL JSON `query`. */
 export const notificationListQuerySchema = z.object({ query: z.string().max(4000).optional() });
 

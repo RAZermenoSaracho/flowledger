@@ -1,6 +1,8 @@
+import { DEFAULT_NOTIFICATION_RULES, generateNotificationCode } from "@flowledger/shared";
 import type { Express } from "express";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { acquirePlaygroundSlot } from "../sandbox/runScript.js";
 import { createAuthedUser } from "../../../tests/helpers/authTestUser.js";
 import { startTestDatabase, stopTestDatabase } from "../../../tests/helpers/testDatabase.js";
 
@@ -102,6 +104,29 @@ describe("/notification-models routes", { timeout: 60_000 }, () => {
     const validated = await request(app).post("/notification-models/validate").set(auth(user)).send({ code: "import os\n" });
     expect(validated.body.errors[0]).toMatchObject({ line: 1 });
     expect((await request(app).post("/notification-models/validate").set(auth(user)).send({ code: SCRIPT })).body.errors).toEqual([]);
+  });
+
+  it("POST /parse-rules answers 401 without a token, 200 with rules or unsupported, 400 on a bad body and 503 when busy", async () => {
+    expect((await request(app).post("/notification-models/parse-rules").send({ code: "x" })).status).toBe(401);
+    const user = await createAuthedUser(app);
+    const post = (body: unknown) => request(app).post("/notification-models/parse-rules").set(auth(user)).send(body as object);
+
+    expect((await post({})).status).toBe(400);
+    const ok = await post({ code: generateNotificationCode(DEFAULT_NOTIFICATION_RULES) });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toEqual({ rules: DEFAULT_NOTIFICATION_RULES });
+
+    const unsupported = await post({ code: 'def process(text, ctx):\n    for x in text:\n        pass\n    return skip("a")\n' });
+    expect(unsupported.status).toBe(200);
+    expect(unsupported.body.unsupported[0]).toMatchObject({ line: 2 });
+    expect((await post({ code: "import os\n" })).body.errors[0]).toMatchObject({ line: 1 });
+
+    const release = acquirePlaygroundSlot(user.user.id)!;
+    try {
+      expect((await post({ code: "x" })).status).toBe(503);
+    } finally {
+      release();
+    }
   });
 
   it("rejects binding another user's record and activation with unbound required slots", async () => {

@@ -13,7 +13,8 @@ export type SandboxRequest =
       text: string;
       ctx: { received_at: string; settings: Record<string, string> };
     }
-  | { mode: "validate"; code: string };
+  | { mode: "validate"; code: string }
+  | { mode: "parse"; code: string };
 
 /** Response of a `run`; proposal fields mirror the helper arguments (snake_case slot keys). */
 export type SandboxResult =

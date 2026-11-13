@@ -1,4 +1,4 @@
-import type { NotificationSlot } from "@flowledger/shared";
+import type { NotificationRules, NotificationSlot } from "@flowledger/shared";
 import type { DataSieveMeta } from "./transactions.types";
 
 /** Whether a model is private to its owner or published to the library. */
@@ -95,3 +95,9 @@ export type NotificationTestResult = {
   error?: { message: string; line?: number | null };
   stdout: string;
 };
+
+/** Answer of `POST /notification-models/parse-rules`: the script as rules, the constructs the visual editor cannot represent, or its syntax errors. */
+export type NotificationRulesParseResult =
+  | { rules: NotificationRules }
+  | { unsupported: { line: number; message: string }[] }
+  | { errors: { line: number; col?: number; message: string }[] };
