@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
-import { Button } from "../../../components/Button";
 import { ListView } from "../../../components/ListView";
-import { RecordCard } from "../../../components/RecordCard";
+import {
+  RecordCard,
+  type RecordCardAction
+} from "../../../components/RecordCard";
 import { routes } from "../../../constants/routes";
 import type { Debt } from "../../../types/debts.types";
 import { formatMoney } from "../../../utils/currency";
@@ -9,7 +11,8 @@ import { formatPublicUser } from "../../../utils/publicUser";
 import { useShareResponse } from "../hooks/useShareResponse";
 import { participantName } from "../utils/debtDisplay";
 
-const HIGHLIGHT_CLASS = "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950";
+const HIGHLIGHT_CLASS =
+  "border-pine bg-mint dark:border-emerald-500 dark:bg-emerald-950";
 
 function InvitationRow({
   debt,
@@ -25,13 +28,58 @@ function InvitationRow({
   respond: ReturnType<typeof useShareResponse>["respond"];
 }) {
   const { sharedExpense } = debt;
-  const ownerLabel = sharedExpense.owner ? formatPublicUser(sharedExpense.owner) : "the owner";
+  const ownerLabel = sharedExpense.owner
+    ? formatPublicUser(sharedExpense.owner)
+    : "the owner";
   const isMine = debt.userId === viewerUserId;
   const share = formatMoney(debt.shareAmount, debt.currency);
+
+  const actions: RecordCardAction[] | undefined = isMine
+    ? [
+        {
+          key: "accept",
+          label: "Accept",
+          onClick: () =>
+            respond({
+              kind: "accept",
+              sharedExpenseId: sharedExpense.id,
+              participantId: debt.id
+            }),
+          disabled
+        },
+        {
+          key: "reject",
+          label: "Reject",
+          variant: "secondary",
+          onClick: () =>
+            respond({
+              kind: "reject",
+              sharedExpenseId: sharedExpense.id,
+              participantId: debt.id
+            }),
+          disabled
+        },
+        {
+          key: "rejectAndBlock",
+          label: "Reject and block",
+          variant: "danger",
+          onClick: () =>
+            respond({
+              kind: "rejectAndBlock",
+              sharedExpenseId: sharedExpense.id,
+              ownerUserId: sharedExpense.ownerUserId,
+              participantId: debt.id
+            }),
+          disabled
+        }
+      ]
+    : undefined;
 
   return (
     <RecordCard
       id={`share-${sharedExpense.id}`}
+      actions={actions}
+      actionsLabel={`Actions for ${sharedExpense.title}`}
       highlightClassName={isHighlighted ? HIGHLIGHT_CLASS : undefined}
       title={<RowTitle debt={debt} />}
       subtitle={
@@ -42,41 +90,10 @@ function InvitationRow({
         </p>
       }
     >
-      {isMine ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            disabled={disabled}
-            onClick={() => respond({ kind: "accept", sharedExpenseId: sharedExpense.id, participantId: debt.id })}
-          >
-            Accept
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => respond({ kind: "reject", sharedExpenseId: sharedExpense.id, participantId: debt.id })}
-          >
-            Reject
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            disabled={disabled}
-            onClick={() =>
-              respond({
-                kind: "rejectAndBlock",
-                sharedExpenseId: sharedExpense.id,
-                ownerUserId: sharedExpense.ownerUserId,
-                participantId: debt.id
-              })
-            }
-          >
-            Reject and block
-          </Button>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Waiting for their answer.</p>
+      {!isMine && (
+        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          Waiting for their answer.
+        </p>
       )}
     </RecordCard>
   );
@@ -93,7 +110,13 @@ function RowTitle({ debt }: { debt: Debt }) {
   );
 }
 
-function RejectedRow({ debt, isHighlighted }: { debt: Debt; isHighlighted: boolean }) {
+function RejectedRow({
+  debt,
+  isHighlighted
+}: {
+  debt: Debt;
+  isHighlighted: boolean;
+}) {
   return (
     <RecordCard
       id={`share-${debt.sharedExpenseId}`}
@@ -101,7 +124,8 @@ function RejectedRow({ debt, isHighlighted }: { debt: Debt; isHighlighted: boole
       title={<RowTitle debt={debt} />}
       subtitle={
         <p className="text-slate-500 dark:text-slate-400">
-          {participantName(debt)} rejected {formatMoney(debt.shareAmount, debt.currency)}.
+          {participantName(debt)} rejected{" "}
+          {formatMoney(debt.shareAmount, debt.currency)}.
         </p>
       }
     />
@@ -111,7 +135,7 @@ function RejectedRow({ debt, isHighlighted }: { debt: Debt; isHighlighted: boole
 /**
  * Debts tab listing shares not yet answered, in "Awaiting your response" and "Rejected" groups:
  * a participant accepts, rejects or "rejects and blocks" the owner (only the participant is offered
- * buttons); an owner sees their own proposals as waiting, plus the shares that were rejected.
+ * actions); an owner sees their own proposals as waiting, plus the shares that were rejected.
  * Row titles link to the Shared Expense view. `highlightedSharedExpenseId` (from a notification)
  * marks one row, or says the invitation was not found once `isLoading` is false and no row matches.
  */
@@ -135,9 +159,13 @@ export function AwaitingAcceptanceTab({
     Boolean(highlightedSharedExpenseId) &&
     !isLoading &&
     !loadError &&
-    ![...awaiting, ...rejected].some((debt) => debt.sharedExpenseId === highlightedSharedExpenseId);
+    ![...awaiting, ...rejected].some(
+      (debt) => debt.sharedExpenseId === highlightedSharedExpenseId
+    );
   const rejectedIds = new Set(rejected.map((debt) => debt.id));
-  const notices = [notFound ? "Invitation not found." : null, error].filter(Boolean);
+  const notices = [notFound ? "Invitation not found." : null, error].filter(
+    Boolean
+  );
 
   return (
     <ListView
@@ -147,7 +175,11 @@ export function AwaitingAcceptanceTab({
         notices.length > 0 ? (
           <div className="grid gap-1">
             {notices.map((notice) => (
-              <p key={notice} role="alert" className="text-sm font-medium text-red-600 dark:text-red-400">
+              <p
+                key={notice}
+                role="alert"
+                className="text-sm font-medium text-red-600 dark:text-red-400"
+              >
                 {notice}
               </p>
             ))}
@@ -163,7 +195,8 @@ export function AwaitingAcceptanceTab({
       error={loadError}
       emptyText="Nothing is waiting for an answer."
       renderItem={(debt) => {
-        const isHighlighted = debt.sharedExpenseId === highlightedSharedExpenseId;
+        const isHighlighted =
+          debt.sharedExpenseId === highlightedSharedExpenseId;
         return rejectedIds.has(debt.id) ? (
           <RejectedRow debt={debt} isHighlighted={isHighlighted} />
         ) : (

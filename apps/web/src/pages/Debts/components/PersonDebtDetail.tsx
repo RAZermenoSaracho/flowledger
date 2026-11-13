@@ -1,6 +1,5 @@
 import type { FormEvent } from "react";
 import { Button } from "../../../components/Button";
-import { Card } from "../../../components/Card";
 import { SelectField, TextInput } from "../../../components/FormField";
 import type { Account } from "../../../types/accounts.types";
 import type { Category } from "../../../types/categories.types";
@@ -72,7 +71,7 @@ export function PersonDebtDetail({
       : "";
 
   return (
-    <Card className="min-w-0">
+    <div className="min-w-0">
       <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -245,6 +244,6 @@ export function PersonDebtDetail({
           />
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

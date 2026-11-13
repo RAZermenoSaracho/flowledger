@@ -89,38 +89,41 @@ export function PersonDebtDetailPage() {
   );
 
   return (
-    <FormView
-      title={balance ? displayPerson(balance) : "Balance"}
-      backLink={{ to: `${routes.debts}?tab=balances`, label: "Back to balances" }}
-    >
-      {debtsQuery.isLoading ? (
-        <Card>Loading balance...</Card>
-      ) : debtsQuery.isError ? (
-        <Card>Could not load this balance.</Card>
-      ) : !balance ? (
-        <Card>
-          This balance is no longer outstanding, or could not be found.
-        </Card>
-      ) : (
-        <PersonDebtDetail
-          balance={balance}
-          summaryCurrency={summaryCurrency}
-          viewerUserId={auth.user?.id}
-          selection={workflow.debtSelection}
-          selectedIOweThem={selectedIOweThem}
-          accounts={accountsQuery.data ?? []}
-          isActing={workflow.isActing}
-          highlightedDebtId={highlightedDebtId}
-          draftFor={workflow.draftFor}
-          isSettlementDraftComplete={workflow.isSettlementDraftComplete}
-          updateDraft={workflow.updateDraft}
-          categoryOptionsFor={workflow.categoryOptionsFor}
-          onSubmitSettlement={workflow.submitSettlement}
-          onSubmitBatchSettlement={(event) =>
-            workflow.submitBatchSettlement(event, selectedIOweThem)
-          }
-        />
-      )}
-    </FormView>
+    <Card>
+      <FormView
+        title={balance ? displayPerson(balance) : "Balance"}
+        backLink={{
+          to: `${routes.debts}?tab=balances`,
+          label: "Back to balances"
+        }}
+      >
+        {debtsQuery.isLoading ? (
+          <p>Loading balance...</p>
+        ) : debtsQuery.isError ? (
+          <p>Could not load this balance.</p>
+        ) : !balance ? (
+          <p>This balance is no longer outstanding, or could not be found.</p>
+        ) : (
+          <PersonDebtDetail
+            balance={balance}
+            summaryCurrency={summaryCurrency}
+            viewerUserId={auth.user?.id}
+            selection={workflow.debtSelection}
+            selectedIOweThem={selectedIOweThem}
+            accounts={accountsQuery.data ?? []}
+            isActing={workflow.isActing}
+            highlightedDebtId={highlightedDebtId}
+            draftFor={workflow.draftFor}
+            isSettlementDraftComplete={workflow.isSettlementDraftComplete}
+            updateDraft={workflow.updateDraft}
+            categoryOptionsFor={workflow.categoryOptionsFor}
+            onSubmitSettlement={workflow.submitSettlement}
+            onSubmitBatchSettlement={(event) =>
+              workflow.submitBatchSettlement(event, selectedIOweThem)
+            }
+          />
+        )}
+      </FormView>
+    </Card>
   );
 }

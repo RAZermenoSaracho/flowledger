@@ -32,3 +32,10 @@
 - [x] 4.1 Run `npm run typecheck`, `npm run lint`, the web test suite, `npm run build` and `openspec validate standardize-debts-views --strict`. All must pass.
 - [x] 4.2 Add `database/qa/debtsUiQa.ts`, an idempotent staging-only seed and cleanup for `[UI QA]` Debts records driven through the staging API, plus `docs/qa/DEBTS_UI_QA.md`, the manual QA guide with direct links. Verify that a second run creates nothing new.
 - [x] 4.3 Commit, push, open a PR against `razs_ai`, deploy to staging, seed, and smoke-test every Debts view in the browser. Verify that all scenarios in the QA guide render without console errors.
+
+## 5. Staging review fixes
+
+- [x] 5.1 Render the person balance detail as `Card` → `FormView`, so the back arrow and title sit inside the card, and drop `PersonDebtDetail`'s own outer `Card`. Verify that `PersonDebtDetailPage.test.tsx` asserts one card containing the header and the debt tables, and that the settlement tests still pass.
+- [x] 5.2 Pass Accept, Reject and Reject-and-block to `RecordCard` `actions` in Awaiting Acceptance, so they show inline on the right when they fit and in the card's three-dot menu otherwise. Verify with `AwaitingAcceptanceTab.test.tsx`: the menu has the three actions, owner rows have no menu, and the requests are unchanged.
+- [x] 5.3 Turn Pending Settlement Requests into two shared `Tabs` ("Requests by me", "Awaiting my approval") with count badges and a `?pending=` URL param. A highlighted request opens its own tab. Verify with `PendingRequestsTab.test.tsx`: one list at a time, switching, default rules, approve and batch approve still work.
+- [ ] 5.4 Re-run typecheck, lint, the web suite, the build and strict validation. Redeploy staging, run the desktop and mobile smoke, check the QA dataset is intact, and update the PR #50 description.

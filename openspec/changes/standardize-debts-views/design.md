@@ -68,6 +68,16 @@ An independent simplicity review approved the plan with changes.
 - The Shared Expense record view: the product owner asked for a record view, and participants need a place to land.
 - `location.state.from`: back navigation must return to the originating Debts view, and there is a one-line re-pass on create.
 
+## Staging review decisions
+
+- **Balance detail:** follows the `Card` → `FormView` structure of the other record views. `PersonDebtDetail` renders inside it without its own card.
+- **Awaiting Acceptance:** uses `RecordCard` `actions`. Its measured inline-or-menu behaviour already gives right-aligned buttons when they fit and a three-dot menu otherwise, so no new breakpoint logic or component is needed.
+- **Pending requests:** use the shared `Tabs` with a `?pending=` URL parameter. Workflow state stays in `useDebtSettlementWorkflow`, so it survives tab switches.
+- **ListView coverage:**
+  - Every Debts record list uses `ListView`: balances, both pending lists, settled, awaiting, shared expenses.
+  - The person-detail debt tables stay as they are. They are a settlement worksheet, a table with per-row forms and a running batch total, and forcing them into card rows would change the screen the owner wants preserved.
+  - No Debts list paginates: the debts endpoint returns complete arrays, and pagination would need backend work outside this change.
+
 ## Risks / Trade-offs
 
 - [Creating from an existing transaction is no longer one click from Debts] → The subtitle and empty text of the Shared Expenses list say that an existing transaction is shared from its Sharing tab. The QA guide covers both paths.

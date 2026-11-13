@@ -656,3 +656,15 @@ Still open:
 **Description:** Both pages repeat the same four queries (debts, accounts, categories, groups), the private income and expense category filters, `groupById`, and the `useDebtSettlementWorkflow` call. The change was UI-only, so this was left as is.
 
 **Suggested fix:** Extract one page-local `useDebtsData()` hook in `pages/Debts/hooks/` that returns the queries and the workflow, in a separate behaviour-preserving change.
+
+---
+
+## [OPEN] #051 — Debts page tab strip is hand-rolled instead of the shared `Tabs`
+
+**Found in:** `standardize-debts-views` staging-review simplicity pass.
+
+**Scope:** `apps/web/src/pages/Debts/DebtsPage.tsx`, the `role="tablist"` grid of pill buttons for the five Debts tabs.
+
+**Description:** The page-level Debts tab bar builds its own tablist markup instead of `components/Tabs`. It also has no arrow-key navigation, and it is desktop-only: mobile uses the sidebar drawer's subpage links. It was left as is because its pill styling is part of the Debts look the product owner wants kept.
+
+**Suggested fix:** If the pill look is kept, add a `variant` to `Tabs` and reuse it here. Otherwise switch to the standard underline tabs in a separate change.

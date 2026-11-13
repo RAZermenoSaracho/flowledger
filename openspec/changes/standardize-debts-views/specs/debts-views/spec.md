@@ -17,18 +17,26 @@ Every list on the Debts tabs SHALL be rendered through the shared list view: Out
 - **THEN** the active tab's list shows an error with `role="alert"` and its header stays visible
 
 ### Requirement: Awaiting Acceptance list
-The Awaiting Acceptance tab SHALL be a shared list view. Shares awaiting the viewer's response and shares the viewer rejected SHALL appear as separately labelled groups, and a group with no rows SHALL be hidden. Each row SHALL keep its Accept, Reject and Reject-and-block actions with unchanged behaviour. Each row SHALL link its title to the Shared Expense record view. A share highlighted from a notification SHALL be scrolled into view and highlighted. If the highlighted share is no longer awaiting, the list SHALL say so.
+The Awaiting Acceptance tab SHALL be a shared list view. Shares awaiting the viewer's response and shares the viewer rejected SHALL appear as separately labelled groups, and a group with no rows SHALL be hidden. Each row SHALL keep its Accept, Reject and Reject-and-block actions with unchanged behaviour. When the actions fit, they SHALL be shown on the right of the row, beside the share details. When they do not fit, as on mobile, they SHALL be available only through the row's three-dot actions menu, not as buttons below the content. Each row SHALL link its title to the Shared Expense record view. A share highlighted from a notification SHALL be scrolled into view and highlighted. If the highlighted share is no longer awaiting, the list SHALL say so.
 
 #### Scenario: Awaiting and rejected shares
 - **WHEN** the viewer has one share awaiting a response and one rejected share
 - **THEN** the list shows an "Awaiting your response" group and a "Rejected" group, each with its row
+
+#### Scenario: Mobile actions menu
+- **WHEN** the viewer opens Awaiting Acceptance on a 375px-wide screen
+- **THEN** each awaiting row shows a three-dot menu with Accept, Reject and Reject and block, and no action buttons below the row
 
 #### Scenario: Accept from the list
 - **WHEN** the viewer clicks Accept on an awaiting share
 - **THEN** the share is accepted exactly as before and leaves the awaiting group
 
 ### Requirement: Person balance detail navigation
-The per-person balance detail at `/debts/balances/:personKey` SHALL use the shared record-view header. The header SHALL show the person's display name as the title and an icon-only back arrow labelled "Back to balances" that navigates to `/debts?tab=balances`. The balance summary, the debt tables, the per-debt settlement request forms, row selection and batch settlement requests SHALL keep their existing appearance and behaviour.
+The per-person balance detail at `/debts/balances/:personKey` SHALL use the shared record-view header. The header SHALL show the person's display name as the title and an icon-only back arrow labelled "Back to balances" that navigates to `/debts?tab=balances`. The header SHALL be inside the same card as the balance content, as on other record views. The balance summary, the debt tables, the per-debt settlement request forms, row selection and batch settlement requests SHALL keep their existing appearance and behaviour.
+
+#### Scenario: Header inside the card
+- **WHEN** the viewer opens a balance detail on a desktop or mobile screen
+- **THEN** the back arrow and the person's name are rendered inside the card that holds the balance summary and debt tables
 
 #### Scenario: Back from a balance
 - **WHEN** the viewer opens a balance from Outstanding Balances and activates the back arrow
@@ -74,3 +82,14 @@ The Shared Expenses list SHALL NOT render an edit form above or inside the list,
 #### Scenario: Add a shared expense
 - **WHEN** the viewer activates "Add shared expense"
 - **THEN** `/transactions/new` opens on the Sharing tab with sharing on, and saving creates the transaction and its shared expense together
+
+### Requirement: Pending settlement requests in tabs
+The Pending Settlement Requests tab SHALL show "Requests by me" and "Awaiting my approval" as two tabs. Only the selected tab's list SHALL be shown, and each tab SHALL show its request count. The selected tab SHALL be kept in the URL. A request highlighted from a notification SHALL open the tab that contains it. Otherwise "Requests by me" SHALL be selected. Each list SHALL keep its search, selection, batch approval, approval form and highlight behaviour. Approval drafts and selection SHALL survive switching tabs.
+
+#### Scenario: Switch tabs
+- **WHEN** the viewer is on "Requests by me" and selects "Awaiting my approval"
+- **THEN** only the approvals list is shown, and the URL records the selection
+
+#### Scenario: Highlighted approval
+- **WHEN** a notification opens `/debts?tab=pending&settlementId=<id>` for a request awaiting the viewer's approval
+- **THEN** the "Awaiting my approval" tab is selected and the request is highlighted

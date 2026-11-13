@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -82,41 +82,47 @@ describe("AwaitingAcceptanceTab", () => {
   it("accepts with one request", async () => {
     const calls = trackCalls();
     renderTab();
-    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Accept" }));
     await waitFor(() => expect(calls).toEqual(["accept:p1"]));
   });
 
   it("answers only the line whose card was clicked when a user has two proposed lines", async () => {
     const calls = trackCalls();
     renderTab({ awaiting: [makeDebt({ id: "p1" }), makeDebt({ id: "p2" })] });
-    await userEvent.click(screen.getAllByRole("button", { name: "Accept" })[1]!);
+    await userEvent.click(screen.getAllByRole("button", { name: "Actions for Dinner" })[1]!);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Accept" }));
     await waitFor(() => expect(calls).toEqual(["accept:p2"]));
   });
 
   it("rejects without blocking", async () => {
     const calls = trackCalls();
     renderTab();
-    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Reject" }));
     await waitFor(() => expect(calls).toEqual(["reject:p1"]));
   });
 
   it("rejects first and then blocks the owner", async () => {
     const calls = trackCalls();
     renderTab();
-    await userEvent.click(screen.getByRole("button", { name: "Reject and block" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Reject and block" }));
     await waitFor(() => expect(calls).toEqual(["reject:p1", "block:owner-1"]));
   });
 
-  it("shows the failure and keeps the buttons when a response fails", async () => {
+  it("shows the failure and keeps the actions when a response fails", async () => {
     server.use(
       http.post(`${API_URL}/shared-expenses/se-1/accept`, () =>
         HttpResponse.json({ message: "Share is not awaiting a response" }, { status: 400 })
       )
     );
     renderTab();
-    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Accept" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Share is not awaiting a response");
-    expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    expect(screen.getByRole("menuitem", { name: "Accept" })).toBeEnabled();
   });
 
   it("gives the owner no response buttons, and lists rejected shares", () => {
@@ -127,6 +133,7 @@ describe("AwaitingAcceptanceTab", () => {
         makeDebt({ id: "p2", acceptance: "rejected", user: { id: "u3", username: "kim", nickname: null, displayName: null } })
       ]
     });
+    expect(screen.queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(screen.getByText("Waiting for their answer.")).toBeInTheDocument();
     expect(screen.getByText("@kim rejected $40.00.")).toBeInTheDocument();
@@ -173,8 +180,38 @@ describe("AwaitingAcceptanceTab", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load debts.");
   });
 
-  it("wraps the response buttons so they fit a narrow screen", () => {
+  it("exposes participant actions through the labelled menu without inline buttons", async () => {
     renderTab();
-    expect(screen.getByRole("button", { name: "Reject and block" }).parentElement).toHaveClass("flex-wrap");
+    for (const name of ["Accept", "Reject", "Reject and block"]) {
+      expect(screen.getByRole("button", { name }).parentElement).toHaveClass("hidden");
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    expect(screen.getAllByRole("menuitem")).toHaveLength(3);
+    for (const name of ["Accept", "Reject", "Reject and block"]) {
+      expect(screen.getByRole("menuitem", { name })).toBeEnabled();
+    }
+  });
+
+  it("disables all actions while a response is pending", async () => {
+    let finishResponse!: () => void;
+    const response = new Promise<void>((resolve) => { finishResponse = resolve; });
+    server.use(
+      http.post(`${API_URL}/shared-expenses/se-1/accept`, async () => {
+        await response;
+        return HttpResponse.json({});
+      })
+    );
+    renderTab();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Accept" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for Dinner" }));
+    try {
+      for (const name of ["Accept", "Reject", "Reject and block"]) {
+        expect(screen.getByRole("menuitem", { name })).toBeDisabled();
+      }
+    } finally {
+      await act(async () => { finishResponse(); });
+    }
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Accept" })).toBeEnabled());
   });
 });

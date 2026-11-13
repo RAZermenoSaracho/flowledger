@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { Route, Routes } from "react-router-dom";
@@ -144,6 +144,19 @@ describe("PersonDebtDetailPage", () => {
       "href",
       "/debts?tab=balances"
     );
+  });
+
+  it("renders the back link, title and both debt tables inside a single card", async () => {
+    mockBaseline();
+    const { container } = renderPage("/debts/balances/user-2");
+
+    await waitFor(() => expect(screen.getByText("Net balance $60.00")).toBeInTheDocument());
+    const card = screen.getByRole("link", { name: "Back to balances" }).closest(".rounded-lg");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByRole("heading", { name: "Sam (@sam)" })).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText("They owe me")).toBeInTheDocument();
+    expect(within(card as HTMLElement).getByText("I owe them")).toBeInTheDocument();
+    expect(container.querySelectorAll(".rounded-lg.border.bg-white")).toHaveLength(1);
   });
 
   it("keeps the back arrow while loading and when the balance is not found", async () => {
