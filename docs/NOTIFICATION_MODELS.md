@@ -52,6 +52,45 @@ def process(text, ctx):
 
 With `card` bound to the owner's Plata account and `general` to their category, this creates an expense named `OXXO`, amount `"1234.50"`, currency `MXN`, dated at receive time. `¡Aprovecha 10% de cashback!` is skipped as `promotion`.
 
+## Visual rules (Form ↔ Code)
+
+The saved Python script is the only definition. It is what the Playground and the worker run. Form's rule builder is a view derived from that script:
+
+- **Form → Code:** every rule edit regenerates the script immediately with `generateNotificationCode(rules)` from `@flowledger/shared`. The output is deterministic and canonical.
+- **Code → Form:** when Form opens, or when you leave Code after changing the script, `POST /notification-models/parse-rules` parses it in the sandbox with Python's `ast`.
+  - **Supported:** if the script is in the supported subset, it returns the rules.
+  - **Unsupported:** otherwise it lists each unsupported construct with its line.
+  - **Syntax errors:** returned with their line.
+
+  Opening Form never rewrites the script.
+- **Unsupported scripts** keep running. Form shows the notice instead of rules. "Replace with visual rules" replaces the whole script only after you confirm.
+- **Supported subset:**
+  - optional `normalize`;
+  - ordered rules, each with contains, not-contains and regex conditions (optionally case-insensitive) joined by all or any;
+  - one regex extraction per rule, with a skip reason when it does not match;
+  - an action of skip, `expense`, `income` or `transfer`, whose amount and name are fixed values or capture groups, with optional slots, currency, notes and a captured date;
+  - a fallback skip reason.
+
+  Comments other than rule labels, and custom formatting, are not kept once you edit rules. Form warns before the first rewrite.
+
+Default rules, which are also the script a new model starts with:
+
+```python
+def process(text, ctx):
+    t = normalize(text)
+
+    # Purchase
+    if "compra realizada por" in t:
+        m = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", t)
+        if not m:
+            return skip("no amount")
+        return expense(amount=amount(m.group(1)), name="Compra realizada")
+
+    return skip("not a purchase")
+```
+
+`Compra realizada por $150.00` becomes an expense of `150.00` named "Compra realizada" in your default currency, with no account or category.
+
 ## Sandbox
 
 Pyodide **314.0.7** runs CPython in a fresh child for each execution, with roughly **2.5–3 s cold start** and no shared script state. Three layers apply:
