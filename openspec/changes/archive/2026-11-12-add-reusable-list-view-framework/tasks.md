@@ -38,5 +38,5 @@ Every new or changed `components/`, `hooks/`, `utils/`, `controllers/`, `service
 - [x] 3.1b (mechanical) Grep that `components/ListView/ListView.tsx`, `components/ListView/ListViewPagination.tsx`, `components/EmptyState.tsx`, `hooks/usePagination.ts`, `hooks/useListSelection.ts` contain no import resolving into `pages/`.
 - [x] 3.2 Update `apps/web/CLAUDE.md` (component and hook lists: `ListView`, `EmptyState`, `usePagination`, `useListSelection`, editable-range `Pagination`) and `docs/TESTING.md` if placement notes change.
 - [x] 3.3 Run `npm run typecheck`, `npm run lint`, `npm run test` from the repo root; all pass. Run `openspec validate add-reusable-list-view-framework --strict`.
-- [ ] 3.4 Manual check at 320px and desktop on Transactions, Imported Transactions, Accounts, Debts: no horizontal scroll, pager top-right on desktop and full-width row on mobile, typing a range works on a phone keyboard, loading/error states visible.
-- [ ] 3.5 Sync specs on archive (`list-pagination`, `list-view`, `account-form-view`).
+- [x] 3.4 Manual check at 320px and desktop on Transactions, Imported Transactions, Accounts, Debts: no horizontal scroll, pager top-right on desktop and full-width row on mobile, typing a range works on a phone keyboard, loading/error states visible.
+- [x] 3.5 Sync specs on archive (`list-pagination`, `list-view`, `account-form-view`).
