@@ -113,6 +113,7 @@ model User {
   blocksMade                   UserBlock[]                   @relation("UserBlocker")
   blocksReceived               UserBlock[]                   @relation("UserBlocked")
   transactionCorrections       TransactionCorrection[]
+  notificationModels           NotificationModel[]
 }
 
 model UserBlock {
@@ -287,6 +288,7 @@ model Transaction {
   debtorSettlementRequest     SettlementRequest?           @relation("SettlementDebtorTransaction")
   creditorSettlementRequest   SettlementRequest?           @relation("SettlementCreditorTransaction")
   providerImportedTransaction ProviderImportedTransaction?
+  notificationRun             NotificationRun?
 
   @@index([userId, date])
   @@index([categoryId])
@@ -576,4 +578,89 @@ model ProviderWebhookEvent {
   @@index([provider, providerCredentialId])
   @@index([provider, status])
   @@index([receivedAt])
+}
+
+enum NotificationModelVisibility {
+  private
+  public
+}
+
+enum NotificationRunStatus {
+  queued
+  processing
+  completed
+  skipped
+  failed
+}
+
+model NotificationModel {
+  id              String                      @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  code            String
+  isActive        Boolean                     @default(false)
+  visibility      NotificationModelVisibility @default(private)
+  slots           Json                        @default("[]") // [{ key, kind: account|category|group, label, required }]
+  bindings        Json                        @default("{}") // { [slotKey]: recordId } — never published
+  settings        Json                        @default("{}") // { [key]: string } — values published as defaults
+  sourceVersionId String? // version this copy was installed/updated from
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  user            User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceVersion   NotificationModelVersion?   @relation("InstalledFrom", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  versions        NotificationModelVersion[]  @relation("PublishedVersions")
+  runs            NotificationRun[]
+
+  @@index([userId])
+  @@index([visibility])
+}
+
+model NotificationModelVersion {
+  id          String              @id @default(cuid())
+  modelId     String
+  version     Int
+  name        String
+  description String?
+  code        String
+  slots       Json
+  settings    Json
+  createdAt   DateTime            @default(now())
+  model       NotificationModel   @relation("PublishedVersions", fields: [modelId], references: [id], onDelete: Cascade)
+  installs    NotificationModel[] @relation("InstalledFrom")
+
+  @@unique([modelId, version])
+}
+
+model NotificationRun {
+  id            String                @id @default(cuid())
+  modelId       String
+  userId        String // owner, copied from the model at ingest: per-user limits and fairness
+  status        NotificationRunStatus @default(queued)
+  dedupeKey     String
+  text          String? // cleared 7 days after finishedAt
+  proposal      Json?
+  reason        String? // skip reason or error (≤500 chars, never contains credentials)
+  workerId      String? // claiming process
+  transactionId String?               @unique
+  receivedAt    DateTime              @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  model         NotificationModel     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  transaction   Transaction?          @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@unique([modelId, dedupeKey])
+  @@index([status, userId])
+  @@index([modelId, status, receivedAt])
+  @@index([status, finishedAt])
+}
+
+model NotificationWorker {
+  id         String   @id // workerId, random per worker process start
+  hostname   String
+  pid        Int
+  startedAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([lastSeenAt])
 }

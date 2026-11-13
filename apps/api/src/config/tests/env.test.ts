@@ -107,3 +107,34 @@ describe("env startup checks", () => {
     expect(env.WEB_APP_URL).toBe("https://staging.example.com");
   });
 });
+
+describe("env notification processor limits", () => {
+  const G = "NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL";
+  const U = "NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER";
+
+  afterEach(() => {
+    delete process.env[G];
+    delete process.env[U];
+  });
+
+  it("defaults to 4 global and 2 per user", async () => {
+    const env = await loadEnv({ [G]: undefined, [U]: undefined });
+    expect(env[G]).toBe(4);
+    expect(env[U]).toBe(2);
+  });
+
+  it.each([
+    [G, "2.5"],
+    [G, "0"],
+    [G, "65"],
+    [U, "abc"],
+    [U, "0"],
+    [U, "65"]
+  ])("rejects %s=%s naming the variable", async (name, value) => {
+    await expect(loadEnv({ [name]: value })).rejects.toThrow(new RegExp(name));
+  });
+
+  it("rejects a per-user limit above the global limit, naming both", async () => {
+    await expect(loadEnv({ [G]: "2", [U]: "3" })).rejects.toThrow(/PER_USER[\s\S]*GLOBAL/);
+  });
+});

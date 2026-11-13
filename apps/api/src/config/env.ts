@@ -50,6 +50,9 @@ const envFlag = z
   .pipe(z.enum(["true", "1", "false", "0", ""], { message: "must be one of true, 1, false, 0, or empty" }))
   .transform((v) => v === "true" || v === "1");
 
+/** Concurrency limit for the notification processor: an integer from 1 to 64. */
+const concurrencyLimit = (fallback: number) => z.coerce.number().int().min(1).max(64).default(fallback);
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
@@ -88,6 +91,8 @@ const envSchema = z.object({
     .default(120000),
   SYNCFY_AUTO_SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
   SYNCFY_TRANSACTION_LOOKBACK_DAYS: z.coerce.number().int().positive().default(60),
+  NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL: concurrencyLimit(4),
+  NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER: concurrencyLimit(2),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 }).superRefine((input, context) => {
   if (input.SYNCFY_API_KEY && !input.SYNCFY_WEBHOOK_SIGNATURE_KEY) {
@@ -95,6 +100,14 @@ const envSchema = z.object({
       code: "custom",
       path: ["SYNCFY_WEBHOOK_SIGNATURE_KEY"],
       message: "is required when SYNCFY_API_KEY is set"
+    });
+  }
+
+  if (input.NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER > input.NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL) {
+    context.addIssue({
+      code: "custom",
+      path: ["NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER"],
+      message: "must not exceed NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL"
     });
   }
 

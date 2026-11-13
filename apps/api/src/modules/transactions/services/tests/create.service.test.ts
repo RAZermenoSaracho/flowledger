@@ -144,6 +144,26 @@ describe("createTransaction", () => {
 
     expect(createSharedExpenseForTransactionMock).toHaveBeenCalled();
   });
+
+  it("writes on the given tx and opens no transaction of its own", async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: null } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "USD",
+      exchangeRate: 1,
+      amountInPreferredCurrency: new Prisma.Decimal("100")
+    });
+    prismaMock.$transaction.mockClear();
+    const tx = mockTx();
+
+    await createTransaction(
+      "user-1",
+      { name: "Coffee", amount: "5", type: "expense", date: "2024-01-01" },
+      tx as never
+    );
+
+    expect(tx.transaction.create).toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
 });
 
 describe("createTransaction applied amounts", () => {

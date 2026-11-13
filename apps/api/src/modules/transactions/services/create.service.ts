@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { TransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { HttpError, notFound } from "../../../utils/httpError.js";
@@ -23,8 +24,8 @@ import {
 } from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
-/** Validates relations (account/category/group/transfer/expense-offset) and creates a transaction, optionally with an attached shared expense. */
-export async function createTransaction(userId: string, body: TransactionInput) {
+/** Validates relations (account/category/group/transfer/expense-offset) and creates a transaction, optionally with an attached shared expense. When `tx` is given the write runs on that client instead of opening its own transaction, so the caller can commit it atomically with other writes. */
+export async function createTransaction(userId: string, body: TransactionInput, tx?: Prisma.TransactionClient) {
   assertExpenseOffsetAllowed(body);
   assertTransferAllowed(body);
   await assertOwnedRelations(userId, body);
@@ -54,7 +55,7 @@ export async function createTransaction(userId: string, body: TransactionInput) 
     preferredCurrency: user.preferredCurrency
   });
 
-  return prisma.$transaction(async (tx) => {
+  const write = async (tx: Prisma.TransactionClient) => {
     const createdTransaction = await tx.transaction.create({
       data: {
         ...input,
@@ -89,7 +90,9 @@ export async function createTransaction(userId: string, body: TransactionInput) 
         sharedExpense: { include: { participants: true } }
       }
     });
-  });
+  };
+
+  return tx ? write(tx) : prisma.$transaction(write);
 }
 
 /** Converts one pending provider-imported transaction into a real `Transaction`, marking the source row `processed`. `accountAmount` is required (400) when the provider currency differs from the linked account's currency. */

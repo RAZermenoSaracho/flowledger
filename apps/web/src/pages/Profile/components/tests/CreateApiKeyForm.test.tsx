@@ -14,7 +14,7 @@ describe("CreateApiKeyForm", () => {
     await user.type(screen.getByLabelText("Name"), "CLI");
     await user.click(screen.getByRole("button", { name: "Create key" }));
 
-    expect(onSubmit).toHaveBeenCalledWith({ name: "CLI", allowWrite: false, lifetime: "1m" });
+    expect(onSubmit).toHaveBeenCalledWith({ name: "CLI", allowWrite: false, ingestOnly: false, lifetime: "1m" });
   });
 
   it("warns when Never is selected", async () => {

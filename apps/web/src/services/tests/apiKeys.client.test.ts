@@ -24,8 +24,8 @@ describe("apiKeys.client", () => {
         return HttpResponse.json({ apiKey, key: "fl_secret" }, { status: 201 });
       })
     );
-    const result = await createApiKey({ name: "Claude", allowWrite: false, lifetime: "1m" });
-    expect(body).toEqual({ name: "Claude", allowWrite: false, lifetime: "1m" });
+    const result = await createApiKey({ name: "Claude", allowWrite: false, ingestOnly: false, lifetime: "1m" });
+    expect(body).toEqual({ name: "Claude", allowWrite: false, ingestOnly: false, lifetime: "1m" });
     expect(result.key).toBe("fl_secret");
   });
 

@@ -14,9 +14,9 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
 ## 1. Data model, configuration and shared contracts
 
-- [ ] 1.1 Add `NotificationModel`, `NotificationModelVersion`, `NotificationRun` and the enums `NotificationModelVisibility` and `NotificationRunStatus` (`queued processing completed skipped failed`) to `database/prisma/schema.prisma`, exactly as in design §7, including `NotificationRun.userId`, `workerId`, the three indexes, and the `NotificationWorker` liveness table. Add back-relations on `User` and `Transaction` only. Run `npm run prisma:migrate -- --name notification_models` and `npm run prisma:generate`. Verify: the migration has only `CREATE TYPE`, `CREATE TABLE` and index statements, and `npm run typecheck` passes.
-- [ ] 1.2 Add `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` (default 4) and `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` (default 2) to the Zod schema in `apps/api/src/config/env.ts`: `z.coerce.number().int().min(1).max(64)`, plus a refinement that per-user ≤ global, with a message naming both variables. Add both to `.env.example` with a comment on meaning and range. Verify: an env test covers the defaults, a non-integer, 0, 65, and per-user above global each failing with the variable named.
-- [ ] 1.3 Add `packages/shared/src/schemas/notificationModels.ts`, exported from the barrel:
+- [x] 1.1 Add `NotificationModel`, `NotificationModelVersion`, `NotificationRun` and the enums `NotificationModelVisibility` and `NotificationRunStatus` (`queued processing completed skipped failed`) to `database/prisma/schema.prisma`, exactly as in design §7, including `NotificationRun.userId`, `workerId`, the three indexes, and the `NotificationWorker` liveness table. Add back-relations on `User` and `Transaction` only. Run `npm run prisma:migrate -- --name notification_models` and `npm run prisma:generate`. Verify: the migration has only `CREATE TYPE`, `CREATE TABLE` and index statements, and `npm run typecheck` passes.
+- [x] 1.2 Add `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` (default 4) and `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` (default 2) to the Zod schema in `apps/api/src/config/env.ts`: `z.coerce.number().int().min(1).max(64)`, plus a refinement that per-user ≤ global, with a message naming both variables. Add both to `.env.example` with a comment on meaning and range. Verify: an env test covers the defaults, a non-integer, 0, 65, and per-user above global each failing with the variable named.
+- [x] 1.3 Add `packages/shared/src/schemas/notificationModels.ts`, exported from the barrel:
   - the slot schema (`key` matching `^[a-z][a-z0-9_]{0,39}$`, `kind` one of `account | category | group`, `label`, `required`) and the slots array (≤20, unique keys);
   - `bindings` (record of slot key to id) and `settings` (≤30 keys, string values ≤500);
   - `code` (≤20,000 characters);
@@ -32,19 +32,19 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - a transfer requiring `to_account`;
   - the skip reason length;
   - an ingest body with an extra field (e.g. `title`) rejected.
-- [ ] 1.4 Extend `createApiKeySchema` in `packages/shared/src/schemas/apiKeys.ts` with `ingestOnly: boolean` (default false) and a refinement rejecting `ingestOnly && allowWrite`. Verify: the shared apiKeys schema test covers the new refinement.
-- [ ] 1.5 Give `createTransaction(userId, body, tx?)` in `apps/api/src/modules/transactions/services/create.service.ts` an optional `Prisma.TransactionClient`. When `tx` is given, it runs its body on `tx` instead of opening `prisma.$transaction`; behavior is otherwise unchanged. Update its TSDoc. Verify: the existing `create.service.test.ts` passes unchanged, plus one new case asserting that, with `tx`, it uses `tx` and does not call `prisma.$transaction`.
+- [x] 1.4 Extend `createApiKeySchema` in `packages/shared/src/schemas/apiKeys.ts` with `ingestOnly: boolean` (default false) and a refinement rejecting `ingestOnly && allowWrite`. Verify: the shared apiKeys schema test covers the new refinement.
+- [x] 1.5 Give `createTransaction(userId, body, tx?)` in `apps/api/src/modules/transactions/services/create.service.ts` an optional `Prisma.TransactionClient`. When `tx` is given, it runs its body on `tx` instead of opening `prisma.$transaction`; behavior is otherwise unchanged. Update its TSDoc. Verify: the existing `create.service.test.ts` passes unchanged, plus one new case asserting that, with `tx`, it uses `tx` and does not call `prisma.$transaction`.
 
 ## 2. Sandbox runner (api)
 
-- [ ] 2.1 Add the exact-version `pyodide` dependency to `apps/api`. It is loaded from `node_modules`, with no CDN or network fetch. Add `sandbox/prelude.py`:
+- [x] 2.1 Add the exact-version `pyodide` dependency to `apps/api`. It is loaded from `node_modules`, with no CDN or network fetch. Add `sandbox/prelude.py`:
   - the AST validator (rules in design §2, layer 1, returning `[{line, col, message}]`);
   - the restricted builtins and the `re` namespace (layer 2);
   - the helpers `expense`, `income`, `transfer`, `skip`, `amount`, `normalize`, `parse_date` and `Decimal` (design §3);
   - `run(code, text, ctx)`, returning `{kind, proposal|reason|error{message,line}, stdout}`, with print capture capped at 4 KB;
   - `validate(code)`.
-- [ ] 2.2 Add `sandbox/sandboxChild.mjs`. It loads Pyodide from `node_modules`, deletes `fetch` and `WebSocket` from `globalThis`, runs the prelude, removes `js`, `pyodide`, `pyodide_js` and `_pyodide` from `sys.modules`, then writes `{"ready":true}`. It reads exactly one JSON request line (`{mode:"run"|"validate", code, text?, ctx?}`), writes one JSON response line and exits.
-- [ ] 2.3 Add `sandbox/runScript.ts`, exporting `runScript(request, { signal? })` and `validateScript(code)`. Each:
+- [x] 2.2 Add `sandbox/sandboxChild.mjs`. It loads Pyodide from `node_modules`, deletes `fetch` and `WebSocket` from `globalThis`, runs the prelude, removes `js`, `pyodide`, `pyodide_js` and `_pyodide` from `sys.modules`, then writes `{"ready":true}`. It reads exactly one JSON request line (`{mode:"run"|"validate", code, text?, ctx?}`), writes one JSON response line and exits.
+- [x] 2.3 Add `sandbox/runScript.ts`, exporting `runScript(request, { signal? })` and `validateScript(code)`. Each:
   - spawns `node --permission --allow-fs-read=<pyodide dir>,<sandbox dir> --max-old-space-size=128 sandboxChild.mjs` with `env: {}` and no shell;
   - waits for ready (15 s total lifetime), then sends the request;
   - kills on 2 s of script time, more than 64 KB of stdout, or more than 256 MB of memory. For memory, use the V8 WebAssembly max-memory-pages flag if it works under Node 24; otherwise the parent samples `ps -o rss= -p <pid>` every 100 ms. Note the chosen mechanism in a TSDoc line;
@@ -97,7 +97,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - the service test covers dedupe in both modes, an inactive model returning 404, and capacity at 500;
   - the v1 route test covers a JSON `{text}` → 202, empty, oversized or extra-field bodies → 400, a foreign model → 404, and a simulated insert failure → 503 with no run;
   - a log-capture assertion shows no notification text in the morgan or audit output.
-- [ ] 4.3 Add `services/claim.service.ts`, exporting `claimNextRun(workerId)`. It is one `prisma.$transaction(fn, { isolationLevel: "Serializable" })` implementing design §5's claim:
+- [x] 4.3 Add `services/claim.service.ts`, exporting `claimNextRun(workerId)`. It is one `prisma.$transaction(fn, { isolationLevel: "Serializable" })` implementing design §5's claim:
   - `groupBy` `processing` by `userId` and by `modelId`, and stop at the global limit;
   - `groupBy` `queued` heads by `(userId, modelId)`, dropping users at the per-user limit;
   - sort by user processing count, then model processing count, then head `receivedAt`;
@@ -114,7 +114,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - other terminal outcomes set `finishedAt` with the same guard.
 
   Verify: the service test covers each outcome, transfer and income mapping, date defaulting to `receivedAt`, and that a guard miss rolls back (no transaction is committed).
-- [ ] 4.5 Add `services/maintenance.service.ts`, exporting:
+- [x] 4.5 Add `services/maintenance.service.ts`, exporting:
   - `failLostRuns()`: `processing` runs whose `workerId` has no `NotificationWorker` row with `lastSeenAt` within 2 min → `failed`, reason `worker_lost`, `finishedAt`. It also deletes worker rows not seen for 1 hour;
   - `applyRetention()`: null `text` on terminal runs with `finishedAt` older than 7 days, and delete terminal runs with `finishedAt` older than 30 days. Both filter `status in (completed, skipped, failed)` and non-null `finishedAt`.
 

@@ -35,7 +35,7 @@ export function CreateApiKeyForm({
     event.preventDefault();
     setError(null);
     try {
-      await onSubmit({ name, allowWrite, lifetime });
+      await onSubmit({ name, allowWrite, ingestOnly: false, lifetime });
       setName("");
       setAllowWrite(false);
       setLifetime("1m");
