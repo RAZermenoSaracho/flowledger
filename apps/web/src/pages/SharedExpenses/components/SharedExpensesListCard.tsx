@@ -1,8 +1,7 @@
 import { AddRecordButton } from "../../../components/AddRecordButton";
-import { Card } from "../../../components/Card";
-import { PageHeader } from "../../../components/PageHeader";
-import { groupByFields } from "../../../utils/groupByFields";
+import { ListView } from "../../../components/ListView";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
+import type { ListGroup } from "../../../types/common.types";
 import type { SharedExpense } from "../../../types/sharedExpenses.types";
 import {
   buildSharedExpenseSearchFields,
@@ -23,16 +22,16 @@ export function sharedExpenseGroupKey(
   return { key: "", label: "" };
 }
 
-export { groupByFields };
-
 const sharedExpenseSearchFields = buildSharedExpenseSearchFields();
 
 /** Search/filter/group/sort controls and list container for shared expenses. */
 export function SharedExpensesListCard({
   onQueryChange,
   onAddSharedExpense,
+  sharedExpenses,
   groupedSharedExpenses,
-  visibleCount,
+  isLoading,
+  error,
   highlightedSharedExpenseId,
   highlightedParticipantId,
   currentUserId,
@@ -40,28 +39,22 @@ export function SharedExpensesListCard({
 }: {
   onQueryChange: (query: SearchBarQuery) => void;
   onAddSharedExpense: () => void;
-  groupedSharedExpenses: {
-    key: string;
-    label: string;
-    items: SharedExpense[];
-  }[];
-  visibleCount: number;
+  sharedExpenses: SharedExpense[];
+  groupedSharedExpenses?: ListGroup<SharedExpense>[];
+  isLoading?: boolean;
+  error?: string | null;
   highlightedSharedExpenseId: string | null;
   highlightedParticipantId: string | null;
   currentUserId: string | undefined;
   onEdit: (sharedExpense: SharedExpense) => void;
 }) {
   return (
-    <Card>
-      <PageHeader
-        title="Shared expenses"
-        action={
-          <AddRecordButton
-            label="shared expense"
-            onClick={onAddSharedExpense}
-          />
-        }
-      >
+    <ListView
+      title="Shared expenses"
+      actions={
+        <AddRecordButton label="shared expense" onClick={onAddSharedExpense} />
+      }
+      toolbar={
         <SearchBar
           fields={sharedExpenseSearchFields}
           groupableFields={SHARED_EXPENSE_GROUPABLE_FIELDS}
@@ -71,38 +64,23 @@ export function SharedExpensesListCard({
           placeholder="Search shared expenses"
           onQueryChange={onQueryChange}
         />
-      </PageHeader>
-      <div className="mt-4 grid gap-4">
-        {groupedSharedExpenses.map((section) => (
-          <div key={section.key || "all"} className="grid gap-3">
-            {section.label ? (
-              <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-                {section.label}
-              </h3>
-            ) : null}
-            <div className="grid gap-3">
-              {section.items.map((sharedExpense) => (
-                <SharedExpenseListItem
-                  key={sharedExpense.id}
-                  sharedExpense={sharedExpense}
-                  isHighlighted={
-                    highlightedSharedExpenseId === sharedExpense.id
-                  }
-                  highlightedParticipantId={highlightedParticipantId}
-                  currentUserId={currentUserId}
-                  canEdit={sharedExpense.ownerUserId === currentUserId}
-                  onEdit={() => onEdit(sharedExpense)}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-        {visibleCount === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No shared expenses found.
-          </p>
-        ) : null}
-      </div>
-    </Card>
+      }
+      items={sharedExpenses}
+      groups={groupedSharedExpenses}
+      rowKey={(sharedExpense) => sharedExpense.id}
+      renderItem={(sharedExpense) => (
+        <SharedExpenseListItem
+          sharedExpense={sharedExpense}
+          isHighlighted={highlightedSharedExpenseId === sharedExpense.id}
+          highlightedParticipantId={highlightedParticipantId}
+          currentUserId={currentUserId}
+          canEdit={sharedExpense.ownerUserId === currentUserId}
+          onEdit={() => onEdit(sharedExpense)}
+        />
+      )}
+      isLoading={isLoading}
+      error={error}
+      emptyText="No shared expenses found."
+    />
   );
 }

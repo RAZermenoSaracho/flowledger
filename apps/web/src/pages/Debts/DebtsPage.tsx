@@ -118,7 +118,6 @@ export function DebtsPage() {
     privateIncomeCategories,
     accounts: accountsQuery.data ?? []
   });
-  const { selectedApprovalIds, setSelectedApprovalIds } = workflow;
 
   const balances = useMemo(() => debts?.balances ?? [], [debts?.balances]);
   const visibleBalances = useMemo(
@@ -263,10 +262,7 @@ export function DebtsPage() {
               onPendingFromMeQueryChange={setPendingFromMeQuery}
               onPendingForMeQueryChange={setPendingForMeQuery}
               highlightedSettlementId={highlightedSettlementId}
-              selectedApprovalIds={selectedApprovalIds}
-              onToggleApprovalSelection={workflow.toggleApprovalSelection}
-              onSetApprovalSelection={workflow.setApprovalSelection}
-              onClearApprovalSelection={() => setSelectedApprovalIds(new Set())}
+              approvalSelection={workflow.approvalSelection}
               accounts={accountsQuery.data ?? []}
               isActing={workflow.isActing}
               approvalDraftFor={workflow.approvalDraftFor}

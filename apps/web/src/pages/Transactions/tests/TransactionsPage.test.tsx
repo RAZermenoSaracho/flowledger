@@ -62,8 +62,13 @@ function mockBaseline({
   pendingCount = 0
 } = {}) {
   server.use(
-    http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
-    http.get(`${API_URL}/transactions`, () => HttpResponse.json({ data: transactions, meta: {} })),
+    http.post(
+      `${API_URL}/auth/refresh`,
+      () => new HttpResponse(null, { status: 401 })
+    ),
+    http.get(`${API_URL}/transactions`, () =>
+      HttpResponse.json({ data: transactions, meta: {} })
+    ),
     http.get(`${API_URL}/transactions/imported`, () =>
       HttpResponse.json({
         importedTransactions,
@@ -90,7 +95,14 @@ function mockBaseline({
     http.get(`${API_URL}/categories`, () =>
       HttpResponse.json({
         categories: [
-          { id: "cat-1", name: "Groceries", type: "expense", isArchived: false, createdAt: "", updatedAt: "" }
+          {
+            id: "cat-1",
+            name: "Groceries",
+            type: "expense",
+            isArchived: false,
+            createdAt: "",
+            updatedAt: ""
+          }
         ]
       })
     ),
@@ -114,8 +126,12 @@ describe("TransactionsPage", () => {
     mockBaseline();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    expect(screen.queryByRole("heading", { name: "New transaction" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByRole("heading", { name: "New transaction" })
+    ).not.toBeInTheDocument();
   });
 
   it("opens the new-transaction route via the AddRecordButton", async () => {
@@ -129,18 +145,29 @@ describe("TransactionsPage", () => {
       { withAuth: true, route: "/transactions" }
     );
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    await user.click(screen.getAllByRole("button", { name: "Add transaction" })[0]!);
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Add transaction" })[0]!
+    );
 
-    expect(screen.getByTestId("location")).toHaveTextContent(/^\/transactions\/new$/);
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      /^\/transactions\/new$/
+    );
   });
 
   it("switches to the Imported Transactions tab, showing a pending-count badge", async () => {
-    mockBaseline({ importedTransactions: [makeImportedTransaction()], pendingCount: 1 });
+    mockBaseline({
+      importedTransactions: [makeImportedTransaction()],
+      pendingCount: 1
+    });
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
     await user.click(
       screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
     );
@@ -149,23 +176,32 @@ describe("TransactionsPage", () => {
   });
 
   it("shows the pending-review banner on the imported tab and 'Show pending' re-filters to pending", async () => {
-    mockBaseline({ importedTransactions: [makeImportedTransaction()], pendingCount: 1 });
+    mockBaseline({
+      importedTransactions: [makeImportedTransaction()],
+      pendingCount: 1
+    });
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
     // The banner only renders within the Imported Transactions tab, not
     // alongside the personal-transactions list.
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
     await user.click(
       screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
     );
 
     await waitFor(() =>
-      expect(screen.getByText("You have 1 imported transaction pending review.")).toBeInTheDocument()
+      expect(
+        screen.getByText("You have 1 imported transaction pending review.")
+      ).toBeInTheDocument()
     );
     await user.click(screen.getByRole("button", { name: "Show pending" }));
 
-    await waitFor(() => expect(screen.getByText("Coffee shop")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Coffee shop")).toBeInTheDocument()
+    );
     expect(screen.getByText("Status is pending")).toBeInTheDocument();
   });
 
@@ -181,8 +217,12 @@ describe("TransactionsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Actions for Groceries" }));
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Groceries" })
+    );
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     await waitFor(() => expect(deleted).toBe(true));
@@ -201,8 +241,12 @@ describe("TransactionsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Actions for Groceries" }));
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Groceries" })
+    );
     await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     expect(deleted).toBe(false);
@@ -224,13 +268,21 @@ describe("TransactionsPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.click(screen.getByLabelText("Category"));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { level: 3, name: "Groceries" })).toBeInTheDocument();
-      expect(screen.getByRole("heading", { level: 3, name: "Uncategorized" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 3, name: "Groceries" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 3, name: "Uncategorized" })
+      ).toBeInTheDocument();
     });
   });
 
@@ -240,20 +292,32 @@ describe("TransactionsPage", () => {
     try {
       mockBaseline({
         transactions: [
-          makeTransaction({ id: "tx-1", name: "Boundary", date: "2026-06-01T03:00:00.000Z" })
+          makeTransaction({
+            id: "tx-1",
+            name: "Boundary",
+            date: "2026-06-01T03:00:00.000Z"
+          })
         ]
       });
       const user = userEvent.setup();
       renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-      await waitFor(() => expect(screen.getByText("Boundary")).toBeInTheDocument());
-      await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+      await waitFor(() =>
+        expect(screen.getByText("Boundary")).toBeInTheDocument()
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Filter, group, and sort" })
+      );
       await user.click(screen.getByLabelText("Month"));
 
       await waitFor(() =>
-        expect(screen.getByRole("heading", { level: 3, name: "2026-05" })).toBeInTheDocument()
+        expect(
+          screen.getByRole("heading", { level: 3, name: "2026-05" })
+        ).toBeInTheDocument()
       );
-      expect(screen.queryByRole("heading", { level: 3, name: "2026-06" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { level: 3, name: "2026-06" })
+      ).not.toBeInTheDocument();
     } finally {
       process.env.TZ = originalTz;
     }
@@ -268,17 +332,23 @@ describe("TransactionsPage", () => {
     server.use(
       http.post(`${API_URL}/transactions/imported/pt-1/import`, () => {
         imported = true;
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction() });
+        return HttpResponse.json({
+          importedTransaction: makeImportedTransaction()
+        });
       })
     );
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
     await user.click(
       screen.getByRole("button", { name: "Imported Transactions (1 pending)" })
     );
-    await waitFor(() => expect(screen.getByText("Coffee shop")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Coffee shop")).toBeInTheDocument()
+    );
 
     await user.click(screen.getByRole("button", { name: "Import" }));
 
@@ -296,35 +366,48 @@ describe("TransactionsPage", () => {
       { withAuth: true, route: "/transactions" }
     );
 
-    await waitFor(() => expect(screen.getByText("Groceries")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Actions for Groceries" }));
+    await waitFor(() =>
+      expect(screen.getByText("Groceries")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Groceries" })
+    );
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent(/^\/transactions\/tx-1$/);
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      /^\/transactions\/tx-1$/
+    );
   });
 });
 
 describe("TransactionsPage pagination", () => {
-  type PagedQuery = { where?: unknown; sort?: unknown; pagination: { page: number; pageSize: number } };
+  type PagedQuery = {
+    where?: unknown;
+    sort?: unknown;
+    pagination: { kind: string; offset: number; limit: number };
+  };
 
   function mockPaged() {
     mockBaseline();
     const queries: PagedQuery[] = [];
     server.use(
       http.get(`${API_URL}/transactions`, ({ request }) => {
-        const query = JSON.parse(new URL(request.url).searchParams.get("query")!) as PagedQuery;
+        const query = JSON.parse(
+          new URL(request.url).searchParams.get("query")!
+        ) as PagedQuery;
         queries.push(query);
-        const { page, pageSize } = query.pagination;
-        const pageCount = Math.ceil(120 / pageSize);
+        const { offset, limit } = query.pagination;
         return HttpResponse.json({
-          data: [makeTransaction({ id: `tx-${page}`, name: `Row on page ${page}` })],
+          data: [
+            makeTransaction({ id: `tx-${offset}`, name: `Row at ${offset}` })
+          ],
           meta: {
             total: 120,
-            page,
-            pageSize,
-            pageCount,
-            hasNext: page < pageCount,
-            hasPrevious: page > 1,
+            page: null,
+            pageSize: null,
+            pageCount: null,
+            hasNext: offset + limit < 120,
+            hasPrevious: offset > 0,
             executionTime: 1
           }
         });
@@ -333,56 +416,250 @@ describe("TransactionsPage pagination", () => {
     return queries;
   }
 
-  it("requests page 1 of 50 and shows the server total", async () => {
+  it("requests the first 50-row range and shows the server total", async () => {
     const queries = mockPaged();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
 
-    expect(await screen.findByText("Row on page 1")).toBeInTheDocument();
-    expect(screen.getByText("Page 1 of 3 · 120 results")).toBeInTheDocument();
-    expect(queries.at(-1)!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
-    expect(queries.at(-1)!.sort).toEqual([{ field: "date", direction: "desc" }]);
+    expect(await screen.findByText("Row at 0")).toBeInTheDocument();
+    expect(screen.getByText("1-50 / 120")).toBeInTheDocument();
+    expect(queries.at(-1)!.pagination).toEqual({
+      kind: "range",
+      offset: 0,
+      limit: 50
+    });
+    expect(queries.at(-1)!.sort).toEqual([
+      { field: "date", direction: "desc" }
+    ]);
   });
 
-  it("pages forward, resets on a search change and applies a new page size", async () => {
+  it("pages forward, resets to offset 0 on a search change and keeps a typed window size", async () => {
     const queries = mockPaged();
     const user = userEvent.setup();
     renderWithProviders(<TransactionsPage />, { withAuth: true });
-    await screen.findByText("Row on page 1");
+    await screen.findByText("Row at 0");
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByText("Row on page 2")).toBeInTheDocument();
-    expect(queries.at(-1)?.pagination.page).toBe(2);
+    await user.click(screen.getByRole("button", { name: "Next records" }));
+    expect(await screen.findByText("Row at 50")).toBeInTheDocument();
+    expect(queries.at(-1)?.pagination.offset).toBe(50);
 
-    await user.type(screen.getByPlaceholderText("Search transactions"), "rent{Enter}");
-    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(1));
-    expect(queries.at(-1)?.where).toMatchObject({ field: "name", value: "rent" });
-
-    await user.selectOptions(screen.getByLabelText("Rows per page"), "100");
+    await user.click(screen.getByRole("button", { name: /edit range/ }));
+    await user.clear(screen.getByLabelText("Record range"));
+    await user.type(screen.getByLabelText("Record range"), "1-100{Enter}");
     await waitFor(() =>
-      expect(queries.at(-1)?.pagination).toEqual({ kind: "offset", page: 1, pageSize: 100 })
-    );
-  });
-
-  it("requests imported transactions 50 per page and shows the server total", async () => {
-    mockBaseline();
-    const queries: PagedQuery[] = [];
-    server.use(
-      http.get(`${API_URL}/transactions/imported`, ({ request }) => {
-        queries.push(JSON.parse(new URL(request.url).searchParams.get("query")!));
-        return HttpResponse.json({
-          importedTransactions: [makeImportedTransaction()],
-          total: 120,
-          pendingCount: 120
-        });
+      expect(queries.at(-1)?.pagination).toEqual({
+        kind: "range",
+        offset: 0,
+        limit: 100
       })
     );
+
+    await user.click(screen.getByRole("button", { name: "Next records" }));
+    await waitFor(() => expect(queries.at(-1)?.pagination.offset).toBe(100));
+    await user.type(
+      screen.getByPlaceholderText("Search transactions"),
+      "rent{Enter}"
+    );
+    await waitFor(() =>
+      expect(queries.at(-1)?.pagination).toEqual({
+        kind: "range",
+        offset: 0,
+        limit: 100
+      })
+    );
+    expect(queries.at(-1)?.where).toMatchObject({
+      field: "name",
+      value: "rent"
+    });
+  });
+
+  it("shows the empty state for an empty transactions list", async () => {
+    mockBaseline({ transactions: [] });
+    renderWithProviders(<TransactionsPage />, { withAuth: true });
+    expect(
+      await screen.findByText("No transactions found.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows an error when the transactions request fails", async () => {
+    mockBaseline();
+    server.use(
+      http.get(`${API_URL}/transactions`, () =>
+        HttpResponse.json({ message: "boom" }, { status: 500 })
+      )
+    );
+    renderWithProviders(<TransactionsPage />, { withAuth: true });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+
+describe("TransactionsPage imported tab", () => {
+  type ImportedQuery = {
+    where?: unknown;
+    pagination: { kind: string; offset: number; limit: number };
+  };
+
+  function mockImported(
+    rows: ProviderImportedTransaction[],
+    total = rows.length
+  ) {
+    mockBaseline();
+    const queries: ImportedQuery[] = [];
+    const batches: {
+      path: string;
+      body: { selection: unknown; categoryId?: string };
+    }[] = [];
+    server.use(
+      http.get(`${API_URL}/transactions/imported`, ({ request }) => {
+        queries.push(
+          JSON.parse(new URL(request.url).searchParams.get("query")!)
+        );
+        return HttpResponse.json({
+          importedTransactions: rows,
+          total,
+          pendingCount: total
+        });
+      }),
+      http.post(
+        `${API_URL}/transactions/imported/:action`,
+        async ({ request, params }) => {
+          batches.push({
+            path: String(params.action),
+            body: (await request.json()) as never
+          });
+          return HttpResponse.json({
+            importedCount: 1,
+            ignoredCount: 1,
+            unignoredCount: 1,
+            errors: []
+          });
+        }
+      )
+    );
+    return { queries, batches };
+  }
+
+  it("requests a 50-row range and shows the range pager with the server total", async () => {
+    const { queries } = mockImported([makeImportedTransaction()], 120);
     const user = userEvent.setup();
-    renderWithProviders(<TransactionsPage />, { withAuth: true, route: "/?tab=imported" });
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported"
+    });
 
-    expect(await screen.findByText("Page 1 of 3 · 120 results")).toBeInTheDocument();
-    expect(queries[0]!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
+    expect(await screen.findByText("1-50 / 120")).toBeInTheDocument();
+    expect(queries[0]!.pagination).toEqual({
+      kind: "range",
+      offset: 0,
+      limit: 50
+    });
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(2));
+    await user.click(screen.getByRole("button", { name: "Next records" }));
+    await waitFor(() => expect(queries.at(-1)?.pagination.offset).toBe(50));
+  });
+
+  it("shows the empty state, and the loading state while the request is pending", async () => {
+    mockImported([]);
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported"
+    });
+    expect(screen.getAllByText("Loading...").length).toBeGreaterThan(0);
+    expect(
+      await screen.findByText("No imported transactions found.")
+    ).toBeInTheDocument();
+  });
+
+  it("batch-imports the selected rows by id, then clears the selection", async () => {
+    const { batches } = mockImported([
+      makeImportedTransaction({ categoryId: "cat-1" })
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported&status=pending"
+    });
+    await screen.findByText("Coffee shop");
+
+    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
+    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Import visible selection" })
+    );
+
+    await waitFor(() => expect(batches[0]?.path).toBe("batch-import"));
+    expect(batches[0]!.body.selection).toEqual({ mode: "ids", ids: ["pt-1"] });
+    await waitFor(() =>
+      expect(screen.getByText("0 selected")).toBeInTheDocument()
+    );
+  });
+
+  it("sends a filtered-mode selection after 'Select all N matching'", async () => {
+    const { batches } = mockImported([makeImportedTransaction()], 120);
+    const user = userEvent.setup();
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported&status=pending"
+    });
+    await screen.findByText("Coffee shop");
+
+    await user.click(screen.getByRole("button", { name: "Select page" }));
+    await user.click(
+      screen.getByRole("button", { name: "Select all 120 matching" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Ignore all filtered results" })
+    );
+
+    await waitFor(() => expect(batches[0]?.path).toBe("batch-ignore"));
+    expect(batches[0]!.body.selection).toMatchObject({
+      mode: "filtered",
+      where: { field: "status", op: "=", value: "pending" }
+    });
+  });
+
+  it("gates batch actions on the visible rows' status", async () => {
+    mockImported([makeImportedTransaction({ status: "ignored" })]);
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported"
+    });
+    await screen.findByText("Coffee shop");
+
+    expect(
+      screen.getByRole("button", { name: /Unignore visible selection/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Import visible/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the batch error and per-row failures", async () => {
+    mockImported([makeImportedTransaction({ categoryId: "cat-1" })]);
+    server.use(
+      http.post(`${API_URL}/transactions/imported/batch-import`, () =>
+        HttpResponse.json(
+          {
+            message: "Batch import failed",
+            errors: [{ id: "pt-1", message: "Missing category" }]
+          },
+          { status: 400 }
+        )
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<TransactionsPage />, {
+      withAuth: true,
+      route: "/?tab=imported&status=pending"
+    });
+    await screen.findByText("Coffee shop");
+
+    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
+    await user.click(
+      screen.getByRole("button", { name: "Import visible selection" })
+    );
+
+    expect(
+      await screen.findByText("pt-1: Missing category")
+    ).toBeInTheDocument();
   });
 });

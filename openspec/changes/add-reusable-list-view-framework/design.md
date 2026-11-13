@@ -59,7 +59,7 @@ State is `{offset, limit}`. The user edits the window directly instead of choosi
 | Mobile | same control in its own full-width row under the title; `input type="text"` (a dash is needed) with at least 44px tap targets; fits 320px |
 | A11y | range button `aria-label` "Records 41 to 80 of 312, edit range"; arrows "Previous records" / "Next records"; range text `aria-live="polite"`; error linked via `aria-describedby` |
 
-`MAX_LIST_WINDOW` (500) is an unexported constant inside `components/ListView/ListViewPagination.tsx`; the server clamp (`maxPageSize`) remains the hard bound.
+`MAX_LIST_WINDOW` (500) is defined once in `constants/listWindow.ts` (shared by `ListViewPagination` and `usePagination`); the server clamp (`maxPageSize`) remains the hard bound.
 
 ### 5. Backend: additive `range` pagination kind
 Arbitrary windows are not expressible with page/pageSize, so datasieve gains `{kind:"range", offset:int>=0, limit:int>=1}` mapping to prisma `skip=offset, take=limit`. Meta: `total`, `hasNext = offset+limit < total`, `hasPrevious = offset > 0`, `page` and `pageCount` null. Work: the query-language schema, core build-response, prisma translate and tests in `/Users/razs/packages/datasieve`, then publish and bump the version in `apps/api/package.json`. FlowLedger adds the variant to `listPaginationSchema`, and `createSieve` clamps `limit` to `maxPageSize` like `pageSize`. The imported path needs no change beyond this because it uses the same sieve. Existing page and cursor kinds are untouched, so `/v1` and MCP are unaffected (`public-rest-api` already returns 400 for non-offset pagination; MCP tools take `page`/`pageSize` only), hence no delta for those specs.

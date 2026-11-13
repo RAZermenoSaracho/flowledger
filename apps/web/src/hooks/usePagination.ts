@@ -1,9 +1,8 @@
 import { keepPreviousData, useQuery, type QueryKey } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { MAX_LIST_WINDOW } from "../constants/listWindow";
 import type { ListPagerState, RangePagination } from "../types/common.types";
 
-/** Largest window size accepted from storage; mirrors the pager's own edit limit. */
-const MAX_STORED_LIMIT = 500;
 const EMPTY: never[] = [];
 
 /** One fetched window: its rows plus whichever of `total` / `hasNext` the endpoint reports. */
@@ -17,7 +16,7 @@ function readStoredLimit(storageKey: string | undefined, fallback: number) {
   if (!storageKey) return fallback;
   try {
     const stored = Number(window.localStorage.getItem(storageName(storageKey)));
-    return Number.isInteger(stored) && stored >= 1 && stored <= MAX_STORED_LIMIT ? stored : fallback;
+    return Number.isInteger(stored) && stored >= 1 && stored <= MAX_LIST_WINDOW ? stored : fallback;
   } catch {
     return fallback;
   }

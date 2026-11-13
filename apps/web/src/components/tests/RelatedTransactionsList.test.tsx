@@ -26,19 +26,19 @@ function tx(id: string, name: string): Transaction {
   } as Transaction;
 }
 
-function meta(page: number, hasNext: boolean, total = 21) {
+function meta(offset: number, total = 21) {
   return {
     total,
-    page,
-    pageSize: 20,
-    pageCount: Math.max(1, Math.ceil(total / 20)),
-    hasNext,
-    hasPrevious: page > 1,
+    page: null,
+    pageSize: null,
+    pageCount: null,
+    hasNext: offset + 20 < total,
+    hasPrevious: offset > 0,
     executionTime: 1
   };
 }
 
-type Query = { where: unknown; sort: unknown; pagination: { page: number; pageSize: number } };
+type Query = { where: unknown; sort: unknown; pagination: { kind: string; offset: number; limit: number } };
 
 function mockTransactions(respond: (query: Query) => Response | object) {
   const queries: Query[] = [];
@@ -55,11 +55,11 @@ function mockTransactions(respond: (query: Query) => Response | object) {
 }
 
 describe("RelatedTransactionsList", () => {
-  it("requests the scope newest first and pages server-side", async () => {
+  it("requests the scope newest first and pages by range", async () => {
     const queries = mockTransactions((query) =>
-      query.pagination.page === 1
-        ? { data: [tx("t1", "Groceries")], meta: meta(1, true) }
-        : { data: [tx("t2", "Coffee")], meta: meta(2, false) }
+      query.pagination.offset === 0
+        ? { data: [tx("t1", "Groceries")], meta: meta(0) }
+        : { data: [tx("t2", "Coffee")], meta: meta(20) }
     );
     const user = userEvent.setup();
     renderWithProviders(
@@ -72,22 +72,22 @@ describe("RelatedTransactionsList", () => {
       "/transactions/t1"
     );
     expect(screen.getByText("$12.50")).toBeInTheDocument();
-    expect(screen.getByText("Page 1 of 2 · 21 results")).toBeInTheDocument();
+    expect(screen.getByText("1-20 / 21")).toBeInTheDocument();
     expect(screen.queryByText("Account")).not.toBeInTheDocument();
     expect(queries[0]).toMatchObject({
       where: { field: "accountId", op: "=", value: "acc-1" },
       sort: [{ field: "date", direction: "desc" }],
-      pagination: { kind: "offset", page: 1, pageSize: 20 }
+      pagination: { kind: "range", offset: 0, limit: 20 }
     });
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next records" }));
     expect(await screen.findByRole("link", { name: "Coffee" })).toBeInTheDocument();
-    expect(queries.at(-1)?.pagination.page).toBe(2);
-    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    expect(queries.at(-1)?.pagination.offset).toBe(20);
+    expect(screen.getByRole("button", { name: "Next records" })).toBeDisabled();
   });
 
   it("shows an Account column for a group scope", async () => {
-    mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(1, false, 1) }));
+    mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(0, 1) }));
     renderWithProviders(
       <RelatedTransactionsList scope={{ field: "groupId", value: "g1" }} emptyText="Nothing" />,
       { withAuth: true }
@@ -97,19 +97,19 @@ describe("RelatedTransactionsList", () => {
   });
 
   it("ANDs a name search with the scope and returns to page 1", async () => {
-    const queries = mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(1, true) }));
+    const queries = mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(0) }));
     const user = userEvent.setup();
     renderWithProviders(
       <RelatedTransactionsList scope={{ field: "accountId", value: "acc-1" }} emptyText="Nothing" />,
       { withAuth: true }
     );
     await screen.findByRole("link", { name: "Groceries" });
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByText(/Page 2/);
+    await user.click(screen.getByRole("button", { name: "Next records" }));
+    await screen.findByText("21-21 / 21");
 
     await user.type(screen.getByPlaceholderText("Search by name"), "cof{Enter}");
 
-    await screen.findByText(/Page 1 of/);
+    await screen.findByText("1-20 / 21");
     expect(queries.at(-1)).toMatchObject({
       where: {
         and: [
@@ -117,12 +117,12 @@ describe("RelatedTransactionsList", () => {
           { field: "name", op: "ilike", value: "cof" }
         ]
       },
-      pagination: { page: 1 }
+      pagination: { offset: 0 }
     });
   });
 
   it("shows the empty text and an error state", async () => {
-    mockTransactions(() => ({ data: [], meta: meta(1, false, 0) }));
+    mockTransactions(() => ({ data: [], meta: meta(0, 0) }));
     const { unmount } = renderWithProviders(
       <RelatedTransactionsList scope={{ field: "groupId", value: "g1" }} emptyText="Nothing here" />,
       { withAuth: true }

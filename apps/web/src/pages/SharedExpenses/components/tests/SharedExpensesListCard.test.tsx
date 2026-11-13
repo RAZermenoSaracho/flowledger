@@ -42,8 +42,7 @@ describe("SharedExpensesListCard", () => {
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
         onAddSharedExpense={vi.fn()}
-        groupedSharedExpenses={[]}
-        visibleCount={0}
+        sharedExpenses={[]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
@@ -64,8 +63,7 @@ describe("SharedExpensesListCard", () => {
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
         onAddSharedExpense={onAddSharedExpense}
-        groupedSharedExpenses={[]}
-        visibleCount={0}
+        sharedExpenses={[]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
@@ -78,13 +76,12 @@ describe("SharedExpensesListCard", () => {
     expect(onAddSharedExpense).toHaveBeenCalledOnce();
   });
 
-  it("shows 'No shared expenses found.' when visibleCount is 0", () => {
+  it("shows 'No shared expenses found.' when the list is empty", () => {
     renderWithProviders(
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
         onAddSharedExpense={vi.fn()}
-        groupedSharedExpenses={[]}
-        visibleCount={0}
+        sharedExpenses={[]}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
@@ -104,8 +101,8 @@ describe("SharedExpensesListCard", () => {
       <SharedExpensesListCard
         onQueryChange={vi.fn()}
         onAddSharedExpense={vi.fn()}
+        sharedExpenses={[owned, notOwned]}
         groupedSharedExpenses={[{ key: "open", label: "open", items: [owned, notOwned] }]}
-        visibleCount={2}
         highlightedSharedExpenseId={null}
         highlightedParticipantId={null}
         currentUserId="user-1"
@@ -121,5 +118,23 @@ describe("SharedExpensesListCard", () => {
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     expect(onEdit).toHaveBeenCalledWith(owned);
+  });
+
+  it("shows loading and error states instead of the empty text", () => {
+    const base = {
+      onQueryChange: vi.fn(),
+      onAddSharedExpense: vi.fn(),
+      sharedExpenses: [],
+      highlightedSharedExpenseId: null,
+      highlightedParticipantId: null,
+      currentUserId: "user-1",
+      onEdit: vi.fn()
+    };
+    const { rerender } = renderWithProviders(<SharedExpensesListCard {...base} isLoading />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("No shared expenses found.")).not.toBeInTheDocument();
+
+    rerender(<SharedExpensesListCard {...base} error="Boom" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Boom");
   });
 });

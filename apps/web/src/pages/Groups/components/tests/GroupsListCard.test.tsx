@@ -67,4 +67,14 @@ describe("GroupsListCard", () => {
 
     expect(onAddGroup).toHaveBeenCalledOnce();
   });
+
+  it("shows loading and error states instead of the empty text", () => {
+    const props = { onQueryChange: vi.fn(), onAddGroup: vi.fn(), visibleGroups: [], currentUserId: "user-1" };
+    const { rerender } = renderWithProviders(<GroupsListCard {...props} isLoading />);
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("No groups found.")).not.toBeInTheDocument();
+
+    rerender(<GroupsListCard {...props} error="Boom" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Boom");
+  });
 });

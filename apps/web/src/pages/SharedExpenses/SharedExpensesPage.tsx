@@ -6,10 +6,10 @@ import { useAuth } from "../../hooks/useAuth";
 import * as sharedExpensesClient from "../../services/sharedExpenses.client";
 import { SharedExpenseFormCard } from "./components/SharedExpenseFormCard";
 import {
-  groupByFields,
   sharedExpenseGroupKey,
   SharedExpensesListCard
 } from "./components/SharedExpensesListCard";
+import { groupByFields } from "../../utils/groupByFields";
 import { SHARED_EXPENSE_GROUPABLE_FIELDS } from "./utils/sharedExpenseSearchFields";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
 
@@ -78,8 +78,12 @@ export function SharedExpensesPage() {
       <SharedExpensesListCard
         onQueryChange={setSharedExpenseQuery}
         onAddSharedExpense={() => form.setIsFormOpen(true)}
-        groupedSharedExpenses={groupedSharedExpenses}
-        visibleCount={visibleSharedExpenses.length}
+        sharedExpenses={visibleSharedExpenses}
+        groupedSharedExpenses={
+          activeGroupBys.length > 0 ? groupedSharedExpenses : undefined
+        }
+        isLoading={sharedExpensesQuery.isLoading}
+        error={sharedExpensesQuery.error?.message}
         highlightedSharedExpenseId={highlightedSharedExpenseId}
         highlightedParticipantId={highlightedParticipantId}
         currentUserId={auth.user?.id}

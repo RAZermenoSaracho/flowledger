@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { Account } from "../../../../types/accounts.types";
 import type { Category } from "../../../../types/categories.types";
+import type { ListSelection } from "../../../../types/common.types";
 import type { Debt, PersonBalance } from "../../../../types/debts.types";
 import { PersonDebtDetail } from "../PersonDebtDetail";
 
@@ -77,11 +78,24 @@ function makeBalance(overrides: Partial<PersonBalance> = {}): PersonBalance {
   };
 }
 
+function makeSelection(selectedIds: string[] = []): ListSelection {
+  return {
+    count: selectedIds.length,
+    allMatching: false,
+    canSelectAllMatching: false,
+    isSelected: (id) => selectedIds.includes(id),
+    toggle: vi.fn(),
+    setWindow: vi.fn(),
+    selectAllMatching: vi.fn(),
+    clear: vi.fn()
+  };
+}
+
 function baseProps(overrides: Partial<Parameters<typeof PersonDebtDetail>[0]> = {}) {
   return {
     balance: makeBalance(),
     summaryCurrency: "USD",
-    selectedDebtIds: new Set<string>(),
+    selection: makeSelection(),
     selectedIOweThem: [],
     accounts: [makeAccount()],
     isActing: false,
@@ -96,8 +110,6 @@ function baseProps(overrides: Partial<Parameters<typeof PersonDebtDetail>[0]> = 
     isSettlementDraftComplete: () => true,
     updateDraft: vi.fn(),
     categoryOptionsFor: () => [makeCategory()],
-    onToggleDebt: vi.fn(),
-    onSelectDebts: vi.fn(),
     onSubmitSettlement: vi.fn(async () => {}),
     onSubmitBatchSettlement: vi.fn(async () => {}),
     ...overrides
@@ -185,7 +197,7 @@ describe("PersonDebtDetail", () => {
     const batchForm = screen.getByRole("button", { name: "Request Selected" }).closest("form")!;
     await user.click(within(batchForm).getByRole("button", { name: "Select All" }));
 
-    expect(props.onSelectDebts).toHaveBeenCalledWith([availableDebt], true);
+    expect(props.selection.setWindow).toHaveBeenCalledWith([availableDebt.id], true);
   });
 
   it("submits the batch-settlement form", async () => {

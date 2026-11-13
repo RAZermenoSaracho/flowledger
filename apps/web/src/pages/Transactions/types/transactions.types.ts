@@ -1,3 +1,5 @@
+import type { Account } from "../../../types/accounts.types";
+import type { useImportedTransactionsWorkflow } from "../hooks/useImportedTransactionsWorkflow";
 import type { Category } from "../../../types/categories.types";
 import type { ParticipantStatus } from "@flowledger/shared";
 import type { ShareAcceptance } from "../../../types/sharedExpenses.types";
@@ -54,36 +56,45 @@ export type TransactionDraft = {
 export type ImportedTransactionCardProps = {
   transaction: ProviderImportedTransaction;
   categories: Category[];
-  isSelected: boolean;
-  isSelectionLocked: boolean;
   isImporting: boolean;
   isIgnoring: boolean;
   isUnignoring: boolean;
-  onSelectedChange: () => void;
   onCategoryChange: (categoryId: string | null) => void;
   onImport: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
 };
 
-/** Props for the bulk-selection/batch-action toolbar above the Imported Transactions review list. */
+/** Props for the bulk-action content shown in the Imported Transactions selection bar. */
 export type ImportedTransactionSelectionToolbarProps = {
-  totalFilteredCount: number;
-  visibleCount: number;
-  selectedCount: number;
-  selectedVisibleCount: number;
-  allFilteredSelected: boolean;
-  batchCategoryId: string;
   categories: Category[];
+  batchCategoryId: string;
+  /** Whether anything (ids or all matching rows) is selected; gates the batch buttons. */
+  hasSelection: boolean;
+  /** Whether batch actions apply to every matching row rather than the selected ids. */
+  allMatching: boolean;
   isPendingFilter: boolean;
   isIgnoredFilter: boolean;
   isImporting: boolean;
   isIgnoring: boolean;
   isUnignoring: boolean;
+  /** The last failed batch mutation's error, shown with its per-row failures. */
+  batchError: unknown;
   onBatchCategoryChange: (categoryId: string) => void;
-  onVisibleSelectionChange: (selected: boolean) => void;
-  onAllFilteredSelectionChange: (selected: boolean) => void;
   onImportSelected: () => void;
   onIgnoreSelected: () => void;
   onUnignoreSelected: () => void;
+};
+
+/** Props for the Imported Transactions tab: the workflow state plus the lookup data and URL-seeded filter it renders with. */
+export type ImportedTransactionsTabProps = {
+  imported: ReturnType<typeof useImportedTransactionsWorkflow>;
+  categories: Category[];
+  accounts: Account[];
+  /** Status seeded into the filter by the URL's `status` param, or null. */
+  initialStatus: string | null;
+  /** Changing this remounts the filter `SearchBar` so it re-reads `initialStatus`. */
+  searchBarResetKey: number;
+  /** Switches the list to the pending status filter (the "Show pending" banner button). */
+  onShowPending: () => void;
 };

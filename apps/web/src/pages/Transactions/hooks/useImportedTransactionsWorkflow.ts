@@ -1,15 +1,20 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useListSelection } from "../../../hooks/useListSelection";
 import { usePagination } from "../../../hooks/usePagination";
 import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { ImportedTransactionSelection } from "../../../services/transactions.client";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 
-/** Imported transactions per page. */
-const IMPORTED_TRANSACTIONS_PAGE_SIZE = 50;
+/** Default window size of the imported-transactions list. */
+const IMPORTED_TRANSACTIONS_DEFAULT_LIMIT = 50;
 
-/** State and handlers for the imported-transactions tab: filters, selection, and batch actions. */
+/**
+ * State and handlers for the imported-transactions tab: filters, the paged window, `useListSelection`
+ * selection (which can span windows via "all matching") and batch actions. Every mutation that
+ * succeeds clears the selection.
+ */
 export function useImportedTransactionsWorkflow({
   searchParams
 }: {
@@ -27,44 +32,51 @@ export function useImportedTransactionsWorkflow({
       ? { where: { field: "status", op: "=", value: initialStatus } }
       : {}
   );
-  const [selectedImportedIds, setSelectedImportedIds] = useState<string[]>([]);
-  const [selectAllFilteredImported, setSelectAllFilteredImported] =
-    useState(false);
   const [batchCategoryId, setBatchCategoryId] = useState("");
 
-  const paging = usePagination({
-    resetKey: JSON.stringify({ where: importedQuery.where, sort: importedQuery.sort }),
-    pageSize: IMPORTED_TRANSACTIONS_PAGE_SIZE
+  const resetKey = JSON.stringify({
+    where: importedQuery.where,
+    sort: importedQuery.sort
   });
-  const importedTransactionsQuery = useQuery({
-    queryKey: ["transactions", "imported", importedQuery, paging.page],
-    placeholderData: keepPreviousData,
-    queryFn: async () =>
-      transactionsClient.listImportedTransactions({
-        where: importedQuery.where,
-        sort: importedQuery.sort,
-        pagination: paging.pagination
-      })
+  const paging = usePagination<
+    ProviderImportedTransaction,
+    {
+      items: ProviderImportedTransaction[];
+      total: number;
+      pendingCount: number;
+    }
+  >({
+    queryKey: [
+      "transactions",
+      "imported",
+      importedQuery.where,
+      importedQuery.sort
+    ],
+    resetKey,
+    defaultLimit: IMPORTED_TRANSACTIONS_DEFAULT_LIMIT,
+    storageKey: "imported-transactions",
+    fetchPage: async (pagination) => {
+      const { importedTransactions, total, pendingCount } =
+        await transactionsClient.listImportedTransactions({
+          where: importedQuery.where,
+          sort: importedQuery.sort,
+          pagination
+        });
+      return { items: importedTransactions, total, pendingCount };
+    }
   });
-  const importedTotal = importedTransactionsQuery.data?.total;
-  paging.syncPageCount(
-    importedTotal == null ? null : Math.max(1, Math.ceil(importedTotal / paging.pageSize))
-  );
-  // Memoized: an inline `data ?? []` fallback produces a fresh array
-  // reference on every render whenever `data` is undefined, which
-  // propagates into ImportedTransactionsFiltersCard's `fields`
-  // useMemo (via `providerAccountOptions`/`importedAccountOptions` in
-  // TransactionsPage.tsx) and re-triggers SearchBar's onQueryChange
-  // effect every render — an unbounded render loop (same hazard fixed
-  // in TransactionsPage.tsx's `allTransactionCategories`).
-  const importedTransactions = useMemo(
-    () => importedTransactionsQuery.data?.importedTransactions ?? [],
-    [importedTransactionsQuery.data]
-  );
+  const importedTransactions = paging.items;
+  const selection = useListSelection({
+    resetKey,
+    windowKey: `${paging.pager.offset}:${paging.pager.limit}`,
+    total: paging.pager.total ?? undefined,
+    canSelectAllMatching: true
+  });
+  const request = selection.toRequest();
   const importedSelection: ImportedTransactionSelection =
-    selectAllFilteredImported
+    request.mode === "all"
       ? { mode: "filtered", where: importedQuery.where }
-      : { mode: "ids", ids: selectedImportedIds };
+      : { mode: "ids", ids: request.ids };
 
   // Import/Ignore only make sense while every currently-visible row is
   // pending; Unignore only while every visible row is ignored. Derived
@@ -74,10 +86,14 @@ export function useImportedTransactionsWorkflow({
   // pending rows" on its own).
   const isPendingFilter =
     importedTransactions.length > 0 &&
-    importedTransactions.every((transaction) => transaction.status === "pending");
+    importedTransactions.every(
+      (transaction) => transaction.status === "pending"
+    );
   const isIgnoredFilter =
     importedTransactions.length > 0 &&
-    importedTransactions.every((transaction) => transaction.status === "ignored");
+    importedTransactions.every(
+      (transaction) => transaction.status === "ignored"
+    );
 
   async function invalidateImportedWorkflow() {
     await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -106,8 +122,7 @@ export function useImportedTransactionsWorkflow({
     mutationFn: (input: { id: string; categoryId: string }) =>
       transactionsClient.importImportedTransaction(input.id, input.categoryId),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       await invalidateImportedWorkflow();
     }
   });
@@ -116,8 +131,7 @@ export function useImportedTransactionsWorkflow({
     mutationFn: (id: string) =>
       transactionsClient.ignoreImportedTransaction(id),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       await invalidateImportedWorkflow();
     }
   });
@@ -129,8 +143,7 @@ export function useImportedTransactionsWorkflow({
         batchCategoryId || undefined
       ),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       setBatchCategoryId("");
       await invalidateImportedWorkflow();
     }
@@ -140,8 +153,7 @@ export function useImportedTransactionsWorkflow({
     mutationFn: () =>
       transactionsClient.batchIgnoreImportedTransactions(importedSelection),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       await invalidateImportedWorkflow();
     }
   });
@@ -150,8 +162,7 @@ export function useImportedTransactionsWorkflow({
     mutationFn: (id: string) =>
       transactionsClient.unignoreImportedTransaction(id),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       await invalidateImportedWorkflow();
     }
   });
@@ -160,33 +171,10 @@ export function useImportedTransactionsWorkflow({
     mutationFn: () =>
       transactionsClient.batchUnignoreImportedTransactions(importedSelection),
     onSuccess: async () => {
-      setSelectedImportedIds([]);
-      setSelectAllFilteredImported(false);
+      selection.clear();
       await invalidateImportedWorkflow();
     }
   });
-
-  function updateImportedQuery(nextQuery: SearchBarQuery) {
-    setImportedQuery(nextQuery);
-    setSelectedImportedIds([]);
-    setSelectAllFilteredImported(false);
-  }
-
-  function toggleImportedSelection(id: string) {
-    setSelectAllFilteredImported(false);
-    setSelectedImportedIds((current) =>
-      current.includes(id)
-        ? current.filter((selectedId) => selectedId !== id)
-        : [...current, id]
-    );
-  }
-
-  function setAllVisibleImportedSelected(selected: boolean) {
-    setSelectAllFilteredImported(false);
-    setSelectedImportedIds(
-      selected ? importedTransactions.map((row) => row.id) : []
-    );
-  }
 
   async function importOneImportedTransaction(
     transaction: ProviderImportedTransaction
@@ -200,29 +188,18 @@ export function useImportedTransactionsWorkflow({
     });
   }
 
-  const importedPaging = {
-    page: paging.page,
-    pageCount: paging.pageCount,
-    hasNext: paging.hasNext,
-    setPage: (page: number) => {
-      setSelectedImportedIds([]);
-      paging.setPage(page);
-    }
-  };
-
   return {
     importedQuery,
-    importedPaging,
-    updateImportedQuery,
+    pager: paging.pager,
+    isLoading: paging.isLoading,
+    error: paging.error,
+    pendingCount: paging.data?.pendingCount ?? 0,
+    selection,
+    updateImportedQuery: setImportedQuery,
     isPendingFilter,
     isIgnoredFilter,
-    selectedImportedIds,
-    selectAllFilteredImported,
-    setSelectAllFilteredImported,
-    setSelectedImportedIds,
     batchCategoryId,
     setBatchCategoryId,
-    importedTransactionsQuery,
     importedTransactions,
     updateImportedCategory,
     importImportedTransaction,
@@ -231,8 +208,6 @@ export function useImportedTransactionsWorkflow({
     batchIgnoreImportedTransactions,
     unignoreImportedTransaction,
     batchUnignoreImportedTransactions,
-    toggleImportedSelection,
-    setAllVisibleImportedSelected,
     importOneImportedTransaction
   };
 }

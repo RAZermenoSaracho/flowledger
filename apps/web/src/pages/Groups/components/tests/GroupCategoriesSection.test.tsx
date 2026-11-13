@@ -73,6 +73,14 @@ describe("GroupCategoriesSection", () => {
     expect(screen.getByText("Archived")).toBeInTheDocument();
   });
 
+  it("shows a loading state before the rows arrive, not the empty text", async () => {
+    mockCategories([]);
+    renderSection();
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.queryByText("No group categories found.")).not.toBeInTheDocument();
+    expect(await screen.findByText("No group categories found.")).toBeInTheDocument();
+  });
+
   it("shows the empty state", async () => {
     mockCategories([]);
     renderSection();
@@ -99,8 +107,8 @@ describe("GroupCategoriesSection", () => {
 
     const name = screen.getByLabelText("Name");
     const cell = name.closest("div.rounded-md")!;
-    const grid = cell.parentElement!;
-    expect(grid.children[1]).toBe(cell);
+    const grid = cell.parentElement!.parentElement!;
+    expect(grid.children[1]).toBe(cell.parentElement);
     expect(within(grid.children[0] as HTMLElement).getByText("Alpha")).toBeInTheDocument();
     expect(within(grid.children[2] as HTMLElement).getByText("Gamma")).toBeInTheDocument();
 

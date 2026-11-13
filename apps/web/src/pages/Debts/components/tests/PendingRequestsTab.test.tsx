@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
+import type { ListSelection } from "../../../../types/common.types";
 import type { Account } from "../../../../types/accounts.types";
 import type { Category } from "../../../../types/categories.types";
 import type { Debt, SettlementRequest } from "../../../../types/debts.types";
@@ -39,6 +40,19 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
   };
 }
 
+function makeSelection(selectedIds: string[] = []): ListSelection {
+  return {
+    count: selectedIds.length,
+    allMatching: false,
+    canSelectAllMatching: false,
+    isSelected: (id) => selectedIds.includes(id),
+    toggle: vi.fn(),
+    setWindow: vi.fn(),
+    selectAllMatching: vi.fn(),
+    clear: vi.fn()
+  };
+}
+
 function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> = {}) {
   return {
     pendingFromMe: [],
@@ -47,10 +61,7 @@ function baseProps(overrides: Partial<Parameters<typeof PendingRequestsTab>[0]> 
     visiblePendingForMe: [],
     onPendingFromMeQueryChange: vi.fn(),
     onPendingForMeQueryChange: vi.fn(),
-    selectedApprovalIds: new Set<string>(),
-    onToggleApprovalSelection: vi.fn(),
-    onSetApprovalSelection: vi.fn(),
-    onClearApprovalSelection: vi.fn(),
+    approvalSelection: makeSelection(),
     accounts: [makeAccount()],
     isActing: false,
     approvalDraftFor: () => ({ accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" }),
@@ -93,7 +104,7 @@ describe("PendingRequestsTab", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("renders awaiting-approval requests as selectable cards with ApprovalActions", () => {
+  it("renders awaiting-approval requests with a selection checkbox with ApprovalActions", () => {
     renderWithProviders(
       <PendingRequestsTab
         {...baseProps({
@@ -102,25 +113,26 @@ describe("PendingRequestsTab", () => {
         })}
       />
     );
-    expect(screen.getByRole("checkbox", { name: "Select Dinner split" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select record 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   });
 
-  it("shows the visible/total count across both columns", () => {
+  it("shows 'visible of total' per list when a search filters rows", () => {
     renderWithProviders(
       <PendingRequestsTab
         {...baseProps({
-          pendingFromMe: [makeRequest({ id: "sr-1" })],
+          pendingFromMe: [makeRequest({ id: "sr-1" }), makeRequest({ id: "sr-3" })],
           visiblePendingFromMe: [makeRequest({ id: "sr-1" })],
           pendingForMe: [makeRequest({ id: "sr-2" })],
           visiblePendingForMe: [makeRequest({ id: "sr-2" })]
         })}
       />
     );
-    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    expect(screen.getByText("1 record")).toBeInTheDocument();
   });
 
-  it("calls onToggleApprovalSelection when a card's checkbox is toggled", async () => {
+  it("toggles the approval selection when a card's checkbox is toggled", async () => {
     const user = userEvent.setup();
     const props = baseProps({
       pendingForMe: [makeRequest()],
@@ -128,12 +140,12 @@ describe("PendingRequestsTab", () => {
     });
     renderWithProviders(<PendingRequestsTab {...props} />);
 
-    await user.click(screen.getByRole("checkbox", { name: "Select Dinner split" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
 
-    expect(props.onToggleApprovalSelection).toHaveBeenCalledWith("sr-1");
+    expect(props.approvalSelection.toggle).toHaveBeenCalledWith("sr-1", ["sr-1"]);
   });
 
-  it("'Select all'/'Clear selection'/batch-approval buttons wire to their callbacks", async () => {
+  it("'Select page' and the batch-approval button wire to their callbacks", async () => {
     const user = userEvent.setup();
     const request = makeRequest();
     const props = baseProps({
@@ -148,8 +160,8 @@ describe("PendingRequestsTab", () => {
     });
     renderWithProviders(<PendingRequestsTab {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Select all" }));
-    expect(props.onSetApprovalSelection).toHaveBeenCalledWith([request], true);
+    await user.click(screen.getByRole("button", { name: "Select page" }));
+    expect(props.approvalSelection.setWindow).toHaveBeenCalledWith(["sr-1"], true);
 
     await user.click(screen.getByRole("button", { name: "Settle all" }));
     expect(props.onSubmitBatchApproval).toHaveBeenCalledWith([request]);
@@ -162,7 +174,7 @@ describe("PendingRequestsTab", () => {
         {...baseProps({
           pendingForMe: [request],
           visiblePendingForMe: [request],
-          selectedApprovalIds: new Set(["sr-1"])
+          approvalSelection: makeSelection(["sr-1"])
         })}
       />
     );

@@ -13,7 +13,9 @@ function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
   });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
 }
 
 function makeImportedTransaction(
@@ -35,7 +37,9 @@ function makeImportedTransaction(
 }
 
 function renderWorkflow(searchParams = new URLSearchParams()) {
-  return renderHook(() => useImportedTransactionsWorkflow({ searchParams }), { wrapper });
+  return renderHook(() => useImportedTransactionsWorkflow({ searchParams }), {
+    wrapper
+  });
 }
 
 function mockList(importedTransactions: ProviderImportedTransaction[] = []) {
@@ -44,7 +48,8 @@ function mockList(importedTransactions: ProviderImportedTransaction[] = []) {
       HttpResponse.json({
         importedTransactions,
         total: importedTransactions.length,
-        pendingCount: importedTransactions.filter((t) => t.status === "pending").length
+        pendingCount: importedTransactions.filter((t) => t.status === "pending")
+          .length
       })
     )
   );
@@ -71,7 +76,9 @@ describe("useImportedTransactionsWorkflow", () => {
     mockList([makeImportedTransaction({ status: "pending" })]);
     const { result } = renderWorkflow();
 
-    await waitFor(() => expect(result.current.importedTransactions).toHaveLength(1));
+    await waitFor(() =>
+      expect(result.current.importedTransactions).toHaveLength(1)
+    );
     expect(result.current.isPendingFilter).toBe(true);
     expect(result.current.isIgnoredFilter).toBe(false);
   });
@@ -83,51 +90,63 @@ describe("useImportedTransactionsWorkflow", () => {
     ]);
     const { result } = renderWorkflow();
 
-    await waitFor(() => expect(result.current.importedTransactions).toHaveLength(2));
+    await waitFor(() =>
+      expect(result.current.importedTransactions).toHaveLength(2)
+    );
     expect(result.current.isPendingFilter).toBe(false);
     expect(result.current.isIgnoredFilter).toBe(false);
   });
 
-  it("updateImportedQuery replaces the query and clears selection", () => {
+  it("updateImportedQuery replaces the query and resets selection", () => {
     mockList();
     const { result } = renderWorkflow();
 
-    act(() => result.current.toggleImportedSelection("pt-1"));
-    act(() => result.current.setSelectAllFilteredImported(true));
-    act(() => result.current.updateImportedQuery({ where: { field: "amount", op: ">", value: 10 } }));
+    act(() => result.current.selection.toggle("pt-1"));
+    act(() => result.current.selection.selectAllMatching());
+    act(() =>
+      result.current.updateImportedQuery({
+        where: { field: "amount", op: ">", value: 10 }
+      })
+    );
 
-    expect(result.current.selectedImportedIds).toEqual([]);
-    expect(result.current.selectAllFilteredImported).toBe(false);
-    expect(result.current.importedQuery.where).toEqual({ field: "amount", op: ">", value: 10 });
+    expect([...result.current.selection.selectedIds]).toEqual([]);
+    expect(result.current.selection.allMatching).toBe(false);
+    expect(result.current.importedQuery.where).toEqual({
+      field: "amount",
+      op: ">",
+      value: 10
+    });
   });
 
-  it("toggleImportedSelection adds/removes an id and clears select-all-filtered", () => {
+  it("selection.toggle adds/removes an id, and while select-all-matching selects the window minus that row", () => {
     mockList();
     const { result } = renderWorkflow();
 
-    act(() => result.current.setSelectAllFilteredImported(true));
-    act(() => result.current.toggleImportedSelection("pt-1"));
+    act(() => result.current.selection.selectAllMatching());
+    act(() => result.current.selection.toggle("pt-1", ["pt-1", "pt-2"]));
 
-    expect(result.current.selectedImportedIds).toEqual(["pt-1"]);
-    expect(result.current.selectAllFilteredImported).toBe(false);
+    expect([...result.current.selection.selectedIds]).toEqual(["pt-2"]);
+    expect(result.current.selection.allMatching).toBe(false);
 
-    act(() => result.current.toggleImportedSelection("pt-1"));
-    expect(result.current.selectedImportedIds).toEqual([]);
+    act(() => result.current.selection.toggle("pt-2"));
+    expect([...result.current.selection.selectedIds]).toEqual([]);
   });
 
-  it("setAllVisibleImportedSelected selects/clears every currently-fetched row", async () => {
+  it("selection.setWindow selects/clears every currently-fetched row", async () => {
     mockList([
       makeImportedTransaction({ id: "pt-1" }),
       makeImportedTransaction({ id: "pt-2" })
     ]);
     const { result } = renderWorkflow();
-    await waitFor(() => expect(result.current.importedTransactions).toHaveLength(2));
+    await waitFor(() =>
+      expect(result.current.importedTransactions).toHaveLength(2)
+    );
 
-    act(() => result.current.setAllVisibleImportedSelected(true));
-    expect(result.current.selectedImportedIds).toEqual(["pt-1", "pt-2"]);
+    act(() => result.current.selection.setWindow(["pt-1", "pt-2"], true));
+    expect([...result.current.selection.selectedIds]).toEqual(["pt-1", "pt-2"]);
 
-    act(() => result.current.setAllVisibleImportedSelected(false));
-    expect(result.current.selectedImportedIds).toEqual([]);
+    act(() => result.current.selection.setWindow(["pt-1", "pt-2"], false));
+    expect([...result.current.selection.selectedIds]).toEqual([]);
   });
 
   it("importOneImportedTransaction is a no-op without a categoryId", async () => {
@@ -136,7 +155,9 @@ describe("useImportedTransactionsWorkflow", () => {
     server.use(
       http.post(`${API_URL}/transactions/imported/pt-1/import`, () => {
         called = true;
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction() });
+        return HttpResponse.json({
+          importedTransaction: makeImportedTransaction()
+        });
       })
     );
     const { result } = renderWorkflow();
@@ -154,13 +175,20 @@ describe("useImportedTransactionsWorkflow", () => {
     mockList();
     let importedCategoryId: unknown;
     server.use(
-      http.post(`${API_URL}/transactions/imported/pt-1/import`, async ({ request }) => {
-        importedCategoryId = ((await request.json()) as { categoryId: string }).categoryId;
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction() });
-      })
+      http.post(
+        `${API_URL}/transactions/imported/pt-1/import`,
+        async ({ request }) => {
+          importedCategoryId = (
+            (await request.json()) as { categoryId: string }
+          ).categoryId;
+          return HttpResponse.json({
+            importedTransaction: makeImportedTransaction()
+          });
+        }
+      )
     );
     const { result } = renderWorkflow();
-    act(() => result.current.toggleImportedSelection("pt-1"));
+    act(() => result.current.selection.toggle("pt-1"));
 
     await act(async () => {
       await result.current.importOneImportedTransaction(
@@ -169,7 +197,7 @@ describe("useImportedTransactionsWorkflow", () => {
     });
 
     expect(importedCategoryId).toBe("cat-1");
-    expect(result.current.selectedImportedIds).toEqual([]);
+    expect([...result.current.selection.selectedIds]).toEqual([]);
   });
 
   it("ignoreImportedTransaction ignores a row and clears selection", async () => {
@@ -178,7 +206,9 @@ describe("useImportedTransactionsWorkflow", () => {
     server.use(
       http.post(`${API_URL}/transactions/imported/pt-1/ignore`, () => {
         ignored = true;
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction({ status: "ignored" }) });
+        return HttpResponse.json({
+          importedTransaction: makeImportedTransaction({ status: "ignored" })
+        });
       })
     );
     const { result } = renderWorkflow();
@@ -196,7 +226,9 @@ describe("useImportedTransactionsWorkflow", () => {
     server.use(
       http.post(`${API_URL}/transactions/imported/pt-1/unignore`, () => {
         unignored = true;
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction({ status: "pending" }) });
+        return HttpResponse.json({
+          importedTransaction: makeImportedTransaction({ status: "pending" })
+        });
       })
     );
     const { result } = renderWorkflow();
@@ -212,13 +244,20 @@ describe("useImportedTransactionsWorkflow", () => {
     mockList();
     let sentBody: unknown;
     server.use(
-      http.post(`${API_URL}/transactions/imported/batch-import`, async ({ request }) => {
-        sentBody = await request.json();
-        return HttpResponse.json({ importedTransactions: [], importedCount: 0, errors: [] });
-      })
+      http.post(
+        `${API_URL}/transactions/imported/batch-import`,
+        async ({ request }) => {
+          sentBody = await request.json();
+          return HttpResponse.json({
+            importedTransactions: [],
+            importedCount: 0,
+            errors: []
+          });
+        }
+      )
     );
     const { result } = renderWorkflow();
-    act(() => result.current.toggleImportedSelection("pt-1"));
+    act(() => result.current.selection.toggle("pt-1"));
     act(() => result.current.setBatchCategoryId("cat-1"));
 
     await act(async () => {
@@ -236,21 +275,35 @@ describe("useImportedTransactionsWorkflow", () => {
     mockList();
     let sentBody: unknown;
     server.use(
-      http.post(`${API_URL}/transactions/imported/batch-import`, async ({ request }) => {
-        sentBody = await request.json();
-        return HttpResponse.json({ importedTransactions: [], importedCount: 0, errors: [] });
-      })
+      http.post(
+        `${API_URL}/transactions/imported/batch-import`,
+        async ({ request }) => {
+          sentBody = await request.json();
+          return HttpResponse.json({
+            importedTransactions: [],
+            importedCount: 0,
+            errors: []
+          });
+        }
+      )
     );
     const { result } = renderWorkflow();
-    act(() => result.current.updateImportedQuery({ where: { field: "status", op: "=", value: "pending" } }));
-    act(() => result.current.setSelectAllFilteredImported(true));
+    act(() =>
+      result.current.updateImportedQuery({
+        where: { field: "status", op: "=", value: "pending" }
+      })
+    );
+    act(() => result.current.selection.selectAllMatching());
 
     await act(async () => {
       await result.current.batchImportImportedTransactions.mutateAsync();
     });
 
     expect(sentBody).toMatchObject({
-      selection: { mode: "filtered", where: { field: "status", op: "=", value: "pending" } }
+      selection: {
+        mode: "filtered",
+        where: { field: "status", op: "=", value: "pending" }
+      }
     });
   });
 
@@ -265,59 +318,97 @@ describe("useImportedTransactionsWorkflow", () => {
       )
     );
     const { result } = renderWorkflow();
-    act(() => result.current.toggleImportedSelection("pt-1"));
+    act(() => result.current.selection.toggle("pt-1"));
 
     await act(async () => {
       await result.current.batchIgnoreImportedTransactions.mutateAsync();
     });
-    expect(result.current.selectedImportedIds).toEqual([]);
+    expect([...result.current.selection.selectedIds]).toEqual([]);
 
-    act(() => result.current.toggleImportedSelection("pt-2"));
+    act(() => result.current.selection.toggle("pt-2"));
     await act(async () => {
       await result.current.batchUnignoreImportedTransactions.mutateAsync();
     });
-    expect(result.current.selectedImportedIds).toEqual([]);
+    expect([...result.current.selection.selectedIds]).toEqual([]);
   });
 
   it("updateImportedCategory updates a row's category", async () => {
     mockList();
     let patchedBody: unknown;
     server.use(
-      http.patch(`${API_URL}/transactions/imported/pt-1`, async ({ request }) => {
-        patchedBody = await request.json();
-        return HttpResponse.json({ importedTransaction: makeImportedTransaction({ categoryId: "cat-1" }) });
-      })
+      http.patch(
+        `${API_URL}/transactions/imported/pt-1`,
+        async ({ request }) => {
+          patchedBody = await request.json();
+          return HttpResponse.json({
+            importedTransaction: makeImportedTransaction({
+              categoryId: "cat-1"
+            })
+          });
+        }
+      )
     );
     const { result } = renderWorkflow();
 
     await act(async () => {
-      await result.current.updateImportedCategory.mutateAsync({ id: "pt-1", categoryId: "cat-1" });
+      await result.current.updateImportedCategory.mutateAsync({
+        id: "pt-1",
+        categoryId: "cat-1"
+      });
     });
 
     expect(patchedBody).toEqual({ categoryId: "cat-1" });
   });
 
-  it("requests 50 rows per page, exposes the server total and keeps select-all-filtered across pages", async () => {
-    const queries: { pagination: { page: number; pageSize: number } }[] = [];
+  it("requests a 50-row range, exposes total and pendingCount, and keeps select-all-matching across windows", async () => {
+    const queries: {
+      pagination: { kind: string; offset: number; limit: number };
+    }[] = [];
     server.use(
       http.get(`${API_URL}/transactions/imported`, ({ request }) => {
-        queries.push(JSON.parse(new URL(request.url).searchParams.get("query")!));
+        queries.push(
+          JSON.parse(new URL(request.url).searchParams.get("query")!)
+        );
         return HttpResponse.json({
           importedTransactions: [makeImportedTransaction()],
           total: 120,
-          pendingCount: 120
+          pendingCount: 7
         });
       })
     );
     const { result } = renderWorkflow();
 
-    await waitFor(() => expect(result.current.importedPaging.pageCount).toBe(3));
-    expect(queries[0]!.pagination).toEqual({ kind: "offset", page: 1, pageSize: 50 });
-    expect(result.current.importedTransactionsQuery.data?.total).toBe(120);
+    await waitFor(() => expect(result.current.pager.total).toBe(120));
+    expect(queries[0]!.pagination).toEqual({
+      kind: "range",
+      offset: 0,
+      limit: 50
+    });
+    expect(result.current.pendingCount).toBe(7);
+    expect(result.current.pager.hasNext).toBe(true);
 
-    act(() => result.current.setSelectAllFilteredImported(true));
-    act(() => result.current.importedPaging.setPage(2));
-    await waitFor(() => expect(queries.at(-1)?.pagination.page).toBe(2));
-    expect(result.current.selectAllFilteredImported).toBe(true);
+    act(() => result.current.selection.selectAllMatching());
+    act(() => result.current.pager.onRangeChange(50, 50));
+    await waitFor(() => expect(queries.at(-1)?.pagination.offset).toBe(50));
+    expect(result.current.selection.allMatching).toBe(true);
+  });
+
+  it("clears selected ids but not select-all-matching when the window changes", async () => {
+    server.use(
+      http.get(`${API_URL}/transactions/imported`, () =>
+        HttpResponse.json({
+          importedTransactions: [makeImportedTransaction()],
+          total: 120,
+          pendingCount: 0
+        })
+      )
+    );
+    const { result } = renderWorkflow();
+    await waitFor(() => expect(result.current.pager.total).toBe(120));
+
+    act(() => result.current.selection.toggle("pt-1"));
+    act(() => result.current.pager.onRangeChange(50, 50));
+    await waitFor(() => expect(result.current.pager.offset).toBe(50));
+    expect([...result.current.selection.selectedIds]).toEqual([]);
   });
 });

@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { MAX_LIST_WINDOW } from "../../constants/listWindow";
 import type { ListPagerState } from "../../types/common.types";
 import { Button } from "../Button";
 
-/** Largest window a typed range may cover; the server clamp stays the hard bound. */
-const MAX_LIST_WINDOW = 500;
 const RANGE_PATTERN = /^\s*(\d+)\s*[-–]\s*(\d+)\s*$/;
 const RANGE_ERROR = "Enter a range like 1-40";
 

@@ -5,7 +5,7 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { CategoryCard } from "../../components/CategoryCard";
 import { CategoryForm } from "../../components/CategoryForm";
-import { PageHeader } from "../../components/PageHeader";
+import { ListView } from "../../components/ListView";
 import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import {
@@ -160,16 +160,15 @@ export function CategoriesPage() {
             </div>
         </Card>
       ) : null}
-      <Card>
-        <PageHeader
-          title="Categories"
-          action={
-            <AddRecordButton
-              label="category"
-              onClick={() => setIsFormOpen(true)}
-            />
-          }
-        >
+      <ListView
+        title="Categories"
+        actions={
+          <AddRecordButton
+            label="category"
+            onClick={() => setIsFormOpen(true)}
+          />
+        }
+        toolbar={
           <SearchBar
             fields={categorySearchFields}
             groupableFields={CATEGORY_GROUPABLE_FIELDS}
@@ -180,47 +179,35 @@ export function CategoriesPage() {
             placeholder="Search categories"
             onQueryChange={setCategoryQuery}
           />
-        </PageHeader>
-        <div className="mt-4 grid gap-4">
-          {groupedCategories.map((section) => (
-            <div key={section.key || "all"} className="grid gap-3">
-              {section.label ? (
-                <h3 className="text-sm font-semibold uppercase text-slate-500 dark:text-slate-400">
-                  {section.label}
-                </h3>
-              ) : null}
-              <div className="grid gap-3 sm:grid-cols-2">
-                {section.items.map((category) => (
-                  <CategoryCard
-                    key={category.id}
-                    category={category}
-                    isEditing={editingCategoryId === category.id}
-                    savePending={updateCategory.isPending}
-                    onSave={(values) =>
-                      updateCategory.mutateAsync({ id: category.id, ...values })
-                    }
-                    onCancelEdit={() => setEditingCategoryId(null)}
-                    actions={{
-                      onEdit: () => setEditingCategoryId(category.id),
-                      onArchive: () => archiveCategory.mutate(category.id),
-                      onRestore: () => restoreCategory.mutate(category.id),
-                      onDelete: () => confirmDelete(category),
-                      archivePending: archiveCategory.isPending,
-                      restorePending: restoreCategory.isPending,
-                      deletePending: deleteCategory.isPending
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-          {visibleCategories.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No categories found.
-            </p>
-          ) : null}
-        </div>
-      </Card>
+        }
+        layout="grid"
+        items={visibleCategories}
+        groups={activeGroupBys.length > 0 ? groupedCategories : undefined}
+        rowKey={(category) => category.id}
+        renderItem={(category) => (
+          <CategoryCard
+            category={category}
+            isEditing={editingCategoryId === category.id}
+            savePending={updateCategory.isPending}
+            onSave={(values) =>
+              updateCategory.mutateAsync({ id: category.id, ...values })
+            }
+            onCancelEdit={() => setEditingCategoryId(null)}
+            actions={{
+              onEdit: () => setEditingCategoryId(category.id),
+              onArchive: () => archiveCategory.mutate(category.id),
+              onRestore: () => restoreCategory.mutate(category.id),
+              onDelete: () => confirmDelete(category),
+              archivePending: archiveCategory.isPending,
+              restorePending: restoreCategory.isPending,
+              deletePending: deleteCategory.isPending
+            }}
+          />
+        )}
+        isLoading={categoriesQuery.isLoading}
+        error={categoriesQuery.error?.message}
+        emptyText="No categories found."
+      />
     </div>
   );
 }

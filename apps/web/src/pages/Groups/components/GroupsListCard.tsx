@@ -1,6 +1,5 @@
 import { AddRecordButton } from "../../../components/AddRecordButton";
-import { Card } from "../../../components/Card";
-import { PageHeader } from "../../../components/PageHeader";
+import { ListView } from "../../../components/ListView";
 import { SearchBar, type SearchBarQuery } from "../../../components/SearchBar";
 import {
   createConditionWithValue,
@@ -29,19 +28,22 @@ export function GroupsListCard({
   onQueryChange,
   onAddGroup,
   visibleGroups,
-  currentUserId
+  currentUserId,
+  isLoading,
+  error
 }: {
   onQueryChange: (query: SearchBarQuery) => void;
   onAddGroup: () => void;
   visibleGroups: Group[];
   currentUserId: string | undefined;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
   return (
-    <Card>
-      <PageHeader
-        title="Groups"
-        action={<AddRecordButton label="group" onClick={onAddGroup} />}
-      >
+    <ListView
+      title="Groups"
+      actions={<AddRecordButton label="group" onClick={onAddGroup} />}
+      toolbar={
         <SearchBar
           fields={groupSearchFields}
           sortableFields={GROUP_SORTABLE_FIELDS}
@@ -51,21 +53,16 @@ export function GroupsListCard({
           placeholder="Search groups"
           onQueryChange={onQueryChange}
         />
-      </PageHeader>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {visibleGroups.map((group) => (
-          <GroupCard
-            key={group.id}
-            group={group}
-            currentUserId={currentUserId}
-          />
-        ))}
-      </div>
-      {visibleGroups.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-          No groups found.
-        </p>
-      ) : null}
-    </Card>
+      }
+      layout="grid"
+      items={visibleGroups}
+      rowKey={(group) => group.id}
+      renderItem={(group) => (
+        <GroupCard group={group} currentUserId={currentUserId} />
+      )}
+      isLoading={isLoading}
+      error={error}
+      emptyText="No groups found."
+    />
   );
 }

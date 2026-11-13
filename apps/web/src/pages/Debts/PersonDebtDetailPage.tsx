@@ -75,10 +75,10 @@ export function PersonDebtDetailPage() {
     () =>
       (balance?.iOweThem ?? []).filter(
         (debt) =>
-          workflow.selectedDebtIds.has(debt.id) &&
+          workflow.debtSelection.isSelected(debt.id) &&
           isNonZero(availableSettlementAmount(debt))
       ),
-    [balance?.iOweThem, workflow.selectedDebtIds]
+    [balance?.iOweThem, workflow.debtSelection]
   );
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export function PersonDebtDetailPage() {
           balance={balance}
           summaryCurrency={summaryCurrency}
           viewerUserId={auth.user?.id}
-          selectedDebtIds={workflow.selectedDebtIds}
+          selection={workflow.debtSelection}
           selectedIOweThem={selectedIOweThem}
           accounts={accountsQuery.data ?? []}
           isActing={workflow.isActing}
@@ -121,8 +121,6 @@ export function PersonDebtDetailPage() {
           isSettlementDraftComplete={workflow.isSettlementDraftComplete}
           updateDraft={workflow.updateDraft}
           categoryOptionsFor={workflow.categoryOptionsFor}
-          onToggleDebt={workflow.toggleDebtSelection}
-          onSelectDebts={workflow.setDetailSelection}
           onSubmitSettlement={workflow.submitSettlement}
           onSubmitBatchSettlement={(event) =>
             workflow.submitBatchSettlement(event, selectedIOweThem)
