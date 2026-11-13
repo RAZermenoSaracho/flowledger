@@ -21,11 +21,6 @@ import {
   CATEGORY_SORTABLE_FIELDS
 } from "./utils/categorySearchFields";
 
-const categoryGroupByDefsForBucketing = CATEGORY_GROUPABLE_FIELDS.map((field) => ({
-  id: field.name,
-  label: field.label
-}));
-
 // Archived categories are excluded by default — same default the old
 // dedicated Active/Archived toggle had — but expressed as an ordinary,
 // visible, removable FilterBuilder condition instead of hidden logic.
@@ -63,16 +58,10 @@ export function CategoriesPage() {
   });
 
   const visibleCategories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
-  const activeGroupBys = useMemo(() => categoryQuery.groupBy ?? [], [categoryQuery.groupBy]);
   const groupedCategories = useMemo(
     () =>
-      groupByFields(
-        visibleCategories,
-        activeGroupBys,
-        categoryGroupByDefsForBucketing,
-        categoryGroupKey
-      ),
-    [visibleCategories, activeGroupBys]
+      groupByFields(visibleCategories, categoryQuery.groupBy, categoryGroupKey),
+    [visibleCategories, categoryQuery.groupBy]
   );
 
   const createCategory = useMutation({
@@ -182,7 +171,7 @@ export function CategoriesPage() {
         }
         layout="grid"
         items={visibleCategories}
-        groups={activeGroupBys.length > 0 ? groupedCategories : undefined}
+        groups={groupedCategories}
         rowKey={(category) => category.id}
         renderItem={(category) => (
           <CategoryCard

@@ -10,12 +10,7 @@ import {
   SharedExpensesListCard
 } from "./components/SharedExpensesListCard";
 import { groupByFields } from "../../utils/groupByFields";
-import { SHARED_EXPENSE_GROUPABLE_FIELDS } from "./utils/sharedExpenseSearchFields";
 import { useSharedExpenseForm } from "./hooks/useSharedExpenseForm";
-
-const sharedExpenseGroupByDefsForBucketing = SHARED_EXPENSE_GROUPABLE_FIELDS.map(
-  (field) => ({ id: field.name, label: field.label })
-);
 
 /** Shared expenses list page with search/filter/group controls and create/edit form. */
 export function SharedExpensesPage() {
@@ -41,16 +36,10 @@ export function SharedExpensesPage() {
   });
 
   const visibleSharedExpenses = useMemo(() => sharedExpensesQuery.data ?? [], [sharedExpensesQuery.data]);
-  const activeGroupBys = useMemo(() => sharedExpenseQuery.groupBy ?? [], [sharedExpenseQuery.groupBy]);
   const groupedSharedExpenses = useMemo(
     () =>
-      groupByFields(
-        visibleSharedExpenses,
-        activeGroupBys,
-        sharedExpenseGroupByDefsForBucketing,
-        sharedExpenseGroupKey
-      ),
-    [visibleSharedExpenses, activeGroupBys]
+      groupByFields(visibleSharedExpenses, sharedExpenseQuery.groupBy, sharedExpenseGroupKey),
+    [visibleSharedExpenses, sharedExpenseQuery.groupBy]
   );
 
   useEffect(() => {
@@ -79,9 +68,7 @@ export function SharedExpensesPage() {
         onQueryChange={setSharedExpenseQuery}
         onAddSharedExpense={() => form.setIsFormOpen(true)}
         sharedExpenses={visibleSharedExpenses}
-        groupedSharedExpenses={
-          activeGroupBys.length > 0 ? groupedSharedExpenses : undefined
-        }
+        groupedSharedExpenses={groupedSharedExpenses}
         isLoading={sharedExpensesQuery.isLoading}
         error={sharedExpensesQuery.error?.message}
         highlightedSharedExpenseId={highlightedSharedExpenseId}

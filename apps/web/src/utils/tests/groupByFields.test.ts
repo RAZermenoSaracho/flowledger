@@ -17,35 +17,21 @@ describe("groupByFields", () => {
     return { key: "", label: "" };
   }
 
-  it("returns a single flat section when no group-bys are active", () => {
-    expect(groupByFields(rows, [], [{ id: "categoryId", label: "Category" }], keyOf)).toEqual([
-      { key: "", label: "", items: rows }
-    ]);
+  it("returns undefined when no group-bys are active", () => {
+    expect(groupByFields(rows, [], keyOf)).toBeUndefined();
+    expect(groupByFields(rows, undefined, keyOf)).toBeUndefined();
   });
 
   it("returns a single flat section for an empty items list", () => {
-    expect(
-      groupByFields([], ["categoryId"], [{ id: "categoryId", label: "Category" }], keyOf)
-    ).toEqual([{ key: "", label: "", items: [] }]);
-  });
-
-  it("buckets items by the active group-by field, sorted by key", () => {
-    const result = groupByFields(
-      rows,
-      ["categoryId"],
-      [{ id: "categoryId", label: "Category" }],
-      keyOf
-    );
-
-    expect(result).toEqual([
-      { key: "food", label: "Food", items: [rows[0], rows[1]] },
-      { key: "rent", label: "Rent", items: [rows[2]] }
+    expect(groupByFields([], ["categoryId"], keyOf)).toEqual([
+      { key: "", label: "", items: [] }
     ]);
   });
 
-  it("ignores an active group-by id that isn't in the groupBys definition list", () => {
-    const result = groupByFields(rows, ["unknownId"], [], keyOf);
-
-    expect(result).toEqual([{ key: "", label: "", items: rows }]);
+  it("buckets items by the active group-by field, sorted by key", () => {
+    expect(groupByFields(rows, ["categoryId"], keyOf)).toEqual([
+      { key: "food", label: "Food", items: [rows[0], rows[1]] },
+      { key: "rent", label: "Rent", items: [rows[2]] }
+    ]);
   });
 });

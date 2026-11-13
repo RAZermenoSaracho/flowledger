@@ -32,13 +32,6 @@ const initialAccountDomain = {
   children: [createConditionWithValue("isArchived", "=", "false")]
 };
 
-const accountGroupByDefsForBucketing = ACCOUNT_GROUPABLE_FIELDS.map(
-  (field) => ({
-    id: field.name,
-    label: field.label
-  })
-);
-
 function accountGroupKey(account: Account, groupById: string) {
   if (groupById === "type") {
     return { key: account.type, label: getAccountTypeLabel(account.type) };
@@ -76,19 +69,10 @@ export function AccountsPage() {
     () => accountsQuery.data ?? [],
     [accountsQuery.data]
   );
-  const activeGroupBys = useMemo(
-    () => accountQuery.groupBy ?? [],
-    [accountQuery.groupBy]
-  );
   const groupedAccounts = useMemo(
     () =>
-      groupByFields(
-        visibleAccounts,
-        activeGroupBys,
-        accountGroupByDefsForBucketing,
-        accountGroupKey
-      ),
-    [visibleAccounts, activeGroupBys]
+      groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
+    [visibleAccounts, accountQuery.groupBy]
   );
 
   return (
@@ -121,7 +105,7 @@ export function AccountsPage() {
           />
         }
         items={visibleAccounts}
-        groups={activeGroupBys.length > 0 ? groupedAccounts : undefined}
+        groups={groupedAccounts}
         rowKey={(account) => account.id}
         renderItem={(account) => (
           <AccountListItem

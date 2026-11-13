@@ -28,13 +28,6 @@ import type { TransactionsTab } from "./types/transactions.types";
 
 const TRANSACTIONS_DEFAULT_LIMIT = 50;
 
-const transactionGroupByDefsForBucketing = TRANSACTION_GROUPABLE_FIELDS.map(
-  (field) => ({
-    id: field.name,
-    label: field.label
-  })
-);
-
 function transactionGroupKey(transaction: Transaction, groupById: string) {
   if (groupById === "category") {
     return {
@@ -185,19 +178,10 @@ export function TransactionsPage() {
     ]
   );
 
-  const activeTransactionGroupBys = useMemo(
-    () => transactionQuery.groupBy ?? [],
-    [transactionQuery.groupBy]
-  );
   const groupedTransactions = useMemo(
     () =>
-      groupByFields(
-        transactions.items,
-        activeTransactionGroupBys,
-        transactionGroupByDefsForBucketing,
-        transactionGroupKey
-      ),
-    [transactions.items, activeTransactionGroupBys]
+      groupByFields(transactions.items, transactionQuery.groupBy, transactionGroupKey),
+    [transactions.items, transactionQuery.groupBy]
   );
   const pendingImportedCount = imported.pendingCount;
 
@@ -280,15 +264,9 @@ export function TransactionsPage() {
             />
           }
           items={
-            activeTransactionGroupBys.length > 0
-              ? undefined
-              : transactions.items
+            groupedTransactions ? undefined : transactions.items
           }
-          groups={
-            activeTransactionGroupBys.length > 0
-              ? groupedTransactions
-              : undefined
-          }
+          groups={groupedTransactions}
           rowKey={(transaction) => transaction.id}
           isLoading={transactions.isLoading}
           error={transactions.error}
