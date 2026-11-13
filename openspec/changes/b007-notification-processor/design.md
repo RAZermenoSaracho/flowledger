@@ -508,7 +508,89 @@ The resulting order is migrate → build → API → worker. The API restarting 
 
 **Scaling and Lambda.** More workers are more `dist/worker.js` processes, on this host or another one with the same `DATABASE_URL`. The Serializable claim and the global and per-user limits already hold across all of them. Replacing the execution layer with Lambda means changing the body of `runScript()` (sandbox child → function invoke). The queue, claim and recovery logic stay the same. No AWS code or dependency is added now.
 
+### 13. Visual rules: Form ↔ Code on one script
+
+**Source of truth.** The saved `code` is the only definition. It is the only thing the Playground and the worker execute. Visual rules are a **derived view** of that code, never stored and never interpreted:
+- **Form → Code:** `generateNotificationCode(rules)`, a pure TypeScript function in `packages/shared`, produces canonical Python.
+- **Code → Form:** `parseNotificationRules(code)` runs in the existing sandbox in a new `parse` mode. It uses Python's `ast` and returns either `{ rules }` or `{ unsupported: [{ line, message }] }`.
+
+No schema change and no migration are needed. Existing scripts keep running unchanged.
+
+**Rules model** (shared Zod `notificationRulesSchema`):
+```
+NotificationRules = { normalize: boolean, rules: Rule[] (1..20), fallbackReason: string (1..200) }
+Rule = {
+  label?: string (≤80)                                 // emitted as a `# label` comment above the rule
+  match: "all" | "any"                                 // combines conditions with and / or
+  conditions: Condition[] (0..10)                      // empty = always
+  extract?: { pattern: string, method: "search" | "match", ignoreCase: boolean, missingReason: string }
+  action: { kind: "skip", reason: string }
+        | { kind: "expense" | "income" | "transfer",
+            amount: Value, name: Value,
+            account?: slotKey, to_account?: slotKey (transfer: account + to_account required),
+            category?: slotKey, group?: slotKey,        // expense/income only
+            currency?: Value, notes?: Value,
+            date?: { group: number, format: string } }
+}
+Condition = { kind: "contains" | "not_contains", text: string, ignoreCase: boolean }
+          | { kind: "matches" | "not_matches", pattern: string, method: "search" | "match", ignoreCase: boolean }
+Value = { fixed: string } | { group: number }          // group = capture-group index of the rule's extract (requires extract)
+```
+`amount` as `{ group }` is emitted as `amount(m.group(n))`. As `{ fixed }` it must be a decimal string.
+
+**Canonical code.** Every literal is emitted as a Python string literal: `r"…"` for patterns, `"…"` with escapes for text. The output for the brief's example:
+```python
+def process(text, ctx):
+    t = normalize(text)
+
+    # Purchase
+    if "compra realizada por" in t:
+        m = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", t)
+        if not m:
+            return skip("no amount")
+        return expense(amount=amount(m.group(1)), name="Compra realizada")
+
+    return skip("not a purchase")
+```
+
+The generator follows these rules:
+- **Text variable:** when `normalize` is false, it emits `t = text`.
+- **Conditions:**
+  - `contains` with `ignoreCase` compares against `t.lower()`, with the needle lower-cased at generation time.
+  - `matches` emits `re.search(r"…", t)`, `re.match(r"…", t)` or `re.search(r"…", t, re.I)`.
+  - Conditions are joined with `and` or `or`. Zero conditions emit the rule body unindented, without an `if`, and only as the last rule.
+- **Keyword order:** `amount, name, account, to_account, category, group, currency, date, notes`.
+- **Extracted dates:** emitted as `parse_date(m.group(n), "<format>")`.
+
+**Parser contract.** The parser:
+- **Accepts:** exactly the canonical shape modulo whitespace, comments, quote style, `re.I` versus `re.IGNORECASE` versus `flags=re.I`, and keyword-argument order.
+- **Rejects as unsupported, never approximated**, with the offending line:
+  - any other statement, call, name, operator, nested or else branch, or loop;
+  - an assignment other than `t = …` and `m = …`;
+  - a ternary, f-string, `print`, or helper with extra arguments;
+  - a missing final `return skip(...)`.
+
+**Round-trip guarantee**, enforced by tests:
+- `parse(generate(rules))` deep-equals `rules`.
+- For any accepted code, `generate(parse(code))` runs identically in the sandbox. It is textually canonical, so comments other than rule labels, and custom formatting, are not kept.
+
+**Synchronization (web, one `useFormDraft`).** The rules are local view state derived from `draft.values.code`.
+1. **Opening the Form tab,** or leaving the Code tab after the code changed since the last parse, calls `POST /notification-models/parse-rules { code }`. This uses the same per-process sandbox slot as the Playground and returns 503 when busy. While waiting, the builder shows a loading state.
+   - **Parsed:** the builder shows the rules.
+   - **Unsupported:** the builder is replaced by a non-destructive notice listing the constructs with line numbers ("This script uses Python the visual editor can't represent. Edit it in Code."). It offers an explicit **Replace with visual rules** action that opens a confirm dialog: "This replaces your entire script, including comments and unsupported logic. This cannot be undone after saving."
+   - **Invalid (syntax error):** the notice shows the error, and the last parsed rules are not applied.
+2. **Editing a rule** regenerates `draft.values.code` immediately through the shared generator, synchronously and with no server call. Before the first edit of code that parsed successfully but differs textually from the canonical generation (for example, it has comments), a one-time inline notice says that editing rules rewrites the code in canonical form.
+3. **Opening Form never writes the code.** Typing in Code never rewrites it either. Save, cancel and unsaved-change guards are unchanged, because there is still one draft field.
+
+**Defaults.**
+- New models start from `generateNotificationCode(DEFAULT_RULES)`: the purchase example above with English labels and reasons, so a fresh model is representable.
+- The function reference and docs are English.
+
+**Not in scope:** nested condition groups, multiple regexes per rule, computed amounts, settings references in rules, and a visual-rule interpreter.
+
 ## Risks / Trade-offs
+
+- **[Parse latency: one sandbox start, about 3 s, when Code → Form]** → Parsing happens only on tab switches and is never per keystroke; generation is instant in the browser.
 
 - **[Sandbox escape to network]** Node 24 does not restrict net. → Three layers; the malicious-script test suite gates merge; the risk is documented; Lambda without egress is the upgrade.
 - **[Pyodide cold start ~1–2 s and ~100 MB per child]** → Global concurrency defaults to 4 and is tuned by env var to the host's memory. Processing is asynchronous, so the cold start is not user-visible.

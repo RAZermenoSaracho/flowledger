@@ -22,6 +22,7 @@ Users want transactions created automatically from bank notifications, for examp
 - `notification-models`: model CRUD, slots and bindings, activation rules, the script contract, sandbox guarantees and the side-effect-free test.
 - `notification-ingestion`: the per-model ingest endpoint, persistent queue and run lifecycle, concurrency and fairness, dedupe, crash recovery, transaction creation, queue and logs reads, and retention.
 - `notification-model-library`: publishing versions, browsing, installing copies and optional updates.
+- `notification-model-rules`: visual rules derived from the one Python script, with deterministic Form → Code generation, AST-based Code → Form parsing, and non-destructive handling of unsupported code.
 - `notification-models-ui`: list, five-tab Form View, code editor, playground, queue, logs and library pages.
 
 ### Modified Capabilities
