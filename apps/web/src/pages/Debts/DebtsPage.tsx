@@ -1,21 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { SearchBarQuery } from "../../components/SearchBar";
+import { Tabs } from "../../components/Tabs";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
-import { listAccounts } from "../../services/accounts.client";
-import { listCategories } from "../../services/categories.client";
-import * as debtsClient from "../../services/debts.client";
-import { listGroups } from "../../services/groups.client";
 import { SharedExpensesPage } from "../SharedExpenses/SharedExpensesPage";
 import { matchesWhere } from "../../utils/searchDomain";
 import { AwaitingAcceptanceTab } from "./components/AwaitingAcceptanceTab";
 import { BalancesTab } from "./components/BalancesTab";
 import { PendingRequestsTab } from "./components/PendingRequestsTab";
 import { SettledDebtsTab } from "./components/SettledDebtsTab";
-import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
+import { useDebtsData } from "./hooks/useDebtsData";
 import type { DebtsTab } from "./types/debts.types";
 import { otherParty } from "./utils/debtDisplay";
 import {
@@ -53,7 +49,9 @@ export function DebtsPage() {
   // write to it (see `setActiveTab` below), so switching tabs from either
   // place is always reflected here reactively. "balances" is just the
   // natural fallback when the param is absent/invalid, not a special case.
-  const activeTab: DebtsTab = isDebtsTab(requestedTab) ? requestedTab : "balances";
+  const activeTab: DebtsTab = isDebtsTab(requestedTab)
+    ? requestedTab
+    : "balances";
 
   function setActiveTab(tab: DebtsTab) {
     setSearchParams((current) => {
@@ -72,53 +70,13 @@ export function DebtsPage() {
   );
   const [settledQuery, setSettledQuery] = useState<SearchBarQuery>({});
 
-  const debtsQuery = useQuery({
-    queryKey: ["debts"],
-    queryFn: async () => debtsClient.listDebts()
-  });
-  const accountsQuery = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async () => (await listAccounts()).accounts
-  });
-  const categoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => (await listCategories()).categories
-  });
-  const groupsQuery = useQuery({
-    queryKey: ["groups"],
-    queryFn: async () => (await listGroups()).groups
-  });
+  const { debtsQuery, accounts, workflow } = useDebtsData();
 
   const debts = debtsQuery.data;
   const listState = {
     isLoading: debtsQuery.isLoading,
     error: debtsQuery.isError ? DEBTS_LOAD_ERROR : null
   };
-  const privateExpenseCategories = useMemo(
-    () =>
-      (categoriesQuery.data ?? []).filter(
-        (category) => category.type === "expense" && !category.groupId
-      ),
-    [categoriesQuery.data]
-  );
-  const privateIncomeCategories = useMemo(
-    () =>
-      (categoriesQuery.data ?? []).filter(
-        (category) => category.type === "income" && !category.groupId
-      ),
-    [categoriesQuery.data]
-  );
-  const groupById = useMemo(
-    () => new Map((groupsQuery.data ?? []).map((group) => [group.id, group])),
-    [groupsQuery.data]
-  );
-
-  const workflow = useDebtSettlementWorkflow({
-    groupById,
-    privateExpenseCategories,
-    privateIncomeCategories,
-    accounts: accountsQuery.data ?? []
-  });
 
   const balances = useMemo(() => debts?.balances ?? [], [debts?.balances]);
   const visibleBalances = useMemo(
@@ -199,7 +157,13 @@ export function DebtsPage() {
       setActiveTab("settled");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.user?.id, debts, highlightedDebtId, highlightedSettlementId, requestedTab]);
+  }, [
+    auth.user?.id,
+    debts,
+    highlightedDebtId,
+    highlightedSettlementId,
+    requestedTab
+  ]);
 
   useScrollToHighlight(
     highlightedSettlementId
@@ -211,99 +175,81 @@ export function DebtsPage() {
     activeTab
   );
 
+  const tabContent: Record<DebtsTab, ReactNode> = {
+    balances: (
+      <BalancesTab
+        balances={balances}
+        visibleBalances={visibleBalances}
+        onBalanceQueryChange={setBalanceQuery}
+        summaryCurrency={summaryCurrency}
+        {...listState}
+      />
+    ),
+    pending: (
+      <PendingRequestsTab
+        pendingFromMe={pendingFromMe}
+        pendingForMe={pendingForMe}
+        visiblePendingFromMe={visiblePendingFromMe}
+        visiblePendingForMe={visiblePendingForMe}
+        onPendingFromMeQueryChange={setPendingFromMeQuery}
+        onPendingForMeQueryChange={setPendingForMeQuery}
+        highlightedSettlementId={highlightedSettlementId}
+        approvalSelection={workflow.approvalSelection}
+        accounts={accounts}
+        isActing={workflow.isActing}
+        approvalDraftFor={workflow.approvalDraftFor}
+        onApprovalDraftChange={workflow.updateApprovalDraft}
+        incomeCategoryOptionsFor={workflow.incomeCategoryOptionsFor}
+        expenseOffsetCategoryOptionsFor={
+          workflow.expenseOffsetCategoryOptionsFor
+        }
+        onApproveSettlement={(event, request) => {
+          event.preventDefault();
+          workflow.approveSettlement.mutate({
+            settlementId: request.id,
+            draft: workflow.approvalDraftFor(request)
+          });
+        }}
+        onRejectSettlement={(settlementId) =>
+          workflow.rejectSettlement.mutate(settlementId)
+        }
+        onSubmitBatchApproval={workflow.submitBatchApproval}
+        {...listState}
+      />
+    ),
+    settled: (
+      <SettledDebtsTab
+        settledDebts={debts?.settledDebts ?? []}
+        visibleSettledDebts={visibleSettledDebts}
+        onSettledQueryChange={setSettledQuery}
+        viewerUserId={auth.user?.id}
+        highlightedDebtId={highlightedDebtId}
+        {...listState}
+      />
+    ),
+    awaiting: (
+      <AwaitingAcceptanceTab
+        awaiting={debts?.awaitingAcceptance ?? []}
+        rejected={debts?.rejectedShares ?? []}
+        viewerUserId={auth.user?.id}
+        highlightedSharedExpenseId={highlightedSharedExpenseId}
+        {...listState}
+      />
+    ),
+    sharedExpenses: <SharedExpensesPage />
+  };
+
   return (
     <div className="grid gap-6">
-      <div className="grid min-w-0 gap-4">
-        <div
-          className="hidden gap-2 lg:grid lg:grid-cols-2 xl:grid-cols-5"
-          role="tablist"
-          aria-label="Debt views"
-        >
-          {debtsTabs.map((tab) => {
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                className={`min-h-10 rounded-md px-3 py-2 text-sm font-semibold transition ${
-                  isSelected
-                    ? "bg-pine text-white dark:bg-emerald-700"
-                    : "bg-white text-ink ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800"
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div role="tabpanel" className="min-w-0">
-          {activeTab === "balances" ? (
-            <BalancesTab
-              balances={balances}
-              visibleBalances={visibleBalances}
-              onBalanceQueryChange={setBalanceQuery}
-              summaryCurrency={summaryCurrency}
-              {...listState}
-            />
-          ) : null}
-          {activeTab === "pending" ? (
-            <PendingRequestsTab
-              pendingFromMe={pendingFromMe}
-              pendingForMe={pendingForMe}
-              visiblePendingFromMe={visiblePendingFromMe}
-              visiblePendingForMe={visiblePendingForMe}
-              onPendingFromMeQueryChange={setPendingFromMeQuery}
-              onPendingForMeQueryChange={setPendingForMeQuery}
-              highlightedSettlementId={highlightedSettlementId}
-              approvalSelection={workflow.approvalSelection}
-              accounts={accountsQuery.data ?? []}
-              isActing={workflow.isActing}
-              approvalDraftFor={workflow.approvalDraftFor}
-              onApprovalDraftChange={workflow.updateApprovalDraft}
-              incomeCategoryOptionsFor={workflow.incomeCategoryOptionsFor}
-              expenseOffsetCategoryOptionsFor={
-                workflow.expenseOffsetCategoryOptionsFor
-              }
-              onApproveSettlement={(event, request) => {
-                event.preventDefault();
-                workflow.approveSettlement.mutate({
-                  settlementId: request.id,
-                  draft: workflow.approvalDraftFor(request)
-                });
-              }}
-              onRejectSettlement={(settlementId) =>
-                workflow.rejectSettlement.mutate(settlementId)
-              }
-              onSubmitBatchApproval={workflow.submitBatchApproval}
-              {...listState}
-            />
-          ) : null}
-          {activeTab === "settled" ? (
-            <SettledDebtsTab
-              settledDebts={debts?.settledDebts ?? []}
-              visibleSettledDebts={visibleSettledDebts}
-              onSettledQueryChange={setSettledQuery}
-              viewerUserId={auth.user?.id}
-              highlightedDebtId={highlightedDebtId}
-              {...listState}
-            />
-          ) : null}
-          {activeTab === "awaiting" ? (
-            <AwaitingAcceptanceTab
-              awaiting={debts?.awaitingAcceptance ?? []}
-              rejected={debts?.rejectedShares ?? []}
-              viewerUserId={auth.user?.id}
-              highlightedSharedExpenseId={highlightedSharedExpenseId}
-              {...listState}
-            />
-          ) : null}
-          {activeTab === "sharedExpenses" ? <SharedExpensesPage /> : null}
-        </div>
-      </div>
+      <Tabs
+        label="Debt views"
+        variant="buttons"
+        desktopOnly
+        idPrefix="debts-"
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as DebtsTab)}
+        tabs={debtsTabs.map((tab) => ({ ...tab, content: tabContent[tab.id] }))}
+      />
     </div>
   );
 }

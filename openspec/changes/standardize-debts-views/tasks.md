@@ -44,3 +44,9 @@
 
 - [x] 6.1 Move `components/FormView/FormView.tsx` and its test into `components/FormView/`, with an `index.ts` exporting only `FormView`, and extract the private `FormViewHeader` with identical DOM. Verify that consumers compile unchanged through the index, that the FormView tests pass and that `FormViewHeader.test.tsx` is added.
 - [x] 6.2 Update the references in `apps/web/CLAUDE.md` and `docs/KNOWN_ISSUES.md`, run the regression tests for every FormView consumer (Accounts, Transactions, Groups, Profile, Debts, Shared Expenses), the full gates and a simplicity review, then redeploy staging and smoke-test it with the QA dataset intact.
+
+## 7. Final review improvements
+
+- [x] 7.1 Extract `pages/Debts/hooks/useDebtsData.ts` (queries under their original keys, private category filters, `groupById`, one settlement workflow per page) for `DebtsPage` and `PersonDebtDetailPage`, resolving known issue #050. Verify with `hooks/tests/useDebtsData.test.tsx` and that the Debts tests pass.
+- [x] 7.2 Give the shared `Tabs` a `buttons` variant (shared `Button`, primary when selected) plus the `desktopOnly` and `label` props, and use it for the desktop section strips of Transactions and Debts, resolving #051. Mobile keeps the sidebar submenus. Verify with the Tabs and page tests and a desktop and mobile smoke.
+- [x] 7.3 Render the Awaiting Acceptance Accept action as the primary `Button`, through a new `primary` `RecordCardAction` variant.

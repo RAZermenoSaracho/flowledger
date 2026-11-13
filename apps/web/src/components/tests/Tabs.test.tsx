@@ -18,7 +18,8 @@ function Harness({ idPrefix }: { idPrefix?: string }) {
 describe("Tabs", () => {
   it("shows the active panel and reports selection", async () => {
     const onSelect = vi.fn();
-    render(<Tabs tabs={tabs} activeId="a" onSelect={onSelect} />);
+    render(<Tabs tabs={tabs} activeId="a" onSelect={onSelect} label="Example views" />);
+    expect(screen.getByRole("tablist")).toHaveAccessibleName("Example views");
     expect(screen.getByText("alpha body")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Alpha" })).toHaveAttribute("aria-selected", "true");
     await userEvent.setup().click(screen.getByRole("tab", { name: "Beta" }));
@@ -57,5 +58,46 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: "Alpha" })).toHaveAttribute("id", "x-tab-a");
     expect(screen.getByRole("tab", { name: "Alpha" })).toHaveAttribute("aria-controls", "x-panel-a");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "x-tab-a");
+  });
+
+  it("underline default has no hidden class and uses the underline strip", () => {
+    render(<Tabs tabs={tabs} activeId="a" onSelect={() => {}} />);
+    const strip = screen.getByRole("tablist");
+    expect(strip).toHaveClass("flex", "overflow-x-auto");
+    expect(strip).not.toHaveClass("hidden");
+  });
+
+  describe("buttons variant", () => {
+    function ButtonsHarness() {
+      const [id, setId] = useState("a");
+      return <Tabs variant="buttons" desktopOnly tabs={tabs} activeId={id} onSelect={setId} />;
+    }
+
+    it("renders shared Buttons, primary when selected and secondary otherwise", () => {
+      render(<Tabs variant="buttons" tabs={tabs} activeId="b" onSelect={() => {}} />);
+      expect(screen.getByRole("tab", { name: "Beta" })).toHaveClass("bg-pine", "text-white");
+      expect(screen.getByRole("tab", { name: "Alpha" })).toHaveClass("ring-1");
+      expect(screen.getByRole("tab", { name: "Alpha" })).not.toHaveClass("bg-pine");
+      expect(screen.getByRole("tablist")).toHaveClass("flex", "flex-wrap", "gap-2");
+    });
+
+    it("keeps keyboard navigation, focus and aria wiring", async () => {
+      const user = userEvent.setup();
+      render(<ButtonsHarness />);
+      screen.getByRole("tab", { name: "Alpha" }).focus();
+      await user.keyboard("{ArrowRight}");
+      expect(screen.getByRole("tab", { name: "Beta" })).toHaveFocus();
+      expect(screen.getByRole("tab", { name: "Beta" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tab", { name: "Alpha" })).toHaveAttribute("tabindex", "-1");
+      expect(screen.getByRole("tab", { name: "Beta" })).toHaveAttribute("aria-controls", "panel-b");
+      await user.keyboard("{End}");
+      expect(screen.getByRole("tab", { name: "Gamma" })).toHaveFocus();
+    });
+
+    it("desktopOnly hides the strip below lg while the panel still renders", () => {
+      render(<ButtonsHarness />);
+      expect(screen.getByRole("tablist")).toHaveClass("hidden", "lg:flex");
+      expect(screen.getByRole("tabpanel")).toHaveTextContent("alpha body");
+    });
   });
 });

@@ -2,12 +2,12 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ActionMenu, ActionMenuItem } from "./ActionMenu";
 import { Button } from "./Button";
 
-/** One action offered on a `RecordCard`, rendered inline when it fits, and behind a three-dot menu otherwise. */
+/** One action offered on a `RecordCard`, rendered inline when it fits, and behind a three-dot menu otherwise. Inline buttons use the shared Button variant, defaulting to secondary. */
 export type RecordCardAction = {
   key: string;
   label: string;
   onClick: () => void;
-  variant?: "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
 };
 
@@ -67,7 +67,8 @@ export function RecordCard({
       // threshold ratio of the card's width, so exactly that ratio counts as
       // "too wide to stay inline".
       setShowInlineActions(
-        cardWidth > 0 && actionsWidth < cardWidth * INLINE_ACTIONS_MAX_WIDTH_RATIO
+        cardWidth > 0 &&
+          actionsWidth < cardWidth * INLINE_ACTIONS_MAX_WIDTH_RATIO
       );
     }
 
@@ -105,7 +106,7 @@ export function RecordCard({
               <Button
                 key={action.key}
                 type="button"
-                variant={action.variant === "danger" ? "danger" : "secondary"}
+                variant={action.variant ?? "secondary"}
                 disabled={action.disabled}
                 onClick={action.onClick}
               >
@@ -131,7 +132,7 @@ export function RecordCard({
             <Button
               key={action.key}
               type="button"
-              variant={action.variant === "danger" ? "danger" : "secondary"}
+              variant={action.variant ?? "secondary"}
               disabled={action.disabled}
             >
               {action.label}

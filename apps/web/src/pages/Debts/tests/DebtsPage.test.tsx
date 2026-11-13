@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
@@ -100,6 +100,26 @@ describe("DebtsPage", () => {
       "aria-selected",
       "true"
     );
+  });
+
+  it("renders a mobile-hidden tablist and writes ?tab= on selection", async () => {
+    mockBaseline();
+    const user = userEvent.setup();
+    function SearchProbe() {
+      return <span data-testid="search">{useLocation().search}</span>;
+    }
+    renderWithProviders(
+      <>
+        <DebtsPage />
+        <SearchProbe />
+      </>,
+      { withAuth: true, route: "/debts" }
+    );
+
+    await waitFor(() => expect(screen.getByText("Sam (@sam)")).toBeInTheDocument());
+    expect(screen.getByRole("tablist")).toHaveClass("hidden");
+    await user.click(screen.getByRole("tab", { name: "Settled History" }));
+    expect(screen.getByTestId("search")).toHaveTextContent("tab=settled");
   });
 
   it("shows a loading indicator, then debts once loaded", async () => {

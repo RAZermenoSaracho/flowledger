@@ -647,7 +647,9 @@ Still open:
 
 ---
 
-## [OPEN] #050 — Debts page and person balance detail duplicate their data setup
+## [RESOLVED] #050 — Debts page and person balance detail duplicate their data setup
+
+**Resolved:** Both pages call the page-local `useDebtsData()` hook (`pages/Debts/hooks/useDebtsData.ts`). It holds the four queries under their original keys, the private category filters, `groupById` and one settlement workflow per page (`standardize-debts-views`).
 
 **Found in:** `standardize-debts-views` simplicity review.
 
@@ -659,7 +661,9 @@ Still open:
 
 ---
 
-## [OPEN] #051 — Debts page tab strip is hand-rolled instead of the shared `Tabs`
+## [RESOLVED] #051 — Debts page tab strip is hand-rolled instead of the shared `Tabs`
+
+**Resolved:** The desktop section strips of Debts and Transactions both render the shared `Tabs` with `variant="buttons"` and `desktopOnly`, and mobile keeps the sidebar submenus (`standardize-debts-views`).
 
 **Found in:** `standardize-debts-views` staging-review simplicity pass.
 

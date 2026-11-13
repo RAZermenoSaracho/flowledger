@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AddRecordButton } from "../../components/AddRecordButton";
-import { Button } from "../../components/Button";
+import { Tabs } from "../../components/Tabs";
 import { useCurrenciesQuery } from "../../components/CurrencySelect";
 import { ListView } from "../../components/ListView";
 import { groupByFields } from "../../utils/groupByFields";
@@ -180,7 +180,11 @@ export function TransactionsPage() {
 
   const groupedTransactions = useMemo(
     () =>
-      groupByFields(transactions.items, transactionQuery.groupBy, transactionGroupKey),
+      groupByFields(
+        transactions.items,
+        transactionQuery.groupBy,
+        transactionGroupKey
+      ),
     [transactions.items, transactionQuery.groupBy]
   );
   const pendingImportedCount = imported.pendingCount;
@@ -218,90 +222,85 @@ export function TransactionsPage() {
 
   return (
     <div className="grid gap-6">
-      {/* Desktop-only: on mobile, switching between Transactions and
-          Imported Transactions happens exclusively through the sidebar
-          drawer's dropdown (mirrors Debts' in-page tab bar, also
-          `hidden ... lg:grid`) — no redundant control competing with it. */}
-      <div className="hidden gap-2 lg:flex lg:flex-wrap">
-        {(
-          [
-            ["transactions", "Transactions"],
-            ["imported", "Imported Transactions"]
-          ] as const
-        ).map(([tab, label]) => (
-          <Button
-            key={tab}
-            type="button"
-            variant={activeTab === tab ? "primary" : "secondary"}
-            onClick={() => switchTab(tab)}
-          >
-            {label}
-            {tab === "imported" && pendingImportedCount > 0
-              ? ` (${pendingImportedCount} pending)`
-              : ""}
-          </Button>
-        ))}
-      </div>
-
-      {activeTab === "transactions" ? (
-        <ListView<Transaction>
-          title="Transactions"
-          actions={
-            <AddRecordButton
-              label="transaction"
-              onClick={() => navigate(routes.newTransaction)}
-            />
+      <Tabs
+        label="Transaction views"
+        variant="buttons"
+        desktopOnly
+        idPrefix="transactions-"
+        activeId={activeTab}
+        onSelect={(id) => switchTab(id as TransactionsTab)}
+        tabs={[
+          {
+            id: "transactions",
+            label: "Transactions",
+            content: (
+              <ListView<Transaction>
+                title="Transactions"
+                actions={
+                  <AddRecordButton
+                    label="transaction"
+                    onClick={() => navigate(routes.newTransaction)}
+                  />
+                }
+                toolbar={
+                  <SearchBar
+                    fields={transactionSearchFields}
+                    groupableFields={TRANSACTION_GROUPABLE_FIELDS}
+                    sortableFields={TRANSACTION_SORTABLE_FIELDS}
+                    defaultSearchField={TRANSACTION_DEFAULT_SEARCH_FIELD}
+                    initialSort={{ field: "date", direction: "desc" }}
+                    placeholder="Search transactions"
+                    onQueryChange={setTransactionQuery}
+                  />
+                }
+                items={groupedTransactions ? undefined : transactions.items}
+                groups={groupedTransactions}
+                rowKey={(transaction) => transaction.id}
+                isLoading={transactions.isLoading}
+                error={transactions.error}
+                emptyText="No transactions found."
+                pager={transactions.pager}
+                renderItem={(transaction) => (
+                  <TransactionRow
+                    transaction={transaction}
+                    isDeleting={deleteTransaction.isPending}
+                    onEdit={(row) => navigate(routes.transaction(row.id))}
+                    onDelete={(row) => void confirmDeleteTransaction(row)}
+                  />
+                )}
+              />
+            )
+          },
+          {
+            id: "imported",
+            label:
+              pendingImportedCount > 0
+                ? `Imported Transactions (${pendingImportedCount} pending)`
+                : "Imported Transactions",
+            content: (
+              <ImportedTransactionsTab
+                imported={imported}
+                categories={importedFilterCategories}
+                accounts={importedFilterAccounts}
+                initialStatus={
+                  importedStatusParam === "pending" ||
+                  importedStatusParam === "processed" ||
+                  importedStatusParam === "ignored"
+                    ? importedStatusParam
+                    : null
+                }
+                searchBarResetKey={importedSearchBarResetKey}
+                onShowPending={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.set("tab", "imported");
+                  params.set("status", "pending");
+                  setSearchParams(params, { replace: true });
+                }}
+              />
+            )
           }
-          toolbar={
-            <SearchBar
-              fields={transactionSearchFields}
-              groupableFields={TRANSACTION_GROUPABLE_FIELDS}
-              sortableFields={TRANSACTION_SORTABLE_FIELDS}
-              defaultSearchField={TRANSACTION_DEFAULT_SEARCH_FIELD}
-              initialSort={{ field: "date", direction: "desc" }}
-              placeholder="Search transactions"
-              onQueryChange={setTransactionQuery}
-            />
-          }
-          items={
-            groupedTransactions ? undefined : transactions.items
-          }
-          groups={groupedTransactions}
-          rowKey={(transaction) => transaction.id}
-          isLoading={transactions.isLoading}
-          error={transactions.error}
-          emptyText="No transactions found."
-          pager={transactions.pager}
-          renderItem={(transaction) => (
-            <TransactionRow
-              transaction={transaction}
-              isDeleting={deleteTransaction.isPending}
-              onEdit={(row) => navigate(routes.transaction(row.id))}
-              onDelete={(row) => void confirmDeleteTransaction(row)}
-            />
-          )}
-        />
-      ) : (
-        <ImportedTransactionsTab
-          imported={imported}
-          categories={importedFilterCategories}
-          accounts={importedFilterAccounts}
-          initialStatus={
-            importedStatusParam === "pending" ||
-            importedStatusParam === "processed" ||
-            importedStatusParam === "ignored"
-              ? importedStatusParam
-              : null
-          }
-          searchBarResetKey={importedSearchBarResetKey}
-          onShowPending={() => {
-            const params = new URLSearchParams(searchParams);
-            params.set("tab", "imported");
-            params.set("status", "pending");
-            setSearchParams(params, { replace: true });
-          }}
-        />
-      )}
+        ]}
+      />
     </div>
   );
 }

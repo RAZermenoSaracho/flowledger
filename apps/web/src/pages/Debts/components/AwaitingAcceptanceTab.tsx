@@ -39,6 +39,7 @@ function InvitationRow({
         {
           key: "accept",
           label: "Accept",
+          variant: "primary",
           onClick: () =>
             respond({
               kind: "accept",

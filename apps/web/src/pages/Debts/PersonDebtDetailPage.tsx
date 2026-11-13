@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Card } from "../../components/Card";
@@ -6,13 +5,9 @@ import { FormView } from "../../components/FormView";
 import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import { useScrollToHighlight } from "../../hooks/useScrollToHighlight";
-import { listAccounts } from "../../services/accounts.client";
-import { listCategories } from "../../services/categories.client";
-import * as debtsClient from "../../services/debts.client";
-import { listGroups } from "../../services/groups.client";
 import { isNonZero } from "../../utils/money";
 import { PersonDebtDetail } from "./components/PersonDebtDetail";
-import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
+import { useDebtsData } from "./hooks/useDebtsData";
 import { availableSettlementAmount, displayPerson } from "./utils/debtDisplay";
 
 /**
@@ -27,48 +22,7 @@ export function PersonDebtDetailPage() {
   const [searchParams] = useSearchParams();
   const highlightedDebtId = searchParams.get("debtId");
 
-  const debtsQuery = useQuery({
-    queryKey: ["debts"],
-    queryFn: async () => debtsClient.listDebts()
-  });
-  const accountsQuery = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async () => (await listAccounts()).accounts
-  });
-  const categoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => (await listCategories()).categories
-  });
-  const groupsQuery = useQuery({
-    queryKey: ["groups"],
-    queryFn: async () => (await listGroups()).groups
-  });
-
-  const privateExpenseCategories = useMemo(
-    () =>
-      (categoriesQuery.data ?? []).filter(
-        (category) => category.type === "expense" && !category.groupId
-      ),
-    [categoriesQuery.data]
-  );
-  const privateIncomeCategories = useMemo(
-    () =>
-      (categoriesQuery.data ?? []).filter(
-        (category) => category.type === "income" && !category.groupId
-      ),
-    [categoriesQuery.data]
-  );
-  const groupById = useMemo(
-    () => new Map((groupsQuery.data ?? []).map((group) => [group.id, group])),
-    [groupsQuery.data]
-  );
-
-  const workflow = useDebtSettlementWorkflow({
-    groupById,
-    privateExpenseCategories,
-    privateIncomeCategories,
-    accounts: accountsQuery.data ?? []
-  });
+  const { debtsQuery, accounts, workflow } = useDebtsData();
 
   const balance = debtsQuery.data?.balances.find(
     (candidate) => candidate.key === personKey
@@ -110,7 +64,7 @@ export function PersonDebtDetailPage() {
             viewerUserId={auth.user?.id}
             selection={workflow.debtSelection}
             selectedIOweThem={selectedIOweThem}
-            accounts={accountsQuery.data ?? []}
+            accounts={accounts}
             isActing={workflow.isActing}
             highlightedDebtId={highlightedDebtId}
             draftFor={workflow.draftFor}
