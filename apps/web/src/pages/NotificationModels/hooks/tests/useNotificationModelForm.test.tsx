@@ -36,7 +36,7 @@ describe("useNotificationModelForm", () => {
     act(() => result.current.setField("name", "  Plata  "));
     await act(() => result.current.save());
 
-    expect(body).toMatchObject({ name: "Plata", code: NEW_MODEL_CODE, isActive: false, visibility: "private", description: null });
+    expect(body).toMatchObject({ name: "Plata", code: NEW_MODEL_CODE, isActive: false, description: null });
   });
 
   it("updates only the changed fields", async () => {

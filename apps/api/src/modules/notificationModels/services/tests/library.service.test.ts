@@ -38,27 +38,53 @@ describe("publishModel", () => {
 
 describe("library reads", () => {
   it("lists entries with the author username only and no code", async () => {
-    prismaMock.notificationModel.findMany.mockResolvedValue([{ id: "src", user: { username: "ana" }, versions: [version] }] as never);
-    const [entry] = await listLibrary();
-    expect(entry).toMatchObject({ modelId: "src", version: 2, author: { username: "ana" } });
+    prismaMock.notificationModel.findMany
+      .mockResolvedValueOnce([{ id: "src", userId: "u1", user: { username: "ana" }, versions: [version] }] as never)
+      .mockResolvedValueOnce([]);
+    const [entry] = await listLibrary("u2");
+    expect(entry).toMatchObject({ modelId: "src", version: 2, author: { username: "ana" }, isOwn: false, installedModelId: null });
     expect(JSON.stringify(entry)).not.toMatch(/email|new code|bindings/);
   });
 
+  it("flags the caller's own entries and finds the caller's installed copy, scoped by caller", async () => {
+    prismaMock.notificationModel.findMany
+      .mockResolvedValueOnce([{ id: "src", userId: "u1", user: { username: "ana" }, versions: [version] }] as never)
+      .mockResolvedValueOnce([{ id: "copy", sourceVersion: { modelId: "src" } }] as never);
+    const [own] = await listLibrary("u1");
+    expect(own).toMatchObject({ isOwn: true, installedModelId: "copy" });
+    expect(prismaMock.notificationModel.findMany.mock.calls[1]![0]!.where).toMatchObject({ userId: "u1" });
+  });
+
   it("returns the latest version's code for one model and 404s when not public", async () => {
-    prismaMock.notificationModel.findFirst.mockResolvedValue({ id: "src", user: { username: "ana" }, versions: [version] } as never);
-    expect((await getLibraryModel("src")).code).toBe("new code");
+    prismaMock.notificationModel.findFirst.mockResolvedValue({ id: "src", userId: "u1", user: { username: "ana" }, versions: [version] } as never);
+    prismaMock.notificationModel.findMany.mockResolvedValue([{ id: "copy", sourceVersion: { modelId: "src" } }] as never);
+    expect(await getLibraryModel("u2", "src")).toMatchObject({ code: "new code", isOwn: false, installedModelId: "copy" });
     prismaMock.notificationModel.findFirst.mockResolvedValue(null);
-    await expect(getLibraryModel("src")).rejects.toMatchObject({ statusCode: 404 });
+    await expect(getLibraryModel("u2", "src")).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("only looks up public models with a version (private never fetched)", async () => {
+    prismaMock.notificationModel.findFirst.mockResolvedValue(null);
+    await expect(getLibraryModel("u2", "src")).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.notificationModel.findFirst.mock.calls[0]![0]!.where).toEqual({ id: "src", visibility: "public", versions: { some: {} } });
   });
 });
 
 describe("installModel", () => {
   it("creates a private inactive copy with empty bindings from the latest version", async () => {
-    prismaMock.notificationModel.findFirst.mockResolvedValue({ versions: [version] } as never);
+    prismaMock.notificationModel.findFirst.mockResolvedValue({ userId: "u1", versions: [version] } as never);
     await installModel("u2", "src");
     expect(prismaMock.notificationModel.create.mock.calls[0]![0].data).toMatchObject({
       userId: "u2", code: "new code", bindings: {}, isActive: false, visibility: "private", sourceVersionId: "v2"
     });
+  });
+});
+
+describe("installModel own model", () => {
+  it("rejects installing the caller's own model with 400", async () => {
+    prismaMock.notificationModel.findFirst.mockResolvedValue({ userId: "u1", versions: [version] } as never);
+    await expect(installModel("u1", "src")).rejects.toMatchObject({ statusCode: 400, message: "You cannot install your own model" });
+    expect(prismaMock.notificationModel.create).not.toHaveBeenCalled();
   });
 });
 

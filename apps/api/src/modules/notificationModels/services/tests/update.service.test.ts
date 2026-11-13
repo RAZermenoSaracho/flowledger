@@ -30,6 +30,12 @@ describe("updateModel", () => {
     expect(assertActivatable).not.toHaveBeenCalled();
   });
 
+  it("unpublishes by setting visibility private, keeping versions untouched", async () => {
+    await updateModel("u1", "m1", { visibility: "private" });
+    expect(prismaMock.notificationModel.update).toHaveBeenCalledWith({ where: { id: "m1", userId: "u1" }, data: { visibility: "private" } });
+    expect(prismaMock.notificationModelVersion.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("validates changed code and re-checks bindings when bindings change", async () => {
     await updateModel("u1", "m1", { code: "new", bindings: { card: "a2" } });
     expect(assertCodeValid).toHaveBeenCalledWith("u1", "new");

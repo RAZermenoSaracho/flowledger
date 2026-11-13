@@ -6,10 +6,11 @@ export function unboundRequiredSlots(slots: ModelSlots, bindings: ModelBindings)
   return slots.filter((slot) => slot.required && !bindings[slot.key]).map((slot) => slot.key);
 }
 
-/** Throws 400 with the required slot keys missing bindings in `details.unboundSlots`. */
+/** Throws 400 naming each unbound required slot as `Label (key)`; the keys are in `details.unboundSlots`. */
 export function assertRequiredBound(slots: ModelSlots, bindings: ModelBindings) {
   const unbound = unboundRequiredSlots(slots, bindings);
   if (unbound.length) {
-    throw badRequest(`Required slots are not bound: ${unbound.join(", ")}`, { unboundSlots: unbound });
+    const names = unbound.map((key) => `${slots.find((slot) => slot.key === key)!.label} (${key})`).join(", ");
+    throw badRequest(`Required slots are not bound: ${names}. Bind them in the Form tab before activating.`, { unboundSlots: unbound });
   }
 }

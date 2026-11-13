@@ -5,6 +5,11 @@
 ### Requirement: Publish a model
 
 Publishing SHALL create the next immutable, numbered version of the model, snapshotting its name, description, code, slots and settings, never its bindings, and SHALL make the model public. Only the owner SHALL be able to publish.
+Publishing SHALL be the only way a model becomes public: a model update SHALL NOT set it public, so a model is never public without a published version.
+
+#### Scenario: Public only through publishing
+- **WHEN** the owner updates a model with `visibility: "public"` instead of publishing
+- **THEN** the request is rejected with 400 and the model stays private and absent from the library
 
 #### Scenario: First publish
 - **WHEN** the owner publishes a private model
@@ -53,6 +58,15 @@ A user SHALL be able to view a library model's latest code, slots and settings b
 ### Requirement: Install a copy
 
 Installing SHALL create an independent, private, inactive copy owned by the installer, with its own id, endpoint and runs, empty bindings, and a record of the version it came from. The original author's record ids SHALL never be carried over.
+An author SHALL see their own published models in the library, marked as their own, but SHALL NOT be able to install them. Library entries SHALL tell the caller whether they already installed a copy.
+
+#### Scenario: Author sees but cannot install their own model
+- **WHEN** the author browses the library and tries to install their own published model
+- **THEN** the entry is listed and marked as theirs, and the install request is rejected with 400
+
+#### Scenario: Already installed
+- **WHEN** a user who installed a copy browses the library
+- **THEN** that entry links to their existing copy
 
 #### Scenario: Install
 - **WHEN** a user installs a library model

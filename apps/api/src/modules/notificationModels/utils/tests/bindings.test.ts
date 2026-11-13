@@ -17,7 +17,7 @@ describe("unboundRequiredSlots", () => {
 describe("assertRequiredBound", () => {
   it("reports missing required slots with 400 and their keys", () => {
     expect(() => assertRequiredBound(slots, { card: "a" })).toThrow(
-      expect.objectContaining({ statusCode: 400, message: "Required slots are not bound: general", details: { unboundSlots: ["general"] } })
+      expect.objectContaining({ statusCode: 400, message: "Required slots are not bound: General (general). Bind them in the Form tab before activating.", details: { unboundSlots: ["general"] } })
     );
     expect(() => assertRequiredBound(slots, { card: "a", general: "c" })).not.toThrow();
   });

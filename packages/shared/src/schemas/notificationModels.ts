@@ -31,6 +31,11 @@ export const notificationCodeSchema = z.string().max(20000);
 /** Whether a model is private to its owner or published to the library. */
 export const notificationModelVisibilitySchema = z.enum(["private", "public"]);
 
+/** Visibility a client may write: only `private` (unpublish); going public happens solely through POST /:id/publish. */
+export const writableNotificationModelVisibilitySchema = z.literal("private", {
+  errorMap: () => ({ message: "Use Publish to make a model public" })
+});
+
 const modelFields = {
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).nullish(),
@@ -39,7 +44,7 @@ const modelFields = {
   bindings: notificationBindingsSchema,
   settings: notificationSettingsSchema,
   isActive: z.boolean(),
-  visibility: notificationModelVisibilitySchema
+  visibility: writableNotificationModelVisibilitySchema
 };
 
 /** POST /notification-models body; everything but `name` is optional and defaults to an empty, inactive, private model. */
@@ -54,7 +59,7 @@ export const createNotificationModelSchema = z.object({
   visibility: modelFields.visibility.default("private")
 });
 
-/** PATCH /notification-models/:id body; every field optional. */
+/** PUT /notification-models/:id body; every field optional. `visibility` accepts only `"private"` (unpublish). */
 export const updateNotificationModelSchema = z.object(modelFields).partial();
 
 /** POST /notification-models/:id/test body: sample text plus optional unsaved code and settings. */

@@ -4,11 +4,11 @@
 
 ### Requirement: Model list
 
-The app SHALL show the user's notification models in the shared list experience, each with its name, an active badge, its visibility and the status of its last run, usable at mobile width.
+The app SHALL show the user's notification models in the shared list experience, each with its name, an active badge, its publication status (published with its latest version number, shown only when a published version exists) and the status of its last run, usable at mobile width.
 
 #### Scenario: List
 - **WHEN** the user opens the notification models page
-- **THEN** each of their models shows name, active badge, visibility and last run status
+- **THEN** each of their models shows name, active badge, publication status and last run status
 
 #### Scenario: Mobile
 - **WHEN** the page is opened at 375px width
@@ -36,7 +36,7 @@ A model SHALL open in a detail view with five tabs, in order Form, Code, Playgro
 
 ### Requirement: Form tab
 
-The Form tab SHALL show the name, description, active state and visibility; the ingest endpoint URL with a copy action and a generic request example (the API-key header and a `{"text": "..."}` body); a slot table with a binding select per slot limited to the user's own records; settings; and the model's origin and version. For a copy with an update available it SHALL offer an update action showing the current and new code, warning when the code was modified locally and asking for bindings for new required slots.
+The Form tab SHALL show the name, description, active state and a read-only publication status, with publishing and unpublishing done only through explicit Publish and Unpublish actions; the ingest endpoint URL with a copy action and a generic request example (the API-key header and a `{"text": "..."}` body); a slot table with a binding select per slot limited to the user's own records; settings; and the model's origin and version. For a copy with an update available it SHALL offer an update action showing the current and new code, warning when the code was modified locally and asking for bindings for new required slots.
 
 #### Scenario: Endpoint
 - **WHEN** the user opens the Form tab

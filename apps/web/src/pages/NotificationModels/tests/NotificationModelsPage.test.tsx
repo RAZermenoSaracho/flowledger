@@ -24,15 +24,22 @@ describe("NotificationModelsPage", () => {
     window.innerWidth = 375;
     server.use(
       ...notificationModelHandlers({
-        model: makeNotificationModel({ name: "Plata", isActive: true, visibility: "public", lastRunStatus: "failed" })
+        model: makeNotificationModel({ name: "Plata", isActive: true, visibility: "public", publication: { published: true, latestVersion: 3, publishedAt: "2026-11-02T00:00:00.000Z" }, lastRunStatus: "failed" })
       })
     );
     renderPage();
 
     expect(await screen.findByRole("link", { name: "Plata" })).toHaveAttribute("href", "/notification-models/nm-1");
     expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("public")).toBeInTheDocument();
+    expect(screen.getByText("Published · v3")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
+  });
+
+  it("never shows a Public badge for a public model without a version", async () => {
+    server.use(...notificationModelHandlers({ model: makeNotificationModel({ visibility: "public" }) }));
+    renderPage();
+    await screen.findByRole("link", { name: "Plata" });
+    expect(screen.queryByText(/^public$|^published · v/i)).not.toBeInTheDocument();
   });
 
   it("shows the empty state with a create link", async () => {

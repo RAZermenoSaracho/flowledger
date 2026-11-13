@@ -7,7 +7,6 @@ const base: NotificationModelDraft = {
   description: "",
   code: "",
   isActive: false,
-  visibility: "private",
   slots: [{ key: "card", kind: "account", label: "Card", required: true }],
   bindings: {},
   settings: {}

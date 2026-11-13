@@ -6,6 +6,9 @@ export type ModelSlots = NotificationSlot[];
 /** Map of slot key to bound record id, as stored in a model's `bindings` JSON column. */
 export type ModelBindings = Record<string, string>;
 
+/** Derived publication state: published only when the model is public AND has a version (a public row without a version is not in the library). */
+export type ModelPublication = { published: boolean; latestVersion: number | null; publishedAt: Date | null };
+
 /** Untrusted decoded `query` request param for model, queue and log lists. */
 export interface NotificationListQueryInput {
   where?: unknown;

@@ -19,6 +19,9 @@ export type NotificationModelUpdateInfo = {
   latestVersionId?: string;
 };
 
+/** Derived publication state: `published` only when the model is public and has a version. */
+export type NotificationModelPublication = { published: boolean; latestVersion: number | null; publishedAt: string | null };
+
 /** A public library model's latest version; `code` is present only on the single-entry read. */
 export type NotificationLibraryEntry = {
   modelId: string;
@@ -30,6 +33,10 @@ export type NotificationLibraryEntry = {
   settings: Record<string, string>;
   publishedAt: string;
   author: { username: string | null };
+  /** True when the caller authored this model; own entries cannot be installed. */
+  isOwn: boolean;
+  /** Id of the caller's installed copy of this model, or `null`. */
+  installedModelId: string | null;
   code?: string;
 };
 
@@ -40,6 +47,7 @@ export type NotificationModelSummary = {
   description: string | null;
   isActive: boolean;
   visibility: NotificationModelVisibility;
+  publication: NotificationModelPublication;
   lastRunStatus: NotificationRunStatus | null;
   endpointPath: string;
   createdAt: string;

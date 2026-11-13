@@ -21,6 +21,7 @@ export function makeNotificationModel(overrides: Partial<NotificationModel> = {}
     code: "def process(text, ctx):\n    return skip('x')\n",
     isActive: false,
     visibility: "private",
+    publication: { published: false, latestVersion: null, publishedAt: null },
     slots: [{ key: "card", kind: "account", label: "Card", required: true }],
     bindings: {},
     settings: {},
@@ -89,6 +90,8 @@ export function makeLibraryEntry(overrides: Partial<NotificationLibraryEntry> = 
     settings: {},
     publishedAt: "2026-11-10T00:00:00.000Z",
     author: { username: "ana" },
+    isOwn: false,
+    installedModelId: null,
     ...overrides
   };
 }

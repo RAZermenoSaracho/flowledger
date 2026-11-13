@@ -1,5 +1,4 @@
 import type { NotificationSlot } from "@flowledger/shared";
-import type { NotificationModelVisibility } from "../../../types/notificationModels.types";
 
 /** Editable values of a notification model, shared by every tab of the detail view. */
 export type NotificationModelDraft = {
@@ -7,7 +6,6 @@ export type NotificationModelDraft = {
   description: string;
   code: string;
   isActive: boolean;
-  visibility: NotificationModelVisibility;
   slots: NotificationSlot[];
   bindings: Record<string, string>;
   settings: Record<string, string>;

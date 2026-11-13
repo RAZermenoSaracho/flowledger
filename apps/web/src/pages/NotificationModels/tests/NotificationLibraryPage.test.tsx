@@ -45,6 +45,46 @@ describe("NotificationLibraryPage", () => {
     expect(installed).toBe(true);
   });
 
+  it("lists slots, hides Install for own entries and links to an installed copy", async () => {
+    server.use(
+      ...notificationModelHandlers(),
+      http.get(`${API}/notification-library`, () =>
+        HttpResponse.json({
+          data: [
+            makeLibraryEntry({ modelId: "own", name: "Mine", isOwn: true }),
+            makeLibraryEntry({ modelId: "got", name: "Got it", installedModelId: "copy-9" }),
+            makeLibraryEntry({ modelId: "new", name: "Fresh" })
+          ]
+        })
+      )
+    );
+    renderPage();
+
+    await screen.findByText("Mine");
+    expect(screen.getAllByText("Slots: Card (account)")).toHaveLength(3);
+    expect(screen.getByText("Your model")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Installed — Open" })).toHaveAttribute("href", "/notification-models/copy-9");
+    expect(screen.getAllByRole("button", { name: "Install" })).toHaveLength(1);
+  });
+
+  it("shows an install error inline", async () => {
+    server.use(
+      ...notificationModelHandlers(),
+      http.get(`${API}/notification-library`, () => HttpResponse.json({ data: [makeLibraryEntry()] })),
+      http.post(`${API}/notification-library/lib-1/install`, () => HttpResponse.json({ message: "You cannot install your own model" }, { status: 400 }))
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Install" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("You cannot install your own model");
+  });
+
+  it("shows a load error", async () => {
+    server.use(...notificationModelHandlers(), http.get(`${API}/notification-library`, () => HttpResponse.json({ message: "Boom" }, { status: 500 })));
+    renderPage();
+    expect(await screen.findByText("Boom")).toBeInTheDocument();
+  });
+
   it("shows the empty state", async () => {
     server.use(http.get(`${API}/notification-library`, () => HttpResponse.json({ data: [] })), ...notificationModelHandlers());
     renderPage();

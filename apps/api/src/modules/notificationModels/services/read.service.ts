@@ -2,7 +2,7 @@ import type { NotificationRunStatus } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
-import type { ModelBindings, ModelSlots, NotificationListQueryInput } from "../types/notificationModels.types.js";
+import type { ModelBindings, ModelPublication, ModelSlots, NotificationListQueryInput } from "../types/notificationModels.types.js";
 import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 
 const modelsSieve = createSieve(prisma.notificationModel, { maxPageSize: 100 });
@@ -89,22 +89,41 @@ async function latestRunStatuses(modelIds: string[]) {
   return new Map(rows.map((row) => [row.modelId, row.status]));
 }
 
-/** Lists the caller's models per a DSQL `query` param, paginated (default page size 50), each with its latest run status. */
+/** Derives `publication` for each given model from its latest version, in one query. */
+async function publicationsFor(models: { id: string; visibility: string }[]) {
+  const latest = await prisma.notificationModelVersion.findMany({
+    where: { modelId: { in: models.map((model) => model.id) } },
+    distinct: ["modelId"],
+    orderBy: [{ modelId: "asc" }, { version: "desc" }],
+    select: { modelId: true, version: true, createdAt: true }
+  });
+  const byModel = new Map(latest.map((row) => [row.modelId, row]));
+  return new Map<string, ModelPublication>(
+    models.map((model) => {
+      const row = byModel.get(model.id);
+      const published = model.visibility === "public" && !!row;
+      return [model.id, { published, latestVersion: row?.version ?? null, publishedAt: row?.createdAt ?? null }];
+    })
+  );
+}
+
+/** Lists the caller's models per a DSQL `query` param, paginated (default page size 50), each with its latest run status and derived `publication`. */
 export async function listModels(userId: string, rawQuery: string | undefined) {
   const input = parseQueryParam<NotificationListQueryInput>(rawQuery);
   const scope = { field: "userId", op: "=" as const, value: userId };
-  const result = await modelsSieve.query<{ id: string; [key: string]: unknown }>({
+  const result = await modelsSieve.query<{ id: string; visibility: string; [key: string]: unknown }>({
     where: input.where ? { and: [scope, input.where] } : scope,
     sort: input.sort ?? [{ field: "createdAt", direction: "desc" }],
     pagination: input.pagination ?? DEFAULT_PAGINATION
   });
-  const statuses = await latestRunStatuses(result.data.map((model) => model.id));
+  const [statuses, publications] = await Promise.all([latestRunStatuses(result.data.map((model) => model.id)), publicationsFor(result.data)]);
   return {
     ...result,
     data: result.data.map((model) => ({
       ...model,
       endpointPath: endpointPathFor(model.id),
-      lastRunStatus: statuses.get(model.id) ?? null
+      lastRunStatus: statuses.get(model.id) ?? null,
+      publication: publications.get(model.id)!
     }))
   };
 }
@@ -131,23 +150,25 @@ async function getUpdateInfo(model: { sourceVersionId: string | null; code: stri
   };
 }
 
-/** Reads one of the caller's models with `endpointPath`, `update` info (including `sourceModelId` and `latestVersionId` for the update flow), latest run status and `queued`/`processing` counts; 404 otherwise. */
+/** Reads one of the caller's models with derived `publication`, `endpointPath`, `update` info (including `sourceModelId` and `latestVersionId` for the update flow), latest run status and `queued`/`processing` counts; 404 otherwise. */
 export async function getModelById(userId: string, id: string) {
   const model = await getOwnedModel(userId, id);
-  const [update, counts, lastRun] = await Promise.all([
+  const [update, counts, lastRun, publications] = await Promise.all([
     getUpdateInfo(model),
     prisma.notificationRun.groupBy({
       by: ["status"],
       where: { modelId: id, status: { in: ["queued", "processing"] } },
       _count: { _all: true }
     }),
-    prisma.notificationRun.findFirst({ where: { modelId: id }, orderBy: { receivedAt: "desc" }, select: { status: true } })
+    prisma.notificationRun.findFirst({ where: { modelId: id }, orderBy: { receivedAt: "desc" }, select: { status: true } }),
+    publicationsFor([model])
   ]);
   const countOf = (status: NotificationRunStatus) => counts.find((row) => row.status === status)?._count._all ?? 0;
   return {
     ...model,
     endpointPath: endpointPathFor(id),
     update,
+    publication: publications.get(id)!,
     lastRunStatus: lastRun?.status ?? null,
     queued: countOf("queued"),
     processing: countOf("processing")

@@ -75,8 +75,9 @@ describe("resolveBindingNames", () => {
 
 describe("listModels", () => {
   it("scopes to the caller, paginates by default and adds endpointPath and lastRunStatus", async () => {
-    query.mockResolvedValue({ data: [{ id: "m1" }], meta: { total: 1 } });
+    query.mockResolvedValue({ data: [{ id: "m1", visibility: "private" }], meta: { total: 1 } });
     prismaMock.notificationRun.findMany.mockResolvedValue([{ modelId: "m1", status: "failed" }] as never);
+    prismaMock.notificationModelVersion.findMany.mockResolvedValue([]);
 
     const result = await listModels("u1", undefined);
 
@@ -87,12 +88,35 @@ describe("listModels", () => {
       })
     );
     expect(result.data).toEqual([
-      { id: "m1", endpointPath: "/v1/notification-models/m1/notifications", lastRunStatus: "failed" }
+      {
+        id: "m1", visibility: "private", endpointPath: "/v1/notification-models/m1/notifications", lastRunStatus: "failed",
+        publication: { published: false, latestVersion: null, publishedAt: null }
+      }
+    ]);
+  });
+
+  it("derives publication: public with a version is published, public without one is not", async () => {
+    const at = new Date("2026-01-01");
+    query.mockResolvedValue({
+      data: [{ id: "a", visibility: "public" }, { id: "b", visibility: "public" }, { id: "c", visibility: "private" }],
+      meta: {}
+    });
+    prismaMock.notificationRun.findMany.mockResolvedValue([]);
+    prismaMock.notificationModelVersion.findMany.mockResolvedValue([
+      { modelId: "a", version: 3, createdAt: at }, { modelId: "c", version: 1, createdAt: at }
+    ] as never);
+
+    const { data } = await listModels("u1", undefined);
+    expect(data.map((m) => m.publication)).toEqual([
+      { published: true, latestVersion: 3, publishedAt: at },
+      { published: false, latestVersion: null, publishedAt: null },
+      { published: false, latestVersion: 1, publishedAt: at }
     ]);
   });
 
   it("ands a caller filter with the user scope", async () => {
     query.mockResolvedValue({ data: [], meta: {} });
+    prismaMock.notificationModelVersion.findMany.mockResolvedValue([]);
     prismaMock.notificationRun.findMany.mockResolvedValue([]);
     const filter = { field: "isActive", op: "=", value: true };
     await listModels("u1", JSON.stringify({ where: filter }));
@@ -101,7 +125,9 @@ describe("listModels", () => {
 });
 
 describe("getModelById", () => {
-  const base = { id: "m1", userId: "u1", code: "x", sourceVersionId: null };
+  const base = { id: "m1", userId: "u1", code: "x", sourceVersionId: null, visibility: "private" };
+
+  beforeEach(() => prismaMock.notificationModelVersion.findMany.mockResolvedValue([]));
 
   it("includes endpointPath, counts, last run status and a neutral update block", async () => {
     prismaMock.notificationModel.findFirst.mockResolvedValue(base as never);
@@ -113,6 +139,7 @@ describe("getModelById", () => {
       queued: 3,
       processing: 0,
       lastRunStatus: "completed",
+      publication: { published: false, latestVersion: null, publishedAt: null },
       update: { available: false, sourceModelId: null, installedVersion: null, latestVersion: null, latestVersionId: null, localCodeModified: false }
     });
   });

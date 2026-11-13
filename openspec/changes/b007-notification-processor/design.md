@@ -403,7 +403,7 @@ Only back-relation fields are added to `User` and `Transaction`, and no existing
 
 ### 9. Library and versions
 
-**Publish** sets `visibility = public` and creates version `max + 1`, snapshotting name, description, code, slots and settings. It never snapshots bindings. The UI lists exactly what is published before confirming.
+**Publish** (the only way to become public) sets `visibility = public` and creates version `max + 1`, snapshotting name, description, code, slots and settings. It never snapshots bindings. The UI lists exactly what is published before confirming.
 - Setting `private` hides the model from the library. Existing copies keep working.
 - Deleting the original cascades its versions. Copies keep their code and lose update tracking (`sourceVersionId` becomes null).
 
@@ -430,7 +430,7 @@ Declining an update is doing nothing, and the copy stays usable.
 
 **Tabs**
 - **Form:**
-  - name, description, active toggle and visibility, as `EditableField`s;
+  - name, description and active toggle, as `EditableField`s, plus a read-only publication status ("Not published" or "Published · v{n}"). Visibility changes only through the Publish and Unpublish record actions; the update API rejects `visibility: "public"`, so a model is never public without a published version;
   - an endpoint `CopyRow` with the full URL, plus a request example (header `Authorization: Bearer <ingest key>`, JSON body `{"text": "…"}`) and a link to create an ingest key;
   - a slots table (key, kind, label, required) and binding selects over the owner's records;
   - a settings key/value list;

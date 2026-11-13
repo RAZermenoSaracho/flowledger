@@ -213,7 +213,7 @@ describe("NotificationModelDetailPage", () => {
     server.use(
       http.post(`${API}/notification-models/nm-1/publish`, () => {
         published += 1;
-        return HttpResponse.json({ model: makeNotificationModel({ visibility: "public" }) });
+        return HttpResponse.json({ model: makeNotificationModel() });
       })
     );
     const user = userEvent.setup();
@@ -229,6 +229,34 @@ describe("NotificationModelDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "Record actions" }));
     await user.click(screen.getByRole("menuitem", { name: "Publish" }));
     await waitFor(() => expect(published).toBe(1));
+  });
+
+  it("shows a read-only publication status and offers Unpublish only when published", async () => {
+    server.use(...notificationModelHandlers());
+    const user = userEvent.setup();
+    const view = renderPage();
+    await screen.findByLabelText("Name");
+    expect(screen.getByText("Not published")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Visibility")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Record actions" }));
+    expect(screen.queryByRole("menuitem", { name: "Unpublish" })).not.toBeInTheDocument();
+    view.unmount();
+
+    let body: unknown = null;
+    server.use(
+      ...notificationModelHandlers({ model: makeNotificationModel({ visibility: "public", publication: { published: true, latestVersion: 2, publishedAt: "2026-11-02T00:00:00.000Z" } }) }),
+      http.put(`${API}/notification-models/nm-1`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ model: makeNotificationModel() });
+      })
+    );
+    renderPage();
+    await screen.findByLabelText("Name");
+    expect(screen.getAllByText("Published · v2").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Record actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Unpublish" }));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("disappear from the library"));
+    await waitFor(() => expect(body).toEqual({ visibility: "private" }));
   });
 
   it("shows not found for an unknown model", async () => {

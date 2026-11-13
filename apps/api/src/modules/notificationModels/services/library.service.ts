@@ -22,7 +22,9 @@ const AUTHOR = { select: { username: true } } as const;
 
 /** Flattens a public model plus its latest version into a library entry; the author is exposed by username only. */
 function toLibraryEntry(
-  model: { id: string; user: { username: string } },
+  model: { id: string; userId: string; user: { username: string } },
+  callerId: string,
+  installedModelId: string | null,
   version: { id: string; version: number; name: string; description: string | null; slots: unknown; settings: unknown; createdAt: Date }
 ) {
   return {
@@ -34,8 +36,22 @@ function toLibraryEntry(
     slots: version.slots,
     settings: version.settings,
     publishedAt: version.createdAt,
-    author: { username: model.user.username }
+    author: { username: model.user.username },
+    isOwn: model.userId === callerId,
+    installedModelId
   };
+}
+
+/** Maps each given source model id to the id of the caller's oldest copy of it (copies are found through `sourceVersion`, scoped by the caller). */
+async function installedCopies(userId: string, sourceModelIds: string[]) {
+  const copies = await prisma.notificationModel.findMany({
+    where: { userId, sourceVersion: { modelId: { in: sourceModelIds } } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, sourceVersion: { select: { modelId: true } } }
+  });
+  const byModel = new Map<string, string>();
+  for (const copy of copies) if (!byModel.has(copy.sourceVersion!.modelId)) byModel.set(copy.sourceVersion!.modelId, copy.id);
+  return byModel;
 }
 
 /**
@@ -63,36 +79,43 @@ export async function publishModel(userId: string, id: string) {
   });
 }
 
-/** Lists public models with at least one version as library entries (latest version, no code), newest publication first. */
-export async function listLibrary() {
+/** Lists public models with at least one version as library entries (latest version, no code), newest publication first; `isOwn` and `installedModelId` are relative to `userId`. */
+export async function listLibrary(userId: string) {
   const models = await prisma.notificationModel.findMany({
     where: { visibility: "public", versions: { some: {} } },
-    select: { id: true, user: AUTHOR, versions: { ...LATEST_VERSION, select: LIBRARY_VERSION_SELECT } }
+    select: { id: true, userId: true, user: AUTHOR, versions: { ...LATEST_VERSION, select: LIBRARY_VERSION_SELECT } }
   });
+  const installed = await installedCopies(userId, models.map((model) => model.id));
   return models
-    .map((model) => toLibraryEntry(model, model.versions[0]!))
+    .map((model) => toLibraryEntry(model, userId, installed.get(model.id) ?? null, model.versions[0]!))
     .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 }
 
 async function findPublicLatest(modelId: string) {
   const model = await prisma.notificationModel.findFirst({
     where: { id: modelId, visibility: "public", versions: { some: {} } },
-    select: { id: true, user: AUTHOR, versions: { ...LATEST_VERSION } }
+    select: { id: true, userId: true, user: AUTHOR, versions: { ...LATEST_VERSION } }
   });
   if (!model) throw notFound("Library model");
   return model;
 }
 
 /** Reads one public model's latest version including its code, for viewing before install; 404 when private or never published. */
-export async function getLibraryModel(modelId: string) {
+export async function getLibraryModel(userId: string, modelId: string) {
   const model = await findPublicLatest(modelId);
   const version = model.versions[0]!;
-  return { ...toLibraryEntry(model, version), code: version.code };
+  const installed = await installedCopies(userId, [modelId]);
+  return { ...toLibraryEntry(model, userId, installed.get(modelId) ?? null, version), code: version.code };
 }
 
-/** Installs the latest version of a public model as the caller's private, inactive copy with empty bindings and `sourceVersionId` set; 404 when not in the library. */
+/**
+ * Installs the latest version of a public model as the caller's private, inactive copy with empty bindings and `sourceVersionId` set.
+ * Installing a model that is already installed creates another copy (the UI offers "Open" instead).
+ * @throws 404 when not in the library; 400 when the caller authored the model.
+ */
 export async function installModel(userId: string, modelId: string) {
   const model = await findPublicLatest(modelId);
+  if (model.userId === userId) throw badRequest("You cannot install your own model");
   const version = model.versions[0]!;
   return prisma.notificationModel.create({
     data: {

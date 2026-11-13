@@ -7,13 +7,14 @@ import { routes } from "../../../constants/routes";
 import { notificationEndpointUrl } from "../../../services/notificationModels.client";
 import type { FormDraft } from "../../../types/common.types";
 import type { NotificationModel } from "../../../types/notificationModels.types";
+import { publicationLabel } from "../utils/notificationDisplay";
 import { useBindingOptions } from "../hooks/useBindingOptions";
 import type { NotificationModelDraft } from "../types/notificationModels.types";
 import { ModelSettingsList } from "./ModelSettingsList";
 import { ModelSlotsTable } from "./ModelSlotsTable";
 import { ModelUpdateDialog } from "./ModelUpdateDialog";
 
-/** Form tab: name, description, active state, visibility, ingest endpoint with request example (saved models), slots with bindings, settings, and library origin/version. */
+/** Form tab: name, description, active state, read-only publication status, ingest endpoint with request example (saved models), slots with bindings, settings, and library origin/version. */
 export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationModelDraft>; model: NotificationModel | null }) {
   const options = useBindingOptions();
   const [updating, setUpdating] = useState(false);
@@ -38,16 +39,11 @@ export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationMo
         <EditableField label="Name" {...field("name")}>
           <input className={editableControlClassName} value={values.name} onChange={(event) => draft.setField("name", event.target.value)} />
         </EditableField>
-        <EditableField label="Visibility" {...field("visibility")}>
-          <select
-            className={editableControlClassName}
-            value={values.visibility}
-            onChange={(event) => draft.setField("visibility", event.target.value as NotificationModelDraft["visibility"])}
-          >
-            <option value="private">Private</option>
-            <option value="public">Public</option>
-          </select>
-        </EditableField>
+        <div>
+          <p className="text-sm font-medium">Library</p>
+          <p className="mt-1 text-sm">{publicationLabel(model?.publication)}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Use Publish or Unpublish in the record menu.</p>
+        </div>
         <div className="sm:col-span-2">
           <EditableField label="Description" {...field("description")}>
             <textarea

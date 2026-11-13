@@ -4,7 +4,6 @@ import type {
   NotificationLibraryEntry,
   NotificationModel,
   NotificationModelSummary,
-  NotificationModelVisibility,
   NotificationPage,
   NotificationRun,
   NotificationTestResult
@@ -20,7 +19,8 @@ export type NotificationModelBody = {
   bindings?: Record<string, string>;
   settings?: Record<string, string>;
   isActive?: boolean;
-  visibility?: NotificationModelVisibility;
+  /** Only `"private"` is accepted (unpublish); publishing goes through {@link publishNotificationModel}. */
+  visibility?: "private";
 };
 
 /**
@@ -99,6 +99,11 @@ export function listNotificationLogs(id: string, pagination?: RangePagination) {
 /** Publishes the model to the library as its next version. */
 export function publishNotificationModel(id: string) {
   return apiRequest<{ model: NotificationModel; version: { id: string; version: number } }>(`/notification-models/${id}/publish`, { method: "POST" });
+}
+
+/** Unpublishes a model: hides it from the library; its versions and installed copies are kept. */
+export function unpublishNotificationModel(id: string) {
+  return updateNotificationModel(id, { visibility: "private" });
 }
 
 /** Resolves a model's `endpointPath` against the API base URL, giving the full ingest URL. */

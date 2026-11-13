@@ -255,4 +255,45 @@ describe("/notification-models routes", { timeout: 60_000 }, () => {
     const after = await request(app).get(`/notification-models/${copy.id}`).set(auth(installer));
     expect(after.body.model).toMatchObject({ isActive: true, sourceVersionId: null, update: { available: false } });
   });
+  it("keeps publication explicit: public cannot be set by update, unpublish hides, own entries cannot be installed", async () => {
+    const author = await createAuthedUser(app);
+    const reader = await createAuthedUser(app);
+    const sourceId = (await createModel(author)).body.model.id as string;
+
+    const rejected = await request(app).put(`/notification-models/${sourceId}`).set(auth(author)).send({ visibility: "public" });
+    expect(rejected.status).toBe(400);
+    expect(JSON.stringify(rejected.body)).toContain("Use Publish to make a model public");
+    const before = await request(app).get(`/notification-models/${sourceId}`).set(auth(author));
+    expect(before.body.model.publication).toEqual({ published: false, latestVersion: null, publishedAt: null });
+
+    await request(app).post(`/notification-models/${sourceId}/publish`).set(auth(author));
+    const published = await request(app).get(`/notification-models/${sourceId}`).set(auth(author));
+    expect(published.body.model.publication).toMatchObject({ published: true, latestVersion: 1 });
+    const listed = await request(app).get("/notification-models").set(auth(author));
+    expect(listed.body.data[0].publication).toMatchObject({ published: true, latestVersion: 1 });
+
+    const mineEntry = (await request(app).get("/notification-library").set(auth(author))).body.data.find((e: { modelId: string }) => e.modelId === sourceId);
+    expect(mineEntry).toMatchObject({ isOwn: true, installedModelId: null });
+    const own = await request(app).post(`/notification-library/${sourceId}/install`).set(auth(author));
+    expect(own.status).toBe(400);
+    expect(own.body.message).toBe("You cannot install your own model");
+
+    const theirs = (await request(app).get("/notification-library").set(auth(reader))).body.data.find((e: { modelId: string }) => e.modelId === sourceId);
+    expect(theirs).toMatchObject({ isOwn: false, installedModelId: null });
+    const copy = (await request(app).post(`/notification-library/${sourceId}/install`).set(auth(reader))).body.model;
+    const after = (await request(app).get("/notification-library").set(auth(reader))).body.data.find((e: { modelId: string }) => e.modelId === sourceId);
+    expect(after.installedModelId).toBe(copy.id);
+    expect((await request(app).get(`/notification-library/${sourceId}`).set(auth(reader))).body.entry).toMatchObject({ isOwn: false, installedModelId: copy.id });
+    const authorView = (await request(app).get("/notification-library").set(auth(author))).body.data.find((e: { modelId: string }) => e.modelId === sourceId);
+    expect(authorView.installedModelId).toBeNull();
+    const untouched = await request(app).get(`/notification-models/${sourceId}`).set(auth(author));
+    expect(untouched.body.model.publication).toMatchObject({ published: true, latestVersion: 1 });
+
+    const unpublished = await request(app).put(`/notification-models/${sourceId}`).set(auth(author)).send({ visibility: "private" });
+    expect(unpublished.status).toBe(200);
+    expect((await request(app).get("/notification-library").set(auth(reader))).body.data.some((e: { modelId: string }) => e.modelId === sourceId)).toBe(false);
+    expect((await request(app).get(`/notification-library/${sourceId}`).set(auth(reader))).status).toBe(404);
+    expect((await request(app).get(`/notification-models/${copy.id}`).set(auth(reader))).status).toBe(200);
+    expect((await request(app).get(`/notification-models/${sourceId}`).set(auth(author))).body.model.publication).toMatchObject({ published: false, latestVersion: 1 });
+  });
 });

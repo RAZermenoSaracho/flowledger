@@ -16,20 +16,18 @@ function draftFromModel(model: NotificationModel): NotificationModelDraft {
     description: model.description ?? "",
     code: model.code,
     isActive: model.isActive,
-    visibility: model.visibility,
     slots: model.slots,
     bindings: model.bindings,
     settings: model.settings
   };
 }
 
-/** Draft of `/notification-models/new`: inactive, private, with the commented template script and its slots. */
+/** Draft of `/notification-models/new`: inactive, with the commented template script and its slots. */
 const NEW_DRAFT: NotificationModelDraft = {
   name: "",
   description: "",
   code: NEW_MODEL_CODE,
   isActive: false,
-  visibility: "private",
   slots: NEW_MODEL_SLOTS,
   bindings: {},
   settings: {}
@@ -60,7 +58,6 @@ export function useNotificationModelForm(model: NotificationModel | null, isNew:
         description: values.description.trim() || null,
         code: values.code,
         isActive: values.isActive,
-        visibility: values.visibility,
         slots: values.slots,
         bindings: values.bindings,
         settings: values.settings

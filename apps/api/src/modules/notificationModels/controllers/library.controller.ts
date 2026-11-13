@@ -15,13 +15,13 @@ export async function postUpdateFromSource(req: Request, res: Response) {
 }
 
 /** Lists public library entries as `{ data }`. */
-export async function getLibrary(_req: Request, res: Response) {
-  res.json({ data: serialize(await listLibrary()) });
+export async function getLibrary(req: Request, res: Response) {
+  res.json({ data: serialize(await listLibrary(req.user!.id)) });
 }
 
 /** Reads one library model's latest version including code, as `{ entry }`. */
 export async function getLibraryEntry(req: Request, res: Response) {
-  res.json({ entry: serialize(await getLibraryModel(req.params.modelId!)) });
+  res.json({ entry: serialize(await getLibraryModel(req.user!.id, req.params.modelId!)) });
 }
 
 /** Installs a library model as the caller's private copy; responds 201 with `{ model }`. */

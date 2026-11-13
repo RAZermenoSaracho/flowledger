@@ -6,6 +6,7 @@ import {
   notificationProposalSchema,
   notificationSlotsSchema,
   notificationTestSchema,
+  updateNotificationModelSchema,
   updateFromSourceSchema
 } from "../notificationModels.js";
 
@@ -44,6 +45,19 @@ describe("createNotificationModelSchema", () => {
     expect(createNotificationModelSchema.safeParse({ name: "a".repeat(81) }).success).toBe(false);
     expect(createNotificationModelSchema.safeParse({ name: "a", code: "x".repeat(20001) }).success).toBe(false);
     expect(createNotificationModelSchema.safeParse({ name: "a", settings: { k: "x".repeat(501) } }).success).toBe(false);
+  });
+});
+
+describe("visibility writes", () => {
+  it("accepts private and rejects public with the publish hint on create and update", () => {
+    expect(updateNotificationModelSchema.safeParse({ visibility: "private" }).success).toBe(true);
+    for (const result of [
+      updateNotificationModelSchema.safeParse({ visibility: "public" }),
+      createNotificationModelSchema.safeParse({ name: "a", visibility: "public" })
+    ]) {
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain("Use Publish to make a model public");
+    }
   });
 });
 

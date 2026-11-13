@@ -12,6 +12,7 @@ import { ModelFormTab } from "./components/ModelFormTab";
 import { ModelPlaygroundTab } from "./components/ModelPlaygroundTab";
 import { NotificationLogsList } from "./components/NotificationLogsList";
 import { NotificationQueueList } from "./components/NotificationQueueList";
+import { publicationLabel } from "./utils/notificationDisplay";
 import { useNotificationModelForm } from "./hooks/useNotificationModelForm";
 
 const SAVE_FIRST = <p className="text-sm text-slate-500 dark:text-slate-400">Save the model first.</p>;
@@ -19,8 +20,8 @@ const SAVE_FIRST = <p className="text-sm text-slate-500 dark:text-slate-400">Sav
 /**
  * Notification model Form View at `/notification-models/:id` (stored model) and `/notification-models/new`
  * (unsaved draft from the template script). Tabs Form, Code, Playground, Queue and Logs share one draft,
- * selected through `?tab=`. The actions menu publishes (after a confirm listing what is published) and
- * deletes (after a confirm stating the pending runs). Unknown or foreign ids show the same not-found state.
+ * selected through `?tab=`. The actions menu publishes (after a confirm listing what is published), unpublishes
+ * (after a confirm; only when published) and deletes (after a confirm stating the pending runs). Unknown or foreign ids show the same not-found state.
  */
 export function NotificationModelDetailPage() {
   const { id } = useParams();
@@ -45,9 +46,20 @@ export function NotificationModelDetailPage() {
     },
     onError: (error) => setActionError(error.message)
   });
+  const refreshPublication = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["notification-models"] }),
+      queryClient.invalidateQueries({ queryKey: ["notification-library"] })
+    ]);
+  };
   const publishModel = useMutation({
     mutationFn: () => notificationModelsClient.publishNotificationModel(id!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-models"] }),
+    onSuccess: refreshPublication,
+    onError: (error) => setActionError(error.message)
+  });
+  const unpublishModel = useMutation({
+    mutationFn: () => notificationModelsClient.unpublishNotificationModel(id!),
+    onSuccess: refreshPublication,
     onError: (error) => setActionError(error.message)
   });
 
@@ -86,6 +98,17 @@ export function NotificationModelDetailPage() {
     }
   }
 
+  function confirmUnpublish() {
+    if (!model) return;
+    const confirmed = window.confirm(
+      `Unpublish "${model.name}"? It will disappear from the library. Published versions and copies others already installed are kept.`
+    );
+    if (confirmed) {
+      setActionError(null);
+      unpublishModel.mutate();
+    }
+  }
+
   const tabs: FormViewTab[] = [
     { id: "form", label: "Form", content: <ModelFormTab draft={draft} model={model} /> },
     { id: "code", label: "Code", content: <ModelCodeTab draft={draft} /> },
@@ -98,7 +121,7 @@ export function NotificationModelDetailPage() {
     <Card>
       <FormView
         title={model ? model.name : "New notification model"}
-        subtitle={model ? (model.isActive ? "Active" : "Inactive") : undefined}
+        subtitle={model ? `${model.isActive ? "Active" : "Inactive"} · ${publicationLabel(model.publication)}` : undefined}
         draft={draft}
         tabs={tabs}
         backLink={{ to: routes.notificationModels, label: "Back to notification models" }}
@@ -109,6 +132,11 @@ export function NotificationModelDetailPage() {
               <ActionMenuItem disabled={publishModel.isPending || draft.isDirty} onClick={confirmPublish}>
                 Publish
               </ActionMenuItem>
+              {model.publication.published ? (
+                <ActionMenuItem disabled={unpublishModel.isPending} onClick={confirmUnpublish}>
+                  Unpublish
+                </ActionMenuItem>
+              ) : null}
               <ActionMenuItem variant="danger" disabled={deleteModel.isPending} onClick={confirmDelete}>
                 Delete
               </ActionMenuItem>

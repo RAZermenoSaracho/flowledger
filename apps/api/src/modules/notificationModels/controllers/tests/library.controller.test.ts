@@ -25,11 +25,13 @@ describe("library controller", () => {
     vi.mocked(service.listLibrary).mockResolvedValue([] as never);
     res = mockResponse();
     await controller.getLibrary(mockRequest(), res);
+    expect(service.listLibrary).toHaveBeenCalledWith("user-1");
     expect(res.json).toHaveBeenCalledWith({ data: [] });
 
     vi.mocked(service.getLibraryModel).mockResolvedValue({ modelId: "m" } as never);
     res = mockResponse();
     await controller.getLibraryEntry(mockRequest({ params: { modelId: "m" } }), res);
+    expect(service.getLibraryModel).toHaveBeenCalledWith("user-1", "m");
     expect(res.json).toHaveBeenCalledWith({ entry: { modelId: "m" } });
 
     vi.mocked(service.installModel).mockResolvedValue({ id: "c" } as never);
