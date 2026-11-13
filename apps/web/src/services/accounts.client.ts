@@ -30,7 +30,7 @@ export function createAccount(body: {
   type: AccountType;
   identifier?: string | null;
   currency: string;
-  initialBalance: number;
+  initialBalance: string;
 }) {
   return apiRequest<{ account: Account }>("/accounts", {
     method: "POST",
@@ -46,7 +46,7 @@ export function updateAccount(
     type?: AccountType;
     identifier?: string | null;
     currency?: string;
-    initialBalance?: number;
+    initialBalance?: string;
   }
 ) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}`, {

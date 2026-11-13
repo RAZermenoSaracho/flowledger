@@ -6,8 +6,10 @@ import {
   assertExpenseOffsetAllowed,
   assertGroupRelations,
   assertOwnedRelations,
-  assertTransferAllowed
+  assertTransferAllowed,
+  findAccountCurrencies
 } from "./transactionValidation.service.js";
+import { resolveAppliedAmounts } from "../utils/appliedAmounts.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
   importedTransactionInclude,
@@ -29,21 +31,25 @@ export async function createTransaction(userId: string, body: TransactionInput) 
   await assertGroupRelations(userId, body);
 
   const { sharedExpense, executionCurrency, ...input } = body;
-  const [account, user] = await Promise.all([
-    input.accountId
-      ? prisma.account.findUnique({
-          where: { id: input.accountId },
-          select: { currency: true }
-        })
-      : null,
+  const [currencies, user] = await Promise.all([
+    findAccountCurrencies(userId, input.accountId, input.transferToAccountId),
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { preferredCurrency: true }
     })
   ]);
+  const resolvedCurrency =
+    executionCurrency ??
+    currencies.accountCurrency ??
+    user.preferredCurrency ??
+    "USD";
+  const appliedAmounts = resolveAppliedAmounts({
+    ...input,
+    executionCurrency: resolvedCurrency,
+    ...currencies
+  });
   const currencyFields = await resolveTransactionCurrencyFields({
-    executionCurrency:
-      executionCurrency ?? account?.currency ?? user.preferredCurrency ?? "USD",
+    executionCurrency: resolvedCurrency,
     amount: input.amount,
     preferredCurrency: user.preferredCurrency
   });
@@ -53,6 +59,7 @@ export async function createTransaction(userId: string, body: TransactionInput) 
       data: {
         ...input,
         ...currencyFields,
+        ...appliedAmounts,
         userId,
         date: new Date(input.date)
       },
@@ -85,11 +92,12 @@ export async function createTransaction(userId: string, body: TransactionInput) 
   });
 }
 
-/** Converts one pending provider-imported transaction into a real `Transaction`, marking the source row `processed`. */
+/** Converts one pending provider-imported transaction into a real `Transaction`, marking the source row `processed`. `accountAmount` is required (400) when the provider currency differs from the linked account's currency. */
 export async function importProviderImportedTransaction(input: {
   id: string;
   userId: string;
   categoryId?: string;
+  accountAmount?: string;
 }) {
   const existing = await prisma.providerImportedTransaction.findFirst({
     where: { id: input.id, userId: input.userId },
@@ -120,9 +128,17 @@ export async function importProviderImportedTransaction(input: {
     where: { id: input.userId },
     select: { preferredCurrency: true }
   });
+  const importedAmount = existing.amount.abs();
+  const appliedAmounts = resolveAppliedAmounts({
+    type,
+    amount: importedAmount.toFixed(),
+    executionCurrency: existing.currency,
+    accountCurrency: existing.providerAccount?.account?.currency ?? null,
+    accountAmount: input.accountAmount
+  });
   const currencyFields = await resolveTransactionCurrencyFields({
     executionCurrency: existing.currency,
-    amount: existing.amount.abs().toNumber(),
+    amount: importedAmount,
     preferredCurrency: user.preferredCurrency
   });
 
@@ -146,6 +162,7 @@ export async function importProviderImportedTransaction(input: {
         name: current.description,
         amount: current.amount.abs(),
         ...currencyFields,
+        ...appliedAmounts,
         type,
         date: current.transactionDate,
         categoryId,
@@ -184,6 +201,16 @@ export async function batchImportProviderImportedTransactions(
   const rows = await prisma.providerImportedTransaction.findMany({
     where: { userId, id: { in: ids } }
   });
+  const linkedAccounts = await prisma.providerAccount.findMany({
+    where: {
+      userId,
+      id: { in: rows.flatMap((row) => (row.providerAccountRefId ? [row.providerAccountRefId] : [])) }
+    },
+    select: { id: true, account: { select: { currency: true } } }
+  });
+  const rowAccountCurrency = new Map(
+    linkedAccounts.map((linked) => [linked.id, linked.account?.currency.toUpperCase()])
+  );
   const errors: { id: string; message: string }[] = [];
 
   for (const row of rows) {
@@ -207,6 +234,17 @@ export async function batchImportProviderImportedTransactions(
           error instanceof Error
             ? error.message
             : "Imported transaction cannot be imported"
+        )
+      );
+      continue;
+    }
+
+    const accountCurrency = row.providerAccountRefId ? rowAccountCurrency.get(row.providerAccountRefId) : undefined;
+    if (accountCurrency && accountCurrency !== row.currency.toUpperCase()) {
+      errors.push(
+        importValidationError(
+          row.id,
+          "accountAmount is required when the currency differs from the account currency; import this row individually with accountAmount"
         )
       );
       continue;

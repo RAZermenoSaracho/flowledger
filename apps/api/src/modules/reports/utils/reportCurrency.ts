@@ -1,16 +1,14 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 
-/** Converts a transaction amount between currencies via the live exchange rate, rounded to money precision. */
+/** Values a transaction amount in `to` at the live rate, half-up to `to`'s minor units; exact `Decimal`. */
 export async function convertAmount(
   amount: Prisma.Decimal,
   from: string,
   to: string
-): Promise<number> {
-  const value = amount.toNumber();
-  if (from === to || value === 0) return value;
+): Promise<Prisma.Decimal> {
+  if (from === to || amount.isZero()) return amount;
 
-  const rate = await getExchangeRate(from, to);
-  return roundMoney(value * rate);
+  return valueInCurrency(amount, await getExchangeRate(from, to), to);
 }

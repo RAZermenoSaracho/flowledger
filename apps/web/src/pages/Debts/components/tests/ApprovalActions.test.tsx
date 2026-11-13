@@ -13,7 +13,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Checking",
     type: "checking",
     currency: "USD",
-    initialBalance: 0,
+    initialBalance: "0",
     isArchived: false,
     createdAt: "",
     updatedAt: "",
@@ -39,9 +39,10 @@ function makeRequest(overrides: Partial<SettlementRequest> = {}): SettlementRequ
     sharedExpenseParticipantId: "debt-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    amount: 50,
+    amount: "50",
     status: "pending",
     sharedExpenseParticipant: {
+      currency: "USD",
       sharedExpense: { transaction: { type: "expense" } }
     } as unknown as Debt,
     createdAt: "",
@@ -56,7 +57,7 @@ function baseProps(overrides: Partial<Parameters<typeof ApprovalActions>[0]> = {
     accounts: [makeAccount()],
     incomeCategories: [makeCategory()],
     expenseOffsetCategories: [makeCategory({ id: "cat-expense", type: "expense" })],
-    draft: { accountId: "", categoryId: "", expenseOffsetCategoryId: "" },
+    draft: { accountAmount: "", accountId: "", categoryId: "", expenseOffsetCategoryId: "" },
     isActing: false,
     onDraftChange: vi.fn(),
     onApprove: vi.fn(),
@@ -111,7 +112,7 @@ describe("ApprovalActions", () => {
   it("enables Approve once account and category are set, calling onApprove on submit", async () => {
     const user = userEvent.setup();
     const props = baseProps({
-      draft: { accountId: "acc-1", categoryId: "cat-1", expenseOffsetCategoryId: "" }
+      draft: { accountAmount: "", accountId: "acc-1", categoryId: "cat-1", expenseOffsetCategoryId: "" }
     });
     renderWithProviders(<ApprovalActions {...props} />);
 

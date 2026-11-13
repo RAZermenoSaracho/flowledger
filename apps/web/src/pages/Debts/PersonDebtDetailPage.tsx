@@ -8,6 +8,7 @@ import { listAccounts } from "../../services/accounts.client";
 import { listCategories } from "../../services/categories.client";
 import * as debtsClient from "../../services/debts.client";
 import { listGroups } from "../../services/groups.client";
+import { isNonZero } from "../../utils/money";
 import { PersonDebtDetail } from "./components/PersonDebtDetail";
 import { useDebtSettlementWorkflow } from "./hooks/useDebtSettlementWorkflow";
 import { availableSettlementAmount } from "./utils/debtDisplay";
@@ -75,7 +76,7 @@ export function PersonDebtDetailPage() {
       (balance?.iOweThem ?? []).filter(
         (debt) =>
           workflow.selectedDebtIds.has(debt.id) &&
-          availableSettlementAmount(debt) > 0
+          isNonZero(availableSettlementAmount(debt))
       ),
     [balance?.iOweThem, workflow.selectedDebtIds]
   );

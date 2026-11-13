@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   assertNoSettlementActivity,
@@ -9,7 +10,7 @@ import {
   pendingRequestAmount
 } from "../shareGuards.js";
 
-const D = (value: number) => ({ toNumber: () => value });
+const D = (value: number | string) => new Prisma.Decimal(value);
 const participant = (overrides: Record<string, unknown> = {}) =>
   ({ id: "p1", participantName: "@friend", shareAmount: D(40), paidAmount: D(0), acceptance: "accepted", settlementRequests: [], ...overrides }) as never;
 
@@ -19,11 +20,11 @@ describe("pendingRequestAmount", () => {
       pendingRequestAmount({
         settlementRequests: [
           { status: "pending", amount: D(5) },
-          { status: "pending", amount: D(2.5) },
+          { status: "pending", amount: D("2.5") },
           { status: "rejected", amount: D(100) }
         ]
       })
-    ).toBe(7.5);
+    ).toEqual(new Prisma.Decimal("7.5"));
   });
 });
 
@@ -44,7 +45,7 @@ describe("assertNoSettlementActivity", () => {
 describe("isSettledAllocation", () => {
   it("needs acceptance and a fully paid share", () => {
     expect(isSettledAllocation(participant({ paidAmount: D(40) }))).toBe(true);
-    expect(isSettledAllocation(participant({ paidAmount: D(39.99) }))).toBe(false);
+    expect(isSettledAllocation(participant({ paidAmount: D("39.99") }))).toBe(false);
     expect(isSettledAllocation(participant({ paidAmount: D(40), acceptance: "proposed" }))).toBe(false);
     expect(isSettledAllocation(participant({ paidAmount: D(40), acceptance: "rejected" }))).toBe(false);
   });
@@ -106,5 +107,18 @@ describe("assertRemovable", () => {
     expect(() => assertRemovable(participant(), "f")).not.toThrow();
     expect(() => assertRemovable(participant({ paidAmount: D(1) }), "f")).toThrow();
     expect(() => assertRemovable(participant({ settlementRequests: [{ status: "pending", amount: D(1) }] }), "f")).toThrow();
+  });
+});
+
+describe("crypto exactness", () => {
+  it("treats 0.4 + 0.6 ETH paid as settling a 1 ETH share", () => {
+    const paid = D("0.4").plus("0.6");
+    expect(isSettledAllocation(participant({ shareAmount: D("1"), paidAmount: paid }))).toBe(true);
+    expect(isSettledAllocation(participant({ shareAmount: D("1"), paidAmount: D("0.999999999999999999") }))).toBe(false);
+  });
+
+  it("sums 0.01 BTC pending requests without float drift", () => {
+    const requests = Array.from({ length: 10 }, () => ({ status: "pending", amount: D("0.01") }));
+    expect(pendingRequestAmount({ settlementRequests: requests }).toFixed()).toBe("0.1");
   });
 });

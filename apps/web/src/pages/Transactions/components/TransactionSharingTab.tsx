@@ -12,6 +12,7 @@ import type { Transaction } from "../../../types/transactions.types";
 import { searchUsers } from "../../../services/users.client";
 import { formatMoney } from "../../../utils/currency";
 import { formatEnumLabel } from "../../../utils/enumLabels";
+import { compare, isNonZero, parseUnits, subtract } from "../../../utils/money";
 import type {
   ParticipantDraft,
   TransactionDraft
@@ -84,16 +85,16 @@ export function TransactionSharingTab({
     );
   }
 
-  const amount = Number.isFinite(Number(values.amount))
-    ? Number(values.amount)
-    : 0;
-  const allocated = sumParticipantShares(values.participants);
-  const ownerShare = Math.max(0, amount - allocated);
-  const unallocated = amount - allocated - ownerShare;
-  const money = (value: number) => formatMoney(value, values.executionCurrency);
+  const currency = values.executionCurrency;
+  const amount = parseUnits(values.amount, currency) === null ? "0" : values.amount.trim();
+  const allocated = sumParticipantShares(values.participants, currency);
+  const overAllocated = compare(allocated, amount, currency) > 0;
+  const ownerShare = overAllocated ? "0" : subtract(amount, allocated, currency);
+  const unallocated = overAllocated ? subtract(amount, allocated, currency) : "0";
+  const money = (value: string) => formatMoney(value, currency);
   const eligibleUsers = usersQuery.data ?? [];
   const hasPayments = values.participants.some(
-    (participant) => (participant.paidAmount ?? 0) > 0
+    (participant) => isNonZero(participant.paidAmount)
   );
   const unshareLocked =
     Boolean(transaction?.sharedExpense) && values.isShared && hasPayments;
@@ -259,7 +260,7 @@ export function TransactionSharingTab({
                   const canAdd =
                     Boolean(participant.id) &&
                     Boolean(participant.userId) &&
-                    (participant.paidAmount ?? 0) > 0 &&
+                    isNonZero(participant.paidAmount) &&
                     canAddAllocation(
                       values.participants,
                       participant.userId as string
@@ -300,7 +301,7 @@ export function TransactionSharingTab({
                 cell: (participant) => {
                   const index = values.participants.indexOf(participant);
                   const settled = isShareLocked(participant);
-                  const hasPaid = (participant.paidAmount ?? 0) > 0;
+                  const hasPaid = isNonZero(participant.paidAmount);
                   const original =
                     transaction?.sharedExpense?.participants.find(
                       (stored) => stored.id === participant.id
@@ -317,8 +318,8 @@ export function TransactionSharingTab({
                         <input
                           className={editableControlClassName}
                           type="number"
-                          step="0.01"
-                          min={hasPaid ? participant.paidAmount : "0.01"}
+                          step="any"
+                          min={hasPaid ? participant.paidAmount : undefined}
                           max={
                             hasPaid && original
                               ? original.shareAmount
@@ -360,7 +361,7 @@ export function TransactionSharingTab({
                       cell: (participant: ParticipantDraft) =>
                         participant.id
                           ? formatMoney(
-                              participant.paidAmount ?? 0,
+                              participant.paidAmount ?? "0",
                               values.executionCurrency
                             )
                           : "-"

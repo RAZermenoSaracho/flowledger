@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -205,8 +206,27 @@ describe("confirmProviderAccounts", () => {
 
     expect(prismaMock.account.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ userId: "user-1", currency: "USD" })
+        data: expect.objectContaining({ userId: "user-1", currency: "USD", initialBalance: new Prisma.Decimal("50") })
       })
     );
+  });
+
+  it("keeps a high-precision balance exact and maps a non-numeric balance to 0", async () => {
+    for (const [balance, expected] of [["0.123456789012345678", "0.123456789012345678"], ["n/a", "0"]]) {
+      prismaMock.providerAccount.findFirst.mockResolvedValue({
+        id: "pa-1",
+        accountId: null,
+        accountMetadata: { currency: "btc", balance },
+        account: null,
+        connection: null
+      } as never);
+      prismaMock.account.create.mockResolvedValue({ id: "acc-new" } as never);
+      prismaMock.providerAccount.update.mockResolvedValue({} as never);
+
+      await confirmProviderAccounts("user-1", [{ providerAccountId: "pa-1" }]);
+
+      const data = prismaMock.account.create.mock.lastCall![0].data;
+      expect(data.initialBalance!.toString()).toBe(expected);
+    }
   });
 });

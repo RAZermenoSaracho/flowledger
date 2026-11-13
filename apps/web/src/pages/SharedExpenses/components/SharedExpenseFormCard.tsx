@@ -158,8 +158,8 @@ export function SharedExpenseFormCard({
               <TextInput
                 label="Share amount"
                 type="number"
-                step="0.01"
-                min="0.01"
+                step="any"
+                min="0"
                 value={participant.shareAmount}
                 onChange={(event) =>
                   form.updateParticipant(
@@ -173,7 +173,7 @@ export function SharedExpenseFormCard({
               <TextInput
                 label="Settled amount"
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={participant.paidAmount}
                 onChange={(event) =>
@@ -219,7 +219,7 @@ export function SharedExpenseFormCard({
                 <p className="text-coral dark:text-orange-300">
                   Over by{" "}
                   {formatMoney(
-                    Math.abs(form.remainingAmount),
+                    form.remainingAmount.replace("-", ""),
                     form.selectedTransaction.executionCurrency
                   )}{" "}
                   — participant shares cannot exceed the transaction amount.

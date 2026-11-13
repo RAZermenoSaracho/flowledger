@@ -6,7 +6,7 @@ import { GroupSummarySection } from "../GroupSummarySection";
 describe("GroupSummarySection", () => {
   it("renders income, expenses, and a positive balance in the positive color", () => {
     renderWithProviders(
-      <GroupSummarySection summary={{ totalIncome: 1000, totalExpenses: 400, balance: 600 }} />
+      <GroupSummarySection summary={{ totalIncome: 1000, totalExpenses: 400, balance: 600 }} currency="USD" />
     );
 
     expect(screen.getByText("$1,000.00")).toBeInTheDocument();
@@ -16,9 +16,17 @@ describe("GroupSummarySection", () => {
 
   it("renders a negative balance in the negative color", () => {
     renderWithProviders(
-      <GroupSummarySection summary={{ totalIncome: 100, totalExpenses: 400, balance: -300 }} />
+      <GroupSummarySection summary={{ totalIncome: 100, totalExpenses: 400, balance: -300 }} currency="USD" />
     );
 
     expect(screen.getByText("-$300.00")).toHaveClass("text-coral");
+  });
+
+  it("formats in the given currency", () => {
+    renderWithProviders(
+      <GroupSummarySection summary={{ totalIncome: 1000, totalExpenses: 400, balance: 600 }} currency="MXN" />
+    );
+
+    expect(screen.getByText("MX$1,000.00")).toBeInTheDocument();
   });
 });

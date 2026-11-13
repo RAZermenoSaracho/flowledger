@@ -24,7 +24,7 @@ const account: Account = {
   type: "checking",
   identifier: "1234",
   currency: "USD",
-  initialBalance: 500,
+  initialBalance: "500",
   isArchived: false,
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z"
@@ -89,7 +89,7 @@ describe("useAccountForm", () => {
     expect(body).toEqual({
       name: "Everyday",
       identifier: null,
-      initialBalance: 75.5
+      initialBalance: "75.5"
     });
     await waitFor(() => expect(result.current.isDirty).toBe(false));
   });

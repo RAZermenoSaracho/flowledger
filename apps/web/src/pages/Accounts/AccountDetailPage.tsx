@@ -129,7 +129,7 @@ export function AccountDetailPage() {
               <input
                 className={editableControlClassName}
                 type="number"
-                step="0.01"
+                step="any"
                 value={values.initialBalance}
                 onChange={(event) =>
                   draft.setField("initialBalance", event.target.value)

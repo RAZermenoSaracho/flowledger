@@ -10,20 +10,20 @@ function makeDebt(overrides: Partial<Debt> = {}): Debt {
     userId: "user-2",
     participantName: "Friend",
     currency: "USD",
-    shareAmount: 100,
-    paidAmount: 40,
+    shareAmount: "100",
+    paidAmount: "40",
     status: "partial",
     sharedExpenseId: "se-1",
     debtorUserId: "user-2",
     creditorUserId: "user-1",
-    outstandingAmount: 60,
-    pendingSettlementAmount: 0,
+    outstandingAmount: "60",
+    pendingSettlementAmount: "0",
     sharedExpense: {
       id: "se-1",
       transactionId: "tx-1",
       ownerUserId: "user-1",
       title: "Dinner split",
-      totalAmount: 100,
+      totalAmount: "100",
       status: "open",
       owner: { id: "user-1", username: "jane", nickname: null, displayName: "Jane" },
       transaction: { type: "expense" } as Debt["sharedExpense"]["transaction"],
@@ -53,7 +53,7 @@ describe("DebtSummaryCard", () => {
   });
 
   it("shows 'settled' status once outstandingAmount is 0", () => {
-    renderWithProviders(<DebtSummaryCard debt={makeDebt({ outstandingAmount: 0 })} />);
+    renderWithProviders(<DebtSummaryCard debt={makeDebt({ outstandingAmount: "0" })} />);
     expect(screen.getByText("settled")).toBeInTheDocument();
   });
 });

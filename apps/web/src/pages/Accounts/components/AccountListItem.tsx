@@ -34,7 +34,7 @@ export function AccountListItem({
         </p>
         <p
           className={`text-sm font-semibold ${
-            (account.currentBalance ?? 0) >= 0
+            !account.currentBalance?.startsWith("-")
               ? "text-pine dark:text-emerald-300"
               : "text-coral dark:text-orange-300"
           }`}

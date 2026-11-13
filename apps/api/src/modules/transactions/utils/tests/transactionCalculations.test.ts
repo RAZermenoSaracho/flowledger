@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   calculateAccountBalance,
@@ -5,7 +6,7 @@ import {
   withAccountBalances
 } from "../transactionCalculations.js";
 
-const amount = (value: number) => ({ toNumber: () => value });
+const amount = (value: number | string) => new Prisma.Decimal(value);
 
 describe("calculateAccountBalance", () => {
   const accountTransactions = [
@@ -13,75 +14,131 @@ describe("calculateAccountBalance", () => {
       accountId: "checking",
       transferToAccountId: null,
       type: "income" as const,
-      amount: amount(1000)
+      accountAmount: amount(1000)
     },
     {
       accountId: "checking",
       transferToAccountId: null,
       type: "expense" as const,
-      amount: amount(150)
+      accountAmount: amount(150)
     },
     {
       accountId: "checking",
       transferToAccountId: "savings",
       type: "transfer" as const,
-      amount: amount(200)
+      accountAmount: amount(200),
+      destinationAmount: amount(200)
     },
     {
       accountId: "cash",
       transferToAccountId: "checking",
       type: "transfer" as const,
-      amount: amount(50)
+      accountAmount: amount(50),
+      destinationAmount: amount(50)
     }
   ];
 
   it("adds income and subtracts expense/outgoing transfers for the matching account", () => {
-    expect(calculateAccountBalance("checking", accountTransactions)).toBe(700);
+    expect(calculateAccountBalance("checking", accountTransactions).toFixed()).toBe("700");
   });
 
-  it("adds an optional initialBalance (duck-typed via .toNumber())", () => {
+  it("adds an optional initialBalance", () => {
     expect(
-      calculateAccountBalance("checking", accountTransactions, amount(25))
-    ).toBe(725);
+      calculateAccountBalance("checking", accountTransactions, amount(25)).toFixed()
+    ).toBe("725");
   });
 
   it("credits the destination account for an incoming transfer", () => {
-    expect(calculateAccountBalance("savings", accountTransactions)).toBe(200);
+    expect(calculateAccountBalance("savings", accountTransactions).toFixed()).toBe("200");
   });
 
   it("debits the source account for an outgoing transfer", () => {
-    expect(calculateAccountBalance("cash", accountTransactions)).toBe(-50);
+    expect(calculateAccountBalance("cash", accountTransactions).toFixed()).toBe("-50");
   });
 
   it("returns the initial balance alone for an account with no transactions", () => {
     expect(
-      calculateAccountBalance("unused", accountTransactions, amount(10))
-    ).toBe(10);
+      calculateAccountBalance("unused", accountTransactions, amount(10)).toFixed()
+    ).toBe("10");
   });
 
-  it("accepts a plain number amount, not just a Decimal-like object", () => {
+  it("accepts a decimal string amount", () => {
     expect(
       calculateAccountBalance("checking", [
-        { accountId: "checking", type: "income", amount: 50 }
-      ])
-    ).toBe(50);
+        { accountId: "checking", type: "income", accountAmount: "50.25" }
+      ]).toFixed()
+    ).toBe("50.25");
+  });
+
+  it("applies a USD to MXN transfer as 100 out of the source and 1712.50 into the destination", () => {
+    const transfer = [
+      {
+        accountId: "usd",
+        transferToAccountId: "mxn",
+        type: "transfer" as const,
+        accountAmount: amount(100),
+        destinationAmount: amount("1712.50")
+      }
+    ];
+
+    expect(calculateAccountBalance("usd", transfer, 500).toFixed()).toBe("400");
+    expect(calculateAccountBalance("mxn", transfer, 0).toFixed()).toBe("1712.5");
+  });
+
+  it("applies a USD expense on an MXN account by its accountAmount", () => {
+    expect(
+      calculateAccountBalance(
+        "mxn",
+        [{ accountId: "mxn", type: "expense", accountAmount: amount("342.10") }],
+        1000
+      ).toFixed()
+    ).toBe("657.9");
+  });
+
+  it("sums 18-decimal crypto amounts exactly", () => {
+    const sats = "0.000000000000000001";
+    const rows = Array.from({ length: 3 }, () => ({
+      accountId: "btc",
+      type: "income" as const,
+      accountAmount: sats
+    }));
+
+    expect(
+      calculateAccountBalance("btc", rows, "1.234567890123456789").toFixed()
+    ).toBe("1.234567890123456792");
+  });
+
+  it("does not subtract a transfer fee again: only the applied amounts move balances", () => {
+    const transfer = [
+      {
+        accountId: "usd",
+        transferToAccountId: "mxn",
+        type: "transfer" as const,
+        accountAmount: amount(100),
+        destinationAmount: amount(1666),
+        feeAmount: amount(2),
+        feeCurrency: "USD"
+      }
+    ];
+
+    expect(calculateAccountBalance("usd", transfer, 100).toFixed()).toBe("0");
+    expect(calculateAccountBalance("mxn", transfer).toFixed()).toBe("1666");
   });
 });
 
 describe("withAccountBalances", () => {
-  it("attaches a currentBalance to each account", () => {
+  it("attaches a Decimal currentBalance to each account", () => {
     const accounts = [
-      { id: "checking", initialBalance: 100 },
+      { id: "checking", initialBalance: amount(100) },
       { id: "savings" }
     ];
     const transactions = [
-      { accountId: "checking", type: "income" as const, amount: 50 }
+      { accountId: "checking", type: "income" as const, accountAmount: amount(50) }
     ];
 
-    expect(withAccountBalances(accounts, transactions)).toEqual([
-      { id: "checking", initialBalance: 100, currentBalance: 150 },
-      { id: "savings", currentBalance: 0 }
-    ]);
+    const result = withAccountBalances(accounts, transactions);
+
+    expect(result.map((account) => account.currentBalance.toFixed())).toEqual(["150", "0"]);
   });
 });
 
@@ -239,6 +296,29 @@ describe("calculateMonthlyCashflow", () => {
         }
       ])
     ).toEqual([]);
+  });
+});
+
+describe("calculateMonthlyCashflow Decimal sums", () => {
+  it("sums 18-decimal amounts exactly before returning numbers", () => {
+    const [row] = calculateMonthlyCashflow([
+      { date: new Date("2026-06-01T00:00:00.000Z"), type: "income", amount: "0.100000000000000001" },
+      { date: new Date("2026-06-02T00:00:00.000Z"), type: "income", amount: "0.200000000000000002" },
+      { date: new Date("2026-06-03T00:00:00.000Z"), type: "expense", amount: "0.1" }
+    ]);
+
+    expect(row?.income).toBe(0.3);
+    expect(row?.balance).toBeCloseTo(0.2, 15);
+  });
+
+  it("does not accumulate float error across many small amounts", () => {
+    const rows = Array.from({ length: 10 }, (_, day) => ({
+      date: new Date(Date.UTC(2026, 5, day + 1)),
+      type: "income" as const,
+      amount: "0.1"
+    }));
+
+    expect(calculateMonthlyCashflow(rows)[0]?.income).toBe(1);
   });
 });
 

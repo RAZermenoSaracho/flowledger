@@ -55,7 +55,7 @@ describe("related transactions of a shared expense", () => {
 
     const original = await as(a, request(app).post("/transactions")).send({
       name: "Team dinner",
-      amount: 90,
+      amount: "90",
       type: "expense",
       date: "2024-01-15",
       accountId: aData.accountId,
@@ -64,8 +64,8 @@ describe("related transactions of a shared expense", () => {
       sharedExpense: {
         title: "Dinner split",
         participants: [
-          { userId: b.user.id, participantName: "B", shareAmount: 30 },
-          { userId: c.user.id, participantName: "C", shareAmount: 30 }
+          { userId: b.user.id, participantName: "B", shareAmount: "30" },
+          { userId: c.user.id, participantName: "C", shareAmount: "30" }
         ]
       }
     });
@@ -73,7 +73,7 @@ describe("related transactions of a shared expense", () => {
     const originalId = original.body.transaction.id as string;
     const unrelated = await as(a, request(app).post("/transactions")).send({
       name: "Unrelated coffee",
-      amount: 3,
+      amount: "3",
       type: "expense",
       date: "2024-01-16",
       accountId: aData.accountId,
@@ -101,7 +101,7 @@ describe("related transactions of a shared expense", () => {
         participant,
         request(app).post(`/debts/${row.id}/settlement-request`)
       ).send({
-        amount: 30,
+        amount: "30",
         accountId: data.accountId,
         categoryId: data.expenseId
       });
@@ -164,7 +164,7 @@ describe("related transactions of a shared expense", () => {
     expect(bView.body.transaction.relatedSettlements).toEqual([]);
     expect(bView.body.transaction.settlementOrigin).toMatchObject({
       title: "Dinner split",
-      amount: 90,
+      amount: "90",
       owner: { id: a.user.id }
     });
     const bJson = JSON.stringify(bView.body.transaction);

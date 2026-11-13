@@ -1,13 +1,17 @@
+import { Prisma } from "@prisma/client";
 import type { UpdateTransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import {
   assertExpenseOffsetAllowed,
   assertGroupRelations,
   assertOwnedRelations,
-  assertTransferAllowed
+  assertTransferAllowed,
+  findAccountCurrencies
 } from "./transactionValidation.service.js";
+import { resolveAppliedAmounts } from "../utils/appliedAmounts.js";
+import { financialFieldsChanged, financialSnapshot } from "../utils/transactionCorrection.js";
 import { applySharedExpenseToTransaction } from "../../shared-expenses/services/apply.service.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
@@ -22,7 +26,7 @@ import {
 } from "./importedTransactionValidation.service.js";
 import type { ImportedTransactionSelection } from "../types/transactions.types.js";
 
-/** Updates a transaction's fields, re-validating relations, recomputing currency fields when amount/currency changes, and applying `sharedExpense` (enable/edit/disable) atomically through `applySharedExpenseToTransaction`; a type change re-proposes or removes sharing under the same guards. Throws a 400 addressed to `amount` when the new amount is below the sum of existing participant shares. */
+/** Updates a transaction's fields, re-validating relations, re-resolving applied amounts (a cross-currency edit must restate them, else 400) and currency fields when amount/currency/type/account change, appending a `TransactionCorrection` when a financial field changes, and applying `sharedExpense` (enable/edit/disable) atomically through `applySharedExpenseToTransaction`; a type change re-proposes or removes sharing under the same guards. Throws a 400 addressed to `amount` when the new amount is below the sum of existing participant shares. */
 export async function updateTransaction(userId: string, id: string, input: UpdateTransactionInput) {
   const { sharedExpense: sharedExpenseInput, ...body } = input;
   const existing = await prisma.transaction.findFirst({
@@ -40,11 +44,11 @@ export async function updateTransaction(userId: string, id: string, input: Updat
   if (!existing) throw notFound("Transaction");
 
   if (body.amount !== undefined && existing.sharedExpense && !sharedExpenseInput) {
-    const sharesInCents = existing.sharedExpense.participants.reduce(
-      (sum, participant) => sum + Math.round(participant.shareAmount.toNumber() * 100),
-      0
+    const shares = existing.sharedExpense.participants.reduce(
+      (sum, participant) => sum.plus(participant.shareAmount),
+      new Prisma.Decimal(0)
     );
-    if (Math.round(body.amount * 100) < sharesInCents) {
+    if (new Prisma.Decimal(body.amount).lt(shares)) {
       throw badRequest("Amount cannot be below the sum of participant shares", {
         issues: {
           formErrors: [],
@@ -95,9 +99,50 @@ export async function updateTransaction(userId: string, id: string, input: Updat
   });
   await assertGroupRelations(userId, relationInput);
 
+  const mergedType = body.type !== undefined ? body.type : existing.type;
+  const mergedExecutionCurrency = body.executionCurrency ?? existing.executionCurrency;
+  const amountChanged = body.amount !== undefined;
+  const baseChanged =
+    amountChanged ||
+    mergedType !== existing.type ||
+    mergedExecutionCurrency !== existing.executionCurrency;
+  const financialInputPresent =
+    baseChanged ||
+    body.accountId !== undefined ||
+    body.transferToAccountId !== undefined ||
+    body.accountAmount !== undefined ||
+    body.destinationAmount !== undefined ||
+    body.feeAmount !== undefined ||
+    body.feeCurrency !== undefined;
+
+  let appliedAmounts: ReturnType<typeof resolveAppliedAmounts> | undefined;
+  if (financialInputPresent) {
+    const currencies = await findAccountCurrencies(
+      userId,
+      relationInput.accountId,
+      relationInput.transferToAccountId
+    );
+    const sourceUnchanged = !baseChanged && relationInput.accountId === existing.accountId;
+    const destinationUnchanged =
+      !baseChanged && relationInput.transferToAccountId === existing.transferToAccountId;
+    appliedAmounts = resolveAppliedAmounts({
+      type: mergedType,
+      amount: body.amount ?? existing.amount.toFixed(),
+      executionCurrency: mergedExecutionCurrency,
+      ...currencies,
+      accountAmount:
+        body.accountAmount ?? (sourceUnchanged ? existing.accountAmount?.toFixed() : undefined),
+      destinationAmount:
+        body.destinationAmount ??
+        (destinationUnchanged ? existing.destinationAmount?.toFixed() : undefined),
+      feeAmount: body.feeAmount === undefined ? existing.feeAmount?.toFixed() : body.feeAmount,
+      feeCurrency: body.feeCurrency === undefined ? existing.feeCurrency : body.feeCurrency
+    });
+  }
+
   let currencyFields:
     | Awaited<ReturnType<typeof resolveTransactionCurrencyFields>>
-    | { amountInPreferredCurrency: number }
+    | { amountInPreferredCurrency: Prisma.Decimal }
     | undefined;
   if (
     body.executionCurrency !== undefined &&
@@ -109,13 +154,19 @@ export async function updateTransaction(userId: string, id: string, input: Updat
     });
     currencyFields = await resolveTransactionCurrencyFields({
       executionCurrency: body.executionCurrency,
-      amount: body.amount !== undefined ? body.amount : existing.amount.toNumber(),
+      amount: body.amount !== undefined ? body.amount : existing.amount,
       preferredCurrency: user.preferredCurrency
     });
   } else if (body.amount !== undefined) {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { preferredCurrency: true }
+    });
     currencyFields = {
-      amountInPreferredCurrency: roundMoney(
-        body.amount * existing.exchangeRate.toNumber()
+      amountInPreferredCurrency: valueInCurrency(
+        body.amount,
+        existing.exchangeRate,
+        user.preferredCurrency ?? existing.executionCurrency
       )
     };
   }
@@ -126,7 +177,8 @@ export async function updateTransaction(userId: string, id: string, input: Updat
       data: {
         ...body,
         ...(body.date ? { date: new Date(body.date) } : {}),
-        ...currencyFields
+        ...currencyFields,
+        ...appliedAmounts
       },
       include: {
         account: true,
@@ -136,6 +188,20 @@ export async function updateTransaction(userId: string, id: string, input: Updat
         group: true
       }
     });
+
+    const previous = financialSnapshot(existing);
+    const corrected = financialSnapshot(updatedTransaction);
+    if (financialFieldsChanged(previous, corrected)) {
+      await tx.transactionCorrection.create({
+        data: {
+          transactionId: existing.id,
+          userId,
+          action: "update",
+          previous,
+          corrected
+        }
+      });
+    }
 
     const typeChanged = updatedTransaction.type !== existing.type;
     if (sharedExpenseInput || (existing.sharedExpense && (typeChanged || body.amount !== undefined))) {

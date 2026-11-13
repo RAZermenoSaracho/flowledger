@@ -8,7 +8,7 @@ import {
 } from "../debts.js";
 
 describe("settlementRequestSchema", () => {
-  const valid = { amount: 100, accountId: "acc-1", categoryId: "cat-1" };
+  const valid = { amount: "100", accountId: "acc-1", categoryId: "cat-1" };
 
   it("accepts a valid settlement request", () => {
     expect(settlementRequestSchema.safeParse(valid).success).toBe(true);
@@ -16,13 +16,13 @@ describe("settlementRequestSchema", () => {
 
   it("rejects a zero amount", () => {
     expect(
-      settlementRequestSchema.safeParse({ ...valid, amount: 0 }).success
+      settlementRequestSchema.safeParse({ ...valid, amount: "0" }).success
     ).toBe(false);
   });
 
   it("rejects a negative amount", () => {
     expect(
-      settlementRequestSchema.safeParse({ ...valid, amount: -5 }).success
+      settlementRequestSchema.safeParse({ ...valid, amount: "-5" }).success
     ).toBe(false);
   });
 
@@ -86,7 +86,7 @@ describe("batchSettlementRequestSchema", () => {
     expect(
       batchSettlementRequestSchema.safeParse({
         requests: [
-          { debtId: "debt-1", amount: 50, accountId: "acc-1", categoryId: "cat-1" }
+          { debtId: "debt-1", amount: "50", accountId: "acc-1", categoryId: "cat-1" }
         ]
       }).success
     ).toBe(true);
@@ -95,6 +95,36 @@ describe("batchSettlementRequestSchema", () => {
   it("rejects an empty requests array", () => {
     expect(
       batchSettlementRequestSchema.safeParse({ requests: [] }).success
+    ).toBe(false);
+  });
+});
+
+describe("settlement accountAmount", () => {
+  it("accepts an optional decimal-string accountAmount on request and approval", () => {
+    expect(
+      settlementRequestSchema.safeParse({
+        amount: "10",
+        accountAmount: "171.25",
+        accountId: "acc-1",
+        categoryId: "cat-1"
+      }).success
+    ).toBe(true);
+    expect(
+      settlementApprovalSchema.safeParse({
+        accountId: "acc-1",
+        categoryId: "cat-1",
+        accountAmount: "171.25"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a numeric accountAmount and a numeric amount", () => {
+    expect(
+      settlementApprovalSchema.safeParse({ accountId: "a", categoryId: "c", accountAmount: 1.5 })
+        .success
+    ).toBe(false);
+    expect(
+      settlementRequestSchema.safeParse({ amount: 5, accountId: "a", categoryId: "c" }).success
     ).toBe(false);
   });
 });

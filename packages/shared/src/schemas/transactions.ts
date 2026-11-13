@@ -3,7 +3,12 @@ import {
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
-import { currencyCodeSchema, dateStringSchema, moneySchema } from "./common.js";
+import {
+  currencyCodeSchema,
+  dateStringSchema,
+  decimalAmountSchema,
+  positiveDecimalAmountSchema
+} from "./common.js";
 import { sharedExpenseParticipantSchema } from "./sharedExpenses.js";
 
 export const transactionSharedExpenseSchema = z.object({
@@ -13,7 +18,11 @@ export const transactionSharedExpenseSchema = z.object({
 
 export const baseTransactionSchema =z.object({
   name: z.string().trim().min(1).max(160),
-  amount: moneySchema,
+  amount: decimalAmountSchema,
+  accountAmount: decimalAmountSchema.optional(),
+  destinationAmount: decimalAmountSchema.optional(),
+  feeAmount: decimalAmountSchema.optional(),
+  feeCurrency: currencyCodeSchema.optional(),
   executionCurrency: currencyCodeSchema.optional(),
   type: z.enum(TRANSACTION_TYPES),
   date: dateStringSchema,
@@ -26,8 +35,23 @@ export const baseTransactionSchema =z.object({
   sharedExpense: transactionSharedExpenseSchema.optional()
 });
 
+/** Adds an issue unless `feeAmount` and `feeCurrency` are both present or both absent. */
+function requireFeePair(
+  transaction: { feeAmount?: string; feeCurrency?: string },
+  ctx: z.RefinementCtx
+) {
+  if ((transaction.feeAmount === undefined) !== (transaction.feeCurrency === undefined)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [transaction.feeAmount === undefined ? "feeAmount" : "feeCurrency"],
+      message: "feeAmount and feeCurrency must be provided together"
+    });
+  }
+}
+
 export const transactionSchema = baseTransactionSchema.superRefine(
   (transaction, ctx) => {
+    requireFeePair(transaction, ctx);
     if (transaction.type === "transfer" && transaction.sharedExpense) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -118,7 +142,7 @@ export const updateTransactionSharedExpenseSchema = z.discriminatedUnion("enable
             id: z.string().min(1).optional(),
             userId: z.string().min(1).optional(),
             manualName: z.string().trim().min(1).max(120).optional(),
-            share: moneySchema.positive()
+            share: positiveDecimalAmountSchema
           })
           .refine((p) => Boolean(p.userId) !== Boolean(p.manualName), {
             message: "Provide either userId or manualName"
@@ -131,7 +155,12 @@ export const updateTransactionSharedExpenseSchema = z.discriminatedUnion("enable
 export const updateTransactionSchema = baseTransactionSchema
   .omit({ sharedExpense: true })
   .partial()
-  .extend({ sharedExpense: updateTransactionSharedExpenseSchema.optional() });
+  .extend({
+    // null clears the stored fee; feeAmount and feeCurrency must then be cleared together (checked against the merged state by the API).
+    feeAmount: decimalAmountSchema.nullable().optional(),
+    feeCurrency: currencyCodeSchema.nullable().optional(),
+    sharedExpense: updateTransactionSharedExpenseSchema.optional()
+  });
 
 // The /transactions and /transactions/summary endpoints accept a single
 // JSON-encoded query-string parameter (a DataSieveQuery<TransactionRecord>
@@ -173,7 +202,8 @@ export const updateProviderImportedTransactionSchema = z.object({
 });
 
 export const importProviderImportedTransactionSchema = z.object({
-  categoryId: z.string().min(1).optional()
+  categoryId: z.string().min(1).optional(),
+  accountAmount: decimalAmountSchema.optional()
 });
 
 const importedTransactionSelectionSchema = z.discriminatedUnion("mode", [

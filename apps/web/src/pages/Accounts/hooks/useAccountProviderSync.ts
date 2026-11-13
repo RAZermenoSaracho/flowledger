@@ -119,7 +119,7 @@ export function useAccountProviderSync({
         type,
         identifier: identifier || null,
         currency,
-        initialBalance: Number(initialBalance || 0)
+        initialBalance: initialBalance || "0"
       }),
     onSuccess: async () => {
       setName("");

@@ -15,14 +15,14 @@ import {
 
 const baseIncome = {
   name: "Paycheck",
-  amount: 1000,
+  amount: "1000",
   type: "income" as const,
   date: "2024-01-15"
 };
 
 const baseTransfer = {
   name: "Move funds",
-  amount: 100,
+  amount: "100",
   type: "transfer" as const,
   date: "2024-01-15"
 };
@@ -38,7 +38,7 @@ describe("transactionSchema — income/expense", () => {
         ...baseIncome,
         sharedExpense: {
           title: "Split rent",
-          participants: [{ participantName: "Sam", shareAmount: 500 }]
+          participants: [{ participantName: "Sam", shareAmount: "500" }]
         }
       }).success
     ).toBe(true);
@@ -129,7 +129,7 @@ describe("transactionSchema — transfer", () => {
         ...validTransfer,
         sharedExpense: {
           title: "Split",
-          participants: [{ participantName: "Sam", shareAmount: 50 }]
+          participants: [{ participantName: "Sam", shareAmount: "50" }]
         }
       }).success
     ).toBe(false);
@@ -169,7 +169,7 @@ describe("updateTransactionSchema", () => {
         sharedExpense: {
           enabled: true,
           title: "Dinner",
-          participants: [{ userId: "u1", share: 10 }, { id: "p2", manualName: "Ana", share: 5 }]
+          participants: [{ userId: "u1", share: "10" }, { id: "p2", manualName: "Ana", share: "5" }]
         }
       }).success
     ).toBe(true);
@@ -177,10 +177,10 @@ describe("updateTransactionSchema", () => {
 
   it.each([
     ["enabled without participants", { enabled: true, participants: [] }],
-    ["participant with both userId and manualName", { enabled: true, participants: [{ userId: "u", manualName: "A", share: 1 }] }],
-    ["participant with neither", { enabled: true, participants: [{ share: 1 }] }],
-    ["non-positive share", { enabled: true, participants: [{ userId: "u", share: 0 }] }],
-    ["missing enabled", { participants: [{ userId: "u", share: 1 }] }]
+    ["participant with both userId and manualName", { enabled: true, participants: [{ userId: "u", manualName: "A", share: "1" }] }],
+    ["participant with neither", { enabled: true, participants: [{ share: "1" }] }],
+    ["non-positive share", { enabled: true, participants: [{ userId: "u", share: "0" }] }],
+    ["missing enabled", { participants: [{ userId: "u", share: "1" }] }]
   ])("rejects sharedExpense: %s", (_label, sharedExpense) => {
     expect(updateTransactionSchema.safeParse({ sharedExpense }).success).toBe(false);
   });
@@ -287,5 +287,55 @@ describe("provider imported transaction schemas", () => {
         selection: { mode: "all" }
       }).success
     ).toBe(false);
+  });
+});
+
+describe("transaction applied amounts and fee", () => {
+  const crossTransfer = {
+    ...baseTransfer,
+    accountId: "a",
+    transferToAccountId: "b",
+    destinationAmount: "1712.50"
+  };
+
+  it("accepts accountAmount, destinationAmount and a complete fee pair", () => {
+    expect(
+      transactionSchema.safeParse({
+        ...crossTransfer,
+        accountAmount: "100",
+        feeAmount: "1.5",
+        feeCurrency: "usd"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a fee amount without a fee currency and vice versa", () => {
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeAmount: "1" }).success).toBe(false);
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeCurrency: "USD" }).success).toBe(
+      false
+    );
+  });
+
+  it("accepts null feeAmount and feeCurrency on update to clear a fee", () => {
+    expect(updateTransactionSchema.safeParse({ feeAmount: null, feeCurrency: null }).success).toBe(true);
+    expect(updateTransactionSchema.safeParse({ feeAmount: "1", feeCurrency: "USD" }).success).toBe(true);
+    expect(transactionSchema.safeParse({ ...crossTransfer, feeAmount: null, feeCurrency: null }).success).toBe(false);
+  });
+
+  it("rejects numeric amounts and over-precise strings", () => {
+    expect(transactionSchema.safeParse({ ...baseIncome, amount: 1000 }).success).toBe(false);
+    expect(updateTransactionSchema.safeParse({ amount: 5 }).success).toBe(false);
+    expect(
+      transactionSchema.safeParse({ ...crossTransfer, destinationAmount: 1712.5 }).success
+    ).toBe(false);
+  });
+
+  it("accepts an optional accountAmount when importing", () => {
+    expect(importProviderImportedTransactionSchema.safeParse({ accountAmount: "5.5" }).success).toBe(
+      true
+    );
+    expect(importProviderImportedTransactionSchema.safeParse({ accountAmount: 5.5 }).success).toBe(
+      false
+    );
   });
 });

@@ -14,7 +14,7 @@ describe("accountSchema", () => {
       name: "Checking",
       type: "checking",
       currency: "USD",
-      initialBalance: 0
+      initialBalance: "0"
     });
   });
 
@@ -30,10 +30,14 @@ describe("accountSchema", () => {
     ).toBe(false);
   });
 
-  it("coerces a string initialBalance to a number", () => {
+  it("keeps a decimal-string initialBalance unchanged", () => {
     expect(accountSchema.parse({ ...valid, initialBalance: "150.5" })).toMatchObject(
-      { initialBalance: 150.5 }
+      { initialBalance: "150.5" }
     );
+  });
+
+  it("rejects a numeric initialBalance", () => {
+    expect(accountSchema.safeParse({ ...valid, initialBalance: 150.5 }).success).toBe(false);
   });
 
   it("accepts a null identifier", () => {

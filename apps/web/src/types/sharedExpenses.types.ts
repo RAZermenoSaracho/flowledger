@@ -11,8 +11,10 @@ export type SharedExpenseParticipant = {
   userId?: string | null;
   participantName: string;
   currency: string;
-  shareAmount: number;
-  paidAmount: number;
+  /** Exact decimal string in the share's `currency`. */
+  shareAmount: string;
+  /** Exact decimal string in the share's `currency`. */
+  paidAmount: string;
   status: ParticipantStatus;
   /** Consent state; manual participants are always `accepted`. Absent only in payloads that predate consent. */
   acceptance?: ShareAcceptance;
@@ -30,7 +32,8 @@ export type SharedExpense = {
   transactionId: string;
   ownerUserId: string;
   title: string;
-  totalAmount: number;
+  /** Exact decimal string in the transaction's currency. */
+  totalAmount: string;
   status: SharedExpenseStatus;
   transaction?: SharedExpenseTransaction;
   owner?: PublicUser;

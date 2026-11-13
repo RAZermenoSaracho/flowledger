@@ -101,6 +101,18 @@ describe("group split", () => {
     ]);
   });
 
+  it("gives the remainder unit to the owner first so shares sum exactly", () => {
+    const draft = splitAmongGroup(base({ amount: "100.00" }), group, "me");
+    expect(draft.participants.map((p) => p.shareAmount)).toEqual(["33.33", "33.33"]);
+    const noOwner = splitAmongGroup(base({ amount: "100.00" }), group, "outsider");
+    expect(noOwner.participants.map((p) => p.shareAmount)).toEqual(["33.34", "33.33", "33.33"]);
+  });
+
+  it("splits BTC exactly with the remainder going to the owner", () => {
+    const draft = splitAmongGroup(base({ amount: "0.01", executionCurrency: "BTC" }), group, "me");
+    expect(draft.participants.map((p) => p.shareAmount)).toEqual(["0.003333333333333333", "0.003333333333333333"]);
+  });
+
   it("yields no participants for a missing amount or a one-member group", () => {
     expect(splitAmongGroup(base({ amount: "" }), group, "me").participants).toEqual([]);
     expect(
@@ -156,18 +168,18 @@ describe("participants", () => {
 
   it("adds a second line for a paid user with a fresh temp key, and blocks it for an unpaid user", () => {
     const sam = { id: "u2", username: "sam", displayName: "Sam" } as never;
-    const stored = (paidAmount: number) =>
+    const stored = (paidAmount: string) =>
       base({
         participants: [
           { draftId: "p1", id: "p1", userId: "u2", participantName: "Sam", source: "app", shareAmount: "10", paidAmount }
         ]
       });
 
-    const unpaid = stored(0);
+    const unpaid = stored("0");
     expect(addUserParticipant(unpaid, sam)).toBe(unpaid);
     expect(addAllocationLine(unpaid, unpaid.participants[0]!)).toBe(unpaid);
 
-    const paid = stored(10);
+    const paid = stored("10");
     const viaSearch = addUserParticipant(paid, sam).participants;
     const viaRow = addAllocationLine(paid, paid.participants[0]!).participants;
     for (const rows of [viaSearch, viaRow]) {
@@ -190,7 +202,7 @@ describe("participants", () => {
     const draft = addManualParticipant(addManualParticipant(base({ amount: "90" }), "A"), "B");
     const locked = {
       ...draft,
-      participants: [{ ...draft.participants[0]!, shareAmount: "50", paidAmount: 50, status: "paid" as const, acceptance: "accepted" as const }, draft.participants[1]!]
+      participants: [{ ...draft.participants[0]!, shareAmount: "50", paidAmount: "50", status: "paid" as const, acceptance: "accepted" as const }, draft.participants[1]!]
     };
     expect(splitEqually(locked).participants.map((p) => p.shareAmount)).toEqual(["50", "30.00"]);
   });
@@ -200,6 +212,19 @@ describe("participants", () => {
     expect(splitEqually(draft).participants.map((p) => p.shareAmount)).toEqual(["30.00", "30.00"]);
     expect(splitEqually(base({ amount: "90" })).participants).toEqual([]);
     expect(splitEqually(addManualParticipant(base({ amount: "" }), "A")).participants[0]?.shareAmount).toBe("");
+  });
+
+  it("splitEqually gives remainder units to the owner then list order, in ETH", () => {
+    const draft = addManualParticipant(
+      addManualParticipant(base({ amount: "1", executionCurrency: "ETH" }), "A"),
+      "B"
+    );
+    const shares = splitEqually(draft).participants.map((p) => p.shareAmount);
+    expect(shares).toEqual(["0.333333333333333333", "0.333333333333333333"]);
+    const seven = splitEqually(
+      [..."ABCDEF"].reduce((d, name) => addManualParticipant(d, name), base({ amount: "1", executionCurrency: "ETH" }))
+    ).participants.map((p) => p.shareAmount);
+    expect(seven).toEqual(Array(6).fill("0.142857142857142857"));
   });
 
   it("turning sharing off drops the title and participants", () => {

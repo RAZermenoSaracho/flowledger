@@ -17,7 +17,7 @@ async function unsharedExpense(owner: Actor, amount = 100) {
   const category = await as(owner, request(app).post("/categories")).send({ name: "Dinner", type: "expense" });
   const transaction = await as(owner, request(app).post("/transactions")).send({
     name: "Dinner",
-    amount,
+    amount: String(amount),
     type: "expense",
     date: "2024-01-15",
     categoryId: category.body.category.id
@@ -55,7 +55,7 @@ describe("sharing conversion and consent", () => {
       sharedExpense: {
         enabled: true,
         title: "Dinner split",
-        participants: [{ userId: friend.user.id, share: 40 }, { manualName: "Cash Friend", share: 10 }]
+        participants: [{ userId: friend.user.id, share: "40" }, { manualName: "Cash Friend", share: "10" }]
       }
     });
 
@@ -73,8 +73,8 @@ describe("sharing conversion and consent", () => {
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner, 100);
 
-    const tooMuch = await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 150 }] });
-    const foreign = await share(stranger, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 10 }] });
+    const tooMuch = await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "150" }] });
+    const foreign = await share(stranger, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "10" }] });
 
     expect(tooMuch.status).toBe(400);
     expect(foreign.status).toBe(404);
@@ -85,7 +85,7 @@ describe("sharing conversion and consent", () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner);
-    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 40 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "40" }] });
     const sharedExpenseId = (await participantRow(transactionId, friend.user.id)).sharedExpenseId;
 
     for (const user of [owner, friend]) {
@@ -99,7 +99,7 @@ describe("sharing conversion and consent", () => {
     const category = await as(friend, request(app).post("/categories")).send({ name: "Debts", type: "expense" });
     const debtId = (await participantRow(transactionId, friend.user.id)).id;
     const early = await as(friend, request(app).post(`/debts/${debtId}/settlement-request`)).send({
-      amount: 10,
+      amount: "10",
       accountId: account.body.account.id,
       categoryId: category.body.category.id
     });
@@ -112,7 +112,7 @@ describe("sharing conversion and consent", () => {
 
     const friendDebts = await as(friend, request(app).get("/debts"));
     expect(friendDebts.body.iOwe).toHaveLength(1);
-    expect(friendDebts.body.iOwe[0]).toMatchObject({ acceptance: "accepted", outstandingAmount: 40 });
+    expect(friendDebts.body.iOwe[0]).toMatchObject({ acceptance: "accepted", outstandingAmount: "40" });
     expect(friendDebts.body.awaitingAcceptance).toHaveLength(0);
     expect((await as(owner, request(app).get("/debts"))).body.owedToMe).toHaveLength(1);
     const ownerNotifications = await as(owner, request(app).get("/notifications"));
@@ -123,27 +123,27 @@ describe("sharing conversion and consent", () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner);
-    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 40 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "40" }] });
     const { id, sharedExpenseId } = await participantRow(transactionId, friend.user.id);
     await as(friend, request(app).post(`/shared-expenses/${sharedExpenseId}/accept`));
 
-    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: 30 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: "30" }] });
     expect((await participantRow(transactionId, friend.user.id)).acceptance).toBe("accepted");
 
-    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: 50 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: "50" }] });
     expect((await participantRow(transactionId, friend.user.id)).acceptance).toBe("proposed");
-    await as(owner, request(app).put(`/transactions/${transactionId}`)).send({ sharedExpense: { enabled: true, title: "t2", participants: [{ id, userId: friend.user.id, share: 50 }] } });
+    await as(owner, request(app).put(`/transactions/${transactionId}`)).send({ sharedExpense: { enabled: true, title: "t2", participants: [{ id, userId: friend.user.id, share: "50" }] } });
     const updates = await prisma.notification.count({ where: { userId: friend.user.id, type: "shared_expense_updated", readAt: null } });
     expect(updates).toBe(1);
 
     await as(friend, request(app).post(`/shared-expenses/${sharedExpenseId}/reject`));
-    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: 50 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: "50" }] });
     expect((await participantRow(transactionId, friend.user.id)).acceptance).toBe("rejected");
     const ownerDebts = await as(owner, request(app).get("/debts"));
     expect(ownerDebts.body.rejectedShares).toHaveLength(1);
     expect(ownerDebts.body.owedToMe).toHaveLength(0);
 
-    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: 45 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: "45" }] });
     expect((await participantRow(transactionId, friend.user.id)).acceptance).toBe("proposed");
   });
 
@@ -151,12 +151,12 @@ describe("sharing conversion and consent", () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner);
-    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 40 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "40" }] });
 
     const response = await as(owner, request(app).post("/shared-expenses")).send({
       transactionId,
       title: "Again",
-      participants: [{ participantName: "Cash", shareAmount: 5 }]
+      participants: [{ participantName: "Cash", shareAmount: "5" }]
     });
 
     expect(response.status).toBe(409);
@@ -167,20 +167,20 @@ describe("sharing conversion and consent", () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner);
-    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 40 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "40" }] });
     const { id, sharedExpenseId } = await participantRow(transactionId, friend.user.id);
     await as(friend, request(app).post(`/shared-expenses/${sharedExpenseId}/accept`));
     const settled = await as(owner, request(app).post(`/debts/${id}/settle`)).send({});
     expect(settled.status).toBe(200);
 
     const disable = await share(owner, transactionId, { enabled: false });
-    const removeParticipant = await share(owner, transactionId, { enabled: true, participants: [{ manualName: "Other", share: 10 }] });
-    const lowerPaid = await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: 30 }] });
+    const removeParticipant = await share(owner, transactionId, { enabled: true, participants: [{ manualName: "Other", share: "10" }] });
+    const lowerPaid = await share(owner, transactionId, { enabled: true, participants: [{ id, userId: friend.user.id, share: "30" }] });
     const flip = await as(owner, request(app).put(`/transactions/${transactionId}`)).send({ type: "income" });
     const deleteExpense = await as(owner, request(app).delete(`/shared-expenses/${sharedExpenseId}`));
     const deleteTransaction = await as(owner, request(app).delete(`/transactions/${transactionId}`));
     const legacy = await as(owner, request(app).put(`/shared-expenses/${sharedExpenseId}`)).send({
-      participants: [{ userId: friend.user.id, participantName: "x", shareAmount: 40, paidAmount: 0, status: "pending" }]
+      participants: [{ userId: friend.user.id, participantName: "x", shareAmount: "40", paidAmount: "0", status: "pending" }]
     });
 
     for (const response of [disable, removeParticipant, lowerPaid, flip, deleteExpense, deleteTransaction]) {
@@ -195,7 +195,7 @@ describe("sharing conversion and consent", () => {
     const owner = await createAuthedUser(app);
     const friend = await createAuthedUser(app);
     const transactionId = await unsharedExpense(owner);
-    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: 40 }] });
+    await share(owner, transactionId, { enabled: true, participants: [{ userId: friend.user.id, share: "40" }] });
 
     expect((await share(owner, transactionId, { enabled: false })).status).toBe(200);
 
@@ -211,7 +211,7 @@ describe("sharing conversion and consent", () => {
     const transaction = await prisma.transaction.create({
       data: { userId: owner.user.id, groupId, name: "Hotel", amount: 100, type: "expense", date: new Date("2024-01-15"), executionCurrency: "USD", amountInPreferredCurrency: 100 }
     });
-    const response = await share(owner, transaction.id, { enabled: true, participants: [{ userId: outsider.user.id, share: 30 }] });
+    const response = await share(owner, transaction.id, { enabled: true, participants: [{ userId: outsider.user.id, share: "30" }] });
     expect(response.status).toBe(200);
     const { sharedExpenseId } = await participantRow(transaction.id, outsider.user.id);
     await as(outsider, request(app).post(`/shared-expenses/${sharedExpenseId}/accept`));

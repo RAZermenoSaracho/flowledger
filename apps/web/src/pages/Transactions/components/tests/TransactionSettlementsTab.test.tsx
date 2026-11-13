@@ -9,7 +9,7 @@ const tx = (relatedSettlements?: RelatedSettlement[]) =>
 const settlement = (overrides: Partial<RelatedSettlement> = {}): RelatedSettlement => ({
   id: "req-1",
   status: "approved",
-  amount: 30,
+  amount: "30",
   currency: "USD",
   createdAt: "2026-05-31T12:00:00.000Z",
   approvedAt: "2026-06-01T12:00:00.000Z",

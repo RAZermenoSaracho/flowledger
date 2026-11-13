@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
@@ -8,7 +9,7 @@ vi.mock("../../../transactions/utils/sharedTransactionCleanup.js", () => ({
 const { deleteSharedTransactionData } = await import("../../../transactions/utils/sharedTransactionCleanup.js");
 const { deleteSharedExpense } = await import("../delete.service.js");
 
-const D = (value: number) => ({ toNumber: () => value });
+const D = (value: number) => new Prisma.Decimal(String(value));
 const participant = (overrides: Record<string, unknown> = {}) => ({
   id: "p1",
   participantName: "@friend",

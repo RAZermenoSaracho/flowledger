@@ -16,7 +16,8 @@ const {
   assertExpenseOffsetAllowed,
   assertGroupRelations,
   assertOwnedRelations,
-  assertTransferAllowed
+  assertTransferAllowed,
+  findAccountCurrencies
 } = await import("../transactionValidation.service.js");
 
 describe("assertOwnedRelations", () => {
@@ -165,5 +166,32 @@ describe("assertTransferAllowed", () => {
 
   it("does not throw for a plain expense with no transfer fields", () => {
     expect(() => assertTransferAllowed({ type: "expense" })).not.toThrow();
+  });
+});
+
+describe("findAccountCurrencies", () => {
+  it("returns both currencies, scoping the lookup to the user", async () => {
+    prismaMock.account.findMany.mockResolvedValue([
+      { id: "a", currency: "USD" },
+      { id: "b", currency: "MXN" }
+    ] as never);
+
+    await expect(findAccountCurrencies("user-1", "a", "b")).resolves.toEqual({
+      accountCurrency: "USD",
+      destinationCurrency: "MXN"
+    });
+    expect(prismaMock.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["a", "b"] }, userId: "user-1" } })
+    );
+  });
+
+  it("skips the query and returns nulls when no account is set", async () => {
+    prismaMock.account.findMany.mockClear();
+
+    await expect(findAccountCurrencies("user-1", null, undefined)).resolves.toEqual({
+      accountCurrency: null,
+      destinationCurrency: null
+    });
+    expect(prismaMock.account.findMany).not.toHaveBeenCalled();
   });
 });

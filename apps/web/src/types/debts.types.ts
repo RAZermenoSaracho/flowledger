@@ -8,7 +8,7 @@ export type SettlementRequest = {
   sharedExpenseParticipantId: string;
   debtorUserId: string;
   creditorUserId: string;
-  amount: number;
+  amount: string;
   status: SettlementStatus;
   note?: string | null;
   paymentInfo?: string | null;
@@ -31,9 +31,11 @@ export type Debt = SharedExpenseParticipant & {
   sharedExpenseId: string;
   debtorUserId?: string | null;
   creditorUserId?: string | null;
-  outstandingAmount: number;
+  /** Exact decimal string in the debt's `currency`. */
+  outstandingAmount: string;
   outstandingAmountInPreferredCurrency?: number;
-  pendingSettlementAmount: number;
+  /** Exact decimal string in the debt's `currency`. */
+  pendingSettlementAmount: string;
   sharedExpense: SharedExpense & {
     owner?: PublicUser;
   };

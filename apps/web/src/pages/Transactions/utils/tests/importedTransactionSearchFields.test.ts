@@ -11,7 +11,7 @@ const account: Account = {
   name: "Checking",
   type: "checking",
   currency: "USD",
-  initialBalance: 0,
+  initialBalance: "0",
   isArchived: false,
   createdAt: "",
   updatedAt: ""

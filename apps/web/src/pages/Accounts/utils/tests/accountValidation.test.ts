@@ -28,4 +28,9 @@ describe("validateAccountDraft", () => {
   it("treats a blank balance as valid", () => {
     expect(validateAccountDraft({ ...valid, initialBalance: "" })).toEqual({});
   });
+
+  it("rejects more decimals than the currency allows instead of rounding", () => {
+    expect(validateAccountDraft({ ...valid, initialBalance: "10.005" }).initialBalance).toMatch(/at most 2/);
+    expect(validateAccountDraft({ ...valid, currency: "BTC", initialBalance: "0.000000000000000001" })).toEqual({});
+  });
 });

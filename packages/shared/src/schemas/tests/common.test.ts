@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   currencyCodeSchema,
+  currencyFractionDigits,
+  decimalAmountSchema,
+  exceedsCurrencyPrecision,
   dateStringSchema,
   idSchema,
   listPaginationSchema,
-  moneySchema,
+  nonNegativeDecimalAmountSchema,
+  positiveDecimalAmountSchema,
   optionalArraySchema,
   optionalDateStringSchema,
   paginationQuerySchema,
@@ -64,24 +68,6 @@ describe("timeZoneSchema", () => {
 
   it.each(["Not/AZone", ""])("rejects %s", (value) => {
     expect(timeZoneSchema.safeParse(value).success).toBe(false);
-  });
-});
-
-describe("moneySchema", () => {
-  it("coerces a numeric string to a number", () => {
-    expect(moneySchema.parse("42.5")).toBe(42.5);
-  });
-
-  it("accepts a finite number", () => {
-    expect(moneySchema.parse(-10)).toBe(-10);
-  });
-
-  it("rejects Infinity", () => {
-    expect(moneySchema.safeParse(Infinity).success).toBe(false);
-  });
-
-  it("rejects a non-numeric string", () => {
-    expect(moneySchema.safeParse("not-a-number").success).toBe(false);
   });
 });
 
@@ -162,5 +148,57 @@ describe("listPaginationSchema", () => {
     { kind: "page", page: 1 }
   ])("rejects %j", (value) => {
     expect(listPaginationSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("decimalAmountSchema", () => {
+  it("passes an 18-decimal string unchanged", () => {
+    expect(decimalAmountSchema.parse("1.234567890123456789")).toBe("1.234567890123456789");
+    expect(decimalAmountSchema.parse("-12")).toBe("-12");
+    expect(decimalAmountSchema.parse("12345678901234567890.123456789012345678")).toBe("12345678901234567890.123456789012345678");
+  });
+
+  it.each([4.5, "1e-7", "abc", "123456789012345678901", "1.1234567890123456789", "", ".5", "5."])(
+    "rejects %s",
+    (value) => {
+      expect(decimalAmountSchema.safeParse(value).success).toBe(false);
+    }
+  );
+});
+
+describe("currencyFractionDigits", () => {
+  it.each([
+    ["USD", 2],
+    ["jpy", 0],
+    ["KWD", 3],
+    ["BTC", 18]
+  ])("%s has %i digits", (code, digits) => {
+    expect(currencyFractionDigits(code)).toBe(digits);
+  });
+});
+
+describe("exceedsCurrencyPrecision", () => {
+  it.each([
+    ["1.50", "USD", false],
+    ["1.505", "USD", true],
+    ["1.5", "JPY", true],
+    ["1.123456789012345678", "BTC", false],
+    ["12345678901234567890", "USD", false],
+    ["123456789012345678901", "USD", true],
+    ["-123456789012345678901", "USD", true]
+  ])("%s in %s is %s", (value, currency, expected) => {
+    expect(exceedsCurrencyPrecision(value, currency)).toBe(expected);
+  });
+});
+
+describe("positive/non-negative decimal amount schemas", () => {
+  it("judges sign by digits, exact for crypto-sized values", () => {
+    expect(positiveDecimalAmountSchema.safeParse("0.000000000000000001").success).toBe(true);
+    expect(positiveDecimalAmountSchema.safeParse("0.000").success).toBe(false);
+    expect(positiveDecimalAmountSchema.safeParse("-1").success).toBe(false);
+    expect(positiveDecimalAmountSchema.safeParse(1).success).toBe(false);
+    expect(nonNegativeDecimalAmountSchema.safeParse("0").success).toBe(true);
+    expect(nonNegativeDecimalAmountSchema.safeParse("-0").success).toBe(true);
+    expect(nonNegativeDecimalAmountSchema.safeParse("-0.5").success).toBe(false);
   });
 });

@@ -11,8 +11,8 @@ export type Account = {
   type: AccountType;
   identifier?: string | null;
   currency: string;
-  initialBalance: number;
-  currentBalance?: number;
+  initialBalance: string;
+  currentBalance?: string;
   currentBalanceInPreferredCurrency?: number;
   source?: "manual" | "synced";
   sync?: AccountSync[];

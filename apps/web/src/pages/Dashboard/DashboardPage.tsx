@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "../../components/Card";
+import { useAuth } from "../../hooks/useAuth";
 import { getMonthlyCashflowReport, getSummaryReport } from "../../services/reports.client";
 import { listTransactions } from "../../services/transactions.client";
+import { formatMoney } from "../../utils/currency";
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-/** Landing page summarizing account balances and monthly cashflow. */
+/** Landing page summarizing account balances and monthly cashflow, formatted in the viewer's preferred currency (USD when unset). */
 export function DashboardPage() {
+  const auth = useAuth();
+  const currency = auth.user?.preferredCurrency || "USD";
   const summaryQuery = useQuery({
     queryKey: ["summary"],
     queryFn: async () => (await getSummaryReport({})).summary
@@ -44,9 +46,9 @@ export function DashboardPage() {
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-3">
-        <Metric title="Total income" value={money.format(summary.totalIncome)} />
-        <Metric title="Net expenses" value={money.format(summary.totalNetExpenses)} />
-        <Metric title="Current balance" value={money.format(summary.currentBalance)} />
+        <Metric title="Total income" value={formatMoney(summary.totalIncome, currency)} />
+        <Metric title="Net expenses" value={formatMoney(summary.totalNetExpenses, currency)} />
+        <Metric title="Current balance" value={formatMoney(summary.currentBalance, currency)} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -57,7 +59,7 @@ export function DashboardPage() {
               <AreaChart data={cashflowQuery.data ?? []}>
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value) => money.format(Number(value))} />
+                <Tooltip formatter={(value) => formatMoney(Number(value), currency)} />
                 <Area type="monotone" dataKey="income" stroke="#176b52" fill="#dff8ea" />
                 <Area type="monotone" dataKey="expenses" stroke="#f97359" fill="#ffe1da" />
               </AreaChart>
@@ -79,7 +81,7 @@ export function DashboardPage() {
                         : "font-semibold text-coral dark:text-orange-300"
                   }
                 >
-                  {money.format(transaction.amount)}
+                  {formatMoney(transaction.amount, transaction.executionCurrency)}
                 </span>
               </div>
             ))}

@@ -22,14 +22,14 @@ async function createSharedExpenseDebt(owner: { token: string }, participant: { 
     .set("Authorization", `Bearer ${owner.token}`)
     .send({
       name: "Dinner out",
-      amount: 100,
+      amount: "100",
       type: "expense",
       date: "2024-01-15",
       categoryId,
       sharedExpense: {
         title: "Dinner split",
         participants: [
-          { userId: participant.user.id, participantName: "Friend", shareAmount: 50 }
+          { userId: participant.user.id, participantName: "Friend", shareAmount: "50" }
         ]
       }
     });
@@ -96,7 +96,7 @@ describe("/debts and /settlements routes", () => {
       .post(`/debts/${debtId}/settlement-request`)
       .set("Authorization", `Bearer ${participant.token}`)
       .send({
-        amount: 50,
+        amount: "50",
         accountId: debtorAccount.body.account.id,
         categoryId: debtorCategory.body.category.id
       });
@@ -122,7 +122,8 @@ describe("/debts and /settlements routes", () => {
       });
 
     expect(approveResponse.status).toBe(200);
-    expect(approveResponse.body.debt.outstandingAmount).toBe(0);
+    expect(approveResponse.body.debt.outstandingAmount).toBe("0");
+    expect(approveResponse.body.debt.pendingSettlementAmount).toBe("0");
   });
 
   it("rejects a pending settlement request", async () => {
@@ -148,7 +149,7 @@ describe("/debts and /settlements routes", () => {
       .post(`/debts/${debtId}/settlement-request`)
       .set("Authorization", `Bearer ${participant.token}`)
       .send({
-        amount: 50,
+        amount: "50",
         accountId: debtorAccount.body.account.id,
         categoryId: debtorCategory.body.category.id
       });

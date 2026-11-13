@@ -1,4 +1,5 @@
 import { updateAccountSchema } from "@flowledger/shared";
+import { amountPrecisionError } from "../../../utils/currency";
 import type { FormErrors } from "../../../types/common.types";
 import type { AccountDraft } from "../types/accounts.types";
 
@@ -15,6 +16,10 @@ export function validateAccountDraft(values: AccountDraft): FormErrors {
       const key = String(issue.path[0] ?? "");
       if (key) errors[key] ??= issue.message;
     }
+  }
+  if (!errors.initialBalance && values.initialBalance.trim() !== "") {
+    const precision = amountPrecisionError(values.initialBalance, values.currency);
+    if (precision) errors.initialBalance = precision;
   }
   return errors;
 }

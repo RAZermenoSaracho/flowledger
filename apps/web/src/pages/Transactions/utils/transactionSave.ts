@@ -21,7 +21,7 @@ function coreFields(draft: TransactionDraft) {
   const isTransfer = draft.type === "transfer";
   return {
     name: draft.name,
-    amount: Number(draft.amount),
+    amount: draft.amount.trim(),
     executionCurrency: draft.executionCurrency,
     type: draft.type,
     accountId: draft.accountId || null,
@@ -32,10 +32,34 @@ function coreFields(draft: TransactionDraft) {
   };
 }
 
+/** Keys whose change (or whose coupled inputs' change) makes an update restate the applied amounts and fee, since the server revalidates them together. */
+const APPLIED_AMOUNT_KEYS = [
+  "amount",
+  "executionCurrency",
+  "accountId",
+  "transferToAccountId",
+  "type",
+  "accountAmount",
+  "destinationAmount",
+  "feeAmount",
+  "feeCurrency"
+];
+
+/** The applied-amount and fee fields the draft currently holds, as decimal strings; empty ones are omitted (equal currencies leave them to the server, a fee needs both halves). */
+function appliedFields(draft: TransactionDraft) {
+  const fee = draft.feeAmount.trim() && draft.feeCurrency;
+  return {
+    ...(draft.accountAmount.trim() ? { accountAmount: draft.accountAmount.trim() } : {}),
+    ...(draft.destinationAmount.trim() ? { destinationAmount: draft.destinationAmount.trim() } : {}),
+    ...(fee ? { feeAmount: draft.feeAmount.trim(), feeCurrency: draft.feeCurrency } : {})
+  };
+}
+
 /** Body of `POST /transactions`: every field, `date` as a UTC instant, and the nested `sharedExpense` when the draft is a shared income/expense. */
 export function buildCreateBody(draft: TransactionDraft): Record<string, unknown> {
   const body: Record<string, unknown> = {
     ...coreFields(draft),
+    ...appliedFields(draft),
     date: transactionDateRequestValue(draft.date)
   };
   if (draft.isShared && draft.type !== "transfer") {
@@ -44,8 +68,8 @@ export function buildCreateBody(draft: TransactionDraft): Record<string, unknown
       participants: draft.participants.map((participant) => ({
         userId: participant.userId ?? null,
         participantName: participant.participantName,
-        shareAmount: Number(participant.shareAmount),
-        paidAmount: 0,
+        shareAmount: participant.shareAmount.trim(),
+        paidAmount: "0",
         status: "pending"
       }))
     };
@@ -71,20 +95,20 @@ export function buildSharedExpenseUpdate(draft: TransactionDraft): Record<string
       ...(participant.userId
         ? { userId: participant.userId }
         : { manualName: participant.participantName }),
-      share: Number(participant.shareAmount)
+      share: participant.shareAmount.trim()
     }))
   };
 }
 
 /**
  * Body of `PUT /transactions/:id`: only the changed core fields. `date` is sent only when changed
- * (keeping the stored seconds), and a type change also sends the fields the type couples to. Any
+ * (keeping the stored seconds), and a type change also sends the fields the type couples to, and emptying a stored fee sends `feeAmount: null, feeCurrency: null` to clear it. Any
  * sharing change sends the whole sharing state as `sharedExpense`, applied atomically with the rest.
  */
 export function buildUpdateBody(
   draft: TransactionDraft,
   changedKeys: string[],
-  original: Pick<Transaction, "date">
+  original: Pick<Transaction, "date" | "feeAmount">
 ): Record<string, unknown> {
   const fields = coreFields(draft);
   const keys = new Set(changedKeys);
@@ -96,6 +120,13 @@ export function buildUpdateBody(
   const body: Record<string, unknown> = {};
   for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
     if (keys.has(key)) body[key] = fields[key];
+  }
+  if (changedKeys.some((key) => APPLIED_AMOUNT_KEYS.includes(key))) {
+    Object.assign(body, appliedFields(draft));
+    if (original.feeAmount != null && !("feeAmount" in body)) {
+      body.feeAmount = null;
+      body.feeCurrency = null;
+    }
   }
   if (keys.has("date")) {
     const date = transactionDateRequestValue(draft.date, original);

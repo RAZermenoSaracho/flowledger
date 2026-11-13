@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { publicUserLabel } from "../../users/utils/publicUser.js";
 
 /** A user as shown to another user; `displayName` is absent or null unless the user opted into showing their name. */
@@ -13,7 +14,7 @@ type BalanceDebt = {
   participantName: string;
   debtorUserId?: string | null;
   creditorUserId?: string | null;
-  outstandingAmount: number;
+  outstandingAmount: Prisma.Decimal;
   outstandingAmountInPreferredCurrency: number;
   user: PublicUserLike | null;
   sharedExpense: {
@@ -32,6 +33,12 @@ type PersonBalance = {
   iOweThemTotal: number;
   netBalance: number;
 };
+
+function addValuation(total: number, debt: BalanceDebt) {
+  return new Prisma.Decimal(total)
+    .plus(debt.outstandingAmountInPreferredCurrency ?? debt.outstandingAmount)
+    .toNumber();
+}
 
 function participantName(debt: BalanceDebt) {
   return debt.user ? userLabel(debt.user) : debt.participantName;
@@ -94,20 +101,18 @@ export function buildPersonBalances(
   owedToMe.forEach((debt) => {
     const balance = ensureBalance(debt);
     balance.theyOweMe.push(debt);
-    balance.theyOweMeTotal +=
-      debt.outstandingAmountInPreferredCurrency ?? debt.outstandingAmount;
+    balance.theyOweMeTotal = addValuation(balance.theyOweMeTotal, debt);
   });
   iOwe.forEach((debt) => {
     const balance = ensureBalance(debt);
     balance.iOweThem.push(debt);
-    balance.iOweThemTotal +=
-      debt.outstandingAmountInPreferredCurrency ?? debt.outstandingAmount;
+    balance.iOweThemTotal = addValuation(balance.iOweThemTotal, debt);
   });
 
   return Array.from(byPerson.values())
     .map((balance) => ({
       ...balance,
-      netBalance: balance.theyOweMeTotal - balance.iOweThemTotal
+      netBalance: new Prisma.Decimal(balance.theyOweMeTotal).minus(balance.iOweThemTotal).toNumber()
     }))
     .sort((a, b) => Math.abs(b.netBalance) - Math.abs(a.netBalance));
 }

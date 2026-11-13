@@ -1,5 +1,5 @@
 import type { SharedExpenseInput } from "@flowledger/shared";
-import type { SharedExpenseStatus } from "@prisma/client";
+import type { Prisma, SharedExpenseStatus } from "@prisma/client";
 import type { DataSieveQuery } from "datasieve";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
 
@@ -35,7 +35,7 @@ export type SharingParticipantInput = {
   id?: string;
   userId?: string | null;
   manualName?: string;
-  share: number | string;
+  share: string;
 };
 
 /** What {@link import("../services/apply.service.js").applySharedExpenseToTransaction} applies: disable sharing, or enable/edit it (omit `participants` to leave them untouched). */
@@ -48,7 +48,7 @@ export type GuardParticipant = {
   id: string;
   participantName: string;
   acceptance: string;
-  shareAmount: { toNumber(): number };
-  paidAmount: { toNumber(): number };
-  settlementRequests: { status: string; amount: { toNumber(): number } }[];
+  shareAmount: Prisma.Decimal;
+  paidAmount: Prisma.Decimal;
+  settlementRequests: { status: string; amount: Prisma.Decimal }[];
 };

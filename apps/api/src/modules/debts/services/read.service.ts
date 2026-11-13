@@ -1,6 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { balanceDebt } from "../utils/debtCalculations.js";
 import { debtInclude, publicTransactionSelect } from "../utils/debtInclude.js";
 import { isDebtRelevantToUser } from "../utils/debtDirection.js";
@@ -10,23 +11,25 @@ import { buildPersonBalances } from "../utils/personBalances.js";
 import { publicUserSelect, publicizeUsers } from "../../users/utils/publicUser.js";
 
 async function withPreferredCurrencyOutstandingAmounts<
-  TDebt extends { currency: string; outstandingAmount: number }
+  TDebt extends { currency: string; outstandingAmount: Prisma.Decimal }
 >(debts: TDebt[], preferredCurrency: string | null) {
   return Promise.all(
     debts.map(async (debt) => {
       if (!preferredCurrency || debt.currency === preferredCurrency) {
         return {
           ...debt,
-          outstandingAmountInPreferredCurrency: debt.outstandingAmount
+          outstandingAmountInPreferredCurrency: debt.outstandingAmount.toNumber()
         };
       }
 
       const rate = await getExchangeRate(debt.currency, preferredCurrency);
       return {
         ...debt,
-        outstandingAmountInPreferredCurrency: roundMoney(
-          debt.outstandingAmount * rate
-        )
+        outstandingAmountInPreferredCurrency: valueInCurrency(
+          debt.outstandingAmount,
+          rate,
+          preferredCurrency
+        ).toNumber()
       };
     })
   );
@@ -104,10 +107,10 @@ export async function listDebts(userId: string) {
 
   const counted = withBalances.filter(isCountedShare);
   const iOwe = counted.filter(
-    (debt) => debt.debtorUserId === userId && debt.outstandingAmount > 0
+    (debt) => debt.debtorUserId === userId && debt.outstandingAmount.gt(0)
   );
   const owedToMe = counted.filter(
-    (debt) => debt.creditorUserId === userId && debt.outstandingAmount > 0
+    (debt) => debt.creditorUserId === userId && debt.outstandingAmount.gt(0)
   );
 
   return redactGroupForNonMembers(userId, {
@@ -125,6 +128,6 @@ export async function listDebts(userId: string) {
         sharedExpenseParticipant: approvedSettlementRequestDebts[index]
       })
     ),
-    settledDebts: counted.filter((debt) => debt.outstandingAmount === 0)
+    settledDebts: counted.filter((debt) => debt.outstandingAmount.isZero())
   });
 }

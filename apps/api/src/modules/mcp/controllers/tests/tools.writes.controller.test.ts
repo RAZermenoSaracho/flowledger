@@ -75,7 +75,7 @@ describe("registerPersonalWriteTools", () => {
     vi.mocked(createAccount).mockResolvedValue({ id: "a1" } as never);
     await run("create_account", { name: "Main", type: "checking", userId: "evil" });
 
-    expect(createAccount).toHaveBeenCalledWith("u1", { name: "Main", type: "checking", currency: "USD", initialBalance: 0 });
+    expect(createAccount).toHaveBeenCalledWith("u1", { name: "Main", type: "checking", currency: "USD", initialBalance: "0" });
     expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ op: "mcp.create_account", resourceId: "a1", status: 201 }));
   });
 

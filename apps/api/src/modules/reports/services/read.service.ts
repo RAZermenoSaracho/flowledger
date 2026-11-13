@@ -1,8 +1,9 @@
 import type { ReportFilters } from "@flowledger/shared";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { calculateMonthlyCashflow } from "../../transactions/utils/transactionCalculations.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import type { CurrencyGroupedSum } from "../types/reports.types.js";
 import {
   baseReportWhere,
@@ -25,40 +26,41 @@ async function resolveReportCurrency(userId: string, filters: ReportFilters) {
   return (user.preferredCurrency || "USD").toUpperCase();
 }
 
-/** Collapses per-currency `groupBy` buckets into a single map keyed by `keyOf`, converting each bucket to `targetCurrency` before summing. */
+/** Collapses per-currency `groupBy` buckets into a single map keyed by `keyOf`, valuing each bucket in `targetCurrency` (half-up to its minor units) before summing exactly. */
 async function collapseCurrencySums<TRow extends CurrencyGroupedSum, TKey>(
   rows: TRow[],
   keyOf: (row: TRow) => TKey,
   targetCurrency: string
-): Promise<Map<TKey, number>> {
-  const totals = new Map<TKey, number>();
+): Promise<Map<TKey, Prisma.Decimal>> {
+  const totals = new Map<TKey, Prisma.Decimal>();
 
   for (const row of rows) {
-    const amount = row._sum.amount?.toNumber() ?? 0;
-    if (amount === 0) continue;
+    const amount = row._sum.amount ?? new Prisma.Decimal(0);
+    if (amount.isZero()) continue;
 
     const rate =
       row.executionCurrency === targetCurrency
         ? 1
         : await getExchangeRate(row.executionCurrency, targetCurrency);
     const key = keyOf(row);
-    totals.set(key, (totals.get(key) ?? 0) + amount * rate);
-  }
-
-  for (const [key, value] of totals) {
-    totals.set(key, roundMoney(value));
+    totals.set(
+      key,
+      (totals.get(key) ?? new Prisma.Decimal(0)).plus(
+        valueInCurrency(amount, rate, targetCurrency)
+      )
+    );
   }
 
   return totals;
 }
 
-/** Sums a single currency-grouped bucket set into one converted total. */
+/** Sums a single currency-grouped bucket set into one exact converted total. */
 async function sumCurrencyRows(
   rows: CurrencyGroupedSum[],
   targetCurrency: string
-): Promise<number> {
+): Promise<Prisma.Decimal> {
   const totals = await collapseCurrencySums(rows, () => "total", targetCurrency);
-  return totals.get("total") ?? 0;
+  return totals.get("total") ?? new Prisma.Decimal(0);
 }
 
 /** Computes the top-of-page income/expense/balance summary for the reports dashboard. */
@@ -108,7 +110,7 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
     sumCurrencyRows(expenseRows, targetCurrency),
     sumCurrencyRows(expenseReimbursementRows, targetCurrency)
   ]);
-  const totalNetExpenses = totalGrossExpenses - totalExpenseReimbursements;
+  const totalNetExpenses = totalGrossExpenses.minus(totalExpenseReimbursements);
   const amountMode = filters.amountMode ?? "net";
   const reportIncome = amountMode === "gross" ? totalGrossIncome : totalNetIncome;
   const reportExpenses =
@@ -116,17 +118,17 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
 
   return {
     summary: {
-      totalIncome: totalNetIncome,
-      totalGrossIncome,
-      totalNetIncome,
-      totalExpenses: totalNetExpenses,
-      totalGrossExpenses,
-      totalExpenseReimbursements,
-      totalNetExpenses,
-      currentBalance: totalGrossIncome - totalGrossExpenses,
-      reportIncome,
-      reportExpenses,
-      reportBalance: reportIncome - reportExpenses
+      totalIncome: totalNetIncome.toNumber(),
+      totalGrossIncome: totalGrossIncome.toNumber(),
+      totalNetIncome: totalNetIncome.toNumber(),
+      totalExpenses: totalNetExpenses.toNumber(),
+      totalGrossExpenses: totalGrossExpenses.toNumber(),
+      totalExpenseReimbursements: totalExpenseReimbursements.toNumber(),
+      totalNetExpenses: totalNetExpenses.toNumber(),
+      currentBalance: totalGrossIncome.minus(totalGrossExpenses).toNumber(),
+      reportIncome: reportIncome.toNumber(),
+      reportExpenses: reportExpenses.toNumber(),
+      reportBalance: reportIncome.minus(reportExpenses).toNumber()
     },
     currency: targetCurrency
   };
@@ -229,15 +231,16 @@ export async function getByCategoryReport(
     ({ categoryId, type }) => {
       const category = categoryId ? categoryById.get(categoryId) : null;
       const key = `${type}:${categoryId ?? "uncategorized"}`;
-      const total = rowTotals.get(key) ?? 0;
+      const zero = new Prisma.Decimal(0);
+      const total = rowTotals.get(key) ?? zero;
       const reimbursementTotal =
         type === "expense" && categoryId
-          ? (reimbursementsByCategoryId.get(categoryId) ?? 0)
-          : 0;
+          ? (reimbursementsByCategoryId.get(categoryId) ?? zero)
+          : zero;
       const incomeOffsetTotal =
-        type === "income" ? (incomeOffsetsByCategoryId.get(categoryId) ?? 0) : 0;
-      const grossIncomeTotal = type === "income" ? total : 0;
-      const netIncomeTotal = type === "income" ? total - incomeOffsetTotal : 0;
+        type === "income" ? (incomeOffsetsByCategoryId.get(categoryId) ?? zero) : zero;
+      const netIncomeTotal = type === "income" ? total.minus(incomeOffsetTotal) : zero;
+      const netExpenseTotal = type === "expense" ? total.minus(reimbursementTotal) : zero;
 
       return {
         categoryId,
@@ -245,13 +248,13 @@ export async function getByCategoryReport(
         categoryType: category?.type ?? null,
         categoryColor: category?.color ?? null,
         type,
-        total: type === "expense" ? total - reimbursementTotal : netIncomeTotal,
-        grossIncomeTotal,
-        incomeOffsetTotal,
-        netIncomeTotal,
-        grossExpenseTotal: type === "expense" ? total : 0,
-        reimbursementTotal,
-        netExpenseTotal: type === "expense" ? total - reimbursementTotal : 0
+        total: (type === "expense" ? netExpenseTotal : netIncomeTotal).toNumber(),
+        grossIncomeTotal: (type === "income" ? total : zero).toNumber(),
+        incomeOffsetTotal: incomeOffsetTotal.toNumber(),
+        netIncomeTotal: netIncomeTotal.toNumber(),
+        grossExpenseTotal: (type === "expense" ? total : zero).toNumber(),
+        reimbursementTotal: reimbursementTotal.toNumber(),
+        netExpenseTotal: netExpenseTotal.toNumber()
       };
     }
   );

@@ -3,12 +3,9 @@ import type { Category } from "../../../types/categories.types";
 import type { Group } from "../../../types/groups.types";
 import type { PublicUser } from "../../../types/users.types";
 import type { ParticipantDraft, TransactionDraft } from "../types/transactions.types";
+import { allocateEvenly, isPositive } from "../../../utils/money";
 import { formatPublicUser } from "../../../utils/publicUser";
 import { canAddAllocation, isShareLocked } from "./transactionDraft";
-
-function toShare(value: number) {
-  return (Math.round(value * 100) / 100).toFixed(2);
-}
 
 /** Choosing an account sets the currency from it and clears a transfer destination equal to it. */
 export function selectAccount(
@@ -67,28 +64,32 @@ export function changeType(
   };
 }
 
-/** Replaces the participants with every member of `group` except `currentUserId`, splitting the amount equally across all members. */
+/**
+ * Replaces the participants with every member of `group` except `currentUserId`, splitting the amount
+ * equally across all members with exact remainder units: the owner takes the first slot, then members in list order.
+ */
 export function splitAmongGroup(
   draft: TransactionDraft,
   group: Group,
   currentUserId: string | undefined
 ): TransactionDraft {
-  const amount = Number(draft.amount);
-  if (!Number.isFinite(amount) || amount <= 0 || group.members.length < 2) {
+  const shares = allocateEvenly(draft.amount, draft.executionCurrency, group.members.length);
+  if (group.members.length < 2 || !isPositive(draft.amount, draft.executionCurrency)) {
     return { ...draft, participants: [] };
   }
-  const share = toShare(amount / group.members.length);
+  // The owner's slot is first only when the owner is a member; otherwise list order starts at slot 0.
+  const ownerIsMember = group.members.some((member) => member.userId === currentUserId);
+  const others = group.members.filter((member) => member.userId !== currentUserId);
+  const memberShares = ownerIsMember ? shares.slice(1) : shares;
   return {
     ...draft,
-    participants: group.members
-      .filter((member) => member.userId !== currentUserId)
-      .map((member) => ({
-        draftId: member.id,
-        userId: member.userId,
-        participantName: formatPublicUser(member.user),
-        source: "app",
-        shareAmount: share
-      }))
+    participants: others.map((member, index) => ({
+      draftId: member.id,
+      userId: member.userId,
+      participantName: formatPublicUser(member.user),
+      source: "app",
+      shareAmount: memberShares[index]!
+    }))
   };
 }
 
@@ -128,15 +129,16 @@ export function setShared(draft: TransactionDraft, isShared: boolean): Transacti
   return isShared ? { ...draft, isShared } : { ...draft, isShared, sharedTitle: "", participants: [] };
 }
 
-/** Splits the amount equally between the owner and the current participants; fully paid (locked) shares keep their value. */
+/** Splits the amount equally between the owner (slot 0, takes remainder units first) and the current participants in list order; fully paid (locked) shares keep their value. */
 export function splitEqually(draft: TransactionDraft): TransactionDraft {
-  const amount = Number(draft.amount);
-  if (!Number.isFinite(amount) || amount <= 0 || draft.participants.length === 0) return draft;
-  const share = toShare(amount / (draft.participants.length + 1));
+  const shares = allocateEvenly(draft.amount, draft.executionCurrency, draft.participants.length + 1);
+  if (!isPositive(draft.amount, draft.executionCurrency) || draft.participants.length === 0) {
+    return draft;
+  }
   return {
     ...draft,
-    participants: draft.participants.map((participant) =>
-      isShareLocked(participant) ? participant : { ...participant, shareAmount: share }
+    participants: draft.participants.map((participant, index) =>
+      isShareLocked(participant) ? participant : { ...participant, shareAmount: shares[index + 1]! }
     )
   };
 }

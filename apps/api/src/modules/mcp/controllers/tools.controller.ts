@@ -35,7 +35,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
 
   server.registerTool(
     "list_accounts",
-    { description: "List the user's accounts with balances.", annotations: READ_ONLY },
+    { description: "List the user's accounts with balances. `initialBalance` and `currentBalance` are decimal strings.", annotations: READ_ONLY },
     () => runRead(async () => ({ accounts: await listAccounts(userId, undefined) }))
   );
 
@@ -78,7 +78,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "create_transaction",
     {
-      description: "Create a transaction for the user. Same rules as the FlowLedger web app. `date` is the execution time: a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC on that date.",
+      description: "Create a transaction for the user. Same rules as the FlowLedger web app. `date` is the execution time: a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC on that date. Native amounts (`amount`, `accountAmount`, `destinationAmount`, `feeAmount`) are decimal strings such as \"1.234567890123456789\", never numbers, within the currency's minor units (18 decimals for non-ISO currencies). When the amount's currency differs from the account's, `accountAmount` is required; for a transfer to an account in another currency, `destinationAmount` is required. The server never derives them from a rate: use get_exchange_rate for a suggestion. An optional fee needs both `feeAmount` and `feeCurrency` (the amount's or the destination account's currency).",
       inputSchema: baseTransactionSchema.shape
     },
     async (args) =>
@@ -92,7 +92,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "update_transaction",
     {
-      description: "Update fields of one of the user's transactions by id. `date` is a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC; omit it to keep the stored time.",
+      description: "Update fields of one of the user's transactions by id. `date` is a datetime with Z or an offset, or YYYY-MM-DD for 00:00 UTC; omit it to keep the stored time. Amounts are decimal strings; changing the amount, currency, type or an account of a cross-currency transaction requires restating `accountAmount`/`destinationAmount`. Financial edits are recorded in the correction history.",
       inputSchema: updateTransactionToolSchema.shape,
       annotations: { idempotentHint: true }
     },

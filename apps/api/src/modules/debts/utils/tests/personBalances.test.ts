@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { buildPersonBalances } from "../personBalances.js";
 
@@ -11,7 +12,7 @@ function debt(overrides: Partial<Parameters<typeof buildPersonBalances>[1][numbe
     participantName: "@friend",
     debtorUserId: friend.id,
     creditorUserId: owner.id,
-    outstandingAmount: 100,
+    outstandingAmount: new Prisma.Decimal("100"),
     outstandingAmountInPreferredCurrency: 100,
     user: friend,
     sharedExpense: { ownerUserId: owner.id, owner },
@@ -23,8 +24,8 @@ describe("buildPersonBalances", () => {
   it("groups a single counterparty's owed-to-me and i-owe debts, netting the totals", () => {
     const [balance] = buildPersonBalances(
       owner.id,
-      [debt({ outstandingAmount: 100, outstandingAmountInPreferredCurrency: 100 })],
-      [debt({ outstandingAmount: 30, outstandingAmountInPreferredCurrency: 30 })]
+      [debt({ outstandingAmount: new Prisma.Decimal("100"), outstandingAmountInPreferredCurrency: 100 })],
+      [debt({ outstandingAmount: new Prisma.Decimal("30"), outstandingAmountInPreferredCurrency: 30 })]
     );
 
     expect(balance).toMatchObject({
@@ -42,7 +43,7 @@ describe("buildPersonBalances", () => {
       owner.id,
       [
         debt({
-          outstandingAmount: 100,
+          outstandingAmount: new Prisma.Decimal("100"),
           outstandingAmountInPreferredCurrency: 85
         })
       ],
@@ -92,7 +93,7 @@ describe("buildPersonBalances", () => {
           userId: smallDebtor.id,
           debtorUserId: smallDebtor.id,
           user: smallDebtor,
-          outstandingAmount: 10,
+          outstandingAmount: new Prisma.Decimal("10"),
           outstandingAmountInPreferredCurrency: 10
         }),
         debt({
@@ -100,7 +101,7 @@ describe("buildPersonBalances", () => {
           userId: bigDebtor.id,
           debtorUserId: bigDebtor.id,
           user: bigDebtor,
-          outstandingAmount: 500,
+          outstandingAmount: new Prisma.Decimal("500"),
           outstandingAmountInPreferredCurrency: 500
         })
       ],
@@ -140,5 +141,21 @@ describe("buildPersonBalances", () => {
     );
     expect(balance?.person).toEqual(named);
     expect(balance?.fallbackName).toBe("Nina (@nina)");
+  });
+
+  it("totals mixed-currency debts by their preferred-currency valuation, never by native amounts", () => {
+    const [balance] = buildPersonBalances(
+      owner.id,
+      [
+        debt({ id: "btc", outstandingAmount: new Prisma.Decimal("0.01"), outstandingAmountInPreferredCurrency: 650.1 }),
+        debt({ id: "mxn", outstandingAmount: new Prisma.Decimal("1000"), outstandingAmountInPreferredCurrency: 55.2 }),
+        debt({ id: "eth", outstandingAmount: new Prisma.Decimal("1"), outstandingAmountInPreferredCurrency: 0.1 })
+      ],
+      [debt({ id: "usd", outstandingAmount: new Prisma.Decimal("5"), outstandingAmountInPreferredCurrency: 0.2 })]
+    );
+
+    expect(balance?.theyOweMeTotal).toBe(705.4);
+    expect(balance?.iOweThemTotal).toBe(0.2);
+    expect(balance?.netBalance).toBe(705.2);
   });
 });

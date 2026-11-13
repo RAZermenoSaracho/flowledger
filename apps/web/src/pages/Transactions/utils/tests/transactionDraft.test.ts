@@ -11,7 +11,7 @@ import {
 const transaction = {
   id: "tx-1",
   name: "Groceries",
-  amount: 42.5,
+  amount: "42.5",
   executionCurrency: "USD",
   type: "expense",
   date: "2026-05-31T21:33:15.979Z",
@@ -33,6 +33,10 @@ describe("transaction draft helpers", () => {
     expect(draftFromTransaction(transaction)).toEqual({
       name: "Groceries",
       amount: "42.5",
+      accountAmount: "",
+      destinationAmount: "",
+      feeAmount: "",
+      feeCurrency: "",
       executionCurrency: "USD",
       type: "expense",
       date: "2026-05-31T15:33",
@@ -57,8 +61,8 @@ describe("transaction draft helpers", () => {
             id: "p1",
             userId: "u2",
             participantName: "Sam",
-            shareAmount: 20,
-            paidAmount: 5,
+            shareAmount: "20",
+            paidAmount: "5",
             status: "partial",
             acceptance: "accepted"
           },
@@ -66,8 +70,8 @@ describe("transaction draft helpers", () => {
             id: "p2",
             userId: null,
             participantName: "Pat",
-            shareAmount: 5,
-            paidAmount: 0,
+            shareAmount: "5",
+            paidAmount: "0",
             status: "pending",
             acceptance: "accepted"
           }
@@ -85,7 +89,7 @@ describe("transaction draft helpers", () => {
         participantName: "Sam",
         source: "app",
         shareAmount: "20",
-        paidAmount: 5,
+        paidAmount: "5",
         status: "partial",
         acceptance: "accepted"
       },
@@ -96,7 +100,7 @@ describe("transaction draft helpers", () => {
         participantName: "Pat",
         source: "manual",
         shareAmount: "5",
-        paidAmount: 0,
+        paidAmount: "0",
         status: "pending",
         acceptance: "accepted"
       }
@@ -127,8 +131,20 @@ describe("transaction draft helpers", () => {
       shareAmount
     });
     expect(
-      sumParticipantShares([row("10"), row(""), row("abc"), row("2.5")])
-    ).toBe(12.5);
+      sumParticipantShares([row("10"), row(""), row("abc"), row("2.5")], "USD")
+    ).toBe("12.50");
+  });
+
+  it("sums crypto shares exactly", () => {
+    const row = (shareAmount: string) => ({
+      draftId: shareAmount,
+      participantName: "x",
+      source: "manual" as const,
+      shareAmount
+    });
+    expect(sumParticipantShares([row("0.614567890123456789"), row("0.62")], "BTC")).toBe(
+      "1.234567890123456789"
+    );
   });
 
   it("locks a fully paid share and blocks removing a paid row", () => {
@@ -138,17 +154,17 @@ describe("transaction draft helpers", () => {
       source: "app" as const,
       shareAmount: "10"
     };
-    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid", acceptance: "accepted" })).toBe(
+    expect(isShareLocked({ ...row, paidAmount: "10", status: "paid", acceptance: "accepted" })).toBe(
       true
     );
-    expect(isShareLocked({ ...row, paidAmount: 10, status: "paid", acceptance: "proposed" })).toBe(
+    expect(isShareLocked({ ...row, paidAmount: "10", status: "paid", acceptance: "proposed" })).toBe(
       false
     );
-    expect(isShareLocked({ ...row, paidAmount: 4, status: "partial" })).toBe(
+    expect(isShareLocked({ ...row, paidAmount: "4", status: "partial" })).toBe(
       false
     );
     expect(isShareLocked(row)).toBe(false);
-    expect(canRemoveParticipant({ ...row, paidAmount: 4 })).toBe(false);
+    expect(canRemoveParticipant({ ...row, paidAmount: "4" })).toBe(false);
     expect(canRemoveParticipant(row)).toBe(true);
   });
 });

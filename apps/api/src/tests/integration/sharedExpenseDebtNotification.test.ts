@@ -37,7 +37,7 @@ describe("shared expense -> debt -> notification chain", () => {
       .set("Authorization", `Bearer ${owner.token}`)
       .send({
         name: "Dinner out",
-        amount: 100,
+        amount: "100",
         type: "expense",
         date: "2024-01-15",
         categoryId: categoryResponse.body.category.id,
@@ -47,7 +47,7 @@ describe("shared expense -> debt -> notification chain", () => {
             {
               userId: participant.user.id,
               participantName: "Friend",
-              shareAmount: 50
+              shareAmount: "50"
             }
           ]
         }
@@ -71,7 +71,7 @@ describe("shared expense -> debt -> notification chain", () => {
       .get("/debts")
       .set("Authorization", `Bearer ${participant.token}`);
     expect(participantDebts.body.iOwe).toHaveLength(1);
-    expect(participantDebts.body.iOwe[0].outstandingAmount).toBe(50);
+    expect(participantDebts.body.iOwe[0].outstandingAmount).toBe("50");
 
     // ...and the owner sees it in owedToMe.
     const ownerDebts = await request(app)
@@ -109,7 +109,7 @@ describe("shared expense -> debt -> notification chain", () => {
       .set("Authorization", `Bearer ${owner.token}`)
       .send({
         name: "Road trip gas",
-        amount: 60,
+        amount: "60",
         type: "expense",
         date: "2024-02-01",
         categoryId: categoryResponse.body.category.id,
@@ -119,7 +119,7 @@ describe("shared expense -> debt -> notification chain", () => {
             {
               userId: participant.user.id,
               participantName: "Friend",
-              shareAmount: 30
+              shareAmount: "30"
             }
           ]
         }

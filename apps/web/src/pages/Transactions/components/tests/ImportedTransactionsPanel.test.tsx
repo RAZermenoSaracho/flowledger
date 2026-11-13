@@ -16,7 +16,7 @@ function makeTransaction(
     providerAccountId: "pa-1",
     providerTransactionId: "raw-1",
     description: "Coffee shop",
-    amount: -5.5,
+    amount: "-5.5",
     currency: "USD",
     transactionDate: "2024-01-15T00:00:00.000Z",
     status: "pending",

@@ -104,7 +104,7 @@ const WRITE_TOOLS = [
   "update_transaction"
 ];
 
-const validBody = { name: "Coffee", amount: 3, type: "expense", date: "2024-01-01" };
+const validBody = { name: "Coffee", amount: "3", type: "expense", date: "2024-01-01" };
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -163,6 +163,24 @@ describe("write tools", () => {
       resourceId: "t1",
       status: 201
     });
+  });
+
+  it("create rejects a JSON number amount, naming amount, and stores nothing", async () => {
+    const result = await register(["read", "write"])
+      .get("create_transaction")!
+      .handler({ ...validBody, amount: 4.5 });
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("amount");
+    expect(createTransaction).not.toHaveBeenCalled();
+  });
+
+  it("describes native amounts as decimal strings", () => {
+    const tools = register(["read", "write"]);
+
+    expect(tools.get("create_transaction")!.config.description).toContain("decimal strings");
+    expect(tools.get("update_transaction")!.config.description).toContain("decimal strings");
+    expect(tools.get("list_accounts")!.config.description).toContain("decimal strings");
   });
 
   it("create rejects a transfer without accounts (refinement) and audits the failure", async () => {

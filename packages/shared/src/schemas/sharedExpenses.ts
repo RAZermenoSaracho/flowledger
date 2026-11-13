@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { PARTICIPANT_STATUSES, SHARED_EXPENSE_STATUSES } from "../constants/index.js";
-import { moneySchema } from "./common.js";
+import { nonNegativeDecimalAmountSchema, positiveDecimalAmountSchema } from "./common.js";
 
 export const sharedExpenseParticipantSchema = z.object({
   id: z.string().min(1).optional(),
   userId: z.string().min(1).optional().nullable(),
   participantName: z.string().trim().min(1).max(120),
-  shareAmount: moneySchema.positive(),
-  paidAmount: moneySchema.nonnegative().default(0),
+  shareAmount: positiveDecimalAmountSchema,
+  paidAmount: nonNegativeDecimalAmountSchema.default("0"),
   status: z.enum(PARTICIPANT_STATUSES).default("pending")
 });
 

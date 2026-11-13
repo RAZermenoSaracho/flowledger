@@ -14,7 +14,7 @@ const tx = (overrides: Partial<Transaction> = {}) =>
   ({
     id: "tx-1",
     name: "Main",
-    amount: 10,
+    amount: "10",
     executionCurrency: "USD",
     date: "2026-05-31T21:00:00.000Z",
     ...overrides
@@ -24,7 +24,7 @@ const related = (
 ): RelatedTransaction => ({
   id: "tx-2",
   description: "Payback",
-  amount: 25,
+  amount: "25",
   currency: "USD",
   date: "2026-05-31T21:00:00.000Z",
   type: "income",
@@ -33,7 +33,7 @@ const related = (
 });
 const origin = {
   title: "Dinner",
-  amount: 90,
+  amount: "90",
   currency: "USD",
   date: "2026-05-30T21:00:00.000Z",
   type: "expense",

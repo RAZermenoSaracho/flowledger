@@ -93,10 +93,11 @@ The savings rate SHALL be (net income - net expenses) / net income x 100 for the
 ### Requirement: Disclosures
 The overview SHALL disclose, only when they apply and grouped in one place, that:
 - past-month amounts in other currencies are converted at current rates;
-- net worth is affected by cross-currency transfers or by transactions in a currency other than their account's;
 - `investment` accounts count at recorded balance, not market value;
 - synced accounts' balances come from recorded transactions and may differ from the bank;
 - the savings rate depends on how transactions were recorded, for example a card payment recorded as an expense counts twice.
+
+Cross-currency transfers and transactions in a currency other than their account's SHALL NOT produce a disclosure, because balances use persisted native amounts.
 
 #### Scenario: Nothing applies
 - **WHEN** none of the conditions hold
@@ -112,7 +113,7 @@ The overview SHALL disclose, only when they apply and grouped in one place, that
 
 #### Scenario: Cross-currency
 - **WHEN** a cross-currency transfer or a transaction in a currency other than its account's exists
-- **THEN** net worth discloses it
+- **THEN** no cross-currency disclosure is shown
 
 #### Scenario: Past month in another currency
 - **WHEN** last month includes amounts in a currency other than the preferred one

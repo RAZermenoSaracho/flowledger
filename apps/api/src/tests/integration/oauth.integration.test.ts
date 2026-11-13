@@ -302,7 +302,7 @@ describe("MCP OAuth server", () => {
     expect(names).toHaveLength(45);
     expect(names).toEqual(expect.arrayContaining(["create_transaction", "update_transaction", "delete_transaction", "search_transactions"]));
 
-    const created = await tool(write.access_token, "create_transaction", { name: "Grok coffee", amount: 4.5, type: "expense", date: "2024-03-10" });
+    const created = await tool(write.access_token, "create_transaction", { name: "Grok coffee", amount: "4.5", type: "expense", date: "2024-03-10" });
     const id = created.structuredContent.transaction.id as string;
     expect((await tool(write.access_token, "get_transaction", { id })).structuredContent.transaction.name).toBe("Grok coffee");
     expect((await tool(write.access_token, "update_transaction", { id, name: "Grok latte" })).structuredContent.transaction.name).toBe("Grok latte");

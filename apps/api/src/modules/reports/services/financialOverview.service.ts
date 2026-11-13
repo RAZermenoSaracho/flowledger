@@ -2,9 +2,10 @@ import type {
   FinancialOverview,
   FinancialOverviewDisclosure
 } from "@flowledger/shared";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
-import { roundMoney } from "../../currencies/utils/roundMoney.js";
+import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { balanceDebt } from "../../debts/utils/debtCalculations.js";
 import { isDebtRelevantToUser } from "../../debts/utils/debtDirection.js";
 import { debtInclude } from "../../debts/utils/debtInclude.js";
@@ -19,9 +20,9 @@ type NetWorth = FinancialOverview["netWorth"];
 type SavingsRate = FinancialOverview["savingsRate"];
 type MetricResult<T> = { value: T; disclosures: FinancialOverviewDisclosure[] };
 
-async function convert(amount: number, from: string, to: string) {
-  if (from === to || amount === 0) return amount;
-  return roundMoney(amount * (await getExchangeRate(from, to)));
+async function convert(amount: Prisma.Decimal, from: string, to: string) {
+  if (from === to || amount.isZero()) return amount;
+  return valueInCurrency(amount, await getExchangeRate(from, to), to);
 }
 
 function monthOf(date: Date, timeZone: string) {
@@ -60,8 +61,8 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
         accountId: true,
         transferToAccountId: true,
         type: true,
-        amount: true,
-        executionCurrency: true
+        accountAmount: true,
+        destinationAmount: true
       }
     }),
     prisma.sharedExpenseParticipant.findMany({
@@ -78,7 +79,7 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   }));
   const active = balances.filter(({ account }) => !account.isArchived);
 
-  if (balances.some(({ account, balance }) => account.isArchived && balance !== 0)) {
+  if (balances.some(({ account, balance }) => account.isArchived && !balance.isZero())) {
     disclosures.add("archived_balance_excluded");
   }
   if (active.some(({ account }) => account.type === "investment")) {
@@ -87,25 +88,13 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   if (active.some(({ account }) => account.providerAccounts.length > 0)) {
     disclosures.add("synced_balances");
   }
-  const currencyOf = new Map(accounts.map((a) => [a.id, a.currency]));
-  if (
-    transactions.some((t) =>
-      t.accountId && currencyOf.has(t.accountId)
-        ? t.executionCurrency !== currencyOf.get(t.accountId) ||
-          (t.transferToAccountId !== null &&
-            currencyOf.get(t.transferToAccountId) !== currencyOf.get(t.accountId))
-        : false
-    )
-  ) {
-    disclosures.add("cross_currency_effects");
-  }
 
   const accountResults = await Promise.allSettled(
     active.map(({ account, balance }) => convert(balance, account.currency, currency))
   );
-  let accountsTotal = 0;
+  let accountsTotal = new Prisma.Decimal(0);
   accountResults.forEach((result, index) => {
-    if (result.status === "fulfilled") accountsTotal += result.value;
+    if (result.status === "fulfilled") accountsTotal = accountsTotal.plus(result.value);
     else excluded.push(active[index]!.account.name);
   });
 
@@ -113,31 +102,28 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
     .filter((debt) => isDebtRelevantToUser(debt, userId))
     .map((debt) => balanceDebt(debt));
   const awaitingAcceptance = debts.filter((d) => d.acceptance === "proposed").length;
-  const counted = debts.filter((d) => isCountedShare(d) && d.outstandingAmount > 0);
+  const counted = debts.filter((d) => isCountedShare(d) && d.outstandingAmount.gt(0));
   const debtResults = await Promise.allSettled(
     counted.map((debt) => convert(debt.outstandingAmount, debt.currency, currency))
   );
-  let owedToMe = 0;
-  let iOwe = 0;
+  let owedToMe = new Prisma.Decimal(0);
+  let iOwe = new Prisma.Decimal(0);
   debtResults.forEach((result, index) => {
     const debt = counted[index]!;
     if (result.status === "rejected") {
       excluded.push(`${debt.user ? userLabel(debt.user) : debt.participantName}: ${debt.sharedExpense.transaction.name}`);
-    } else if (debt.creditorUserId === userId) owedToMe += result.value;
-    else iOwe += result.value;
+    } else if (debt.creditorUserId === userId) owedToMe = owedToMe.plus(result.value);
+    else iOwe = iOwe.plus(result.value);
   });
   if (excluded.length) disclosures.add("rates_missing");
 
-  accountsTotal = roundMoney(accountsTotal);
-  owedToMe = roundMoney(owedToMe);
-  iOwe = roundMoney(iOwe);
   return {
     value: {
       status: "ok",
-      total: roundMoney(accountsTotal + owedToMe - iOwe),
-      accounts: accountsTotal,
-      owedToMe,
-      iOwe,
+      total: accountsTotal.plus(owedToMe).minus(iOwe).toNumber(),
+      accounts: accountsTotal.toNumber(),
+      owedToMe: owedToMe.toNumber(),
+      iOwe: iOwe.toNumber(),
       partial: excluded.length > 0,
       excluded,
       awaitingAcceptance
@@ -179,7 +165,7 @@ async function computeSavingsRate(
     ? ["past_month_current_rates"]
     : [];
   const converted = await Promise.allSettled(
-    rows.map((row) => convert(row.amount.toNumber(), row.executionCurrency, currency))
+    rows.map((row) => convert(row.amount, row.executionCurrency, currency))
   );
   if (converted.some((result) => result.status === "rejected")) {
     return { value: { status: "unavailable_rate", month }, disclosures };
@@ -188,13 +174,13 @@ async function computeSavingsRate(
   const cashflow = calculateMonthlyCashflow(
     rows.map((row, index) => ({
       ...row,
-      amount: (converted[index] as PromiseFulfilledResult<number>).value
+      amount: (converted[index] as PromiseFulfilledResult<Prisma.Decimal>).value
     })),
     {},
     timeZone
   ).find((row) => row.month === month);
-  const netIncome = roundMoney(cashflow?.netIncome ?? 0);
-  const netExpenses = roundMoney(cashflow?.netExpenses ?? 0);
+  const netIncome = cashflow?.netIncome ?? 0;
+  const netExpenses = cashflow?.netExpenses ?? 0;
   if (netIncome <= 0) {
     return { value: { status: "unavailable_income", month }, disclosures };
   }
@@ -202,7 +188,12 @@ async function computeSavingsRate(
     value: {
       status: "ok",
       month,
-      rate: roundMoney(((netIncome - netExpenses) / netIncome) * 100),
+      rate: new Prisma.Decimal(netIncome)
+        .minus(netExpenses)
+        .div(netIncome)
+        .times(100)
+        .toDecimalPlaces(2)
+        .toNumber(),
       netIncome,
       netExpenses
     },

@@ -206,7 +206,7 @@ describe("useAccountProviderSync", () => {
       name: "Checking",
       type: "checking",
       currency: "USD",
-      initialBalance: 0,
+      initialBalance: "0",
       isArchived: false,
       sync: [{ id: "sync-1", provider: "syncfy", providerCredentialId: "", status: "ok" } as AccountSync],
       createdAt: "",
@@ -238,7 +238,7 @@ describe("useAccountProviderSync", () => {
       name: "Checking",
       type: "checking",
       currency: "USD",
-      initialBalance: 0,
+      initialBalance: "0",
       isArchived: false,
       sync: [
         { id: "sync-1", provider: "syncfy", providerCredentialId: "cred-1", status: "ok" } as AccountSync
@@ -329,7 +329,7 @@ describe("useAccountProviderSync", () => {
       name: "Checking",
       type: "checking",
       currency: "USD",
-      initialBalance: 0,
+      initialBalance: "0",
       isArchived: false,
       sync: [
         { id: "sync-1", provider: "syncfy", providerCredentialId: "cred-1", status: "ok" } as AccountSync

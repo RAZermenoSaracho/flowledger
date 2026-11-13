@@ -34,7 +34,7 @@ function mockBaseline() {
   server.use(
     http.get(`${API_URL}/transactions`, () =>
       HttpResponse.json({
-        data: [{ id: "tx-1", name: "Dinner", type: "expense", amount: 100, executionCurrency: "USD" }],
+        data: [{ id: "tx-1", name: "Dinner", type: "expense", amount: "100", executionCurrency: "USD" }],
         meta: {}
       })
     )

@@ -158,7 +158,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 ---
 
-## [OPEN] #013 — Account currency can be changed on an account that has transactions
+## [RESOLVED] #013 — Account currency can be changed on an account that has transactions
 
 **Found in:** `expand-personal-api-crud` design review.
 
@@ -167,6 +167,8 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 **Description:** Changing `currency` does not re-evaluate existing transactions or balances.
 
 **Suggested fix:** Reject currency changes once the account has transactions.
+
+**Resolution:** `updateAccount` returns 400 naming `currency` while any transaction references the account (ST-023).
 
 ---
 

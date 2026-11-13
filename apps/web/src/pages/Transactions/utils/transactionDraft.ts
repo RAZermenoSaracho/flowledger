@@ -1,5 +1,6 @@
 import type { Transaction } from "../../../types/transactions.types";
 import { transactionDateInputValue } from "../../../utils/dateTime";
+import { isNonZero, sum } from "../../../utils/money";
 import type {
   ParticipantDraft,
   TransactionDraft
@@ -11,7 +12,19 @@ export function draftFromTransaction(transaction: Transaction): TransactionDraft
   const shared = transaction.sharedExpense;
   return {
     name: transaction.name,
-    amount: String(transaction.amount),
+    amount: transaction.amount,
+    accountAmount:
+      transaction.account && transaction.account.currency !== transaction.executionCurrency
+        ? (transaction.accountAmount ?? "")
+        : "",
+    destinationAmount:
+      transaction.type === "transfer" &&
+      transaction.transferToAccount &&
+      transaction.transferToAccount.currency !== transaction.executionCurrency
+        ? (transaction.destinationAmount ?? "")
+        : "",
+    feeAmount: transaction.feeAmount ?? "",
+    feeCurrency: transaction.feeCurrency ?? "",
     executionCurrency: transaction.executionCurrency,
     type: transaction.type,
     date: transactionDateInputValue(transaction),
@@ -32,7 +45,7 @@ export function draftFromTransaction(transaction: Transaction): TransactionDraft
         userId: participant.userId,
         participantName: participant.participantName,
         source: participant.userId ? "app" : "manual",
-        shareAmount: String(participant.shareAmount)
+        shareAmount: participant.shareAmount
       })
     )
   };
@@ -47,6 +60,10 @@ export function newTransactionDraft(
   return {
     name: "",
     amount: "",
+    accountAmount: "",
+    destinationAmount: "",
+    feeAmount: "",
+    feeCurrency: "",
     executionCurrency: currency,
     type: "expense",
     date: now,
@@ -62,12 +79,12 @@ export function newTransactionDraft(
   };
 }
 
-/** Sum of the participants' share inputs, ignoring blank or non-numeric ones. */
-export function sumParticipantShares(participants: ParticipantDraft[]): number {
-  return participants.reduce((sum, participant) => {
-    const share = Number(participant.shareAmount);
-    return sum + (Number.isFinite(share) ? share : 0);
-  }, 0);
+/** Exact sum of the participants' share inputs in `currency`, ignoring blank or invalid ones. */
+export function sumParticipantShares(participants: ParticipantDraft[], currency: string): string {
+  return sum(
+    participants.map((participant) => participant.shareAmount),
+    currency
+  );
 }
 
 /** Whether a stored line is settled (accepted and fully paid), so the server rejects any change to it. Judged by stored status, not by the editable input. */
@@ -79,10 +96,10 @@ export function isShareLocked(participant: ParticipantDraft): boolean {
 export function canAddAllocation(participants: ParticipantDraft[], userId: string): boolean {
   return participants
     .filter((participant) => participant.userId === userId)
-    .every((participant) => (participant.paidAmount ?? 0) > 0);
+    .every((participant) => isNonZero(participant.paidAmount));
 }
 
 /** Whether a participant may be removed from the draft: stored rows with a payment cannot be (the server also rejects pending settlement requests). */
 export function canRemoveParticipant(participant: ParticipantDraft): boolean {
-  return !((participant.paidAmount ?? 0) > 0);
+  return !isNonZero(participant.paidAmount);
 }

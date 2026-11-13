@@ -49,7 +49,7 @@ function rawPost(headers: Record<string, string>) {
   });
 }
 
-const txBody = { name: "Coffee", amount: 4.5, type: "expense", date: "2024-03-10" };
+const txBody = { name: "Coffee", amount: "4.5", type: "expense", date: "2024-03-10" };
 
 const READ_TOOLS = [
   "get_exchange_rate",
@@ -172,7 +172,7 @@ describe("MCP server", () => {
     const foreignAccount = await request(app)
       .post("/accounts")
       .set("Authorization", `Bearer ${other.token}`)
-      .send({ name: "Theirs", type: "checking", currency: "USD", initialBalance: 0 });
+      .send({ name: "Theirs", type: "checking", currency: "USD", initialBalance: "0" });
     const badCreate = await call(client, "create_transaction", {
       ...txBody,
       accountId: foreignAccount.body.account?.id ?? "missing"
@@ -340,7 +340,7 @@ describe("MCP server", () => {
     const client = await connect(key);
     const spy = vi.spyOn(process.stdout, "write");
 
-    await call(client, "create_transaction", { ...txBody, amount: 987.65 });
+    await call(client, "create_transaction", { ...txBody, amount: "987.65" });
     const lines = spy.mock.calls.map(([chunk]) => String(chunk)).filter((line) => line.includes('"audit":true'));
     spy.mockRestore();
 

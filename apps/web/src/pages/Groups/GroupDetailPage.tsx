@@ -69,6 +69,7 @@ export function GroupDetailPage() {
             summary={
               group.summary ?? { totalIncome: 0, totalExpenses: 0, balance: 0 }
             }
+            currency={auth.user?.preferredCurrency || "USD"}
           />
         </div>
       )

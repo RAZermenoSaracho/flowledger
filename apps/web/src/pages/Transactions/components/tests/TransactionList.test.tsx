@@ -9,7 +9,7 @@ function makeTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
     id: "tx-1",
     name: "Groceries",
-    amount: 42.5,
+    amount: "42.5",
     executionCurrency: "USD",
     exchangeRate: 1,
     amountInPreferredCurrency: 42.5,
@@ -165,7 +165,7 @@ describe("TransactionList", () => {
     renderWithProviders(
       <TransactionList
         groupedTransactions={[
-          { key: "", label: "", items: [makeTransaction({ type: "income", amount: 1000 })] }
+          { key: "", label: "", items: [makeTransaction({ type: "income", amount: "1000" })] }
         ]}
         totalCount={1}
         isDeleting={false}
