@@ -113,3 +113,6 @@ export const validateNotificationCodeSchema = z.object({ code: notificationCodeS
 
 /** Query string of the model, queue and log list routes: an optional DSQL JSON `query`. */
 export const notificationListQuerySchema = z.object({ query: z.string().max(4000).optional() });
+
+/** Optional ingest header value identifying a notification for deduplication. */
+export const notificationIdempotencyKeySchema = z.string().min(1).max(128);

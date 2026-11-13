@@ -37,9 +37,28 @@ beforeEach(() => {
 });
 
 describe("validateCode", () => {
+  it("returns 503 without validating when the playground is busy", async () => {
+    vi.mocked(acquirePlaygroundSlot).mockReturnValue(null);
+    await expect(validateCode("u1", "x")).rejects.toMatchObject({
+      statusCode: 503, message: "Test playground is busy, try again shortly"
+    });
+    expect(acquirePlaygroundSlot).toHaveBeenCalledWith("u1");
+    expect(validateScript).not.toHaveBeenCalled();
+  });
+
+  it("releases the slot after success and sandbox failure", async () => {
+    vi.mocked(validateScript).mockResolvedValueOnce([]);
+    await expect(validateCode("u1", "x")).resolves.toEqual({ errors: [] });
+    expect(release).toHaveBeenCalledTimes(1);
+    vi.mocked(validateScript).mockRejectedValueOnce(new Error("spawn"));
+    await expect(validateCode("u1", "x")).rejects.toThrow("spawn");
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
   it("wraps validateScript errors", async () => {
     vi.mocked(validateScript).mockResolvedValue([{ line: 2, col: 1, message: "bad" }]);
-    expect(await validateCode("x")).toEqual({ errors: [{ line: 2, col: 1, message: "bad" }] });
+    expect(await validateCode("u1", "x")).toEqual({ errors: [{ line: 2, col: 1, message: "bad" }] });
+    expect(release).toHaveBeenCalledOnce();
   });
 });
 

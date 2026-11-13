@@ -201,7 +201,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - the ingest contract with a curl example.
 
   Also update `docs/DATA_MODEL.md` (the new models), `apps/api/CLAUDE.md` (the `notificationModels/` module with `sandbox/`, the worker, and the `src/worker.ts` entry point next to `server.ts`), `apps/web/CLAUDE.md` (route table) and root `CLAUDE.md` (the env var table and docs table). Verify: grep finds both `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_*` names in `env.ts`, `.env.example`, `CLAUDE.md` and the new doc.
-- [ ] 7.2 From the repo root, `npm run typecheck`, `npm run lint` and `npm run test` pass, as do the Docker-backed integration suites. Run `openspec validate b007-notification-processor --strict`. Verify: command output is recorded in the PR.
+- [x] 7.2 From the repo root, `npm run typecheck`, `npm run lint` and `npm run test` pass, as do the Docker-backed integration suites. Run `openspec validate b007-notification-processor --strict`. Verify: command output is recorded in the PR.
 - [ ] 7.3 Deployment and supervision. The deploy script lives outside the repo, so the owner applies these on the host, and the implementer documents them in `docs/NOTIFICATION_MODELS.md` (§ Deployment) and the `deploy` skill (`.claude/skills/deploy/SKILL.md`):
   1. One-time, from `~/production/flowledger/apps/api`:
 

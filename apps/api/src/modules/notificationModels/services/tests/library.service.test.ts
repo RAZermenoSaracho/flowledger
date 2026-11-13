@@ -25,7 +25,7 @@ describe("publishModel", () => {
     const data = prismaMock.notificationModelVersion.create.mock.calls[0]![0].data;
     expect(data).toMatchObject({ modelId: "m1", version: 3, name: "N", code: "c", settings: { k: "v" } });
     expect(data).not.toHaveProperty("bindings");
-    expect(prismaMock.notificationModel.update).toHaveBeenCalledWith({ where: { id: "m1" }, data: { visibility: "public" } });
+    expect(prismaMock.notificationModel.update).toHaveBeenCalledWith({ where: { id: "m1", userId: "u1" }, data: { visibility: "public" } });
   });
 
   it("starts at version 1 and 404s for a foreign model", async () => {
@@ -80,7 +80,8 @@ describe("updateFromSource", () => {
     expect(prismaMock.notificationModel.update).not.toHaveBeenCalled();
 
     await updateFromSource("u2", "c1", { versionId: "v2", bindings: { cat: "c9" } });
-    const { data } = prismaMock.notificationModel.update.mock.calls[0]![0];
+    const { data, where } = prismaMock.notificationModel.update.mock.calls[0]![0];
+    expect(where).toEqual({ id: "c1", userId: "u2" });
     expect(data).toMatchObject({
       code: "new code", sourceVersionId: "v2", bindings: { card: "a1", cat: "c9" },
       settings: { a: "mine-a", b: "default-b" }

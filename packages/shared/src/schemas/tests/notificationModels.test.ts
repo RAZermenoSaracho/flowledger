@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNotificationModelSchema,
   notificationIngestSchema,
+  notificationIdempotencyKeySchema,
   notificationProposalSchema,
   notificationSlotsSchema,
   notificationTestSchema,
@@ -97,5 +98,15 @@ describe("validateNotificationCodeSchema and notificationListQuerySchema", () =>
     expect(validateNotificationCodeSchema.safeParse({}).success).toBe(false);
     expect(validateNotificationCodeSchema.safeParse({ code: "x" }).success).toBe(true);
     expect(notificationListQuerySchema.safeParse({}).success).toBe(true);
+  });
+});
+
+describe("notificationIdempotencyKeySchema", () => {
+  it.each(["a", "a".repeat(128), " "])("accepts a valid key", (key) => {
+    expect(notificationIdempotencyKeySchema.safeParse(key).success).toBe(true);
+  });
+
+  it.each(["", "a".repeat(129), undefined, null, 123])("rejects an invalid key", (key) => {
+    expect(notificationIdempotencyKeySchema.safeParse(key).success).toBe(false);
   });
 });

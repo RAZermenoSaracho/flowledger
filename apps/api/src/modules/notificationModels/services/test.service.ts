@@ -5,9 +5,20 @@ import type { ModelBindings, ModelSlots, NotificationTestResult } from "../types
 import { mapProposalToTransactionInput } from "../utils/mapProposal.js";
 import { getOwnedModel, resolveBindingNames } from "./read.service.js";
 
+/** Creates the shared response when sandbox playground capacity is exhausted. */
+export function playgroundBusyError() {
+  return new HttpError(503, "Test playground is busy, try again shortly");
+}
+
 /** Validates `code` in the sandbox and returns its errors (`line`, `col`, `message`); empty when valid. */
-export async function validateCode(code: string) {
-  return { errors: await validateScript(code) };
+export async function validateCode(userId: string, code: string) {
+  const release = acquirePlaygroundSlot(userId);
+  if (!release) throw playgroundBusyError();
+  try {
+    return { errors: await validateScript(code) };
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -24,7 +35,7 @@ export async function testModel(
 ): Promise<NotificationTestResult> {
   const model = await getOwnedModel(userId, id);
   const release = acquirePlaygroundSlot(userId);
-  if (!release) throw new HttpError(503, "Test playground is busy, try again shortly");
+  if (!release) throw playgroundBusyError();
 
   let result;
   try {

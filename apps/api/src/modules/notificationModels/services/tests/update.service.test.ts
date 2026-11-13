@@ -25,20 +25,21 @@ describe("updateModel", () => {
 
   it("writes only the provided fields", async () => {
     await updateModel("u1", "m1", { name: "New" });
-    expect(prismaMock.notificationModel.update).toHaveBeenCalledWith({ where: { id: "m1" }, data: { name: "New" } });
+    expect(prismaMock.notificationModel.update).toHaveBeenCalledWith({ where: { id: "m1", userId: "u1" }, data: { name: "New" } });
     expect(assertCodeValid).not.toHaveBeenCalled();
     expect(assertActivatable).not.toHaveBeenCalled();
   });
 
   it("validates changed code and re-checks bindings when bindings change", async () => {
     await updateModel("u1", "m1", { code: "new", bindings: { card: "a2" } });
-    expect(assertCodeValid).toHaveBeenCalledWith("new");
+    expect(assertCodeValid).toHaveBeenCalledWith("u1", "new");
     expect(assertBindingsValid).toHaveBeenCalledWith("u1", slots, { card: "a2" });
   });
 
   it("applies the activation rule when activating, validating the saved code", async () => {
     await updateModel("u1", "m1", { isActive: true });
     expect(assertActivatable).toHaveBeenCalledWith(
+      "u1",
       expect.objectContaining({ code: "old", isActive: true }),
       { checkCode: true }
     );
@@ -47,7 +48,7 @@ describe("updateModel", () => {
   it("re-applies the activation rule to slot or binding changes on an active model", async () => {
     vi.mocked(getOwnedModel).mockResolvedValue({ ...current, isActive: true } as never);
     await updateModel("u1", "m1", { bindings: {} });
-    expect(assertActivatable).toHaveBeenCalledWith(expect.objectContaining({ bindings: {} }), { checkCode: false });
+    expect(assertActivatable).toHaveBeenCalledWith("u1", expect.objectContaining({ bindings: {} }), { checkCode: false });
   });
 
   it("does not write when the activation rule fails", async () => {

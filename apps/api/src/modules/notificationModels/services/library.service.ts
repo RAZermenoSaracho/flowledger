@@ -58,7 +58,7 @@ export async function publishModel(userId: string, id: string) {
         settings: model.settings as Prisma.InputJsonValue
       }
     });
-    const published = await tx.notificationModel.update({ where: { id }, data: { visibility: "public" } });
+    const published = await tx.notificationModel.update({ where: { id, userId }, data: { visibility: "public" } });
     return { model: published, version };
   });
 }
@@ -147,7 +147,7 @@ export async function updateFromSource(userId: string, id: string, input: Update
   await assertBindingsValid(userId, newSlots, bindings);
 
   return prisma.notificationModel.update({
-    where: { id },
+    where: { id, userId },
     data: {
       description: version.description,
       code: version.code,

@@ -11,7 +11,7 @@ describe("test controllers", () => {
     vi.mocked(validateCode).mockResolvedValue({ errors: [] });
     const res = mockResponse();
     await postValidate(mockRequest({ body: { code: "x" } }), res);
-    expect(validateCode).toHaveBeenCalledWith("x");
+    expect(validateCode).toHaveBeenCalledWith("user-1", "x");
     expect(res.json).toHaveBeenCalledWith({ errors: [] });
   });
 

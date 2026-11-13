@@ -20,14 +20,14 @@ export async function updateModel(userId: string, id: string, patch: UpdateNotif
   };
   const activating = patch.isActive === true && !current.isActive;
 
-  if (patch.code !== undefined) await assertCodeValid(patch.code);
+  if (patch.code !== undefined) await assertCodeValid(userId, patch.code);
   if (patch.slots !== undefined || patch.bindings !== undefined) {
     await assertBindingsValid(userId, merged.slots, merged.bindings);
   }
-  if (merged.isActive) await assertActivatable(merged, { checkCode: activating && patch.code === undefined });
+  if (merged.isActive) await assertActivatable(userId, merged, { checkCode: activating && patch.code === undefined });
 
   return prisma.notificationModel.update({
-    where: { id },
+    where: { id, userId },
     data: {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description ?? null } : {}),
