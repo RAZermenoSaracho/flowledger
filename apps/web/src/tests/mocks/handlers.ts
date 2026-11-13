@@ -1,6 +1,6 @@
 import { HttpResponse, http, type HttpHandler } from "msw";
 import type { DataSieveMeta } from "../../types/transactions.types";
-import type { NotificationModel, NotificationRun } from "../../types/notificationModels.types";
+import type { NotificationLibraryEntry, NotificationModel, NotificationRun } from "../../types/notificationModels.types";
 
 /**
  * Default msw request handlers, active for every test via `src/tests/setup.ts`.
@@ -75,4 +75,20 @@ export function notificationModelHandlers({
     http.get(`${API}/notification-models/${model.id}/queue`, () => HttpResponse.json(notificationPage(queue))),
     http.get(`${API}/notification-models/${model.id}/logs`, () => HttpResponse.json(notificationPage(logs)))
   ];
+}
+
+/** A library entry with sensible defaults; override any field. */
+export function makeLibraryEntry(overrides: Partial<NotificationLibraryEntry> = {}): NotificationLibraryEntry {
+  return {
+    modelId: "lib-1",
+    versionId: "ver-2",
+    version: 2,
+    name: "Plata shared",
+    description: "Parses Plata purchases",
+    slots: [{ key: "card", kind: "account", label: "Card", required: true }],
+    settings: {},
+    publishedAt: "2026-11-10T00:00:00.000Z",
+    author: { username: "ana" },
+    ...overrides
+  };
 }

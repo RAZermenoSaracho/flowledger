@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Button } from "../../../components/Button";
 import { CopyRow } from "../../../components/CopyRow";
 import { EditableField, editableControlClassName } from "../../../components/EditableField";
 import { routes } from "../../../constants/routes";
@@ -9,10 +11,12 @@ import { useBindingOptions } from "../hooks/useBindingOptions";
 import type { NotificationModelDraft } from "../types/notificationModels.types";
 import { ModelSettingsList } from "./ModelSettingsList";
 import { ModelSlotsTable } from "./ModelSlotsTable";
+import { ModelUpdateDialog } from "./ModelUpdateDialog";
 
 /** Form tab: name, description, active state, visibility, ingest endpoint with request example (saved models), slots with bindings, settings, and library origin/version. */
 export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationModelDraft>; model: NotificationModel | null }) {
   const options = useBindingOptions();
+  const [updating, setUpdating] = useState(false);
   const { values } = draft;
 
   function field(key: keyof NotificationModelDraft) {
@@ -93,6 +97,12 @@ export function ModelFormTab({ draft, model }: { draft: FormDraft<NotificationMo
             {model.update?.available ? ` Version ${model.update.latestVersion} is available.` : ""}
             {model.update?.localCodeModified ? " The code was modified locally." : ""}
           </p>
+          {model.update?.available ? (
+            <Button type="button" className="mt-2" onClick={() => setUpdating(true)}>
+              Update to version {model.update.latestVersion}
+            </Button>
+          ) : null}
+          {updating ? <ModelUpdateDialog model={model} onClose={() => setUpdating(false)} /> : null}
         </section>
       ) : null}
     </div>

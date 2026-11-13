@@ -14,6 +14,7 @@ export const routes = {
   groups: "/groups",
   group: (id: string) => `/groups/${id}`,
   notificationModels: "/notification-models",
+  notificationLibrary: "/notification-library",
   newNotificationModel: "/notification-models/new",
   notificationModel: (id: string, tab?: string) => `/notification-models/${id}${tab ? `?tab=${tab}` : ""}`,
   reports: "/reports",

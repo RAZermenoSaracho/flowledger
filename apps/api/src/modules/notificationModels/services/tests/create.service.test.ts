@@ -71,6 +71,14 @@ describe("createModel", () => {
   });
 
   it("rejects bindings for undeclared slots", async () => {
-    await expect(createModel("u1", { ...input, bindings: { ghost: "x" } })).rejects.toMatchObject({ statusCode: 400 });
+    vi.mocked(validateScript).mockResolvedValue([]);
+    vi.mocked(assertBindingsValid).mockRejectedValueOnce(Object.assign(new Error("Invalid bindings for slots: ghost"), {
+      statusCode: 400, details: { invalidBindings: ["ghost"] }
+    }));
+    await expect(createModel("u1", { ...input, bindings: { ghost: "x" } })).rejects.toMatchObject({
+      statusCode: 400, message: "Invalid bindings for slots: ghost", details: { invalidBindings: ["ghost"] }
+    });
+    expect(assertBindingsValid).toHaveBeenCalledWith("u1", slots, { ghost: "x" });
+    expect(prismaMock.notificationModel.create).not.toHaveBeenCalled();
   });
 });

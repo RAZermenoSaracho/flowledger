@@ -24,7 +24,14 @@ export function NotificationModelsPage() {
     <ListView
       title="Notification models"
       subtitle="Scripts that turn bank notification text into transactions."
-      actions={<AddRecordButton label="model" onClick={() => navigate(routes.newNotificationModel)} />}
+      actions={
+        <div className="flex items-center gap-2">
+          <Link className="text-sm text-pine underline" to={routes.notificationLibrary}>
+            Library
+          </Link>
+          <AddRecordButton label="model" onClick={() => navigate(routes.newNotificationModel)} />
+        </div>
+      }
       items={list.items}
       rowKey={(model) => model.id}
       renderItem={(model) => <NotificationModelListItem model={model} />}

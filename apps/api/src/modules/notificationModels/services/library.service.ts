@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
 import type { ModelBindings, ModelSlots } from "../types/notificationModels.types.js";
-import { unboundRequiredSlots } from "../utils/bindings.js";
+import { assertRequiredBound } from "../utils/bindings.js";
 import { assertBindingsValid } from "./read.service.js";
 
 const LIBRARY_VERSION_SELECT = {
@@ -74,24 +74,25 @@ export async function listLibrary() {
     .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 }
 
-/** Reads one public model's latest version including its code, for viewing before install; 404 when private or never published. */
-export async function getLibraryModel(modelId: string) {
+async function findPublicLatest(modelId: string) {
   const model = await prisma.notificationModel.findFirst({
     where: { id: modelId, visibility: "public", versions: { some: {} } },
     select: { id: true, user: AUTHOR, versions: { ...LATEST_VERSION } }
   });
   if (!model) throw notFound("Library model");
+  return model;
+}
+
+/** Reads one public model's latest version including its code, for viewing before install; 404 when private or never published. */
+export async function getLibraryModel(modelId: string) {
+  const model = await findPublicLatest(modelId);
   const version = model.versions[0]!;
   return { ...toLibraryEntry(model, version), code: version.code };
 }
 
 /** Installs the latest version of a public model as the caller's private, inactive copy with empty bindings and `sourceVersionId` set; 404 when not in the library. */
 export async function installModel(userId: string, modelId: string) {
-  const model = await prisma.notificationModel.findFirst({
-    where: { id: modelId, visibility: "public", versions: { some: {} } },
-    select: { versions: { ...LATEST_VERSION } }
-  });
-  if (!model) throw notFound("Library model");
+  const model = await findPublicLatest(modelId);
   const version = model.versions[0]!;
   return prisma.notificationModel.create({
     data: {
@@ -142,10 +143,7 @@ export async function updateFromSource(userId: string, id: string, input: Update
     Object.entries(version.settings as Record<string, string>).map(([key, fallback]) => [key, oldSettings[key] ?? fallback])
   );
 
-  const unbound = unboundRequiredSlots(newSlots, bindings);
-  if (unbound.length) {
-    throw badRequest(`Required slots are not bound: ${unbound.join(", ")}`, { unboundSlots: unbound });
-  }
+  assertRequiredBound(newSlots, bindings);
   await assertBindingsValid(userId, newSlots, bindings);
 
   return prisma.notificationModel.update({

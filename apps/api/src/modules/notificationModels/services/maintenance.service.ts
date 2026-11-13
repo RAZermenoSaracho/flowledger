@@ -1,7 +1,7 @@
 import type { NotificationRunStatus } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 
-const WORKER_LIVE_MS = 2 * 60_000;
+const LOST_AFTER_MS = 2 * 60_000;
 const WORKER_ROW_TTL_MS = 60 * 60_000;
 const TEXT_RETENTION_MS = 7 * 86_400_000;
 const RUN_RETENTION_MS = 30 * 86_400_000;
@@ -14,7 +14,7 @@ const terminal = { in: ["completed", "skipped", "failed"] as NotificationRunStat
  */
 export async function failLostRuns(now = new Date()) {
   const live = await prisma.notificationWorker.findMany({
-    where: { lastSeenAt: { gte: new Date(now.getTime() - WORKER_LIVE_MS) } },
+    where: { lastSeenAt: { gte: new Date(now.getTime() - LOST_AFTER_MS) } },
     select: { id: true }
   });
   const { count } = await prisma.notificationRun.updateMany({

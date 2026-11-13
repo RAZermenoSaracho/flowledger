@@ -13,6 +13,24 @@ export type NotificationModelUpdateInfo = {
   installedVersion: number | null;
   latestVersion: number | null;
   localCodeModified: boolean;
+  /** Library model the copy came from; with `latestVersionId` it locates the update. */
+  sourceModelId?: string;
+  /** Id of the newest public version, sent as `versionId` when updating. */
+  latestVersionId?: string;
+};
+
+/** A public library model's latest version; `code` is present only on the single-entry read. */
+export type NotificationLibraryEntry = {
+  modelId: string;
+  versionId: string;
+  version: number;
+  name: string;
+  description: string | null;
+  slots: NotificationSlot[];
+  settings: Record<string, string>;
+  publishedAt: string;
+  author: { username: string | null };
+  code?: string;
 };
 
 /** A notification model as listed by `GET /notification-models`. */

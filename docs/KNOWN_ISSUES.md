@@ -672,3 +672,27 @@ Still open:
 **Description:** The page-level Debts tab bar builds its own tablist markup instead of `components/Tabs`. It also has no arrow-key navigation, and it is desktop-only: mobile uses the sidebar drawer's subpage links. It was left as is because its pill styling is part of the Debts look the product owner wants kept.
 
 **Suggested fix:** If the pill look is kept, add a `variant` to `Tabs` and reuse it here. Otherwise switch to the standard underline tabs in a separate change.
+
+---
+
+## [OPEN] #052 — datasieve silently ignores unknown filter operators
+
+**Found in:** B-007 notification models list implementation.
+
+**Scope:** `createSieve()` (`apps/api/src/db/sieve.ts`) and the `datasieve` package that backs it.
+
+**Description:** A filter written with `op: "eq"` instead of `"="` was dropped without an error, so a scope filter can silently stop scoping. The B-007 code uses `"="` and the cross-user isolation suite covers it, but any future call site with a mistyped operator would fail open.
+
+**Suggested fix:** Make datasieve reject unknown operators (in the sibling `datasieve` repo), then bump the version in `apps/api`.
+
+---
+
+## [OPEN] #053 — The datasieve `query` parameter parser is copied across modules
+
+**Found in:** B-007 simplicity review.
+
+**Scope:** `query` JSON parsing in the transactions, groups and shared-expenses `read.service.ts` files, `v1` pagination, and `notificationModels/utils/parseListQuery.ts`.
+
+**Description:** Five near-identical "parse JSON, require an object, 400 otherwise" helpers exist.
+
+**Suggested fix:** Extract one shared helper in `apps/api/src/utils/` and use it everywhere, as a separate refactor.

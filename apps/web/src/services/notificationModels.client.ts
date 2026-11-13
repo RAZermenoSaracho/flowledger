@@ -1,6 +1,7 @@
 import type { RangePagination } from "../types/common.types";
 import type {
   NotificationCodeError,
+  NotificationLibraryEntry,
   NotificationModel,
   NotificationModelSummary,
   NotificationModelVisibility,
@@ -97,10 +98,30 @@ export function listNotificationLogs(id: string, pagination?: RangePagination) {
 
 /** Publishes the model to the library as its next version. */
 export function publishNotificationModel(id: string) {
-  return apiRequest<{ model: NotificationModel }>(`/notification-models/${id}/publish`, { method: "POST" });
+  return apiRequest<{ model: NotificationModel; version: { id: string; version: number } }>(`/notification-models/${id}/publish`, { method: "POST" });
 }
 
 /** Resolves a model's `endpointPath` against the API base URL, giving the full ingest URL. */
 export function notificationEndpointUrl(endpointPath: string) {
   return apiUrl(endpointPath);
+}
+
+/** Lists public library models with their latest version (no code). */
+export function listNotificationLibrary() {
+  return apiRequest<{ data: NotificationLibraryEntry[] }>("/notification-library");
+}
+
+/** Reads one library model's latest version including its code. */
+export function getNotificationLibraryEntry(modelId: string) {
+  return apiRequest<{ entry: NotificationLibraryEntry }>(`/notification-library/${modelId}`);
+}
+
+/** Installs a library model as the caller's private, inactive copy. */
+export function installNotificationModel(modelId: string) {
+  return apiRequest<{ model: NotificationModel }>(`/notification-library/${modelId}/install`, { method: "POST" });
+}
+
+/** Applies library version `versionId` to a copy; `bindings` supplies records for new required slots. */
+export function updateNotificationModelFromSource(id: string, body: { versionId: string; bindings?: Record<string, string> }) {
+  return apiRequest<{ model: NotificationModel }>(`/notification-models/${id}/update-from-source`, { method: "POST", body });
 }

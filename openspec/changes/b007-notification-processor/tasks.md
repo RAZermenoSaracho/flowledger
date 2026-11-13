@@ -185,11 +185,11 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
   Verify: service tests cover snapshot immutability, bindings never published, the install copy being independent, update-available and `localCodeModified` computation, the merge rules, 400 for missing bindings, and that deleting the original leaves copies working.
 - [x] 6.2 Add the controllers and routes `/notification-library`, `/notification-library/:modelId`, `/notification-library/:modelId/install`, `/notification-models/:id/publish` and `/notification-models/:id/update-from-source`. Verify: the routes test covers publish → install by another user → author publishes v2 → the copy sees an update → applying it with the new binding keeps the copy active; another user cannot publish or update a model that isn't theirs (404).
-- [ ] 6.3 Add `NotificationLibraryPage.tsx` (browse, view code read-only, install → navigates to the copy's Form tab). Add the update `ModalDialog` on the Form tab: current and new code side by side read-only, a local-modification warning, and selects for new required slots. Verify: page and dialog tests.
+- [x] 6.3 Add `NotificationLibraryPage.tsx` (browse, view code read-only, install → navigates to the copy's Form tab). Add the update `ModalDialog` on the Form tab: current and new code side by side read-only, a local-modification warning, and selects for new required slots. Verify: page and dialog tests.
 
 ## 7. Docs and acceptance
 
-- [ ] 7.1 Write `docs/NOTIFICATION_MODELS.md`:
+- [x] 7.1 Write `docs/NOTIFICATION_MODELS.md`:
   - the architecture decision and when to revisit it;
   - the script contract and helper reference;
   - the sandbox layers and residual network risk;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { undeclaredBindingKeys, unboundRequiredSlots } from "../bindings.js";
+import { assertRequiredBound, unboundRequiredSlots } from "../bindings.js";
 
 const slots = [
   { key: "card", kind: "account" as const, label: "Card", required: true },
@@ -14,8 +14,11 @@ describe("unboundRequiredSlots", () => {
   });
 });
 
-describe("undeclaredBindingKeys", () => {
-  it("lists bindings whose key is not a slot", () => {
-    expect(undeclaredBindingKeys(slots, { card: "a", ghost: "x" })).toEqual(["ghost"]);
+describe("assertRequiredBound", () => {
+  it("reports missing required slots with 400 and their keys", () => {
+    expect(() => assertRequiredBound(slots, { card: "a" })).toThrow(
+      expect.objectContaining({ statusCode: 400, message: "Required slots are not bound: general", details: { unboundSlots: ["general"] } })
+    );
+    expect(() => assertRequiredBound(slots, { card: "a", general: "c" })).not.toThrow();
   });
 });

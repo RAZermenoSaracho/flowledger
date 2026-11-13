@@ -113,7 +113,7 @@ describe("getModelById", () => {
       queued: 3,
       processing: 0,
       lastRunStatus: "completed",
-      update: { available: false, installedVersion: null, latestVersion: null, localCodeModified: false }
+      update: { available: false, sourceModelId: null, installedVersion: null, latestVersion: null, latestVersionId: null, localCodeModified: false }
     });
   });
 
@@ -122,12 +122,14 @@ describe("getModelById", () => {
     groupByMock.mockResolvedValue([] as never);
     prismaMock.notificationRun.findFirst.mockResolvedValue(null);
     prismaMock.notificationModelVersion.findUnique.mockResolvedValue({ id: "v1", modelId: "src", version: 1, code: "orig" } as never);
-    prismaMock.notificationModelVersion.findFirst.mockResolvedValue({ version: 2 } as never);
+    prismaMock.notificationModelVersion.findFirst.mockResolvedValue({ id: "v2", version: 2 } as never);
 
     expect((await getModelById("u1", "m1")).update).toEqual({
       available: true,
+      sourceModelId: "src",
       installedVersion: 1,
       latestVersion: 2,
+      latestVersionId: "v2",
       localCodeModified: true
     });
   });
