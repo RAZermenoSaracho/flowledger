@@ -37,12 +37,12 @@ See proposal.md, Why. Facts verified in the repository on 2026-11-13 at `370098a
 **Goals:**
 - Untrusted user Python never runs in the API process. It cannot read files, environment, credentials or other users' data, and cannot outlive its limits.
 - Accepted notifications are acknowledged quickly and processed concurrently, and survive restarts.
-- Each accepted notification creates at most one transaction.
+- Each accepted notification creates at most one transaction, and a run is `completed` exactly when its transaction was created, in the same database transaction.
 - Transaction rules stay in the existing service.
 
 **Non-Goals:**
 - A general automation or workflow engine, plugin system, or script access to the network or database.
-- Exactly-once processing across a crash in the commit window. At-most-once is chosen instead; see Decision 6.
+- Automatic retry of a run whose worker crashed. Such a run is failed terminally; see Decision 6.
 - Running Python in the browser.
 
 ## Decisions
@@ -98,12 +98,11 @@ Full Python, guarded only by a static checker, is not a security boundary. A sub
 
 **ReDoS and resource exhaustion.** Catastrophic backtracking or `"a" * 10**9` hits the timeout or the memory kill, and the run fails with `timeout` or `resource_limit`. Input text is capped at 4,000 characters.
 
-**Spike gate (task 1.1).** The spike verifies three things on Node 24:
-- That `--permission` with `--allow-fs-read` loads Pyodide.
-- The memory mechanism. It tries, in order: the V8 flag that caps WebAssembly memory pages, or else the parent sampling the child's RSS every 100 ms (`ps -o rss=`). It records which works.
-- Cold-start time. If it exceeds 2 s, the parent keeps `concurrency` pre-started single-use children; each serves exactly one execution and is replaced.
+**Runtime checks (first runner task, no separate gate).** The runner's test suite proves on Node 24 that:
+- `--permission` with `--allow-fs-read` loads Pyodide;
+- the memory kill works, using the V8 WebAssembly max-memory-pages flag or, failing that, the parent sampling the child's RSS every 100 ms (`ps -o rss=`).
 
-None of these outcomes changes the specs or the task list.
+Cold start (about 1–2 s) is accepted because processing is asynchronous; there is no pre-warm pool. Concurrency is runtime configuration (Decision 5), not something the tests determine.
 
 ### 3. Script contract
 
@@ -196,52 +195,102 @@ The resulting transaction input. `date` is `receivedAt`; `card` is bound to the 
 | `¡Aprovecha 10% de cashback!` | `skipped` / `promotion` |
 | `Compraste $abc` | `skipped` / `not a purchase`. If the script instead called `amount()` on it, `failed` / `ValueError: no amount found (line 7)` |
 
-### 5. Async lifecycle (Postgres job table, in-process worker)
+### 5. Persistent queue, concurrency limits and fair scheduling
+
+**One shared table, one logical queue per model.** Every accepted notification is a `NotificationRun` row carrying its `modelId` and `userId`. A model's queue is its rows with status `queued` or `processing`. There are no per-model tables, workers or processes, and no broker.
 
 **Ingest** (`POST /v1/notification-models/:id/notifications`). The route checks, in order:
 1. The `ingest` scope.
-2. The existing `/v1` per-credential limiter (120/min). No extra limiter: the pending-run cap protects the worker.
+2. The existing `/v1` per-credential limiter (120/min). No extra limiter is added.
 3. The model exists, belongs to the key owner and is active. Otherwise 404.
-4. Text is 1 to 4,000 characters. Otherwise 400.
-5. The owner has fewer than 100 runs `queued` or `running`, counted through `model: { userId }`, since runs carry no denormalized `userId`. Otherwise 429.
+4. The JSON body `{ "text": string }`, 1 to 4,000 characters, with no other fields. Otherwise 400.
+5. **Queue capacity:** the owner has fewer than 500 `queued` runs across all models. Otherwise 429 with `Retry-After: 60`.
+   `// ponytail: count-then-insert soft cap; concurrent requests can overshoot by a few rows, which is harmless for a backpressure cap.`
 
-It then inserts a `NotificationRun(status=queued)`, calls `worker.wake()` and returns `202 { runId, status: "queued", duplicate: false }`.
+It then inserts `NotificationRun(status=queued, text, userId, modelId, dedupeKey)` and returns `202 { runId, status: "queued", duplicate: false }` **only after the insert commits**. Any database error returns 503 and nothing is acknowledged. After the response, the route calls `worker.wake()` as a best-effort nudge; polling covers a missed wake.
 
 **Dedupe.** The dedupe key is:
-- the `Idempotency-Key` header (≤128 characters), when present;
+- the optional `Idempotency-Key` header (≤128 characters), when present;
 - otherwise `sha256(text) + ":" + floor(receivedAt / 10 min)`.
 
-The constraint `@@unique([modelId, dedupeKey])` enforces it. A conflict returns `202` with the existing run and `duplicate: true`. Identical text more than one bucket apart is processed again, so two identical purchases 10+ minutes apart are both recorded.
-`// ponytail: fixed 10-min bucket; a retry straddling a boundary is processed twice — use a sliding-window lookup if this shows up in logs.`
+The constraint `@@unique([modelId, dedupeKey])` enforces it. A conflict returns `202` with the existing run and `duplicate: true`.
+`// ponytail: fixed 10-min bucket; a retry straddling a boundary is accepted twice — sliding-window lookup if it shows up in logs.`
 
-**Worker** (`notificationRunWorker.ts`, started and stopped in `server.ts`). It polls every 5 s and on `wake()`. It claims up to `NOTIFICATION_RUNNER_CONCURRENCY` (default 4) `queued` runs, oldest first. A claim is an optimistic Prisma `updateMany({ where: { id, status: "queued" }, data: { status: "running", startedAt, attempts: { increment: 1 } } })` and succeeds only when `count === 1`. This needs no raw SQL and is safe with several instances.
+**Configuration** (`config/env.ts`, validated at startup):
+
+| Variable | Default | Allowed | Meaning |
+|---|---|---|---|
+| `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` | `4` | integer 1–64 | max runs in `processing` across all API instances |
+| `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` | `2` | integer 1–64, ≤ global | max runs in `processing` for one user |
+
+A non-integer, out-of-range or per-user-above-global value fails Zod env validation, and the API refuses to start with a message naming the variable, like every other env var.
+
+The limits count only queued-notification executions. The playground runs outside the queue, under a fixed cap of 2 concurrent tests per API process and 1 per user, and returns 503 when busy. Neither limit touches how many notifications are accepted; capacity is the 500-per-user rule.
+
+**Atomic claiming across instances.** A claim is one Prisma interactive transaction at `isolationLevel: Serializable`. It needs no raw SQL.
+1. `groupBy` `processing` runs by `userId` and by `modelId`. If the total is ≥ global, stop.
+2. `groupBy` `queued` runs by `(userId, modelId)` with `_min(receivedAt)`, the head of each model queue. Users already at the per-user limit are dropped.
+3. Pick the model queue sorted by:
+   - the user's processing count, ascending;
+   - the model's processing count, ascending;
+   - the head's `receivedAt`, ascending.
+4. Take that model's oldest `queued` run (`receivedAt`, then `id`). Update it to `processing` with `workerId` (random per process start), `startedAt` and `heartbeatAt`, guarded by `where: { id, status: "queued" }`.
+
+Postgres serializable isolation aborts one of two concurrent claims that would together exceed a limit or take the same row. The aborted claim (Prisma `P2034`) is retried up to 3 times, then left for the next tick. A worker claims one run per transaction and loops while it gets one. It never holds more than the global limit in flight, so memory is bounded by the limit, never by backlog size.
+
+**Fairness.** The sort makes a user with nothing running win over a user with a backlog. A per-user limit below the global one guarantees other users capacity. The same rule applied to models stops one flooding model from blocking its owner's other models. No user or model can be starved while it has queued runs.
+
+**FIFO.** Each model's runs start in arrival order. Up to the per-user limit, runs of the same model may execute at the same time, so completion order is not guaranteed. This is harmless because each transaction's `date` defaults to its own `receivedAt`.
+`// ponytail: start-order FIFO only; one-at-a-time per model if strict completion order is ever required.`
+
+**Worker** (`notificationRunWorker.ts`, started and stopped in `server.ts`):
+- It claims on `wake()` and every 5 s.
+- Every 15 s it heartbeats its in-flight runs with one `updateMany({ where: { workerId, status: "processing" } })`.
+- Every minute it runs recovery and retention (Decision 6).
 
 Each claimed run:
-1. Reloads the model. An inactive model gives `skipped` / `model_inactive`, which covers deactivation while queued.
+1. Reloads the model. If the model is inactive, the run becomes `skipped` / `model_inactive`, which covers deactivation while queued.
 2. Runs the sandbox.
 3. Outcomes:
-   - On `skip` or `error`, sets the terminal status.
-   - On a proposal, first stores `proposal` and sets `status = committing`. Then it calls `createTransaction`, then sets `created` with `transactionId`.
+   - A `skip` result makes the run `skipped`.
+   - A script or validation error makes it `failed`.
+   - A proposal is mapped (Decision 4). Then one `prisma.$transaction` re-checks that the model is still active (otherwise the run is `skipped` / `model_inactive` and nothing is created), calls `createTransaction(userId, input, tx)` and updates the run to `completed` with `transactionId`. The update is guarded by `where: { id, status: "processing", workerId }`; a count of 0 throws, which rolls back the transaction too.
 
-The playground (`POST /notification-models/:id/test`) uses the same semaphore. It waits up to 10 s, then returns 503.
+**`createTransaction` takes an optional `tx`.** When it is given, the service runs on that client instead of opening its own `$transaction`. This is a small change to the existing service and preserves every existing caller. It gives the invariant: **a run is `completed` if and only if its transaction was created in the same database transaction (if the user later deletes that transaction, the run keeps `completed` with an empty link).**
 
-### 6. Retries, recovery, shutdown
+### 6. Job lifecycle, crash recovery, shutdown, retention
 
-- **Deterministic outcomes are never retried.** These are script errors, timeouts, invalid results, mapping and validation errors.
-- **Infrastructure failures are retried.** Before `committing`, a failed sandbox spawn or a worker crash puts the run back to `queued` if `attempts < 3`. Otherwise it becomes `failed` / `interrupted`.
-- **Recovery** runs at worker start and every minute:
-  - A run `running` for more than 2 minutes is requeued, under the same rule.
-  - A run left in `committing` becomes `failed` / `interrupted_during_create` and is **never** retried. Its transaction may or may not exist, and the Logs tab says so.
+```
+queued ──claim──▶ processing ──▶ completed   (transaction created, same DB transaction)
+   │                  ├────────▶ skipped     (script skip, model_inactive)
+   │                  └────────▶ failed      (script error, timeout, resource_limit, invalid result,
+   │                                          mapping_missing, validation error, worker_lost)
+   └─(graceful shutdown before create)◀─ processing
+```
 
-  This gives at-most-once creation without changing `createTransaction` to accept an outer transaction client.
-- **Graceful shutdown.** `stop()` stops claiming, waits up to 10 s for in-flight runs, then kills the children. `server.ts` awaits it before `prisma.$disconnect()`. Interrupted runs are recovered at the next start.
-- **Retention.** The minute tick also sets `text = null` on runs finished more than 7 days ago.
+**A. Never started.** A `queued` run is a durable row. It survives restarts and crashes, and is claimed when capacity allows. Nothing deletes it except the owner deleting the model.
+
+**B. Claimed or executing when its worker crashed.** It is never re-executed automatically. Recovery runs every minute on any instance and sets `processing` runs whose `heartbeatAt` is older than 2 minutes to `failed` / `worker_lost`, with `finishedAt`. A live worker heartbeats every 15 s, and the sandbox's hard lifetime is 15 s, so a 2-minute-stale heartbeat reliably means the worker is gone.
+
+Because creation and `completed` commit together, a `worker_lost` run **never** has a transaction. A worker that was presumed dead but finishes late fails its guarded update, and its transaction rolls back. Logs show the reason as "processing was interrupted; no transaction was created". Retrying would mean sending the notification again: a new text bucket or `Idempotency-Key`, and a new run.
+
+**Graceful shutdown** (`SIGTERM`/`SIGINT`, awaited in `server.ts` before `prisma.$disconnect()`):
+1. Stop claiming.
+2. Let runs in the create step finish, since that is one short DB transaction.
+3. Kill sandbox children still executing and return their runs to `queued` (`where: { id, status: "processing", workerId }`). This is certain to be safe: no create step has started, so there is no side effect.
+4. Wait at most 10 s overall. Anything still unfinished is left `processing` and handled by rule B.
+
+**Retention** (the minute tick, any instance, idempotent `updateMany`/`deleteMany` filtered on terminal status and `finishedAt`):
+- `text` is set to null on `completed`, `skipped` and `failed` runs with `finishedAt` older than 7 days.
+- Those runs are deleted once `finishedAt` is older than 30 days. Deleting a run never touches its transaction.
+- `queued` and `processing` runs are never matched by either rule (`finishedAt` is null), however old they are.
+- Between day 7 and day 30 a run keeps only non-sensitive metadata: status, reason, timestamps and transaction link. The retention periods are constants, with no user-facing settings.
 
 ### 7. Data model
 
 ```prisma
 enum NotificationModelVisibility { private public }
-enum NotificationRunStatus { queued running committing created skipped failed }
+enum NotificationRunStatus { queued processing completed skipped failed }
 
 model NotificationModel {
   id              String   @id @default(cuid())
@@ -283,12 +332,14 @@ model NotificationModelVersion {
 model NotificationRun {
   id            String   @id @default(cuid())
   modelId       String
+  userId        String                // owner, copied from the model at ingest: per-user limits and fairness
   status        NotificationRunStatus @default(queued)
   dedupeKey     String
   text          String?               // cleared 7 days after finishedAt
   proposal      Json?
   reason        String?               // skip reason or error (≤500 chars, never contains credentials)
-  attempts      Int      @default(0)
+  workerId      String?               // claiming process
+  heartbeatAt   DateTime?
   transactionId String?  @unique
   receivedAt    DateTime @default(now())
   startedAt     DateTime?
@@ -296,8 +347,9 @@ model NotificationRun {
   model         NotificationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
   transaction   Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   @@unique([modelId, dedupeKey])
-  @@index([status, receivedAt])
-  @@index([modelId, receivedAt])
+  @@index([status, userId])
+  @@index([modelId, status, receivedAt])
+  @@index([status, finishedAt])
 }
 ```
 
@@ -318,7 +370,8 @@ Only back-relation fields are added to `User` and `Transaction`, and no existing
 | `DELETE /notification-models/:id` | delete |
 | `POST /notification-models/validate` | `{ code }` → `{ errors: [{ line, col, message }] }` |
 | `POST /notification-models/:id/test` | `{ text, code?, settings? }`, then the result |
-| `GET /notification-models/:id/runs` | paginated, newest first |
+| `GET /notification-models/:id/queue` | the model's `queued` and `processing` runs, oldest first, paginated |
+| `GET /notification-models/:id/logs` | the model's terminal runs, newest first, paginated |
 | `POST /notification-models/:id/publish` | create the next version |
 | `POST /notification-models/:id/update-from-source` | `{ versionId, bindings? }` |
 | `GET /notification-library` | public models with a published version, plus author `@username` |
@@ -367,13 +420,14 @@ Declining an update is doing nothing, and the copy stays usable.
 **Tabs**
 - **Form:**
   - name, description, active toggle and visibility, as `EditableField`s;
-  - an endpoint `CopyRow` with the full URL, plus Shortcut setup text (header `Authorization: Bearer <ingest key>`, JSON body `{"text": "…"}`) and a link to create an ingest key;
+  - an endpoint `CopyRow` with the full URL, plus a request example (header `Authorization: Bearer <ingest key>`, JSON body `{"text": "…"}`) and a link to create an ingest key;
   - a slots table (key, kind, label, required) and binding selects over the owner's records;
   - a settings key/value list;
   - origin and version, with an "Update available" action that opens a `ModalDialog`. The dialog shows current and new code side by side, read-only, warns when `localCodeModified`, and offers binding selects for new required slots.
 - **Code:** a `CodeEditor` (CodeMirror 6 with `lang-python`, no workers or eval, CSP-safe) bound to `draft.values.code`. A Check button calls `validate` and shows errors by line. A collapsible `<details>` reference lists each helper with signature, description and example, from a constants file.
 - **Playground:** a text area and a Run button calling `test` with the current draft code and settings. It shows the outcome, the transaction preview, the reason or error with line, and stdout. It states that nothing is created.
-- **Logs:** runs with `usePagination`: received time, status badge, reason, transaction link, and text while retained.
+- **Queue** (read-only): the model's `queued` and `processing` runs from `/queue` with `usePagination`. It shows status, position (offset + index + 1 among queued, since rows come oldest first), received time, waiting time (`now − receivedAt`), started time for processing runs, and the first 80 characters of text. There are no cancel, retry, reorder, delete, start/stop or concurrency controls.
+- **Logs** (read-only): terminal runs from `/logs` with `usePagination`. It shows received and finished time, status badge (completed, skipped or failed), reason, transaction link, and text while retained (7 days).
 
 **New models** start at `/notification-models/new` from a commented template script.
 
@@ -386,28 +440,32 @@ Declining an update is doing nothing, and the copy stays usable.
 - `requireScope` is unchanged: `ingest` implies nothing and nothing implies `ingest`. An ingest key gets 403 on every other `/v1` route.
 - OAuth grants cannot request `ingest`.
 - The ingest route uses `auditV1Write("notification.ingest")` and never logs text.
-- The route is mounted with `express.text({ type: "text/plain", limit: "8kb" })` before the JSON fallback, so both body forms work.
+- The body is JSON `{ "text": string }` only, parsed by the existing global `express.json`, with `.strict()` validation. Callers send nothing else: no app id, title, type, amount or ids.
 
 ## Risks / Trade-offs
 
-- **[Sandbox escape to network]** Node 24 does not restrict net. → Three layers; the spike plus a malicious-script test suite gate merge; the risk is documented; Lambda without egress is the upgrade.
-- **[Pyodide cold start ~1–2 s and ~100 MB per child]** → Concurrency defaults to 4. A pre-warm pool is added only if the spike measures more than 2 s. Notifications are async anyway.
-- **[Crash in the commit window marks a run `interrupted_during_create`]** → It is rare, visible in Logs and never duplicated. Upgrade path: pass an outer tx into `createTransaction`.
+- **[Sandbox escape to network]** Node 24 does not restrict net. → Three layers; the malicious-script test suite gates merge; the risk is documented; Lambda without egress is the upgrade.
+- **[Pyodide cold start ~1–2 s and ~100 MB per child]** → Global concurrency defaults to 4 and is tuned by env var to the host's memory. Processing is asynchronous, so the cold start is not user-visible.
+- **[After a crash, lost runs hold slots for up to 2 minutes]** The dead worker's `processing` runs count against the limits until their heartbeat goes stale. → Queued runs are only delayed, never lost. A short stale window would risk failing live runs.
+- **[Serializable claim contention]** With several workers at once, some claims abort and retry. → Claims are one row each and the retry is bounded; throughput at personal-finance volume is far below the contention point.
+  `// ponytail: Serializable groupBy claim; SKIP LOCKED raw SQL (needs approval) if claim latency ever matters.`
+- **[A worker crash fails its in-flight runs (`worker_lost`) instead of retrying them]** → This is deliberate: there is never a duplicate or an uncertain transaction, the failure is visible in Logs, and queued runs are unaffected. The sender can resend.
 - **[Published code is unreviewed]** → Copies install inactive and private, the code is shown before install, and it runs only against the installer's own bound records in the same sandbox.
 - **[Published settings may contain personal text]** → The publish confirm lists every published field. Bindings are never published.
-- **[iPhone trigger feasibility]** The roadmap's earlier research found no Shortcuts trigger for other apps' notifications. → The endpoint is client-agnostic (Shortcuts from SMS, Mail or Wallet triggers, Android Tasker, curl). The owner confirms the real-device path in the staging acceptance step; it does not block implementation.
 - **[In-memory rate limiter per process]** → Acceptable with one instance, as for the rest of `/v1`.
 
 ## Migration Plan
 
-1. Run one additive Prisma migration (three tables, two enums). No backfill. Rollback is dropping them.
+1. Run one additive Prisma migration (three tables, two enums). The only change to existing code paths is `createTransaction`'s optional `tx` parameter. No backfill. Rollback is dropping them.
 2. Ship in the B-007 PR to `razs_ai`. The `pyodide` package is installed by `npm ci` on the host, so the deploy script needs no change.
 3. Staging acceptance on `flowledger-dev`:
    - create, test, activate;
    - an ingest key;
-   - a real Shortcut or curl POST creates a transaction;
+   - an authenticated POST of `{ "text": … }` creates a transaction;
    - a duplicate is collapsed;
    - a promotion is skipped;
    - the malicious-script suite fails safely;
-   - restarting the API mid-queue recovers.
+   - a backlog beyond the concurrency limits drains with the limits respected;
+   - restarting the API mid-queue keeps the queued runs;
+   - killing it mid-execution yields `worker_lost` with no transaction.
 4. Feature rollback: deactivate models, or revert the PR. Runs and models are independent of existing data.

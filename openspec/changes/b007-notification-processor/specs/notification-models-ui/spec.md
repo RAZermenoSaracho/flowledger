@@ -14,9 +14,9 @@ The app SHALL show the user's notification models in the shared list experience,
 - **WHEN** the page is opened at 375px width
 - **THEN** it fits without horizontal scrolling
 
-### Requirement: Model detail with four tabs
+### Requirement: Model detail with five tabs
 
-A model SHALL open in a detail view with four tabs, Form, Code, Playground and Logs, selected through the URL. The view SHALL use the shared form lifecycle: one draft shared by all tabs, Save and Cancel, and an unsaved-changes guard.
+A model SHALL open in a detail view with five tabs, in order Form, Code, Playground, Queue and Logs, selected through the URL. The view SHALL use the shared form lifecycle: one draft shared by all tabs, Save and Cancel, and an unsaved-changes guard.
 
 #### Scenario: Tab in URL
 - **WHEN** the user opens the model with the Code tab in the URL
@@ -36,11 +36,11 @@ A model SHALL open in a detail view with four tabs, Form, Code, Playground and L
 
 ### Requirement: Form tab
 
-The Form tab SHALL show the name, description, active state and visibility; the ingest endpoint URL with a copy action and setup instructions for a phone shortcut; a slot table with a binding select per slot limited to the user's own records; settings; and the model's origin and version. For a copy with an update available it SHALL offer an update action showing the current and new code, warning when the code was modified locally and asking for bindings for new required slots.
+The Form tab SHALL show the name, description, active state and visibility; the ingest endpoint URL with a copy action and a generic request example (the API-key header and a `{"text": "..."}` body); a slot table with a binding select per slot limited to the user's own records; settings; and the model's origin and version. For a copy with an update available it SHALL offer an update action showing the current and new code, warning when the code was modified locally and asking for bindings for new required slots.
 
 #### Scenario: Endpoint
 - **WHEN** the user opens the Form tab
-- **THEN** the full endpoint URL is shown with a copy action and shortcut setup instructions
+- **THEN** the full endpoint URL is shown with a copy action and the request example
 
 #### Scenario: Binding options
 - **WHEN** the user opens a binding select
@@ -78,9 +78,25 @@ The Playground tab SHALL let the user enter notification text and run it against
 - **WHEN** the script fails
 - **THEN** the error message, line and printed output are shown
 
+### Requirement: Queue tab
+
+The Queue tab SHALL be strictly read-only and SHALL show the model's queued and processing runs, oldest first, with status, position for queued runs, received time, waiting time, started time and the first 80 characters of the text. It SHALL refresh while open. It SHALL NOT offer cancel, retry, reorder, delete, start, stop or concurrency controls.
+
+#### Scenario: Pending runs
+- **WHEN** the user opens Queue while runs are pending
+- **THEN** they appear oldest first with status, position for queued runs, times and the text excerpt
+
+#### Scenario: Refresh
+- **WHEN** a run starts or finishes while the tab is open
+- **THEN** the list updates without a manual reload
+
+#### Scenario: Read-only
+- **WHEN** the user looks at any queue entry
+- **THEN** no cancel, retry, reorder, delete, start, stop or concurrency control is offered
+
 ### Requirement: Logs tab
 
-The Logs tab SHALL show the model's run history, read-only and paginated, with received time, status, reason, a link to the transaction when one exists, and the notification text only while it is retained.
+The Logs tab SHALL show the model's finished runs only, read-only and paginated, with received time, status, reason, a link to the transaction when one exists, and the notification text only while it is retained.
 
 #### Scenario: History
 - **WHEN** the user opens Logs
@@ -89,6 +105,14 @@ The Logs tab SHALL show the model's run history, read-only and paginated, with r
 #### Scenario: Cleared text
 - **WHEN** a run's text has been cleared
 - **THEN** the entry shows no text
+
+### Requirement: Delete confirmation
+
+Deleting a model SHALL ask for confirmation that states the number of pending runs and that deleting the model removes its queue and logs.
+
+#### Scenario: Pending runs shown
+- **WHEN** the user deletes a model that has 3 pending runs
+- **THEN** the confirmation states 3 pending runs and that its queue and logs are removed
 
 ### Requirement: Library page
 

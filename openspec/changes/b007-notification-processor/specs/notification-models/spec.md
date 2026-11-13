@@ -142,7 +142,7 @@ Scripts SHALL run in an isolated sandbox process, separate from the API, that is
 
 ### Requirement: Side-effect-free test
 
-`POST /notification-models/:id/test` SHALL run unsaved draft code and settings against the model's bindings and return the outcome (`proposal`, `skip` or `error`), the proposal, a transaction preview with slot keys resolved to record names, the skip reason or error with its line, and the captured printed output. It SHALL NOT create a transaction or a run. When no sandbox capacity is available within 10 seconds, the response SHALL be 503.
+`POST /notification-models/:id/test` SHALL run unsaved draft code and settings against the model's bindings and return the outcome (`proposal`, `skip` or `error`), the proposal, a transaction preview with slot keys resolved to record names, the skip reason or error with its line, and the captured printed output. It SHALL NOT create a transaction or a run. The test SHALL run outside the notification queue under a fixed playground cap of 2 concurrent tests per process and 1 per user; when the cap is reached the response SHALL be 503.
 
 #### Scenario: Test unsaved draft
 - **WHEN** the owner tests text with draft code that differs from the saved code
@@ -161,7 +161,7 @@ Scripts SHALL run in an isolated sandbox process, separate from the API, that is
 - **THEN** the response has outcome `error` with the message, line and any printed output
 
 #### Scenario: No capacity
-- **WHEN** no sandbox slot becomes free within 10 seconds
+- **WHEN** the playground cap is reached
 - **THEN** the response is 503
 
 #### Scenario: Foreign model

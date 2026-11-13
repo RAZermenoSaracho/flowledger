@@ -371,7 +371,7 @@ Deferred to the Odoo Flowledger project backlog as task #130 (Flowledger project
 
 **Objective:** Users define, test, and activate their own models that turn notification text into transaction proposals.
 
-**Scope:** Constrained-Python `process(text, ctx)` scripts returning expense, income, transfer, or skip; named slots bound to the owner's accounts, categories and Groups; settings; a list view and a Form View with Form, Code, Playground and Logs tabs.
+**Scope:** Constrained-Python `process(text, ctx)` scripts returning expense, income, transfer, or skip; named slots bound to the owner's accounts, categories and Groups; settings; a list view and a Form View with Form, Code, Playground, Queue and Logs tabs.
 This replaces the earlier regex-field-rule plan.
 
 **Acceptance criteria:**
@@ -379,7 +379,7 @@ This replaces the earlier regex-field-rule plan.
 - The side-effect-free Playground shows a proposal and transaction preview, skip reason, or error without creating anything.
 - An AST allowlist and restricted builtins guard execution in a fresh permission-restricted sandbox child process running CPython on WebAssembly (Pyodide).
 - Limits are 2 s of script time, 256 MB resident memory, 4,000 input characters and 64 KB stdout; malicious scripts cannot stall the API.
-- The Node 24 sandbox spike must pass before later implementation phases.
+- Node 24 runtime checks (permission model loads the Python runtime, memory cap, cold start) are part of the sandbox runner.
 
 **Dependencies:** ST-005.
 
@@ -389,21 +389,19 @@ This replaces the earlier regex-field-rule plan.
 
 **Objective:** A client sends text to a model and receives a run ID while processing creates at most one transaction.
 
-**Scope:** `POST /v1/notification-models/:id/notifications`, a separate ingest-only API-key scope, Postgres `NotificationRun` jobs and an in-process worker in `apps/api` with configurable concurrency. Transactions go directly through `createTransaction`; `ProviderImportedTransaction` staging is not used, and the Logs tab is the review surface.
+**Scope:** `POST /v1/notification-models/:id/notifications`, a separate ingest-only API-key scope, a persistent per-model queue of `NotificationRun` rows and an in-process worker in `apps/api` with configurable global and per-user concurrency (`NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL`, `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER`). Transactions go directly through `createTransaction`; `ProviderImportedTransaction` staging is not used, and the Logs tab is the review surface.
 
 **Acceptance criteria:**
-- Accepted requests return 202 with `runId`; unknown, foreign or inactive models return 404. Ingest-only keys cannot call other routes, and read/write keys cannot ingest.
+- Accepted requests (JSON `{ "text": ... }` only) return 202 with `runId` once the run is persisted (503 if persistence fails); unknown, foreign or inactive models return 404. Ingest-only keys cannot call other routes, and read/write keys cannot ingest.
 - Dedupe is per model, using `Idempotency-Key` or a text hash in a fixed 10-minute bucket; duplicates return the existing run.
-- Enforce the shared `/v1` rate limit, 4,000-character text and fewer than 100 queued/running runs per owner.
-- Retry only infrastructure failures before committing; crash recovery never retries a committing run, preserving at-most-once creation. Graceful shutdown waits for work, then kills remaining children.
-- Clear text 7 days after a run finishes. Notification text and credentials never appear in application logs.
+- Enforce the shared `/v1` rate limit, 4,000-character text and at most 500 queued runs per owner (429 with `Retry-After: 60`); concurrency limits never reject acceptance.
+- Scheduling is fair across users and models, and runs of one model start in FIFO order.
+- No automatic retries: a run whose worker crashed becomes failed `worker_lost` with no transaction, and a run is completed only if its transaction was created in the same database transaction. Graceful shutdown returns aborted pre-creation runs to queued.
+- Clear text 7 days after a run finishes and delete finished runs after 30 days. Notification text and credentials never appear in application logs.
 
 **Dependencies:** ST-010.
 
-**Relevant existing architecture:** Reuse hashed `fl_` API keys, credential middleware, `createRateLimiter` and `createTransaction`. The new scope is separate from read/write. The global JSON parser requires route-ordering attention for plain text; no durable job queue exists today.
-
-**Open questions:**
-- Confirm the real-device trigger path during staging acceptance; iPhone Shortcuts may expose only SMS, Mail or Wallet triggers. The endpoint is client-agnostic, so this does not block implementation.
+**Relevant existing architecture:** Reuse hashed `fl_` API keys, credential middleware, `createRateLimiter` and `createTransaction`. The new scope is separate from read/write. No durable job queue exists today.
 
 ### ST-032: Community notification model library and versioning
 
@@ -855,7 +853,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 **Large batches kept whole:**
 
-- **B-007:** Phases in order: sandbox spike gate, data model and shared schemas, sandbox runner, model CRUD/validate/test API, ingest and worker, web UI, library, docs and staging acceptance. The spike must pass before later phases.
+- **B-007:** Phases in order: data model, config and shared contracts, sandbox runner, model API, persistent queue + ingestion + worker, web UI (five tabs), library, docs and staging acceptance.
 - **B-004:** ST-005, ST-006, ST-007, ST-003, ST-024, and ST-008 stay six independent intents, each with its own OpenSpec change, scope, and criteria, but by deliberate product-owner decision they ship as one larger feature branch and one PR targeting `razs_ai` that is **not to be split** into phases, parts, or optional follow-ups. Implementation order within the PR: ST-005 first as the shared foundation (with Profile as proof of no behavior loss), then ST-006, then ST-007 and ST-003 (separately specified; ST-003 extends ST-007's editing lifecycle), then ST-024, then ST-008. The batch grew in scope (participant consent, user blocking, public usernames and privacy, one migration) but stays XL and unsplit.
 - **B-006:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest L batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
 - **B-008:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant, so ST-014 is not split. The batch is XL because it holds ST-013 plus the statements, payments, and reminders of ST-014 in one PR. Its proposal should confirm the fit and may order the work internally as limit, statements, payments, then reminders. Reviewers should treat the payment accounting as the focus.
@@ -867,7 +865,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 | Batch | Check before starting |
 |---|---|
-| B-007 | Sandbox spike on Node 24 (permission model loads the Python runtime, memory cap mechanism, cold-start time) before later phases; the real-device trigger path is confirmed at staging acceptance. |
+| B-007 | None beyond the sandbox runner's own Node 24 runtime checks. |
 | B-009 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
 | B-011 | Provider choice, rate limits, and display and redistribution licensing |
 | B-012 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it. Security review of encryption and key management. |
@@ -918,11 +916,11 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Done when:** Native balances are exact and correct, each cross-currency record has an auditable history, and every financial correction records who changed what and when.
 
 **B-007: ST-010, ST-011, ST-032.**
-- **Deliverable:** User-owned sandboxed Python models with slots and bindings, list and four-tab Form View, side-effect-free Playground and Logs; an ingest-only key, async per-model endpoint and durable worker; community publishing, installation and optional version updates.
-- **Implementation order:** Sandbox spike gate, data model and shared schemas, sandbox runner, model CRUD/validate/test API, ingest and worker, web UI, library, docs and staging acceptance. The spike must pass before later phases.
-- **Prerequisites:** B-004 only. The architecture decision is recorded in the [OpenSpec design](openspec/changes/b007-notification-processor/design.md): extend `apps/api`, with no `apps/engine`; revisit if worker load measurably affects API latency or the API runs more than one instance. The device path is confirmed during staging acceptance; the endpoint is client-agnostic.
-- **Testing:** Malicious-script suite (imports, dunder/frame access, `str.format` traversal, infinite loop, memory bomb, ReDoS), activation, side-effect-free tests, cross-user isolation (add rows to `financialIsolation.integration.test.ts`), duplicates, inactive models, missing mappings, restart recovery, graceful shutdown, retention, and no text or credentials in logs. Library installation, immutable versions, settings merge, binding preservation and local-modification warnings.
-- **Done when:** From a real client, a notification creates exactly one correct transaction, a promotion is skipped, and a copy installed from the library works with the installer's own mappings.
+- **Deliverable:** User-owned sandboxed Python models with slots and bindings, list and five-tab Form View (Form, Code, Playground, Queue, Logs); an ingest-only key, a JSON-only async per-model endpoint, a persistent per-model queue with configurable concurrency, fairness and a durable worker; community publishing, installation and optional version updates.
+- **Implementation order:** Data model, config and shared contracts, sandbox runner, model API, persistent queue + ingestion + worker, web UI (five tabs), library, docs and staging acceptance.
+- **Prerequisites:** B-004 only. The architecture decision is recorded in the [OpenSpec design](openspec/changes/b007-notification-processor/design.md): extend `apps/api`, with no `apps/engine`; revisit if worker load measurably affects API latency or the API runs more than one instance.
+- **Testing:** Malicious-script suite (imports, dunder/frame access, `str.format` traversal, infinite loop, memory bomb, ReDoS), activation, side-effect-free tests, cross-user isolation (add rows to `financialIsolation.integration.test.ts`), duplicates, inactive models, missing mappings, queue saturation, concurrency limits and misconfigured env, fairness, persistence failure (503), restart keeping queued runs, crashed in-flight runs (`worker_lost`), graceful shutdown, retention (7/30 days), and no text or credentials in logs. Library installation, immutable versions, settings merge, binding preservation and local-modification warnings.
+- **Done when:** A posted notification creates exactly one correct transaction, a promotion is skipped, and a copy installed from the library works with the installer's own mappings.
 
 **B-008: ST-013, ST-014.**
 - **Deliverable:** The credit limit, derived available credit, and the debit-card inference fix (ST-013); statements with dates, amount, and status; the partial and full payment flow, the modal, optional transaction creation through a draft, the chosen accounting mechanism, and outstanding and overdue highlighting; and in-app reminders delivered once per statement (ST-014).
@@ -1057,10 +1055,6 @@ These belong to the relevant intent's discovery and are deliberately not decided
 
 **API credential details (ST-011, ST-018, ST-020)**
 - Encryption, key management, and rotation for readable secrets.
-
-**Notification automation (ST-011)**
-- Real-device confirmation of iOS triggers, unattended "Run Immediately" behavior, and which of the user's banks send SMS or email.
-- Android 15 sensitive-notification behavior, and restricted settings for sideloaded automation apps.
 
 **SSRF (ST-020)**
 - A starting checklist is in the [OWASP SSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html): HTTPS only, validate all resolved addresses, pin the validated IP, disable or re-validate redirects, and limit time and response size.
