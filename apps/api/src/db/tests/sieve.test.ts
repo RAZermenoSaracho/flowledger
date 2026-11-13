@@ -52,6 +52,28 @@ describe("createSieve — pagination", () => {
     expect(result.meta).toMatchObject({ pageSize: 50 });
   });
 
+  it("clamps an oversized range limit and maps range onto skip/take", async () => {
+    prismaMock.account.count.mockResolvedValue(0);
+    prismaMock.account.findMany.mockResolvedValue([]);
+
+    await sieve.query({ pagination: { kind: "range", offset: 7, limit: 100000 } });
+    expect(lastFindManyArgs()).toMatchObject({ skip: 7, take: 50 });
+
+    await sieve.query({ pagination: { kind: "range", offset: 0, limit: 20 } });
+    expect(lastFindManyArgs()).toMatchObject({ skip: 0, take: 20 });
+  });
+
+  it("rejects invalid range values with a 400", async () => {
+    for (const pagination of [
+      { kind: "range", offset: -1, limit: 10 },
+      { kind: "range", offset: 0, limit: 0 },
+      { kind: "range", offset: 0.5, limit: 10 }
+    ]) {
+      const error = await sieve.query({ pagination }).catch((e: unknown) => e);
+      expect((error as HttpError).statusCode).toBe(400);
+    }
+  });
+
   it("appends the id tie-breaker in the last sort direction", async () => {
     prismaMock.account.count.mockResolvedValue(0);
     prismaMock.account.findMany.mockResolvedValue([]);

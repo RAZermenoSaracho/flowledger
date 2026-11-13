@@ -17,7 +17,7 @@ import type { Sieve } from "./sieve.types.js";
  *   unpaginated rather than being silently capped.
  *
  * A malformed `sort` is rejected with a 400. A query that carries `pagination` is validated (400 on bad page/size),
- * has its page size / cursor `take` clamped to `maxPageSize`, and gets an
+ * has its page size / range `limit` / cursor `take` clamped to `maxPageSize`, and gets an
  * `id` sort key appended (same direction as the last sort key, `desc`
  * with no sort) so rows sharing a sort value never move between pages.
  *
@@ -61,7 +61,9 @@ function boundPaginatedQuery(query: unknown, maxPageSize?: number): unknown {
   const pagination =
     parsed.data.kind === "offset"
       ? { ...parsed.data, pageSize: Math.min(parsed.data.pageSize, max) }
-      : { ...parsed.data, take: Math.min(parsed.data.take, max) };
+      : parsed.data.kind === "range"
+        ? { ...parsed.data, limit: Math.min(parsed.data.limit, max) }
+        : { ...parsed.data, take: Math.min(parsed.data.take, max) };
 
   const sort = (raw.sort ?? []) as { field: string; direction?: string }[];
   if (sort.some((key) => key.field === "id")) return { ...raw, pagination, sort };

@@ -31,6 +31,10 @@ describe("clampV1Pagination", () => {
     expect(run({ pagination: { kind: "cursor" } }).next.mock.calls[0]![0]).toMatchObject({ statusCode: 400 });
   });
 
+  it("rejects range pagination", () => {
+    expect(run({ pagination: { kind: "range", offset: 0, limit: 10 } }).next.mock.calls[0]![0]).toMatchObject({ statusCode: 400 });
+  });
+
   it("rejects invalid JSON and non-objects", () => {
     const next = vi.fn();
     clampV1Pagination({ query: { query: "{nope" } } as unknown as Request, {} as never, next);
