@@ -90,3 +90,12 @@ describe("updateFromSourceSchema", () => {
     expect(updateFromSourceSchema.safeParse({ versionId: "v1", bindings: { card: "a1" } }).success).toBe(true);
   });
 });
+
+describe("validateNotificationCodeSchema and notificationListQuerySchema", () => {
+  it("require code and accept an optional query", async () => {
+    const { validateNotificationCodeSchema, notificationListQuerySchema } = await import("../notificationModels.js");
+    expect(validateNotificationCodeSchema.safeParse({}).success).toBe(false);
+    expect(validateNotificationCodeSchema.safeParse({ code: "x" }).success).toBe(true);
+    expect(notificationListQuerySchema.safeParse({}).success).toBe(true);
+  });
+});

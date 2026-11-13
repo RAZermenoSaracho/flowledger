@@ -5,6 +5,7 @@ import {
   categorySchema,
   currencyRateQuerySchema,
   importedTransactionsQueryParamSchema,
+  notificationIngestSchema,
   reportFiltersSchema,
   transactionSchema,
   transactionsQueryParamSchema,
@@ -18,6 +19,7 @@ import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { notFound } from "../../utils/httpError.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
+import { postIngest } from "../notificationModels/controllers/ingest.controller.js";
 import { postAccount } from "../accounts/controllers/create.controller.js";
 import { getAccounts } from "../accounts/controllers/read.controller.js";
 import { deleteAccountHandler } from "../accounts/controllers/delete.controller.js";
@@ -211,6 +213,14 @@ v1Router.post(
   auditV1Write("category.restore"),
   requireScope("write"),
   asyncHandler(postCategoryRestore)
+);
+
+v1Router.post(
+  "/notification-models/:id/notifications",
+  auditV1Write("notification.ingest"),
+  requireScope("ingest"),
+  validate(notificationIngestSchema),
+  asyncHandler(postIngest)
 );
 
 v1Router.use(v1MiscRouter);

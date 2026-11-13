@@ -17,6 +17,7 @@ export default defineConfig({
         "src/**/*.types.ts",
         "src/**/types/**",
         "src/server.ts",
+        "src/worker.ts",
         "src/app.ts",
         "src/config/env.ts"
       ],

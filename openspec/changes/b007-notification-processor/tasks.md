@@ -72,7 +72,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
 ## 3. Model API (JWT)
 
-- [ ] 3.1 Add `services/create.service.ts`, `read.service.ts`, `update.service.ts` and `delete.service.ts` for models, all scoped `{ id, userId }` with `notFound()` otherwise:
+- [x] 3.1 Add `services/create.service.ts`, `read.service.ts`, `update.service.ts` and `delete.service.ts` for models, all scoped `{ id, userId }` with `notFound()` otherwise:
   - Save rejects code that fails `validateScript` (400 with line errors).
   - Bindings must reference the caller's non-archived accounts and categories, or Groups they are a member of.
   - Activation, and any slot or binding change while active, requires every required slot bound (400 listing slots).
@@ -81,13 +81,13 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - Deleting a model cascades its runs. The delete confirmation in the UI (task 5.4) states how many runs are pending.
 
   Verify: service tests with `mockDeep<PrismaClient>()` cover isolation, activation rules, invalid code and foreign bindings.
-- [ ] 3.2 Add `services/test.service.ts`. It takes `acquirePlaygroundSlot`, runs the draft code and settings with the model's bindings, resolves slot keys to record names for `transactionPreview`, and parses the mapped input with the shared `transactionSchema` to report validation problems. It writes nothing and creates no run. Also add `validate` through `validateScript`. Verify: the service test asserts no `create`/`update` Prisma calls, a missing mapping, and 503 when the slot is busy.
-- [ ] 3.3 Add thin controllers and `notificationModels.routes.ts` for the web routes in design §8, excluding the queue/logs routes (phase 4) and the library routes (phase 6). Mount it in `app.ts` behind `requireAuth`. Verify: `tests/notificationModels.routes.test.ts` (supertest plus testcontainers) covers CRUD, 404 for another user's model, activation 400, and test without side effects.
+- [x] 3.2 Add `services/test.service.ts`. It takes `acquirePlaygroundSlot`, runs the draft code and settings with the model's bindings, resolves slot keys to record names for `transactionPreview`, and parses the mapped input with the shared `transactionSchema` to report validation problems. It writes nothing and creates no run. Also add `validate` through `validateScript`. Verify: the service test asserts no `create`/`update` Prisma calls, a missing mapping, and 503 when the slot is busy.
+- [x] 3.3 Add thin controllers and `notificationModels.routes.ts` for the web routes in design §8, excluding the queue/logs routes (phase 4) and the library routes (phase 6). Mount it in `app.ts` behind `requireAuth`. Verify: `tests/notificationModels.routes.test.ts` (supertest plus testcontainers) covers CRUD, 404 for another user's model, activation 400, and test without side effects.
 
 ## 4. Persistent queue, ingestion and worker
 
-- [ ] 4.1 API keys: widen `CredentialScope` to include `ingest` (`apps/api/src/types/credential.types.ts`), and store `["ingest"]` for `ingestOnly` in `modules/apiKeys/services/create.service.ts`. Confirm that OAuth scope validation (`packages/shared/src/schemas/oauth.ts`) cannot yield `ingest`. Verify: the apiKeys create service test, and a `/v1` test showing an ingest key gets 403 on `GET /v1/accounts` and a write key gets 403 on the ingest route.
-- [ ] 4.2 Add `services/ingest.service.ts`. It:
+- [x] 4.1 API keys: widen `CredentialScope` to include `ingest` (`apps/api/src/types/credential.types.ts`), and store `["ingest"]` for `ingestOnly` in `modules/apiKeys/services/create.service.ts`. Confirm that OAuth scope validation (`packages/shared/src/schemas/oauth.ts`) cannot yield `ingest`. Verify: the apiKeys create service test, and a `/v1` test showing an ingest key gets 403 on `GET /v1/accounts` and a write key gets 403 on the ingest route.
+- [x] 4.2 Add `services/ingest.service.ts`. It:
   - resolves the owner's active model (404 otherwise);
   - enforces the 500-queued-runs-per-user capacity (429 with `Retry-After: 60`);
   - computes the dedupe key (optional `Idempotency-Key` header, else `sha256(text):floor(now/600000)`);
@@ -105,7 +105,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - a guarded update to `processing` with `workerId` and `startedAt`.
 
   It retries `P2034` up to 3 times and returns the run or `null`. Verify: the unit test (mocked Prisma) covers the global limit, the per-user limit, a user with 0 running preferred over a backlogged user, a model with 0 running preferred within one user, oldest-first within a model, and the `P2034` retry.
-- [ ] 4.4 Add `services/processRun.service.ts`:
+- [x] 4.4 Add `services/processRun.service.ts`:
   - it reloads the model (inactive → `skipped`/`model_inactive`);
   - it runs `runScript` and validates the result with `notificationProposalSchema`;
   - it maps slots to bindings (unknown or unbound → `failed`/`mapping_missing:<key>`) and builds `TransactionInput` per design §4;
@@ -119,7 +119,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - `applyRetention()`: null `text` on terminal runs with `finishedAt` older than 7 days, and delete terminal runs with `finishedAt` older than 30 days. Both filter `status in (completed, skipped, failed)` and non-null `finishedAt`.
 
   Verify: the unit test asserts the exact `where` clauses, and that `queued`/`processing` runs are never matched.
-- [ ] 4.6 Add `notificationRunWorker.ts` at the module root, patterned on `syncfyAutoSyncScheduler.ts`:
+- [x] 4.6 Add `notificationRunWorker.ts` at the module root, patterned on `syncfyAutoSyncScheduler.ts`:
   - `start()` and `stop()`, with `workerId = randomUUID()` per start;
   - `start()` inserts its `NotificationWorker` row (`hostname`, `pid`);
   - it polls every 2 s, looping `claimNextRun` while it returns a run and in-flight < global;
@@ -128,7 +128,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - `stop()` stops claiming, lets runs in their create step finish, aborts sandbox executions and returns those runs to `queued` (guarded by `workerId` and `processing`), resolves within 10 s, and deletes its worker row.
 
   `server.ts` is not changed and never imports the worker. Verify: the worker unit test (mocked services) covers the in-flight cap, the liveness touch, minute tasks, and stop returning aborted runs to `queued` while never requeueing a run past its create step.
-- [ ] 4.7 Add `listQueue` (`queued` and `processing`, oldest first) and `listLogs` (terminal, newest first) to `services/read.service.ts`, both scoped `{ modelId, userId }` and paginated. Add `GET /notification-models/:id/queue` and `/logs`. Text appears only while retained; the queue returns the first 80 characters. Verify: covered in the routes test, including 404 for another user's model.
+- [x] 4.7 Add `listQueue` (`queued` and `processing`, oldest first) and `listLogs` (terminal, newest first) to `services/read.service.ts`, both scoped `{ modelId, userId }` and paginated. Add `GET /notification-models/:id/queue` and `/logs`. Text appears only while retained; the queue returns the first 80 characters. Verify: covered in the routes test, including 404 for another user's model.
 - [ ] 4.8 Integration: add `src/tests/integration/notificationQueue.integration.test.ts` (testcontainers, real sandbox, global limit 2, per-user 1, the API app via supertest, and two `notificationRunWorker` instances with distinct `workerId`s standing in for two worker processes). It covers:
   - ingest → exactly one transaction with the exact decimal amount and bound account;
   - a duplicate POST;
@@ -143,14 +143,14 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
   Add the notification-model, queue, logs and ingest routes to `financialIsolation.integration.test.ts`, so that user B cannot read, test, ingest into, or list the queue or logs of A's model. Verify: both suites pass with the Docker VM.
 
-- [ ] 4.9 Add the worker process entry point `apps/api/src/worker.ts`. It is bootstrap only: excluded from coverage like `server.ts`, and added to the `vitest.config.ts` coverage exclude list. It:
+- [x] 4.9 Add the worker process entry point `apps/api/src/worker.ts`. It is bootstrap only: excluded from coverage like `server.ts`, and added to the `vitest.config.ts` coverage exclude list. It:
   1. imports `env`, which fails fast on bad config;
   2. probes the schema with `notificationRun.findFirst({ select: { id: true } })` and `notificationWorker.count()`; on `P2021`/`P2022` it logs `notification worker: schema not migrated` and exits 1;
   3. starts `notificationRunWorker`, and on `SIGTERM`/`SIGINT` runs `await worker.stop()`, `prisma.$disconnect()`, then `process.exit(0)`;
   4. logs a start line and a stop line with `workerId`, and never logs notification text.
 
   Add `"start:worker": "node dist/worker.js"` and `"dev:worker": "tsx watch src/worker.ts"` to `apps/api/package.json`. Add `dev:worker` and `start:worker` to the root `dev` and `start` `npm-run-all --parallel` lists. Verify: `npm run build -w @flowledger/api` emits `dist/worker.js`; with the local DB, `npm run start:worker -w @flowledger/api` starts, writes a `NotificationWorker` row, and on Ctrl-C deletes it and exits 0; against an unmigrated database it exits 1 with the message.
-- [ ] 4.10 Add `GET /health/notification-worker` next to `/health` in `app.ts`, with the logic in `services/read.service.ts`. It returns `200 { workers: n }` when at least one `NotificationWorker` has `lastSeenAt` within 60 s, otherwise `503 { workers: 0 }`. It is unauthenticated and exposes nothing else. Verify: a routes test covers 200 and 503.
+- [x] 4.10 Add `GET /health/notification-worker` next to `/health` in `app.ts`, with the logic in `services/read.service.ts`. It returns `200 { workers: n }` when at least one `NotificationWorker` has `lastSeenAt` within 60 s, otherwise `503 { workers: 0 }`. It is unauthenticated and exposes nothing else. Verify: a routes test covers 200 and 503.
 
 ## 5. Web UI
 
