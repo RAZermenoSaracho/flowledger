@@ -60,9 +60,10 @@ Fill in pass/fail and notes per row.
 - [ ] Per-person grouping and net totals (Alex: 4 debts, I owe; Blair: owes me; Casey; Jordan manual)
 - [ ] EUR debt shown in EUR and converted into the preferred currency in totals
 - [ ] Partially paid debts show outstanding, not share
-- [ ] Balance detail `/debts/balances/<personKey>`: icon back arrow (top left, "Back to balances") returns to Outstanding Balances; the person is the title; per-row settlement form; selection plus "Request Selected" batch settlement
+- [ ] Balance detail `/debts/balances/<personKey>`: header inside the card (as on Accounts and Transactions); icon back arrow (top left, "Back to balances") returns to Outstanding Balances; the person is the title; per-row settlement form; selection plus "Request Selected" batch settlement
 
 ### Pending Settlements
+- [ ] Two tabs, "Requests by me" and "Awaiting my approval", each with a count badge. Only one list shows at a time, `?pending=byMe|forMe` keeps the choice, and a highlighted request opens its own tab
 - [ ] "Requests by me" shows the Alex 35.00 request
 - [ ] "Awaiting my approval" shows Blair 25.00, Blair 15.50, Casey 40.00
 - [ ] Approve one, reject one, batch-approve the rest (choose income account/category)
@@ -74,6 +75,7 @@ Fill in pass/fail and notes per row.
 - [ ] Rejected request (Blair 10.00) is not pending and the debt stays outstanding
 
 ### Awaiting Acceptance
+- [ ] Desktop: Accept, Reject and Reject and block sit on the right of each request. Mobile: they are only in the card's three-dot menu
 - [ ] Shared list layout: "Awaiting your response" and "Rejected" groups, record count, and titles that link to the Shared Expense Form View
 - [ ] Alex dinner (razs + manual) and Blair trip (razs + Casey) are accept/reject-able and excluded from totals
 - [ ] Rejected group shows Drew's rejection (owner view); log in as Casey to see the share razs rejected
@@ -105,3 +107,13 @@ Playwright against the PR build with staging data, logged in as the QA users: 15
 - no horizontal overflow at 375px
 
 The browser extension had no permission for the staging domain, so razs's own view was checked through the debts read service, not a browser.
+
+## Staging-review smoke (2026-11-13, PR #50 fixes)
+
+The focused Playwright run at 1280px and 375px passed 8/8:
+- balance header inside the card
+- Accounts and Transactions Form Views unchanged after the `FormView/` move
+- Awaiting actions inline on the right on desktop, and in the three-dot menu on mobile
+- Pending tabs: one list at a time, with the URL param
+
+The earlier 15-check regression also passed again, with no console errors. The QA dataset was intact: 26/26 scenarios.
