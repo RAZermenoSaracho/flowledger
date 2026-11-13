@@ -9,7 +9,8 @@ export const navItems = [
   ["Categories", routes.categories],
   ["Groups", routes.groups],
   ["Reports", routes.reports],
-  ["Debts", routes.debts]
+  ["Debts", routes.debts],
+  ["Notification models", routes.notificationModels]
 ] as const;
 
 // Mirrors DebtsPage's own `debtsTabs`/TransactionsPage's own tab ids (kept

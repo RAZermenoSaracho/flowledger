@@ -22,7 +22,7 @@ function mockList(total: number | undefined, hasNext?: boolean) {
   return requests;
 }
 
-function render(initial: { resetKey?: string; storageKey?: string } = {}) {
+function render(initial: { resetKey?: string; storageKey?: string; refetchIntervalMs?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
@@ -33,6 +33,7 @@ function render(initial: { resetKey?: string; storageKey?: string } = {}) {
         resetKey,
         defaultLimit: 20,
         storageKey: initial.storageKey,
+        refetchIntervalMs: initial.refetchIntervalMs,
         fetchPage: async (p) => {
           const res = await fetch(`${URL_}?p=${encodeURIComponent(JSON.stringify(p))}`);
           return res.json();
@@ -55,6 +56,13 @@ describe("usePagination", () => {
     await waitFor(() => expect(result.current.items).toEqual([20]));
     act(() => result.current.pager.onRangeChange(0, 20));
     await waitFor(() => expect(result.current.pager.offset).toBe(0));
+  });
+
+  it("re-fetches the same window on the refetch interval", async () => {
+    const requests = mockList(10);
+    render({ refetchIntervalMs: 30 });
+    await waitFor(() => expect(requests.length).toBeGreaterThanOrEqual(3));
+    expect(new Set(requests.map((request) => request.offset))).toEqual(new Set([0]));
   });
 
   it("derives hasNext from a total-only response", async () => {

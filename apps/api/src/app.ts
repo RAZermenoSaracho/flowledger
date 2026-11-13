@@ -26,7 +26,7 @@ import {
   oauthConsentRouter,
   oauthGrantsRouter
 } from "./modules/oauth/oauth.routes.js";
-import { notificationModelsRouter } from "./modules/notificationModels/notificationModels.routes.js";
+import { notificationLibraryRouter, notificationModelsRouter } from "./modules/notificationModels/notificationModels.routes.js";
 import { countLiveWorkers } from "./modules/notificationModels/services/read.service.js";
 import { asyncHandler } from "./utils/asyncHandler.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
@@ -90,6 +90,7 @@ app.use("/accounts", requireAuth, accountsRouter);
 app.use("/categories", requireAuth, categoriesRouter);
 app.use("/groups", requireAuth, groupsRouter);
 app.use("/notification-models", requireAuth, notificationModelsRouter);
+app.use("/notification-library", requireAuth, notificationLibraryRouter);
 app.use("/notifications", requireAuth, notificationsRouter);
 app.use("/providers/webhooks", providerWebhooksRouter);
 app.use("/providers", requireAuth, providersRouter);

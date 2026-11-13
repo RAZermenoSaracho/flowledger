@@ -12,6 +12,8 @@ const MAINTENANCE_MS = 60_000;
 const STOP_TIMEOUT_MS = 10_000;
 
 const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
+// Prisma messages can echo query arguments (notification text), so logs carry only the error code or name.
+const errorLabel = (error: unknown) => (error as { code?: string }).code ?? (error as Error).name ?? "Error";
 
 /**
  * Claims and executes queued notification runs for one worker process: polls every 2 s up to the
@@ -66,7 +68,7 @@ export class NotificationRunWorker {
         this.launch(run);
       }
     } catch (error) {
-      console.error("notification worker: claim failed", { workerId: this.workerId, error: (error as Error).message });
+      console.error("notification worker: claim failed", { workerId: this.workerId, error: errorLabel(error) });
     } finally {
       this.ticking = false;
     }
@@ -84,7 +86,14 @@ export class NotificationRunWorker {
           });
           return;
         }
-        console.error("notification worker: run failed", { workerId: this.workerId, runId: run.id, error: (error as Error).message });
+        console.error("notification worker: run failed", { workerId: this.workerId, runId: run.id, error: errorLabel(error) });
+        // A live worker keeps its liveness row fresh, so recovery would never fail this run; fail it here.
+        await prisma.notificationRun
+          .updateMany({
+            where: { id: run.id, status: "processing", workerId: this.workerId },
+            data: { status: "failed", reason: "internal_error", finishedAt: new Date() }
+          })
+          .catch(() => undefined);
       })
       .finally(() => this.inFlight.delete(run.id));
     this.inFlight.set(run.id, { controller, done });
@@ -94,7 +103,7 @@ export class NotificationRunWorker {
     try {
       await prisma.notificationWorker.updateMany({ where: { id: this.workerId }, data: { lastSeenAt: new Date() } });
     } catch (error) {
-      console.error("notification worker: heartbeat failed", { workerId: this.workerId, error: (error as Error).message });
+      console.error("notification worker: heartbeat failed", { workerId: this.workerId, error: errorLabel(error) });
     }
   }
 
@@ -103,7 +112,7 @@ export class NotificationRunWorker {
       await failLostRuns();
       await applyRetention();
     } catch (error) {
-      console.error("notification worker: maintenance failed", { workerId: this.workerId, error: (error as Error).message });
+      console.error("notification worker: maintenance failed", { workerId: this.workerId, error: errorLabel(error) });
     }
   }
 }

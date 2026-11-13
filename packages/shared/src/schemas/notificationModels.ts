@@ -97,6 +97,8 @@ export const updateFromSourceSchema = z.object({
   bindings: notificationBindingsSchema.optional()
 });
 
+/** Parsed update-from-source body. */
+export type UpdateFromSourceInput = z.infer<typeof updateFromSourceSchema>;
 /** One slot definition. */
 export type NotificationSlot = z.infer<typeof notificationSlotSchema>;
 /** Parsed create-model body. */

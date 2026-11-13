@@ -201,4 +201,58 @@ describe("/notification-models routes", { timeout: 60_000 }, () => {
     expect(up.body).toEqual({ workers: 1 });
     await prisma.notificationWorker.deleteMany();
   });
+
+  it("runs the library flow: publish, install, update available, apply with a new binding, foreign 404s", async () => {
+    const author = await createAuthedUser(app);
+    const installer = await createAuthedUser(app);
+    const authorRecords = await createRecords(author);
+    const mine = await createRecords(installer);
+
+    const sourceId = (await createModel(author, { bindings: { card: authorRecords.accountId, general: authorRecords.categoryId } })).body.model.id as string;
+    expect((await request(app).post(`/notification-models/${sourceId}/publish`).set(auth(installer))).status).toBe(404);
+    const published = await request(app).post(`/notification-models/${sourceId}/publish`).set(auth(author));
+    expect(published.body.version.version).toBe(1);
+    expect(published.body.model.visibility).toBe("public");
+    expect(JSON.stringify(published.body.version)).not.toContain(authorRecords.accountId);
+
+    const list = await request(app).get("/notification-library").set(auth(installer));
+    expect(list.body.data[0]).toMatchObject({ modelId: sourceId, version: 1, author: { username: author.user.username } });
+    expect(JSON.stringify(list.body)).not.toMatch(/email|bindings/);
+    expect((await request(app).get(`/notification-library/${sourceId}`).set(auth(installer))).body.entry.code).toBe(SCRIPT);
+
+    const copy = (await request(app).post(`/notification-library/${sourceId}/install`).set(auth(installer))).body.model;
+    expect(copy).toMatchObject({ isActive: false, visibility: "private", bindings: {} });
+    expect(copy.id).not.toBe(sourceId);
+    const bound = await request(app)
+      .put(`/notification-models/${copy.id}`)
+      .set(auth(installer))
+      .send({ bindings: { card: mine.accountId, general: mine.categoryId }, isActive: true });
+    expect(bound.status).toBe(200);
+
+    const v2Code = SCRIPT.replace("OXXO", "SORIANA");
+    const newSlots = [...slots, { key: "extra", kind: "account", label: "Extra", required: true }];
+    await request(app).put(`/notification-models/${sourceId}`).set(auth(author)).send({ code: v2Code, slots: newSlots, bindings: { card: authorRecords.accountId, general: authorRecords.categoryId, extra: authorRecords.accountId } });
+    const v2 = await request(app).post(`/notification-models/${sourceId}/publish`).set(auth(author));
+    expect(v2.body.version.version).toBe(2);
+
+    const info = await request(app).get(`/notification-models/${copy.id}`).set(auth(installer));
+    expect(info.body.model.update).toMatchObject({ available: true, installedVersion: 1, latestVersion: 2, localCodeModified: false });
+
+    const versionId = v2.body.version.id as string;
+    const missing = await request(app).post(`/notification-models/${copy.id}/update-from-source`).set(auth(installer)).send({ versionId });
+    expect(missing.status).toBe(400);
+    expect(JSON.stringify(missing.body)).toContain("extra");
+    expect((await request(app).post(`/notification-models/${copy.id}/update-from-source`).set(auth(author)).send({ versionId })).status).toBe(404);
+
+    const applied = await request(app)
+      .post(`/notification-models/${copy.id}/update-from-source`)
+      .set(auth(installer))
+      .send({ versionId, bindings: { extra: mine.accountId } });
+    expect(applied.status).toBe(200);
+    expect(applied.body.model).toMatchObject({ code: v2Code, isActive: true, bindings: { card: mine.accountId, extra: mine.accountId } });
+
+    await request(app).delete(`/notification-models/${sourceId}`).set(auth(author));
+    const after = await request(app).get(`/notification-models/${copy.id}`).set(auth(installer));
+    expect(after.body.model).toMatchObject({ isActive: true, sourceVersionId: null, update: { available: false } });
+  });
 });

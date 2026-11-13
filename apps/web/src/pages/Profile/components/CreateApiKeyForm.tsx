@@ -13,7 +13,8 @@ const lifetimeOptions: { value: CredentialLifetime; label: string }[] = [
 const radioLabel = "flex min-h-11 items-center gap-2 text-sm";
 
 /**
- * Form for creating a personal API key (name, Read / Read+Write, lifetime).
+ * Form for creating a personal API key (name, Read / Read+Write, optional "Notification ingest only", lifetime).
+ * Ingest-only keys can only post notification text, so checking it resets and disables Read + Write.
  * Defaults to read-only with a 1 month lifetime; `onSubmit` may reject, in which
  * case the message is shown inline. When `onCancel` is given a Cancel button is shown.
  */
@@ -28,6 +29,7 @@ export function CreateApiKeyForm({
 }) {
   const [name, setName] = useState("");
   const [allowWrite, setAllowWrite] = useState(false);
+  const [ingestOnly, setIngestOnly] = useState(false);
   const [lifetime, setLifetime] = useState<CredentialLifetime>("1m");
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +37,10 @@ export function CreateApiKeyForm({
     event.preventDefault();
     setError(null);
     try {
-      await onSubmit({ name, allowWrite, ingestOnly: false, lifetime });
+      await onSubmit({ name, allowWrite, ingestOnly, lifetime });
       setName("");
       setAllowWrite(false);
+      setIngestOnly(false);
       setLifetime("1m");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Key could not be created");
@@ -72,9 +75,21 @@ export function CreateApiKeyForm({
             type="radio"
             name="permissions"
             checked={allowWrite}
+            disabled={ingestOnly}
             onChange={() => setAllowWrite(true)}
           />
           Read + Write
+        </label>
+        <label className={radioLabel}>
+          <input
+            type="checkbox"
+            checked={ingestOnly}
+            onChange={(event) => {
+              setIngestOnly(event.target.checked);
+              if (event.target.checked) setAllowWrite(false);
+            }}
+          />
+          Notification ingest only
         </label>
       </fieldset>
       <fieldset>

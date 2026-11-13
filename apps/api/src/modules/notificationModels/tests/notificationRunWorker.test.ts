@@ -87,6 +87,23 @@ describe("NotificationRunWorker", () => {
     expect(prismaMock.notificationRun.updateMany).not.toHaveBeenCalled();
   });
 
+  it("fails a run whose processing throws unexpectedly, logging only the error code", async () => {
+    const w = new NotificationRunWorker();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    claimNextRun.mockResolvedValueOnce({ id: "r1" }).mockResolvedValue(null);
+    processRun.mockRejectedValue(Object.assign(new Error("Invalid value 'Compraste $1,234.50'"), { code: "P2000" }));
+    await w.tick();
+    await vi.waitFor(() => expect(prismaMock.notificationRun.updateMany).toHaveBeenCalled());
+    expect(prismaMock.notificationRun.updateMany.mock.calls[0]![0]).toMatchObject({
+      where: { id: "r1", status: "processing", workerId: w.workerId },
+      data: { status: "failed", reason: "internal_error" }
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("Compraste");
+    expect(JSON.stringify(log.mock.calls)).toContain("P2000");
+    log.mockRestore();
+    await w.stop();
+  });
+
   it("stop resolves within 10 s even when a run hangs, leaving it processing", async () => {
     const w = new NotificationRunWorker();
     claimNextRun.mockResolvedValueOnce({ id: "r1" }).mockResolvedValue(null);

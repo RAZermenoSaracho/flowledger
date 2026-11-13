@@ -154,10 +154,10 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
 ## 5. Web UI
 
-- [ ] 5.1 Add the `codemirror` and `@codemirror/lang-python` dependencies to `apps/web`. Add `pages/NotificationModels/components/CodeEditor.tsx` (a controlled value, read-only mode, line error markers). Verify: a component test for value and onChange, and `contentSecurityPolicy.http.test.ts` still passes unchanged.
-- [ ] 5.2 Add `services/notificationModels.client.ts` and `types/notificationModels.types.ts`, and add MSW handlers. Verify: handler-backed hook tests are added in 5.3 and 5.4.
-- [ ] 5.3 Add `NotificationModelsPage.tsx`: a `ListView` with `usePagination`, `RecordCard` rows (name, active badge, visibility, last run status), a New button, and a link to the Library. Register routes in `constants/routes.ts` and `main.tsx`, and add the nav item in `layout/config/navigation.ts`. Verify: a page test at 375px for the list, empty state and navigation.
-- [ ] 5.4 Add `NotificationModelDetailPage.tsx` with a `hooks/useNotificationModelForm.ts` adapter on `useFormDraft`, mirroring `useAccountForm`. `/notification-models/new` starts from a commented template script. The `FormView` tabs, in order:
+- [x] 5.1 Add the `codemirror` and `@codemirror/lang-python` dependencies to `apps/web`. Add `pages/NotificationModels/components/CodeEditor.tsx` (a controlled value, read-only mode, line error markers). Verify: a component test for value and onChange, and `contentSecurityPolicy.http.test.ts` still passes unchanged.
+- [x] 5.2 Add `services/notificationModels.client.ts` and `types/notificationModels.types.ts`, and add MSW handlers. Verify: handler-backed hook tests are added in 5.3 and 5.4.
+- [x] 5.3 Add `NotificationModelsPage.tsx`: a `ListView` with `usePagination`, `RecordCard` rows (name, active badge, visibility, last run status), a New button, and a link to the Library. Register routes in `constants/routes.ts` and `main.tsx`, and add the nav item in `layout/config/navigation.ts`. Verify: a page test at 375px for the list, empty state and navigation.
+- [x] 5.4 Add `NotificationModelDetailPage.tsx` with a `hooks/useNotificationModelForm.ts` adapter on `useFormDraft`, mirroring `useAccountForm`. `/notification-models/new` starts from a commented template script. The `FormView` tabs, in order:
   - **Form:** fields, an endpoint `CopyRow` plus a request example (`Authorization: Bearer <ingest key>`, body `{"text": "…"}`) and an ingest-key link, a slots table with binding selects over the owner's records, settings, and origin/version with update.
   - **Code:** `CodeEditor` bound to `draft.values.code`, Check calling `validate`, and a `<details>` helper reference from `constants/notificationHelpers.ts`.
   - **Playground:** text area, Run calling `test` with draft code and settings, outcome, preview, error line, stdout, and a "nothing is created" note.
@@ -172,11 +172,11 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - queue positions and the absence of any action button;
   - the logs list;
   - the publish and delete confirms.
-- [ ] 5.5 Add "Notification ingest only" to `pages/Profile/components/CreateApiKeyForm.tsx`, disabling write while it is checked. The key is still shown once through `ApiKeyRevealDialog`. Verify: the `CreateApiKeyForm` test.
+- [x] 5.5 Add "Notification ingest only" to `pages/Profile/components/CreateApiKeyForm.tsx`, disabling write while it is checked. The key is still shown once through `ApiKeyRevealDialog`. Verify: the `CreateApiKeyForm` test.
 
 ## 6. Community library
 
-- [ ] 6.1 Add `services/library.service.ts` with `publish`, `listLibrary`, `getLibraryModel`, `install` and `updateFromSource`. `publish` creates version `max+1` with a snapshot of name, description, code, slots and settings (no bindings) and sets `public`, inside one `$transaction`. Setting `private` is the normal update. The other functions:
+- [x] 6.1 Add `services/library.service.ts` with `publish`, `listLibrary`, `getLibraryModel`, `install` and `updateFromSource`. `publish` creates version `max+1` with a snapshot of name, description, code, slots and settings (no bindings) and sets `public`, inside one `$transaction`. Setting `private` is the normal update. The other functions:
   - list public models with ≥1 version, the latest version and the author's public username (no email);
   - show the latest version detail;
   - install: a private, inactive copy with empty bindings and `sourceVersionId`.
@@ -184,7 +184,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   `updateFromSource` implements the merge rules from design §9: 400 listing unbound required slots, the user's name kept, settings merged, and bindings kept for the same key and kind.
 
   Verify: service tests cover snapshot immutability, bindings never published, the install copy being independent, update-available and `localCodeModified` computation, the merge rules, 400 for missing bindings, and that deleting the original leaves copies working.
-- [ ] 6.2 Add the controllers and routes `/notification-library`, `/notification-library/:modelId`, `/notification-library/:modelId/install`, `/notification-models/:id/publish` and `/notification-models/:id/update-from-source`. Verify: the routes test covers publish → install by another user → author publishes v2 → the copy sees an update → applying it with the new binding keeps the copy active; another user cannot publish or update a model that isn't theirs (404).
+- [x] 6.2 Add the controllers and routes `/notification-library`, `/notification-library/:modelId`, `/notification-library/:modelId/install`, `/notification-models/:id/publish` and `/notification-models/:id/update-from-source`. Verify: the routes test covers publish → install by another user → author publishes v2 → the copy sees an update → applying it with the new binding keeps the copy active; another user cannot publish or update a model that isn't theirs (404).
 - [ ] 6.3 Add `NotificationLibraryPage.tsx` (browse, view code read-only, install → navigates to the copy's Form tab). Add the update `ModalDialog` on the Form tab: current and new code side by side read-only, a local-modification warning, and selects for new required slots. Verify: page and dialog tests.
 
 ## 7. Docs and acceptance
