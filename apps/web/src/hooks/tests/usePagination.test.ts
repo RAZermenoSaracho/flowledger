@@ -28,7 +28,7 @@ function render(initial: { resetKey?: string; storageKey?: string } = {}) {
     createElement(QueryClientProvider, { client }, children);
   return renderHook(
     ({ resetKey }) =>
-      usePagination<number>({
+      usePagination<{ items: number[]; total?: number | null; hasNext?: boolean }>({
         queryKey: ["test-list", resetKey],
         resetKey,
         defaultLimit: 20,

@@ -113,7 +113,7 @@ describe("PendingRequestsTab", () => {
         })}
       />
     );
-    expect(screen.getByRole("checkbox", { name: "Select record 1" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Select Dinner split" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   });
 
@@ -140,7 +140,7 @@ describe("PendingRequestsTab", () => {
     });
     renderWithProviders(<PendingRequestsTab {...props} />);
 
-    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select Dinner split" }));
 
     expect(props.approvalSelection.toggle).toHaveBeenCalledWith("sr-1", ["sr-1"]);
   });

@@ -143,7 +143,7 @@ export function TransactionsPage() {
   );
   const [transactionQuery, setTransactionQuery] = useState<SearchBarQuery>({});
 
-  const transactions = usePagination<Transaction, { items: Transaction[]; total: number | null; hasNext: boolean }>({
+  const transactions = usePagination({
     queryKey: ["transactions", transactionQuery.where, transactionQuery.sort],
     resetKey: JSON.stringify({
       where: transactionQuery.where,

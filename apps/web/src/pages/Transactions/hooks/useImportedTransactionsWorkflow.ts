@@ -38,14 +38,7 @@ export function useImportedTransactionsWorkflow({
     where: importedQuery.where,
     sort: importedQuery.sort
   });
-  const paging = usePagination<
-    ProviderImportedTransaction,
-    {
-      items: ProviderImportedTransaction[];
-      total: number;
-      pendingCount: number;
-    }
-  >({
+  const paging = usePagination({
     queryKey: [
       "transactions",
       "imported",

@@ -54,6 +54,8 @@ export function GroupsPage() {
         onAddGroup={() => management.setIsCreateOpen(true)}
         visibleGroups={groupsQuery.data ?? []}
         currentUserId={auth.user?.id}
+        isLoading={groupsQuery.isLoading}
+        error={groupsQuery.error ? "Could not load groups." : null}
       />
     </div>
   );

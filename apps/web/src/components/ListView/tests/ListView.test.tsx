@@ -112,6 +112,11 @@ describe("ListView", () => {
     expect(screen.getByText("0 selected")).toBeInTheDocument();
   });
 
+  it("labels checkboxes with itemLabel when given", () => {
+    render(<ListView {...base} items={rows} selection={selection()} itemLabel={(r) => `Pick ${r.id}`} />);
+    expect(screen.getByRole("checkbox", { name: "Pick b" })).toBeInTheDocument();
+  });
+
   it("offers Select all N matching once the window is selected", async () => {
     const sel = selection({ count: 3, isSelected: () => true });
     render(<ListView {...base} items={rows} selection={sel} />);

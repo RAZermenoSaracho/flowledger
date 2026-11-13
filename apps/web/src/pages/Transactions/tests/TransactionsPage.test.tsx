@@ -580,7 +580,7 @@ describe("TransactionsPage imported tab", () => {
     });
     await screen.findByText("Coffee shop");
 
-    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select imported transaction Coffee shop" }));
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Import visible selection" })
@@ -653,7 +653,7 @@ describe("TransactionsPage imported tab", () => {
     });
     await screen.findByText("Coffee shop");
 
-    await user.click(screen.getByRole("checkbox", { name: "Select record 1" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select imported transaction Coffee shop" }));
     await user.click(
       screen.getByRole("button", { name: "Import visible selection" })
     );

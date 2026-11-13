@@ -144,6 +144,8 @@ export type ListViewProps<T> = {
   /** Stable key per row. */
   rowKey: (item: T) => string;
   renderItem: (item: T) => ReactNode;
+  /** Accessible name of a row's selection checkbox; defaults to "Select record N". */
+  itemLabel?: (item: T) => string;
   layout?: "stack" | "grid";
   isLoading?: boolean;
   error?: string | null;

@@ -1,10 +1,7 @@
 import { useMemo, useState } from "react";
 import type { SearchBarQuery } from "../components/SearchBar";
 import * as transactionsClient from "../services/transactions.client";
-import type {
-  RelatedTransactionsScope,
-  Transaction
-} from "../types/transactions.types";
+import type { RelatedTransactionsScope } from "../types/transactions.types";
 import { usePagination } from "./usePagination";
 
 /** Default window size of a Related transactions tab. */
@@ -31,10 +28,7 @@ export function useRelatedTransactions(scope: RelatedTransactionsScope) {
   }, [scope.field, scope.value, search.where]);
   const sort = search.sort?.length ? search.sort : DEFAULT_SORT;
 
-  const list = usePagination<
-    Transaction,
-    { items: Transaction[]; total: number | null; hasNext: boolean }
-  >({
+  const list = usePagination({
     queryKey: ["transactions", "related", where, sort],
     resetKey: JSON.stringify({ where, sort }),
     defaultLimit: RELATED_TRANSACTIONS_DEFAULT_LIMIT,

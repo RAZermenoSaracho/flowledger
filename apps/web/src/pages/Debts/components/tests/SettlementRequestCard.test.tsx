@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../../tests/utils/renderWithProviders";
 import type { Debt, SettlementRequest } from "../../../../types/debts.types";
 import { SettlementRequestCard } from "../SettlementRequestCard";
@@ -77,31 +76,6 @@ describe("SettlementRequestCard", () => {
   it("applies highlight styling when isHighlighted", () => {
     renderWithProviders(<SettlementRequestCard request={makeRequest()} isHighlighted />);
     expect(document.getElementById("settlement-sr-1")).toHaveClass("border-pine");
-  });
-
-  it("renders a selection checkbox when selectable, calling onSelectedChange", async () => {
-    const user = userEvent.setup();
-    const onSelectedChange = vi.fn();
-    renderWithProviders(
-      <SettlementRequestCard
-        request={makeRequest()}
-        selectable
-        isSelected={false}
-        onSelectedChange={onSelectedChange}
-      />
-    );
-
-    const checkbox = screen.getByRole("checkbox", { name: "Select Dinner split" });
-    expect(checkbox).not.toBeChecked();
-
-    await user.click(checkbox);
-
-    expect(onSelectedChange).toHaveBeenCalledOnce();
-  });
-
-  it("omits the checkbox when not selectable", () => {
-    renderWithProviders(<SettlementRequestCard request={makeRequest()} />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   it("renders provided actions", () => {

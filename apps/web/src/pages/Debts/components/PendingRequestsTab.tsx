@@ -118,6 +118,9 @@ export function PendingRequestsTab({
             : "No requests match your search."
         }
         selection={pendingForMe.length > 0 ? approvalSelection : undefined}
+        itemLabel={(request) =>
+          `Select ${request.sharedExpenseParticipant?.sharedExpense.title ?? "settlement request"}`
+        }
         bulkActions={
           <Button
             type="button"

@@ -29,6 +29,7 @@ export function ListView<T>({
   groups,
   rowKey,
   renderItem,
+  itemLabel,
   layout = "stack",
   isLoading = false,
   error,
@@ -52,7 +53,7 @@ export function ListView<T>({
           <div key={id} className="flex min-w-0 items-start gap-3">
             <input
               type="checkbox"
-              aria-label={`Select record ${windowIds.indexOf(id) + 1}`}
+              aria-label={itemLabel ? itemLabel(item) : `Select record ${windowIds.indexOf(id) + 1}`}
               checked={selection.isSelected(id)}
               onChange={() => selection.toggle(id, windowIds)}
               className="mt-4 h-5 w-5 shrink-0"

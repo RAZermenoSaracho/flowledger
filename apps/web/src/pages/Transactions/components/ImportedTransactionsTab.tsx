@@ -85,6 +85,7 @@ export function ImportedTransactionsTab({
         }
         items={imported.importedTransactions}
         rowKey={rowKey}
+        itemLabel={(transaction) => `Select imported transaction ${transaction.description}`}
         isLoading={imported.isLoading}
         error={imported.error}
         emptyText="No imported transactions found."

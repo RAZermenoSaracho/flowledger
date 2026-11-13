@@ -36,8 +36,8 @@ export function GroupsListCard({
   onAddGroup: () => void;
   visibleGroups: Group[];
   currentUserId: string | undefined;
-  isLoading?: boolean;
-  error?: string | null;
+  isLoading: boolean;
+  error: string | null;
 }) {
   return (
     <ListView

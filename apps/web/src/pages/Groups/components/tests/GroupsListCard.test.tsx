@@ -27,6 +27,8 @@ describe("GroupsListCard", () => {
         onAddGroup={vi.fn()}
         visibleGroups={[makeGroup()]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
@@ -45,6 +47,8 @@ describe("GroupsListCard", () => {
         onAddGroup={vi.fn()}
         visibleGroups={[]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
@@ -60,6 +64,8 @@ describe("GroupsListCard", () => {
         onAddGroup={onAddGroup}
         visibleGroups={[]}
         currentUserId="user-1"
+        isLoading={false}
+        error={null}
       />
     );
 
@@ -69,7 +75,7 @@ describe("GroupsListCard", () => {
   });
 
   it("shows loading and error states instead of the empty text", () => {
-    const props = { onQueryChange: vi.fn(), onAddGroup: vi.fn(), visibleGroups: [], currentUserId: "user-1" };
+    const props = { onQueryChange: vi.fn(), onAddGroup: vi.fn(), visibleGroups: [], currentUserId: "user-1", isLoading: false, error: null };
     const { rerender } = renderWithProviders(<GroupsListCard {...props} isLoading />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();
     expect(screen.queryByText("No groups found.")).not.toBeInTheDocument();

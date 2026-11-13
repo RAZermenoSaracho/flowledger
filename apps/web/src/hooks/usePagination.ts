@@ -6,7 +6,7 @@ import type { ListPagerState, RangePagination } from "../types/common.types";
 const EMPTY: never[] = [];
 
 /** One fetched window: its rows plus whichever of `total` / `hasNext` the endpoint reports. */
-type PageResult<T> = { items: T[]; total?: number | null; hasNext?: boolean };
+type PageResult<T = unknown> = { items: T[]; total?: number | null; hasNext?: boolean };
 
 function storageName(storageKey: string) {
   return `flowledger:list-limit:${storageKey}`;
@@ -43,7 +43,7 @@ function writeStoredLimit(storageKey: string | undefined, limit: number) {
  * `{kind:"range", offset, limit}`; when it returns no `hasNext`, it is derived from `total`.
  * `data` is the raw `fetchPage` result for callers that need extra response fields.
  */
-export function usePagination<T, R extends PageResult<T> = PageResult<T>>({
+export function usePagination<R extends PageResult>({
   queryKey,
   resetKey,
   fetchPage,
@@ -77,7 +77,7 @@ export function usePagination<T, R extends PageResult<T> = PageResult<T>>({
   const total = data?.total ?? null;
   if (total !== lastTotal && data) setLastTotal(total);
 
-  const items = useMemo(() => data?.items ?? (EMPTY as T[]), [data]);
+  const items = useMemo<R["items"]>(() => data?.items ?? EMPTY, [data]);
   const hasNext = data?.hasNext ?? (total != null ? offset + limit < total : false);
 
   const onRangeChange = useCallback(
