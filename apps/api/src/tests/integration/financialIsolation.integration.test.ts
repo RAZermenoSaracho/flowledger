@@ -34,6 +34,8 @@ const ctx = {} as {
   notificationId: string;
   apiKeyId: string;
   grantId: string;
+  modelId: string;
+  ingestKeyB: string;
 };
 
 async function actor(): Promise<Actor> {
@@ -88,6 +90,8 @@ describe("financial data isolation", () => {
       })
     ).id;
     ctx.apiKeyId = (await post(ctx.a, "/users/me/api-keys", { name: "k" })).apiKey.id;
+    ctx.modelId = (await post(ctx.a, "/notification-models", { name: "A model", code: "def process(text, ctx):\n    return None", isActive: true })).model.id;
+    ctx.ingestKeyB = (await post(ctx.b, "/users/me/api-keys", { name: "ingest", ingestOnly: true })).key;
     ctx.grantId = (
       await prisma.oAuthGrant.create({
         data: {
@@ -120,6 +124,7 @@ describe("financial data isolation", () => {
       ["/transactions", "get", "/transactions"],
       ["/shared-expenses", "get", "/shared-expenses"],
       ["/reports", "get", "/reports/summary"],
+      ["/notification-models", "get", "/notification-models"],
       ["/v1", "get", "/v1/accounts"],
       ["/mcp", "post", "/mcp"]
     ];
@@ -155,6 +160,12 @@ describe("financial data isolation", () => {
       ["import imported", (c) => ({ method: "post", path: `/transactions/imported/${c.importedId}/import`, body: { categoryId: c.categoryId } })],
       ["mark notification read", (c) => ({ method: "patch", path: `/notifications/${c.notificationId}/read` })],
       ["revoke API key", (c) => ({ method: "delete", path: `/users/me/api-keys/${c.apiKeyId}` })],
+      ["read notification model", (c) => ({ method: "get", path: `/notification-models/${c.modelId}` })],
+      ["update notification model", (c) => ({ method: "put", path: `/notification-models/${c.modelId}`, body: { name: "hijacked" } })],
+      ["delete notification model", (c) => ({ method: "delete", path: `/notification-models/${c.modelId}` })],
+      ["test notification model", (c) => ({ method: "post", path: `/notification-models/${c.modelId}/test`, body: { text: "hello" } })],
+      ["list notification model queue", (c) => ({ method: "get", path: `/notification-models/${c.modelId}/queue` })],
+      ["list notification model logs", (c) => ({ method: "get", path: `/notification-models/${c.modelId}/logs` })],
       ["revoke OAuth grant", (c) => ({ method: "delete", path: `/users/me/oauth-grants/${c.grantId}` })]
     ])("%s as another user is 404 and A's data is unchanged", async (_name, build) => {
       const call = build(ctx);
@@ -181,6 +192,22 @@ describe("financial data isolation", () => {
       expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: ctx.apiKeyId } })).revokedAt).toBeNull();
       expect((await prisma.oAuthGrant.findUniqueOrThrow({ where: { id: ctx.grantId } })).revokedAt).toBeNull();
     }
+
+    it("B cannot ingest into A's notification model and nothing is queued", async () => {
+      const res = await request(app)
+        .post(`/v1/notification-models/${ctx.modelId}/notifications`)
+        .set(bearer(ctx.ingestKeyB))
+        .send({ text: "hello" });
+      expect(res.status, JSON.stringify(res.body)).toBe(404);
+      expect(await prisma.notificationRun.count({ where: { modelId: ctx.modelId } })).toBe(0);
+      expect(await prisma.notificationModel.findUniqueOrThrow({ where: { id: ctx.modelId } })).toMatchObject({ name: "A model", userId: ctx.a.userId });
+    });
+
+    it("B's notification model list never contains A's model", async () => {
+      const res = await send(ctx.b.token, { method: "get", path: "/notification-models" });
+      expect(res.status).toBe(200);
+      expect(JSON.stringify(res.body)).not.toContain(ctx.modelId);
+    });
 
     it("B's list reads never contain A's records", async () => {
       for (const path of ["/accounts", "/categories", "/notifications", "/users/me/api-keys", "/users/me/oauth-grants"]) {

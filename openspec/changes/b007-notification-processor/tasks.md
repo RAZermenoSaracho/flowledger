@@ -129,7 +129,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
 
   `server.ts` is not changed and never imports the worker. Verify: the worker unit test (mocked services) covers the in-flight cap, the liveness touch, minute tasks, and stop returning aborted runs to `queued` while never requeueing a run past its create step.
 - [x] 4.7 Add `listQueue` (`queued` and `processing`, oldest first) and `listLogs` (terminal, newest first) to `services/read.service.ts`, both scoped `{ modelId, userId }` and paginated. Add `GET /notification-models/:id/queue` and `/logs`. Text appears only while retained; the queue returns the first 80 characters. Verify: covered in the routes test, including 404 for another user's model.
-- [ ] 4.8 Integration: add `src/tests/integration/notificationQueue.integration.test.ts` (testcontainers, real sandbox, global limit 2, per-user 1, the API app via supertest, and two `notificationRunWorker` instances with distinct `workerId`s standing in for two worker processes). It covers:
+- [x] 4.8 Integration: add `src/tests/integration/notificationQueue.integration.test.ts` (testcontainers, real sandbox, global limit 2, per-user 1, the API app via supertest, and two `notificationRunWorker` instances with distinct `workerId`s standing in for two worker processes). It covers:
   - ingest → exactly one transaction with the exact decimal amount and bound account;
   - a duplicate POST;
   - a promotion skipped;

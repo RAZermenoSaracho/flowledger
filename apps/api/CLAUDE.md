@@ -51,6 +51,8 @@ src/modules/<domain>/
 
 Routes are mounted in `src/app.ts`, which exports the configured Express `app` with no side effects (no `listen()`, no scheduler) so `supertest` can drive it directly in tests. `src/server.ts` is the actual bootstrap: imports `app`, calls `app.listen()`, starts the Syncfy auto-sync scheduler, and wires process signal handlers — it has no logic worth unit testing and is excluded from coverage (see `docs/TESTING.md`).
 
+`src/worker.ts` is the notification worker bootstrap: checks schema readiness, starts `NotificationRunWorker` and awaits graceful shutdown before disconnecting Prisma. It has no HTTP listener and, like `src/server.ts`, is excluded from coverage. The API never claims notification runs.
+
 A module only gets the layers it actually needs:
 - No create/update/delete logic (e.g. `reports`, which is read-only) → only `read.service.ts` + `read.controller.ts` exist.
 - A module whose domain naturally splits into more than one router (e.g. `debts` also owns settlement approval/rejection, `accounts` also owns provider-connection endpoints) exports multiple routers from the same `<domain>.routes.ts` rather than inventing extra route files.
@@ -73,6 +75,8 @@ src/modules/
   debts/             debts.routes.ts (exports debtsRouter, settlementsRouter),
                        services/, controllers/, utils/
   groups/            groups.routes.ts, services/, controllers/, utils/
+  notificationModels/ notificationModels.routes.ts, services/, controllers/, utils/, types/,
+                       sandbox/, notificationRunWorker.ts — see docs/NOTIFICATION_MODELS.md
   notifications/     notifications.routes.ts, services/, controllers/, utils/
   reports/           reports.routes.ts, services/read.service.ts, controllers/, utils/
   shared-expenses/   sharedExpenses.routes.ts, services/, controllers/, utils/, types/
@@ -250,7 +254,8 @@ API listens on `env.API_PORT` (default `4000`). Requires a running PostgreSQL in
 | File | Why |
 |---|---|
 | `src/app.ts` | Route mounting order, middleware chain — the app `supertest` drives in tests |
-| `src/server.ts` | Bootstrap only: `listen()`, scheduler startup, signal handlers |
+| `src/server.ts` | API bootstrap only (coverage-excluded): `listen()`, scheduler startup, signal handlers |
+| `src/worker.ts` | Notification worker bootstrap only (coverage-excluded): schema readiness, worker startup, graceful shutdown |
 | `src/config/env.ts` | All env vars and their Zod defaults |
 | `src/modules/accounts/types/provider.types.ts` | `FinancialProviderAdapter` interface — required reading before any provider work |
 | `src/middleware/auth.ts` | `requireAuth` implementation and `req.user` shape |

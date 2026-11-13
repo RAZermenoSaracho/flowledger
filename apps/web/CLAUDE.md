@@ -53,6 +53,10 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/groups` | `GroupsPage` | Yes |
 | `/groups/:id` | `GroupDetailPage` | Yes |
 | `/debts` | `DebtsPage` | Yes |
+| `/notification-models` | `NotificationModelsPage` | Yes |
+| `/notification-models/new` | `NotificationModelDetailPage` (unsaved draft) | Yes |
+| `/notification-models/:id` | `NotificationModelDetailPage` (Form, Code, Playground, Queue, Logs tabs) | Yes |
+| `/notification-library` | `NotificationLibraryPage` | Yes |
 | `/reports` | `ReportsPage` | Yes |
 | `/profile` | `ProfilePage` | Yes |
 
