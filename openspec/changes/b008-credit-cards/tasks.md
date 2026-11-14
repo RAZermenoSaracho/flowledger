@@ -2,14 +2,14 @@
 
 ## 1. Data model and shared contracts
 
-- [ ] 1.1 Add the additive Prisma migration `b008_credit_cards`:
+- [x] 1.1 Add the additive Prisma migration `b008_credit_cards`:
   - six nullable `Account` columns and `PaymentDueRule`;
   - `Transaction.creditCardKind` and `CreditCardKind`;
   - `Notification.dedupeKey` with `@@unique([userId, dedupeKey])`;
   - five `NotificationType` values.
 
   Verify `npm run prisma:migrate` and `npm run prisma:generate` succeed, and that `docs/DATA_MODEL.md` documents each field.
-- [ ] 1.2 Extend the shared account schemas with the card fields. Use a flat base object so `.shape` keeps working for MCP, and a refinement for card-only, all-or-none and due ≤ next-closing rules. Add `creditCardKind` to the transaction schemas. Verify with shared schema tests for valid, non-card, partial-cycle and due-after-closing cases, and for each allowed and rejected `creditCardKind` combination.
+- [x] 1.2 Extend the shared account schemas with the card fields. Use a flat base object so `.shape` keeps working for MCP, and a refinement for card-only, all-or-none and due ≤ next-closing rules. Add `creditCardKind` to the transaction schemas. Verify with shared schema tests for valid, non-card, partial-cycle and due-after-closing cases, and for each allowed and rejected `creditCardKind` combination.
 
 ## 2. ST-013: card rules and metrics
 

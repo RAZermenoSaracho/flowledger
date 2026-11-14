@@ -1,4 +1,5 @@
 import {
+  accountBaseSchema,
   accountSchema,
   categorySchema,
   setArchivedToolSchema,
@@ -41,7 +42,7 @@ export function registerPersonalWriteTools(server: McpServer, auth: McpAuth) {
     "create_account",
     {
       description: `Create an account for the user.${RETRY_NOTE}`,
-      inputSchema: accountSchema.shape
+      inputSchema: accountBaseSchema.shape
     },
     async (args) =>
       runWrite(auth, "mcp.create_account", null, async () => {

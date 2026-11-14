@@ -64,6 +64,23 @@ enum NotificationType {
   shared_expense_updated
   shared_expense_accepted
   shared_expense_rejected
+  credit_card_period_closed
+  credit_card_payment_due_soon
+  credit_card_period_partially_paid
+  credit_card_period_paid
+  credit_card_payment_overdue
+}
+
+enum PaymentDueRule {
+  day_of_next_month
+  days_after_closing
+}
+
+enum CreditCardKind {
+  payment
+  refund
+  cashback
+  interest
 }
 
 enum IdentityVisibility {
@@ -211,6 +228,12 @@ model Account {
   initialBalance                  Decimal           @default(0) @db.Decimal(38, 18)
   isArchived                      Boolean           @default(false)
   archivedAt                      DateTime?
+  creditLimit                     Decimal?          @db.Decimal(38, 18)
+  statementClosingDay             Int?
+  paymentDueRule                  PaymentDueRule?
+  paymentDueValue                 Int?
+  billingTimeZone                 String?
+  annualInterestRate              Decimal?          @db.Decimal(38, 18)
   createdAt                       DateTime          @default(now())
   updatedAt                       DateTime          @updatedAt
   user                            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -274,6 +297,7 @@ model Transaction {
   accountId                   String?
   transferToAccountId         String?
   notes                       String?
+  creditCardKind              CreditCardKind?
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
   user                        User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -440,10 +464,12 @@ model Notification {
   message   String
   readAt    DateTime?
   metadata  Json?
+  dedupeKey String?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, dedupeKey])
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@index([type])

@@ -3,10 +3,34 @@ import { describe, expect, it } from "vitest";
 import {
   calculateAccountBalance,
   calculateMonthlyCashflow,
+  transactionBalanceDelta,
   withAccountBalances
 } from "../transactionCalculations.js";
 
 const amount = (value: number | string) => new Prisma.Decimal(value);
+
+describe("transactionBalanceDelta", () => {
+  const base = { accountId: "a", transferToAccountId: null, destinationAmount: null };
+
+  it("adds income and subtracts expense and transfer-out using accountAmount", () => {
+    expect(transactionBalanceDelta({ ...base, type: "income", accountAmount: "10.5" }, "a")).toEqual(amount("10.5"));
+    expect(transactionBalanceDelta({ ...base, type: "expense", accountAmount: "4" }, "a")).toEqual(amount(-4));
+    expect(
+      transactionBalanceDelta({ ...base, type: "transfer", transferToAccountId: "b", accountAmount: "7", destinationAmount: "6" }, "a")
+    ).toEqual(amount(-7));
+  });
+
+  it("adds destinationAmount for the transfer-in side", () => {
+    expect(
+      transactionBalanceDelta({ ...base, type: "transfer", transferToAccountId: "b", accountAmount: "7", destinationAmount: "6" }, "b")
+    ).toEqual(amount(6));
+  });
+
+  it("is zero for an unrelated account or a null accountAmount", () => {
+    expect(transactionBalanceDelta({ ...base, type: "income", accountAmount: "10" }, "z").isZero()).toBe(true);
+    expect(transactionBalanceDelta({ ...base, type: "expense", accountAmount: null }, "a").isZero()).toBe(true);
+  });
+});
 
 describe("calculateAccountBalance", () => {
   const accountTransactions = [

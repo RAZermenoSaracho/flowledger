@@ -27,6 +27,16 @@ const baseTransfer = {
   date: "2024-01-15"
 };
 
+describe("creditCardKind", () => {
+  it("accepts each kind and null, rejects unknown", () => {
+    for (const creditCardKind of ["payment", "refund", "cashback", "interest", null]) {
+      expect(transactionSchema.safeParse({ ...baseIncome, creditCardKind }).success).toBe(true);
+      expect(updateTransactionSchema.safeParse({ creditCardKind }).success).toBe(true);
+    }
+    expect(transactionSchema.safeParse({ ...baseIncome, creditCardKind: "bonus" }).success).toBe(false);
+  });
+});
+
 describe("transactionSchema — income/expense", () => {
   it("accepts a minimal valid income transaction", () => {
     expect(transactionSchema.safeParse(baseIncome).success).toBe(true);
