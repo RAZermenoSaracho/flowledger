@@ -3,7 +3,8 @@ import { getExchangeRate } from "../../currencies/services/read.service.js";
 import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
-import { badRequest, HttpError, notFound } from "../../../utils/httpError.js";
+import { HttpError, notFound } from "../../../utils/httpError.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import type { GroupListRecord, GroupsQueryInput } from "../types/groups.types.js";
 import { publicizeUsers } from "../../users/utils/publicUser.js";
 import { groupInclude, groupListInclude } from "../utils/groupInclude.js";
@@ -84,26 +85,9 @@ async function getVisibleGroupIds(userId: string) {
   return rows.map((row) => row.id);
 }
 
-function parseGroupsQueryParam(raw: string | undefined) {
-  if (!raw) return {} as GroupsQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid groups query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid groups query: must be a JSON object");
-  }
-
-  return decoded as GroupsQueryInput;
-}
-
 /** Lists groups `userId` belongs to, per a DSQL query. */
 export async function listGroups(userId: string, rawQuery: string | undefined) {
-  const input = parseGroupsQueryParam(rawQuery);
+  const input = parseQueryParam<GroupsQueryInput>(rawQuery, "groups");
   const visibleIds = await getVisibleGroupIds(userId);
   const scopeCondition = { field: "id", op: "in" as const, value: visibleIds };
   const where = input.where

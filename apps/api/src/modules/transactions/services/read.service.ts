@@ -9,7 +9,8 @@ import type { WhereInput } from "datasieve";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
-import { badRequest, notFound } from "../../../utils/httpError.js";
+import { notFound } from "../../../utils/httpError.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import type {
   ImportedTransactionsQueryInput,
   RelatedSettlementRow,
@@ -191,23 +192,6 @@ async function expandVirtualConditions(
   return node as WhereInput<TransactionRecord>;
 }
 
-function parseTransactionsQueryParam(raw: string | undefined) {
-  if (!raw) return {} as TransactionsQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid transactions query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid transactions query: must be a JSON object");
-  }
-
-  return decoded as TransactionsQueryInput;
-}
-
 async function buildTransactionsWhere(
   userId: string,
   input: TransactionsQueryInput
@@ -234,7 +218,7 @@ const transactionInclude = {
 
 /** Lists `userId`'s transactions matching the DSQL expression in `rawQuery` (the decoded `query` request param). */
 export async function listTransactions(userId: string, rawQuery: string | undefined) {
-  const input = parseTransactionsQueryParam(rawQuery);
+  const input = parseQueryParam<TransactionsQueryInput>(rawQuery, "transactions");
   const where = await buildTransactionsWhere(userId, input);
 
   // No fallback for sort: an omission reaches datasieve as an omission, and the
@@ -252,7 +236,7 @@ export async function getTransactionsSummary(
   userId: string,
   rawQuery: string | undefined
 ) {
-  const input = parseTransactionsQueryParam(rawQuery);
+  const input = parseQueryParam<TransactionsQueryInput>(rawQuery, "transactions");
   const where = await buildTransactionsWhere(userId, input);
 
   const result = await transactionsSieve.query<TransactionRecord>({
@@ -400,23 +384,6 @@ async function loadRelatedTransactions(
   };
 }
 
-function parseImportedTransactionsQueryParam(raw: string | undefined) {
-  if (!raw) return {} as ImportedTransactionsQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid imported-transactions query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid imported-transactions query: must be a JSON object");
-  }
-
-  return decoded as ImportedTransactionsQueryInput;
-}
-
 // `resolveImportedTransactionIds` only resolves *which* ids match (DSQL
 // filtering/sorting); the actual response is hydrated via a second,
 // raw-Prisma fetch using the same `importedTransactionInclude` create/
@@ -441,7 +408,7 @@ export async function listImportedTransactions(
   userId: string,
   rawQuery: string | undefined
 ) {
-  const input = parseImportedTransactionsQueryParam(rawQuery);
+  const input = parseQueryParam<ImportedTransactionsQueryInput>(rawQuery, "imported-transactions");
   const { ids, total } = await resolveImportedTransactionIds(
     userId,
     input.where,

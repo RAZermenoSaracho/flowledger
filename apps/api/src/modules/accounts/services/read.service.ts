@@ -3,7 +3,7 @@ import type { WhereInput } from "datasieve";
 import { prisma } from "../../../db/prisma.js";
 import { createSieve } from "../../../db/sieve.js";
 import type { RawWhereNode } from "../../../db/sieve.types.js";
-import { badRequest } from "../../../utils/httpError.js";
+import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
 import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { withAccountBalances } from "../../transactions/utils/transactionCalculations.js";
@@ -123,26 +123,9 @@ function expandVirtualConditions(
   return node as WhereInput<AccountListRecord>;
 }
 
-function parseAccountsQueryParam(raw: string | undefined) {
-  if (!raw) return {} as AccountsQueryInput;
-
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw badRequest("Invalid accounts query: not valid JSON");
-  }
-
-  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
-    throw badRequest("Invalid accounts query: must be a JSON object");
-  }
-
-  return decoded as AccountsQueryInput;
-}
-
 /** Lists a user's accounts per a DSQL query, enriched with computed balances (in both native and preferred currency) and provider sync summaries. */
 export async function listAccounts(userId: string, rawQuery: string | undefined) {
-  const input = parseAccountsQueryParam(rawQuery);
+  const input = parseQueryParam<AccountsQueryInput>(rawQuery, "accounts");
   const expandedWhere = expandVirtualConditions(input.where);
   const userCondition: WhereInput<AccountListRecord> = {
     field: "userId",

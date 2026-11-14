@@ -41,6 +41,7 @@ function writeStoredLimit(storageKey: string | undefined, limit: number) {
  * Only `limit` is remembered, in `localStorage` under `flowledger:list-limit:<storageKey>`;
  * invalid, out-of-bounds or unreadable values fall back to `defaultLimit`. `fetchPage` receives
  * `{kind:"range", offset, limit}`; when it returns no `hasNext`, it is derived from `total`.
+ * `refetchIntervalMs` re-fetches the current window on that interval while the hook is mounted.
  * `data` is the raw `fetchPage` result for callers that need extra response fields.
  */
 export function usePagination<R extends PageResult>({
@@ -48,13 +49,15 @@ export function usePagination<R extends PageResult>({
   resetKey,
   fetchPage,
   defaultLimit,
-  storageKey
+  storageKey,
+  refetchIntervalMs
 }: {
   queryKey: QueryKey;
   resetKey: string;
   fetchPage: (pagination: RangePagination) => Promise<R>;
   defaultLimit: number;
   storageKey?: string;
+  refetchIntervalMs?: number;
 }) {
   const [state, setState] = useState(() => ({
     key: resetKey,
@@ -71,6 +74,7 @@ export function usePagination<R extends PageResult>({
   const query = useQuery({
     queryKey: [...queryKey, offset, limit],
     placeholderData: keepPreviousData,
+    refetchInterval: refetchIntervalMs,
     queryFn: () => fetchPage({ kind: "range", offset, limit })
   });
   const data = query.data;

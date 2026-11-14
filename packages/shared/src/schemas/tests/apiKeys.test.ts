@@ -16,6 +16,7 @@ describe("createApiKeySchema", () => {
     expect(createApiKeySchema.parse({ name: "CI" })).toEqual({
       name: "CI",
       allowWrite: false,
+      ingestOnly: false,
       lifetime: "1m"
     });
   });
@@ -34,5 +35,13 @@ describe("createApiKeySchema", () => {
 
   it("rejects a bad lifetime", () => {
     expect(createApiKeySchema.safeParse({ name: "CI", lifetime: "5d" }).success).toBe(false);
+  });
+
+  it("accepts an ingest-only key", () => {
+    expect(createApiKeySchema.parse({ name: "CI", ingestOnly: true }).ingestOnly).toBe(true);
+  });
+
+  it("rejects ingestOnly combined with allowWrite", () => {
+    expect(createApiKeySchema.safeParse({ name: "CI", ingestOnly: true, allowWrite: true }).success).toBe(false);
   });
 });

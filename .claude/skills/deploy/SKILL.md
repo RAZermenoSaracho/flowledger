@@ -17,6 +17,18 @@ push to `main`
 
 `deploy-prod.yml` has no build/test gate of its own — whatever checks happen, happen inside that external script or must be done manually before pushing to `main`. There is no PR-level CI (see root `CLAUDE.md`'s "Testing" section) — always run `npm run typecheck && npm run lint && npm run test` yourself before a change reaches `main`.
 
+## Notification worker
+
+The API and notification worker are independent PM2 processes from the same build. Stopping the worker pauses processing; ingestion continues until queue capacity is reached. See [Notification Models — Deployment](../../../docs/NOTIFICATION_MODELS.md#deployment).
+
+`~/scripts/deploy-flowledger-prod.sh` (outside the repo) runs migrate → build → API restart → worker restart, then web and `pm2 save`. When PM2 has no `flowledger-prod-worker` yet it registers it instead:
+
+```bash
+cd ~/production/flowledger/apps/api && pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker
+```
+
+Staging uses the same commands with its own checkout and process name. After deployment, run `curl -fsS http://127.0.0.1:4000/health/notification-worker` and `pm2 status`; expect 200 and both processes online.
+
 ## Domains
 
 | Env | Web | API |
@@ -26,7 +38,7 @@ push to `main`
 
 ## What this skill does not cover
 
-The external deploy script's actual steps (build, restart, health check, rollback) are not in this repo and are not reproduced here — read `~/scripts/deploy-flowledger-prod.sh` directly on this machine if you need to know exactly what it does.
+The full external deploy script (including rollback behavior) is not versioned here — read `~/scripts/deploy-flowledger-prod.sh` directly on this machine if you need to know exactly what it does.
 
 ## Constraints
 

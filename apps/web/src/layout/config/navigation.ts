@@ -9,7 +9,8 @@ export const navItems = [
   ["Categories", routes.categories],
   ["Groups", routes.groups],
   ["Reports", routes.reports],
-  ["Debts", routes.debts]
+  ["Debts", routes.debts],
+  ["Notification models", routes.notificationModels]
 ] as const;
 
 // Mirrors DebtsPage's own `debtsTabs`/TransactionsPage's own tab ids (kept
@@ -30,6 +31,11 @@ const transactionsMobileSubPages = [
   { tab: "imported", label: "Imported Transactions" }
 ] as const;
 
+const notificationModelsMobileSubPages = [
+  { tab: "my", label: "My Models" },
+  { tab: "public", label: "Public Models" }
+] as const;
+
 // Keyed by route path — every entry here renders as an expandable dropdown
 // in the mobile drawer instead of a plain link; every other item in
 // `navItems` stays a plain link. Desktop nav (`PrimaryNavLinks`) is
@@ -44,5 +50,10 @@ export const mobileExpandableNav: Record<string, MobileExpandableNavConfig> = {
     basePath: routes.transactions,
     defaultTab: "transactions",
     subPages: transactionsMobileSubPages
+  },
+  [routes.notificationModels]: {
+    basePath: routes.notificationModels,
+    defaultTab: "my",
+    subPages: notificationModelsMobileSubPages
   }
 };

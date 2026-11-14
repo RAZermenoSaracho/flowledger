@@ -1,5 +1,5 @@
 import { listPaginationSchema, listSortSchema } from "@flowledger/shared";
-import { createDataSieve, prismaAdapter } from "datasieve";
+import { createDataSieve, OPERATORS, prismaAdapter } from "datasieve";
 import { badRequest } from "../utils/httpError.js";
 import { prisma } from "./prisma.js";
 import { assertSafeQueryFields } from "./sieveFieldGuard.js";
@@ -40,6 +40,7 @@ export function createSieve<TDelegate>(
   return {
     async query<T>(query: unknown) {
       assertSafeQueryFields(query);
+      assertKnownOperators(query);
       return engine.query<T>({
         resource: delegate,
         query: boundPaginatedQuery(query, options.maxPageSize)
@@ -51,7 +52,8 @@ export function createSieve<TDelegate>(
 function boundPaginatedQuery(query: unknown, maxPageSize?: number): unknown {
   const raw = query as { pagination?: unknown; sort?: unknown };
   if (!raw || typeof raw !== "object") return query;
-  if (raw.sort !== undefined && !listSortSchema.safeParse(raw.sort).success) throw badRequest("Invalid sort");
+  if (raw.sort !== undefined && !listSortSchema.safeParse(raw.sort).success)
+    throw badRequest("Invalid sort");
   if (raw.pagination === undefined) return query;
 
   const parsed = listPaginationSchema.safeParse(raw.pagination);
@@ -69,4 +71,52 @@ function boundPaginatedQuery(query: unknown, maxPageSize?: number): unknown {
   if (sort.some((key) => key.field === "id")) return { ...raw, pagination, sort };
   const direction = sort.at(-1)?.direction ?? "desc";
   return { ...raw, pagination, sort: [...sort, { field: "id", direction }] };
+}
+
+const SUPPORTED_OPERATORS: ReadonlySet<string> = new Set(
+  Object.values(OPERATORS)
+    .filter((definition) => !("reserved" in definition && definition.reserved))
+    .map((definition) => definition.name)
+);
+
+/**
+ * Rejects any filter condition whose `op` is missing or not a datasieve operator the Prisma adapter supports,
+ * walking every `where` tree (including nested `and`/`or`/`not` groups and `include.where`).
+ * datasieve silently drops an unknown operator, which would turn a mistyped scope filter into an unscoped query.
+ * Applies to user-supplied and server-built filters alike, so a typo in either fails closed.
+ * @throws 400 for an unknown, reserved or missing operator.
+ */
+export function assertKnownOperators(query: unknown): void {
+  if (Array.isArray(query)) return query.forEach(assertKnownOperators);
+  if (typeof query !== "object" || query === null) return;
+
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "value") continue;
+    if (key === "where") assertKnownWhere(value);
+    else assertKnownOperators(value);
+  }
+}
+
+function assertKnownWhere(node: unknown): void {
+  if (node === undefined) return;
+  if (typeof node !== "object" || node === null) throw badRequest("Invalid filter");
+  const group = node as { and?: unknown; or?: unknown; not?: unknown; op?: unknown };
+  let isGroup = false;
+  for (const key of ["and", "or"] as const) {
+    if (group[key] === undefined) continue;
+    if (!Array.isArray(group[key])) throw badRequest(`Invalid filter: "${key}" must be an array`);
+    group[key].forEach(assertKnownWhere);
+    isGroup = true;
+  }
+  if (group.not !== undefined) {
+    assertKnownWhere(group.not);
+    isGroup = true;
+  }
+  // Every branch is checked independently and `op` is validated whenever present, so no shape can carry an
+  // operator datasieve would silently drop.
+  if (group.op !== undefined || !isGroup) {
+    if (typeof group.op !== "string" || !SUPPORTED_OPERATORS.has(group.op)) {
+      throw badRequest(`Unknown filter operator ${JSON.stringify(group.op)}`);
+    }
+  }
 }
