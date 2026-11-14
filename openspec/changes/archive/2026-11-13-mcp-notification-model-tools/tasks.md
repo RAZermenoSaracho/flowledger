@@ -11,12 +11,12 @@
 - [x] 2.4 Add `src/tests/integration/mcp.notificationModels.integration.test.ts` (real sandbox and Postgres: CRUD, dry-run creates nothing, rules round trip, isolation, publish/install/unpublish, delete)
 
 ## 3. Queue and logs read tools
-- [ ] 3.1 Add `notificationQueueToolSchema` / `notificationLogsToolSchema` to the shared MCP schemas, with tests
-- [ ] 3.2 Add `mcp/utils/notificationRunsQuery.ts` (structured filter → DSQL), with tests
-- [ ] 3.3 Register `list_notification_model_queue` and `list_notification_model_logs` over `listQueue` / `listLogs`, with unit tests
-- [ ] 3.4 Integration: real ingest → queue listed; processed → logs (completed, skipped, filters, pagination); foreign model not found; reading changes nothing
-- [ ] 3.5 Docs and tool counts updated
-- [ ] 3.6 Staging MCP acceptance for queue and logs, then stop staging and clean up
+- [x] 3.1 Add `notificationQueueToolSchema` / `notificationLogsToolSchema` to the shared MCP schemas, with tests
+- [x] 3.2 Add `mcp/utils/notificationRunsQuery.ts` (structured filter → DSQL), with tests
+- [x] 3.3 Register `list_notification_model_queue` and `list_notification_model_logs` over `listQueue` / `listLogs`, with unit tests
+- [x] 3.4 Integration: real ingest → queue listed; processed → logs (completed, skipped, filters, pagination); foreign model not found; reading changes nothing
+- [x] 3.5 Docs and tool counts updated
+- [x] 3.6 Staging MCP acceptance for queue and logs, then stop staging and clean up
 
 ## 4. Docs and verification
 - [x] 4.1 Document the tools in `docs/NOTIFICATION_MODELS.md`
