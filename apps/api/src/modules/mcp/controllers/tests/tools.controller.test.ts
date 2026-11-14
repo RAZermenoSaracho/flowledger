@@ -38,6 +38,7 @@ function register(scopes: string[]) {
 }
 
 const READ_TOOLS = [
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",
@@ -79,6 +80,7 @@ const WRITE_TOOLS = [
   "delete_category",
   "delete_notification_model",
   "delete_transaction",
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",

@@ -207,4 +207,44 @@ describe("ImportedTransactionCard", () => {
     await user.selectOptions(screen.getByLabelText("Category"), "");
     expect(props.onCategoryChange).toHaveBeenCalledWith(null);
   });
+
+  it("shows possible-duplicate hints with a link, leaving Ignore as the resolution", () => {
+    renderWithProviders(
+      <ImportedTransactionCard
+        {...baseProps({
+          transaction: makeTransaction({
+            possibleDuplicates: [{ id: "tx-9", name: "Coffee", date: "2024-01-14T00:00:00.000Z", amount: "5.5" }]
+          })
+        })}
+      />
+    );
+    expect(screen.getByText(/Possible duplicate/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Coffee" })).toHaveAttribute("href", "/transactions/tx-9");
+    expect(screen.getByRole("button", { name: "Ignore" })).toBeEnabled();
+  });
+
+  it("shows no duplicate hint without matches", () => {
+    renderWithProviders(<ImportedTransactionCard {...baseProps()} />);
+    expect(screen.queryByText(/Possible duplicate/)).not.toBeInTheDocument();
+  });
+
+  it("does not require a category to import income on a credit card", () => {
+    renderWithProviders(
+      <ImportedTransactionCard
+        {...baseProps({
+          transaction: makeTransaction({
+            amount: "500",
+            providerAccount: {
+              id: "pa-1",
+              provider: "syncfy",
+              providerAccountId: "x",
+              account: { id: "card", type: "credit_card" } as never
+            }
+          })
+        })}
+      />
+    );
+    expect(screen.queryByText(/needs classification/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toBeEnabled();
+  });
 });

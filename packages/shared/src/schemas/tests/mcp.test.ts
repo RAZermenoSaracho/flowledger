@@ -16,6 +16,7 @@ import {
   updateGroupToolSchema,
   setArchivedToolSchema,
   transactionIdToolSchema,
+  getCreditCardToolSchema,
   updateAccountToolSchema,
   updateCategoryToolSchema,
   transactionSearchFilterSchema,
@@ -100,6 +101,14 @@ describe("personal CRUD tool schemas", () => {
     expect(setArchivedToolSchema.safeParse({ id: "a" }).success).toBe(false);
     expect(setArchivedToolSchema.safeParse({ id: "a", archived: true, userId: "u" }).success).toBe(false);
     expect(setArchivedToolSchema.safeParse({ id: "a", archived: false }).success).toBe(true);
+  });
+
+  it("getCreditCardToolSchema takes an id and a page defaulting to 1", () => {
+    expect(getCreditCardToolSchema.parse({ id: "c1" })).toEqual({ id: "c1", page: 1 });
+    expect(getCreditCardToolSchema.parse({ id: "c1", page: 3 }).page).toBe(3);
+    expect(getCreditCardToolSchema.safeParse({ id: "" }).success).toBe(false);
+    expect(getCreditCardToolSchema.safeParse({ id: "c1", page: 0 }).success).toBe(false);
+    expect(getCreditCardToolSchema.safeParse({ id: "c1", extra: true }).success).toBe(false);
   });
 
   it("transactionIdToolSchema requires only an id", () => {

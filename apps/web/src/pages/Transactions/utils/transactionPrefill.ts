@@ -1,4 +1,4 @@
-import { TRANSACTION_TYPES, currencyCodeSchema, dateStringSchema } from "@flowledger/shared";
+import { CREDIT_CARD_KINDS, TRANSACTION_TYPES, currencyCodeSchema, dateStringSchema } from "@flowledger/shared";
 import { transactionDateInputValue } from "../../../utils/dateTime";
 import type { TransactionDraft } from "../types/transactions.types";
 
@@ -10,6 +10,8 @@ export type TransactionPrefill = Partial<
     | "amount"
     | "executionCurrency"
     | "accountId"
+    | "transferToAccountId"
+    | "creditCardKind"
     | "categoryId"
     | "groupId"
     | "name"
@@ -20,7 +22,7 @@ export type TransactionPrefill = Partial<
 
 /**
  * Reads the whitelisted `/transactions/new` query params (`type`, `amount`, `currency`, `accountId`,
- * `categoryId`, `groupId`, `description`, `date`, `shared`). Unknown params and invalid values are ignored,
+ * `transferToAccountId`, `creditCardKind`, `categoryId`, `groupId`, `description`, `date`, `shared`). Unknown params and invalid values are ignored,
  * so the form opens with its default for them. `date` accepts what `dateStringSchema` accepts.
  */
 export function parseTransactionPrefill(params: URLSearchParams): TransactionPrefill {
@@ -44,12 +46,16 @@ export function parseTransactionPrefill(params: URLSearchParams): TransactionPre
 
   for (const [param, key] of [
     ["accountId", "accountId"],
+    ["transferToAccountId", "transferToAccountId"],
     ["categoryId", "categoryId"],
     ["groupId", "groupId"]
   ] as const) {
     const value = params.get(param)?.trim();
     if (value) prefill[key] = value;
   }
+
+  const kind = CREDIT_CARD_KINDS.find((item) => item === params.get("creditCardKind"));
+  if (kind) prefill.creditCardKind = kind;
 
   const description = params.get("description")?.trim();
   if (description && description.length <= 160) prefill.name = description;

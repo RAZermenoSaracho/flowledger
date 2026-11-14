@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  CREDIT_CARD_KINDS,
   TRANSACTION_FILTER_TYPES,
   TRANSACTION_TYPES
 } from "../constants/index.js";
@@ -32,6 +33,7 @@ export const baseTransactionSchema =z.object({
   accountId: z.string().min(1).optional().nullable(),
   transferToAccountId: z.string().min(1).optional().nullable(),
   notes: z.string().trim().max(2000).optional().nullable(),
+  creditCardKind: z.enum(CREDIT_CARD_KINDS).optional().nullable(),
   sharedExpense: transactionSharedExpenseSchema.optional()
 });
 

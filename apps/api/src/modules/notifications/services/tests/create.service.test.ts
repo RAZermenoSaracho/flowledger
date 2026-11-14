@@ -57,6 +57,31 @@ describe("createNotifications", () => {
   });
 });
 
+describe("createNotifications dedupeKey", () => {
+  it("persists the key and skips duplicates", async () => {
+    const tx = mockClient();
+
+    await createNotifications(tx as never, [
+      { userId: "u1", type: "credit_card_period_closed", title: "t", message: "m", dedupeKey: "cc:closed:a:2027-01-20" }
+    ]);
+
+    expect(tx.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ dedupeKey: "cc:closed:a:2027-01-20" })],
+      skipDuplicates: true
+    });
+  });
+
+  it("omits dedupeKey and skipDuplicates when no key is given", async () => {
+    const tx = mockClient();
+
+    await createNotifications(tx as never, [{ userId: "u1", type: "group_member_added", title: "t", message: "m" }]);
+
+    const arg = tx.notification.createMany.mock.calls[0]![0];
+    expect(arg).not.toHaveProperty("skipDuplicates");
+    expect(arg.data[0]).not.toHaveProperty("dedupeKey");
+  });
+});
+
 describe("createNotifications blocked senders", () => {
   it("drops notifications whose recipient has blocked the sender and keeps the rest", async () => {
     const tx = {

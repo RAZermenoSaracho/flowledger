@@ -95,3 +95,76 @@ describe("restoreAccount", () => {
     });
   });
 });
+
+describe("updateAccount credit-card rules", () => {
+  const card = {
+    id: "acc-1",
+    type: "credit_card",
+    currency: "MXN",
+    creditLimit: null,
+    statementClosingDay: 20,
+    paymentDueRule: "day_of_next_month",
+    paymentDueValue: 20,
+    billingTimeZone: "America/Mexico_City",
+    annualInterestRate: null
+  };
+
+  it("rejects a card-only field on a stored non-card account, naming the field", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "checking", currency: "USD" } as never);
+
+    await expect(updateAccount("user-1", "acc-1", { creditLimit: "1000" })).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { creditLimit: [expect.any(String)] } } }
+    });
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts card fields on a stored card account", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { creditLimit: "30000" });
+
+    expect(prismaMock.account.update).toHaveBeenCalledWith({
+      where: { id: "acc-1" },
+      data: { creditLimit: "30000" }
+    });
+  });
+
+  it("rejects a due value past the stored closing day, naming paymentDueValue", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+
+    await expect(updateAccount("user-1", "acc-1", { paymentDueValue: 25 })).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { paymentDueValue: [expect.any(String)] } } }
+    });
+  });
+
+  it("clears the six card fields when the type leaves credit_card", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { type: "checking" });
+
+    expect(prismaMock.account.update).toHaveBeenCalledWith({
+      where: { id: "acc-1" },
+      data: {
+        type: "checking",
+        creditLimit: null,
+        statementClosingDay: null,
+        paymentDueRule: null,
+        paymentDueValue: null,
+        billingTimeZone: null,
+        annualInterestRate: null
+      }
+    });
+  });
+
+  it("rejects card fields sent together with a non-card type change", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+
+    await expect(
+      updateAccount("user-1", "acc-1", { type: "checking", creditLimit: "5" })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});

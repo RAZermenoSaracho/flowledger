@@ -58,4 +58,13 @@ describe("parseTransactionPrefill", () => {
   it("accepts a bare calendar day as that UTC day", () => {
     expect(parse("date=2026-11-05").date).toBe("2026-11-04T18:00");
   });
+
+  it("reads transferToAccountId and a known creditCardKind, ignoring unknown kinds", () => {
+    expect(
+      parseTransactionPrefill(
+        new URLSearchParams("type=transfer&amount=4000&transferToAccountId=card-1&creditCardKind=payment")
+      )
+    ).toEqual({ type: "transfer", amount: "4000", transferToAccountId: "card-1", creditCardKind: "payment" });
+    expect(parseTransactionPrefill(new URLSearchParams("creditCardKind=bogus"))).toEqual({});
+  });
 });

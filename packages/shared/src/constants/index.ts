@@ -1,3 +1,7 @@
+/** Mirrors the Prisma `PaymentDueRule` enum. */
+export const PAYMENT_DUE_RULES = ["day_of_next_month", "days_after_closing"] as const;
+/** Mirrors the Prisma `CreditCardKind` enum. */
+export const CREDIT_CARD_KINDS = ["payment", "refund", "cashback", "interest"] as const;
 export const TRANSACTION_TYPES = ["income", "expense", "transfer"] as const;
 export const PROVIDER_IMPORTED_TRANSACTION_STATUSES = [
   "pending",
@@ -30,7 +34,12 @@ export const NOTIFICATION_TYPES = [
   "shared_expense_invited",
   "shared_expense_updated",
   "shared_expense_accepted",
-  "shared_expense_rejected"
+  "shared_expense_rejected",
+  "credit_card_period_closed",
+  "credit_card_payment_due_soon",
+  "credit_card_period_partially_paid",
+  "credit_card_period_paid",
+  "credit_card_payment_overdue"
 ] as const;
 export const IDENTITY_VISIBILITIES = ["username_only", "username_and_name"] as const;
 export const SHARE_ACCEPTANCES = ["proposed", "accepted", "rejected"] as const;

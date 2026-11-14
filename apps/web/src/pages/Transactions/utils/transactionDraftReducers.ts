@@ -38,7 +38,7 @@ export function selectTransferAccount(
 
 /**
  * Changes the type. The category survives only when it is one of `categoryOptions` of the new
- * type; a transfer also clears category, group and sharing and drops a destination equal to the source.
+ * type; a transfer also clears category, card entry, group and sharing and drops a destination equal to the source.
  */
 export function changeType(
   draft: TransactionDraft,
@@ -55,6 +55,8 @@ export function changeType(
     ...draft,
     type,
     categoryId: "",
+    expenseOffsetCategoryId: "",
+    creditCardKind: "",
     groupId: "",
     isShared: false,
     sharedTitle: "",

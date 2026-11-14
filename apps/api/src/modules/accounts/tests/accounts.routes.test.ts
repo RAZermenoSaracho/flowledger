@@ -138,3 +138,90 @@ describe("/providers/webhooks routes", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("GET /accounts/:id/credit-card", () => {
+  const cardBody = {
+    name: "Card",
+    type: "credit_card",
+    currency: "MXN",
+    creditLimit: "30000",
+    statementClosingDay: 20,
+    paymentDueRule: "day_of_next_month",
+    paymentDueValue: 20,
+    billingTimeZone: "America/Mexico_City",
+    annualInterestRate: "60"
+  };
+
+  async function setup() {
+    const { token } = await createAuthedUser(app);
+    const auth = (req: request.Test) => req.set("Authorization", `Bearer ${token}`);
+    const card = (await auth(request(app).post("/accounts")).send(cardBody)).body.account.id as string;
+    const checking = (
+      await auth(request(app).post("/accounts")).send({ name: "Debit", type: "checking", currency: "MXN", initialBalance: "20000" })
+    ).body.account.id as string;
+    const category = (await auth(request(app).post("/categories")).send({ name: "Food", type: "expense" })).body.category
+      .id as string;
+    return { auth, card, checking, category };
+  }
+
+  async function findPeriod(auth: (req: request.Test) => request.Test, cardId: string, end: string) {
+    for (let page = 1; ; page++) {
+      const body = (await auth(request(app).get(`/accounts/${cardId}/credit-card?page=${page}`))).body;
+      const found = body.periods.find((p: { end: string }) => p.end === end);
+      if (found || page * body.pageSize >= body.totalPeriods) return found;
+    }
+  }
+
+  it("requires authentication", async () => {
+    expect((await request(app).get("/accounts/x/credit-card")).status).toBe(401);
+  });
+
+  it("returns metrics and periods computed from transfers and purchases", async () => {
+    const { auth, card, checking, category } = await setup();
+    const tx = (body: Record<string, unknown>) => auth(request(app).post("/transactions")).send(body);
+    await tx({ name: "TV", amount: "5000", type: "expense", date: "2024-10-01T18:00:00Z", accountId: card, categoryId: category });
+    await tx({ name: "Pay", amount: "1000", type: "transfer", date: "2024-10-10T18:00:00Z", accountId: checking, transferToAccountId: card });
+    await tx({ name: "Pay 2", amount: "2000", type: "transfer", date: "2024-11-01T18:00:00Z", accountId: checking, transferToAccountId: card });
+
+    const response = await auth(request(app).get(`/accounts/${card}/credit-card`));
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      configured: true,
+      metrics: { debt: "2000", availableCredit: "28000" },
+      pageSize: 12
+    });
+    const october = await findPeriod(auth, card, "2024-10-20");
+    expect(october).toMatchObject({
+      closingDebt: "4000",
+      credits: "2000",
+      creditsBreakdown: { transfers: "2000" },
+      remaining: "2000",
+      status: "overdue"
+    });
+  });
+
+  it("returns metrics and no periods for an unconfigured card", async () => {
+    const { token } = await createAuthedUser(app);
+    const auth = (req: request.Test) => req.set("Authorization", `Bearer ${token}`);
+    const card = (await auth(request(app).post("/accounts")).send({ name: "Bare", type: "credit_card" })).body.account.id;
+    const response = await auth(request(app).get(`/accounts/${card}/credit-card`));
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ configured: false, periods: [], totalPeriods: 0 });
+  });
+
+  it("returns 404 for a non-card account and for another user's card", async () => {
+    const { auth, checking, card } = await setup();
+    expect((await auth(request(app).get(`/accounts/${checking}/credit-card`))).status).toBe(404);
+
+    const other = await createAuthedUser(app);
+    const foreign = await request(app)
+      .get(`/accounts/${card}/credit-card`)
+      .set("Authorization", `Bearer ${other.token}`);
+    expect(foreign.status).toBe(404);
+  });
+
+  it("rejects an invalid page with 400", async () => {
+    const { auth, card } = await setup();
+    expect((await auth(request(app).get(`/accounts/${card}/credit-card?page=0`))).status).toBe(400);
+  });
+});

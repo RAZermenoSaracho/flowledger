@@ -25,11 +25,16 @@ import { useTransactionForm } from "./hooks/useTransactionForm";
 import { draftFromTransaction, newTransactionDraft } from "./utils/transactionDraft";
 import { transactionBackTarget } from "./utils/transactionBackTarget";
 import { parseTransactionPrefill } from "./utils/transactionPrefill";
+import { reconcileCardEntry } from "./utils/creditCardEntry";
 import { selectAccount } from "./utils/transactionDraftReducers";
 
 function needsClassification(transaction: Transaction) {
   if (transaction.type === "transfer") {
     return !transaction.accountId || !transaction.transferToAccountId;
+  }
+
+  if (transaction.type === "income" && transaction.account?.type === "credit_card") {
+    return false;
   }
 
   return !transaction.accountId || !transaction.categoryId;
@@ -107,9 +112,12 @@ export function TransactionDetailPage() {
     if (!initial || transaction) return null;
     const prefill = parseTransactionPrefill(new URLSearchParams(prefillKey));
     const draft = { ...initial, ...prefill };
-    return prefill.accountId && !prefill.executionCurrency
-      ? selectAccount(draft, prefill.accountId, accounts)
-      : draft;
+    return reconcileCardEntry(
+      prefill.accountId && !prefill.executionCurrency
+        ? selectAccount(draft, prefill.accountId, accounts)
+        : draft,
+      accounts
+    );
   }, [initial, transaction, prefillKey, accounts]);
 
   const draft = useTransactionForm({ initial, original: transaction, accounts });

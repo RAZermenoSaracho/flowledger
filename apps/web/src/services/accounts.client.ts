@@ -1,4 +1,4 @@
-import type { AccountType } from "@flowledger/shared";
+import type { AccountType, PaymentDueRule } from "@flowledger/shared";
 import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type {
@@ -47,6 +47,12 @@ export function updateAccount(
     identifier?: string | null;
     currency?: string;
     initialBalance?: string;
+    creditLimit?: string | null;
+    statementClosingDay?: number | null;
+    paymentDueRule?: PaymentDueRule | null;
+    paymentDueValue?: number | null;
+    billingTimeZone?: string | null;
+    annualInterestRate?: string | null;
   }
 ) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}`, {

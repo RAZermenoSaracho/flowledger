@@ -52,6 +52,27 @@ describe("useRelatedTransactions", () => {
     });
   });
 
+  it("with a date range also matches transfers into the account", async () => {
+    const queries = mockTransactions();
+    const { result } = render({
+      ...accountScope,
+      dateRange: { from: "2027-01-21T06:00:00.000Z", to: "2027-02-21T06:00:00.000Z" }
+    });
+    await waitFor(() => expect(result.current.pager.total).toBe(40));
+    expect(queries[0]?.where).toEqual({
+      and: [
+        {
+          or: [
+            { field: "accountId", op: "=", value: "a1" },
+            { field: "transferToAccountId", op: "=", value: "a1" }
+          ]
+        },
+        { field: "date", op: ">=", value: "2027-01-21T06:00:00.000Z" },
+        { field: "date", op: "<", value: "2027-02-21T06:00:00.000Z" }
+      ]
+    });
+  });
+
   it("ANDs the search where with the scope condition", async () => {
     const queries = mockTransactions();
     const { result } = render(accountScope);

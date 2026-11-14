@@ -29,9 +29,10 @@ export function getNumber(value: unknown): number | undefined {
 /** Infers a FlowLedger `AccountType` from a free-text provider type string via keyword matching (English/Spanish), defaulting to `other`. */
 export function normalizeAccountType(value: unknown): AccountType {
   const rawType = getString(value)?.toLowerCase() ?? "";
+  if (/debit|d[eé]bito/.test(rawType)) return AccountType.checking;
   if (/credit|card|tarjeta/.test(rawType)) return AccountType.credit_card;
   if (/saving|ahorro/.test(rawType)) return AccountType.savings;
-  if (/checking|debit|bank|cuenta/.test(rawType)) return AccountType.checking;
+  if (/checking|bank|cuenta/.test(rawType)) return AccountType.checking;
   if (/broker|invest|inversion/.test(rawType)) return AccountType.investment;
   if (/cash|efectivo/.test(rawType)) return AccountType.cash;
 

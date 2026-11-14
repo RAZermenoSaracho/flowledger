@@ -143,3 +143,12 @@ describe("cashflowReportWhere", () => {
     expect(where).not.toHaveProperty("OR");
   });
 });
+
+describe("nonCardIncomeWhere", () => {
+  it("keeps unlinked and non-card rows only", async () => {
+    const { nonCardIncomeWhere } = await import("../reportFilters.js");
+    expect(nonCardIncomeWhere).toEqual({
+      OR: [{ accountId: null }, { account: { type: { not: "credit_card" } } }]
+    });
+  });
+});

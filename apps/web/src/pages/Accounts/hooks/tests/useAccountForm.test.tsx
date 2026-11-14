@@ -44,7 +44,13 @@ describe("useAccountForm", () => {
       type: "checking",
       identifier: "1234",
       currency: "USD",
-      initialBalance: "500"
+      initialBalance: "500",
+      creditLimit: "",
+      statementClosingDay: "",
+      paymentDueRule: "",
+      paymentDueValue: "",
+      billingTimeZone: "",
+      annualInterestRate: ""
     });
 
     act(() => result.current.setField("name", "Everyday"));

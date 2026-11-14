@@ -1,3 +1,4 @@
+import type { PossibleDuplicate } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import {
   classificationSchema,
@@ -111,7 +112,19 @@ function classificationCondition(
             {
               or: [
                 { field: "accountId", op: "isNull" },
-                { field: "categoryId", op: "isNull" }
+                {
+                  and: [
+                    { field: "categoryId", op: "isNull" },
+                    {
+                      not: {
+                        and: [
+                          { field: "type", op: "=", value: "income" },
+                          { field: "account.type", op: "=", value: "credit_card" }
+                        ]
+                      }
+                    }
+                  ]
+                }
               ]
             }
           ]
@@ -239,19 +252,37 @@ export async function getTransactionsSummary(
   const input = parseQueryParam<TransactionsQueryInput>(rawQuery, "transactions");
   const where = await buildTransactionsWhere(userId, input);
 
-  const result = await transactionsSieve.query<TransactionRecord>({
-    where,
-    groupBy: { fields: ["type"] },
-    aggregations: [{ fn: "sum", field: "amountInPreferredCurrency", alias: "total" }]
-  });
+  const totalsQuery = (queryWhere: WhereInput<TransactionRecord>) =>
+    transactionsSieve.query<TransactionRecord>({
+      where: queryWhere,
+      groupBy: { fields: ["type"] },
+      aggregations: [{ fn: "sum", field: "amountInPreferredCurrency", alias: "total" }]
+    });
+  // Income on a credit-card account is a debt credit, not income; unlinked income still counts.
+  const [result, incomeResult] = await Promise.all([
+    totalsQuery(where),
+    totalsQuery({
+      and: [
+        where,
+        { field: "type", op: "=", value: "income" },
+        {
+          or: [
+            { field: "accountId", op: "isNull" },
+            { field: "account.type", op: "!=", value: "credit_card" }
+          ]
+        }
+      ]
+    })
+  ]);
 
   // Not serialize(): its JSON replacer never sees Decimal (toJSON runs first); sums are rebuilt exactly below.
   const rows = result.data as unknown as {
     type: "income" | "expense" | "transfer";
     total: unknown;
   }[];
+  const incomeRows = incomeResult.data as unknown as typeof rows;
   const income = new Prisma.Decimal(
-    String(rows.find((row) => row.type === "income")?.total ?? 0)
+    String(incomeRows.find((row) => row.type === "income")?.total ?? 0)
   );
   const expenses = new Prisma.Decimal(
     String(rows.find((row) => row.type === "expense")?.total ?? 0)
@@ -403,6 +434,85 @@ async function hydrateImportedTransactions(orderedIds: string[]) {
   });
 }
 
+const DUPLICATE_WINDOW_MS = 5 * 86_400_000;
+const MAX_POSSIBLE_DUPLICATES = 3;
+
+type ImportedRowWithDuplicates<T> = T & { possibleDuplicates: PossibleDuplicate[] };
+
+/**
+ * Attaches `possibleDuplicates` to each row: for pending rows, up to 3 unlinked transactions of the same owner that
+ * involve the row's linked account, applied |amount| equal to the row's, dated within +/-5 days (closest first).
+ * Other rows get `[]`. One batched query per call regardless of page size.
+ */
+async function attachPossibleDuplicates<
+  T extends {
+    status: string;
+    amount: Prisma.Decimal;
+    transactionDate: Date;
+    providerAccount: { accountId: string | null } | null;
+  }
+>(userId: string, rows: T[]): Promise<ImportedRowWithDuplicates<T>[]> {
+  const pending = rows.filter(
+    (row) => row.status === "pending" && row.providerAccount?.accountId
+  );
+  if (pending.length === 0) {
+    return rows.map((row) => ({ ...row, possibleDuplicates: [] }));
+  }
+
+  const accountIds = [...new Set(pending.map((row) => row.providerAccount!.accountId!))];
+  const times = pending.map((row) => row.transactionDate.getTime());
+  const candidates = await prisma.transaction.findMany({
+    where: {
+      userId,
+      providerImportedTransaction: null,
+      date: {
+        gte: new Date(Math.min(...times) - DUPLICATE_WINDOW_MS),
+        lte: new Date(Math.max(...times) + DUPLICATE_WINDOW_MS)
+      },
+      OR: [
+        { accountId: { in: accountIds } },
+        { transferToAccountId: { in: accountIds } }
+      ]
+    },
+    select: {
+      id: true,
+      name: true,
+      date: true,
+      accountId: true,
+      transferToAccountId: true,
+      accountAmount: true,
+      destinationAmount: true
+    }
+  });
+
+  return rows.map((row) => {
+    const accountId = row.providerAccount?.accountId;
+    if (row.status !== "pending" || !accountId) return { ...row, possibleDuplicates: [] };
+
+    const target = new Prisma.Decimal(row.amount).abs();
+    const matches = candidates.flatMap((candidate) => {
+      const distance = Math.abs(candidate.date.getTime() - row.transactionDate.getTime());
+      if (distance > DUPLICATE_WINDOW_MS) return [];
+      const applied = [
+        candidate.accountId === accountId ? candidate.accountAmount : null,
+        candidate.transferToAccountId === accountId ? candidate.destinationAmount : null
+      ].find((value) => value != null && new Prisma.Decimal(value).abs().eq(target));
+      if (applied == null) return [];
+      return [{ distance, duplicate: {
+        id: candidate.id,
+        name: candidate.name,
+        date: candidate.date.toISOString(),
+        amount: new Prisma.Decimal(applied).abs().toString()
+      } }];
+    });
+    matches.sort((a, b) => a.distance - b.distance);
+    return {
+      ...row,
+      possibleDuplicates: matches.slice(0, MAX_POSSIBLE_DUPLICATES).map((m) => m.duplicate)
+    };
+  });
+}
+
 /** Lists `userId`'s provider-imported transactions matching the DSQL expression in `rawQuery`, alongside total and pending counts. */
 export async function listImportedTransactions(
   userId: string,
@@ -423,7 +533,11 @@ export async function listImportedTransactions(
     })
   ]);
 
-  return { importedTransactions, total, pendingCount };
+  return {
+    importedTransactions: await attachPossibleDuplicates(userId, importedTransactions),
+    total,
+    pendingCount
+  };
 }
 
 /** Counts `userId`'s imported transactions still awaiting review. */

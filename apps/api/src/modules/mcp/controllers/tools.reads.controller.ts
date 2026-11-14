@@ -1,10 +1,12 @@
 import {
   exchangeRateToolSchema,
+  getCreditCardToolSchema,
   getReportToolSchema,
   listImportedToolSchema,
   transactionIdToolSchema
 } from "@flowledger/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getCreditCardBilling } from "../../accounts/services/creditCard.read.service.js";
 import { listDebts } from "../../debts/services/read.service.js";
 import { capDebtLists } from "../../debts/utils/capDebtLists.js";
 import { getExchangeRate, listCurrencies } from "../../currencies/services/read.service.js";
@@ -132,5 +134,16 @@ export function registerPersonalReadTools(server: McpServer, auth: McpAuth) {
           pendingCount: result.pendingCount
         };
       })
+  );
+
+  server.registerTool(
+    "get_credit_card",
+    {
+      description:
+        "Get the billing data of one of the user's credit cards by account id: debt, available credit, utilization, the current amount to avoid interest with its status, the interest estimate, and one page (12, newest first) of billing periods. Same data as GET /accounts/:id/credit-card. Not-found for a non-card or foreign account.",
+      inputSchema: getCreditCardToolSchema.shape,
+      annotations: READ_ONLY
+    },
+    ({ id, page }) => runRead(async () => ({ ...(await getCreditCardBilling(userId, id, page)) }))
   );
 }

@@ -6,6 +6,8 @@ const claimNextRun = vi.fn();
 const processRun = vi.fn();
 const failLostRuns = vi.fn();
 const applyRetention = vi.fn();
+const runCreditCardReminders = vi.fn();
+vi.mock("../../notifications/services/creditCardReminders.service.js", () => ({ runCreditCardReminders }));
 vi.mock("../services/claim.service.js", () => ({ claimNextRun }));
 vi.mock("../services/processRun.service.js", () => ({ processRun }));
 vi.mock("../services/maintenance.service.js", () => ({ failLostRuns, applyRetention }));
@@ -32,6 +34,20 @@ describe("NotificationRunWorker", () => {
     expect(prismaMock.notificationWorker.create.mock.calls[0]![0]!.data).toMatchObject({ id: w.workerId, pid: process.pid });
     expect(failLostRuns).toHaveBeenCalledTimes(1);
     expect(applyRetention).toHaveBeenCalledTimes(1);
+    await w.stop();
+  });
+
+  it("runs credit card reminders in maintenance and survives their failure", async () => {
+    const w = new NotificationRunWorker();
+    claimNextRun.mockResolvedValue(null);
+    runCreditCardReminders.mockRejectedValueOnce(Object.assign(new Error("boom"), { code: "P2002" }));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await w.start();
+    expect(runCreditCardReminders).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledWith("notification worker: credit card reminders failed", expect.objectContaining({ error: "P2002" }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(runCreditCardReminders).toHaveBeenCalledTimes(2);
+    logged.mockRestore();
     await w.stop();
   });
 

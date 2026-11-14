@@ -12,6 +12,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
+import { getCreditCard } from "./controllers/creditCard.read.controller.js";
 import { postAccount } from "./controllers/create.controller.js";
 import { deleteAccountHandler } from "./controllers/delete.controller.js";
 import { getAccounts } from "./controllers/read.controller.js";
@@ -67,6 +68,8 @@ accountsRouter.get(
   validate(accountsQueryParamSchema, "query"),
   asyncHandler(getAccounts)
 );
+
+accountsRouter.get("/:id/credit-card", asyncHandler(getCreditCard));
 
 accountsRouter.post("/", validate(accountSchema), asyncHandler(postAccount));
 

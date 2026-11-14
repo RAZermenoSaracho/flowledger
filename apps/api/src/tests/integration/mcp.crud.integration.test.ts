@@ -84,6 +84,7 @@ async function createActor(): Promise<Actor> {
 const rest = (key: string) => ({ Authorization: `Bearer ${key}` });
 
 const READ_TOOLS = [
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",
@@ -125,6 +126,7 @@ const WRITE_TOOLS = [
   "delete_category",
   "delete_notification_model",
   "delete_transaction",
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",
@@ -393,6 +395,37 @@ describe("MCP personal CRUD tools", () => {
       expect(http.status).toBe(200);
       const { unreadCount: _unreadCount, ...mcpData } = mcp.structuredContent!;
       expect(tool === "list_notifications" ? mcpData : mcp.structuredContent).toEqual(http.body);
+    });
+
+    it("get_credit_card equals the REST billing, counts an MCP-created transfer as a payment, and hides another user's card", async () => {
+      const cardId = (
+        await call(a.write, "create_account", {
+          name: "MCP card",
+          type: "credit_card",
+          currency: "USD",
+          creditLimit: "30000",
+          statementClosingDay: 20,
+          paymentDueRule: "day_of_next_month",
+          paymentDueValue: 20,
+          billingTimeZone: "America/Mexico_City"
+        })
+      ).structuredContent!.account.id as string;
+      const debitId = (await call(a.write, "create_account", { name: "MCP debit", type: "checking" })).structuredContent!.account.id as string;
+      const category = await prisma.category.findFirstOrThrow({ where: { users: { some: { userId: a.user.user.id } }, type: "expense" } });
+      await call(a.write, "create_transaction", { name: "Buy", amount: "5000", type: "expense", date: "2024-10-01T18:00:00Z", accountId: cardId, categoryId: category.id });
+      const transfer = await call(a.write, "create_transaction", { name: "Pay", amount: "2000", type: "transfer", date: "2024-11-01T18:00:00Z", accountId: debitId, transferToAccountId: cardId });
+      expect(transfer.isError).toBeUndefined();
+
+      const mcp = await call(a.read, "get_credit_card", { id: cardId });
+      const http = await request(app).get(`/v1/accounts/${cardId}/credit-card`).set(rest(a.readKey));
+      expect(mcp.structuredContent).toEqual(http.body);
+      expect(mcp.structuredContent).toMatchObject({ metrics: { debt: "3000" } });
+      const october = await call(a.read, "get_credit_card", { id: cardId, page: 3 });
+      const found = [mcp, october].flatMap((r) => r.structuredContent!.periods).find((p: { end: string }) => p.end === "2024-10-20");
+      expect(found).toMatchObject({ closingDebt: "5000", creditsBreakdown: { transfers: "2000" } });
+
+      const foreign = await call(b.read, "get_credit_card", { id: cardId });
+      expect(foreign.isError).toBe(true);
     });
 
     it("lists no row belonging only to another user", async () => {

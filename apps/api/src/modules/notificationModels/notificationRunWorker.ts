@@ -5,6 +5,7 @@ import { prisma } from "../../db/prisma.js";
 import { claimNextRun } from "./services/claim.service.js";
 import { applyRetention, failLostRuns } from "./services/maintenance.service.js";
 import { processRun } from "./services/processRun.service.js";
+import { runCreditCardReminders } from "../notifications/services/creditCardReminders.service.js";
 
 const POLL_MS = 2_000;
 const TOUCH_MS = 15_000;
@@ -113,6 +114,12 @@ export class NotificationRunWorker {
       await applyRetention();
     } catch (error) {
       console.error("notification worker: maintenance failed", { workerId: this.workerId, error: errorLabel(error) });
+    }
+    try {
+      // ponytail: evaluates every configured card each minute; pre-filter by the date windows (fully determined by the card config) when card counts grow.
+      await runCreditCardReminders();
+    } catch (error) {
+      console.error("notification worker: credit card reminders failed", { workerId: this.workerId, error: errorLabel(error) });
     }
   }
 }

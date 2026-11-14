@@ -38,6 +38,15 @@ describe("transaction save", () => {
   });
 
   describe("buildCreateBody", () => {
+    it("sends the card classification and the refunded category, and nulls them for transfers", () => {
+      const refund = buildCreateBody(
+        draft({ type: "income", creditCardKind: "refund", expenseOffsetCategoryId: "c1" })
+      );
+      expect(refund).toMatchObject({ creditCardKind: "refund", expenseOffsetCategoryId: "c1" });
+      const transfer = buildCreateBody(draft({ type: "transfer", creditCardKind: "payment" }));
+      expect(transfer).toMatchObject({ creditCardKind: null, expenseOffsetCategoryId: null });
+    });
+
     it("sends native amounts as exact decimal strings", () => {
       const body = buildCreateBody({
         ...newTransactionDraft("BTC", "2026-11-05T21:07"),

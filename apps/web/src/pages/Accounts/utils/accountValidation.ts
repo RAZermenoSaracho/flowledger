@@ -1,14 +1,20 @@
-import { updateAccountSchema } from "@flowledger/shared";
+import { refineCreditCardAccount, updateAccountSchema } from "@flowledger/shared";
 import { amountPrecisionError } from "../../../utils/currency";
 import type { FormErrors } from "../../../types/common.types";
 import type { AccountDraft } from "../types/accounts.types";
+import { creditCardFields } from "./creditCardDraft";
 
-/** Validates the account draft with the shared update schema, returning the first message per field. */
+/** Validates the account draft with the shared update schema plus the card rules, returning the first message per field. */
 export function validateAccountDraft(values: AccountDraft): FormErrors {
-  const result = updateAccountSchema.safeParse({
-    ...values,
+  const { name, type, identifier, currency } = values;
+  const result = updateAccountSchema.superRefine(refineCreditCardAccount).safeParse({
+    name,
+    type,
+    identifier,
+    currency,
     initialBalance:
-      values.initialBalance.trim() === "" ? undefined : values.initialBalance
+      values.initialBalance.trim() === "" ? undefined : values.initialBalance,
+    ...(values.type === "credit_card" ? creditCardFields(values) : {})
   });
   const errors: FormErrors = {};
   if (!result.success) {

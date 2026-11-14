@@ -136,6 +136,10 @@ Every terminal update is guarded by run ID, `processing` status and claiming wor
 
 To resend a terminal failure, use a new idempotency key or a new text/time bucket; repeating the old key returns the old run.
 
+## Credit card reminders
+
+The same maintenance timer (startup and every minute) also calls `runCreditCardReminders()` (`notifications/services/creditCardReminders.service.ts`). A failure there is logged by code only and never stops the worker or the other maintenance steps. Notifications use a `(userId, dedupeKey)` unique key with `skipDuplicates`, so several workers or restarts leave one notification per event. It evaluates all configured cards each run; pre-filtering by the date windows is the upgrade path when card counts grow. See `docs/DOMAIN_LOGIC.md`.
+
 ## Retention
 
 Maintenance clears terminal run text 7 days after `finishedAt` and deletes terminal runs after 30 days. Deleting a run never deletes its transaction. Queued and processing runs are never deleted by retention, regardless of age. Deleting a model explicitly cascades its runs, including pending work.

@@ -7,7 +7,13 @@ const valid: AccountDraft = {
   type: "checking",
   identifier: "",
   currency: "USD",
-  initialBalance: "10"
+  initialBalance: "10",
+  creditLimit: "",
+  statementClosingDay: "",
+  paymentDueRule: "",
+  paymentDueValue: "",
+  billingTimeZone: "",
+  annualInterestRate: ""
 };
 
 describe("validateAccountDraft", () => {

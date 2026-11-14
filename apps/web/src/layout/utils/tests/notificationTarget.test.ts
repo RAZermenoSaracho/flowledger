@@ -162,4 +162,22 @@ describe("notificationTarget", () => {
     });
     expect(notificationTarget(notification)).toBeNull();
   });
+
+  it.each([
+    "credit_card_period_closed",
+    "credit_card_payment_due_soon",
+    "credit_card_period_partially_paid",
+    "credit_card_period_paid",
+    "credit_card_payment_overdue"
+  ] as const)("links %s to the account's Credit card tab", (type) => {
+    const notification = makeNotification({
+      type,
+      metadata: { accountId: "card-1", closingDate: "2027-01-20" }
+    });
+    expect(notificationTarget(notification)).toBe("/accounts/card-1?tab=credit-card");
+  });
+
+  it("falls back to the accounts list when a card reminder has no accountId", () => {
+    expect(notificationTarget(makeNotification({ type: "credit_card_period_paid", metadata: {} }))).toBe("/accounts");
+  });
 });

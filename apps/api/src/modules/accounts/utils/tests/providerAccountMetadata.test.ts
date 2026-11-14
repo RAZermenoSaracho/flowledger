@@ -61,6 +61,9 @@ describe("normalizeAccountType", () => {
   it.each([
     ["credit card", AccountType.credit_card],
     ["tarjeta de credito", AccountType.credit_card],
+    ["Tarjeta de Crédito", AccountType.credit_card],
+    ["Debit Card", AccountType.checking],
+    ["Tarjeta de Débito", AccountType.checking],
     ["savings", AccountType.savings],
     ["ahorro", AccountType.savings],
     ["checking", AccountType.checking],

@@ -94,3 +94,8 @@ export function cashflowReportWhere(
     ...(date ? { date } : {})
   };
 }
+
+/** Prisma `where` fragment matching rows that are not on a credit-card account (unlinked rows included); applied to income totals so card credits are not counted as income. Never applied to {@link offsetReportWhere}. */
+export const nonCardIncomeWhere: Prisma.TransactionWhereInput = {
+  OR: [{ accountId: null }, { account: { type: { not: "credit_card" } } }]
+};
