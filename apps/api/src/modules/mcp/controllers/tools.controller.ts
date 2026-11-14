@@ -20,6 +20,7 @@ import { runRead, runWrite } from "../utils/runTool.js";
 import { buildTransactionsQuery } from "../utils/transactionsQuery.js";
 import { registerGroupReadTools, registerGroupWriteTools } from "./tools.groups.controller.js";
 import { registerImportedWriteTools } from "./tools.imports.controller.js";
+import { registerNotificationModelReadTools, registerNotificationModelWriteTools } from "./tools.notificationModels.controller.js";
 import { registerPersonalReadTools } from "./tools.reads.controller.js";
 import { registerUserWriteTools } from "./tools.user.controller.js";
 import { registerPersonalWriteTools } from "./tools.writes.controller.js";
@@ -27,7 +28,7 @@ import { registerPersonalWriteTools } from "./tools.writes.controller.js";
 const READ_ONLY = { readOnlyHint: true } as const;
 
 /**
- * Registers the FlowLedger tools on `server`: eleven read tools always, and the fifteen write tools only when
+ * Registers the FlowLedger tools on `server`: twenty-four read tools always, and the thirty-five write tools only when
  * `auth` holds the `write` scope (each write handler re-checks it). The acting user comes solely from `auth`.
  */
 export function registerTools(server: McpServer, auth: McpAuth) {
@@ -72,6 +73,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
 
   registerPersonalReadTools(server, auth);
   registerGroupReadTools(server, auth);
+  registerNotificationModelReadTools(server, auth);
 
   if (!auth.scopes.includes("write")) return;
 
@@ -108,4 +110,5 @@ export function registerTools(server: McpServer, auth: McpAuth) {
   registerImportedWriteTools(server, auth);
   registerUserWriteTools(server, auth);
   registerGroupWriteTools(server, auth);
+  registerNotificationModelWriteTools(server, auth);
 }

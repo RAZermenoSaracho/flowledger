@@ -188,3 +188,16 @@ pm2 status
 Expect HTTP 200 and both API and worker online. Staging uses the same commands from its checkout with its own process name (for example `flowledger-dev-worker`) and API port.
 
 Start, stop or restart the worker independently with `pm2 start|stop|restart flowledger-prod-worker`; inspect `pm2 logs flowledger-prod-worker`. Stopping the worker only pauses processing: the API keeps accepting ingests until backpressure applies. Restarting drains durable queued work; crashed in-flight work follows the recovery rules above.
+
+## MCP tools
+
+The MCP server exposes the REST model functionality, calling the same services (no second rule engine; scripts still run only in the sandbox).
+
+- Read: `list_notification_model_queue`, `list_notification_model_logs`, `list_notification_models`, `get_notification_model`, `list_notification_library` (optional `modelId`), `validate_notification_code`, `parse_notification_rules`, `test_notification_model`.
+- Write (`write` scope; audited as `mcp.<tool>`): `create_notification_model`, `update_notification_model`, `delete_notification_model`, `publish_notification_model`, `install_notification_model`, `update_notification_model_from_source`.
+
+`list_notification_model_queue` and `list_notification_model_logs` are read-only tools for an owned model `id`. Queue lists `queued|processing` runs oldest first by `receivedAt`, with text truncated to 80 characters. Logs lists `completed|skipped|failed` runs newest first by `finishedAt`; text is `null` after 7-day retention. `reason` is the skip reason or error, and `transactionId` links to `get_transaction`. Both accept filters `status`, `receivedFrom`, `receivedTo`, `page`, and `pageSize` (maximum 100). `test_notification_model` previews never appear in either list.
+
+- `test_notification_model` is a dry run: it persists no run and creates no transaction. Real ingestion is only via the model's ingest endpoint, which is not an MCP tool.
+- `create`/`update` accept either `code` or visual `rules` (mutually exclusive). `rules` are converted with `generateNotificationCode`, the same call the web Form editor uses, so the saved code is byte-identical.
+- An installed copy starts with empty bindings; set them with `update_notification_model` using ids from `list_accounts` / `list_categories` / `list_groups`. `visibility: "private"` unpublishes.

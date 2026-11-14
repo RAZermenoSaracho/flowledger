@@ -85,6 +85,7 @@ const rest = (key: string) => ({ Authorization: `Bearer ${key}` });
 
 const READ_TOOLS = [
   "get_exchange_rate",
+  "get_notification_model",
   "get_profile",
   "get_report",
   "get_transaction",
@@ -96,10 +97,17 @@ const READ_TOOLS = [
   "list_debts",
   "list_groups",
   "list_imported_transactions",
+  "list_notification_library",
+  "list_notification_model_logs",
+  "list_notification_model_queue",
+  "list_notification_models",
   "list_notifications",
   "list_shared_expenses",
+  "parse_notification_rules",
   "search_transactions",
-  "search_users"
+  "search_users",
+  "test_notification_model",
+  "validate_notification_code"
 ];
 
 const WRITE_TOOLS = [
@@ -110,18 +118,22 @@ const WRITE_TOOLS = [
   "create_category",
   "create_group",
   "create_group_category",
+  "create_notification_model",
   "create_shared_expense",
   "create_transaction",
   "delete_account",
   "delete_category",
+  "delete_notification_model",
   "delete_transaction",
   "get_exchange_rate",
+  "get_notification_model",
   "get_profile",
   "get_report",
   "get_transaction",
   "get_transaction_summary",
   "ignore_imported_transactions",
   "import_imported_transactions",
+  "install_notification_model",
   "list_accounts",
   "list_blocked_users",
   "list_categories",
@@ -129,9 +141,15 @@ const WRITE_TOOLS = [
   "list_debts",
   "list_groups",
   "list_imported_transactions",
+  "list_notification_library",
+  "list_notification_model_logs",
+  "list_notification_model_queue",
+  "list_notification_models",
   "list_notifications",
   "list_shared_expenses",
   "mark_notifications_read",
+  "parse_notification_rules",
+  "publish_notification_model",
   "reject_shared_expense",
   "remove_group_member",
   "request_settlement",
@@ -140,14 +158,18 @@ const WRITE_TOOLS = [
   "set_account_archived",
   "set_category_archived",
   "set_group_archived",
+  "test_notification_model",
   "unblock_user",
   "unignore_imported_transactions",
   "update_account",
   "update_category",
   "update_group",
   "update_imported_transaction",
+  "update_notification_model",
+  "update_notification_model_from_source",
   "update_preferences",
-  "update_transaction"
+  "update_transaction",
+  "validate_notification_code"
 ];
 
 describe("MCP personal CRUD tools", () => {
