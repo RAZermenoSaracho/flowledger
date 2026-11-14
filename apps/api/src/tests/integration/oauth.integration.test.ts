@@ -312,7 +312,7 @@ describe("MCP OAuth server", () => {
 
     const read = await grokToken(user, false);
     expect(read.scope).toBe("read");
-    expect((await rpc(read.access_token, "tools/list")).tools).toHaveLength(16);
+    expect((await rpc(read.access_token, "tools/list")).tools).toHaveLength(22);
     expect((await tool(read.access_token, "delete_transaction", { id })).isError).toBe(true);
 
     expect((await tool(write.access_token, "delete_transaction", { id })).isError).toBeUndefined();
