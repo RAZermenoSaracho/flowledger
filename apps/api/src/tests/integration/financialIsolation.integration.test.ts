@@ -28,6 +28,8 @@ const ctx = {} as {
   b: Actor;
   c: Actor;
   accountId: string;
+  cardId: string;
+  readKeyA: string;
   categoryId: string;
   transactionId: string;
   importedId: string;
@@ -74,6 +76,12 @@ describe("financial data isolation", () => {
     const { accountId, categoryId } = await seedOwnerData(ctx.a);
     ctx.accountId = accountId;
     ctx.categoryId = categoryId;
+    ctx.cardId = (
+      await post(ctx.a, "/accounts", {
+        name: "Card", type: "credit_card", statementClosingDay: 20, paymentDueRule: "day_of_next_month", paymentDueValue: 20, billingTimeZone: "America/Mexico_City"
+      })
+    ).account.id;
+    ctx.readKeyA = (await post(ctx.a, "/users/me/api-keys", { name: "read" })).key;
     ctx.transactionId = (await seedTransaction(ctx.a, accountId, categoryId)).id;
     ctx.importedId = (
       await prisma.providerImportedTransaction.create({
@@ -126,6 +134,8 @@ describe("financial data isolation", () => {
       ["/reports", "get", "/reports/summary"],
       ["/notification-models", "get", "/notification-models"],
       ["/v1", "get", "/v1/accounts"],
+      ["/accounts", "get", "/accounts/some-card/credit-card"],
+      ["/v1", "get", "/v1/accounts/some-card/credit-card"],
       ["/mcp", "post", "/mcp"]
     ];
     const credentials: [string, () => string | undefined][] = [
@@ -151,6 +161,7 @@ describe("financial data isolation", () => {
       ["delete transaction", (c) => ({ method: "delete", path: `/transactions/${c.transactionId}` })],
       ["update account", (c) => ({ method: "put", path: `/accounts/${c.accountId}`, body: { name: "hijacked" } })],
       ["archive account", (c) => ({ method: "post", path: `/accounts/${c.accountId}/archive` })],
+      ["read credit card billing", (c) => ({ method: "get", path: `/accounts/${c.cardId}/credit-card` })],
       ["delete account", (c) => ({ method: "delete", path: `/accounts/${c.accountId}` })],
       ["update category", (c) => ({ method: "put", path: `/categories/${c.categoryId}`, body: { name: "hijacked" } })],
       ["archive category", (c) => ({ method: "post", path: `/categories/${c.categoryId}/archive` })],
@@ -179,6 +190,15 @@ describe("financial data isolation", () => {
         expect(res.status, JSON.stringify(res.body)).toBe(404);
       }
       await expectOwnerDataUntouched();
+    });
+
+    it("B cannot read A's card billing through /v1, while A can", async () => {
+      const readKeyB = (await post(ctx.b, "/users/me/api-keys", { name: "read-b" })).key as string;
+      const foreign = await request(app).get(`/v1/accounts/${ctx.cardId}/credit-card`).set(bearer(readKeyB));
+      expect(foreign.status, JSON.stringify(foreign.body)).toBe(404);
+      const own = await request(app).get(`/v1/accounts/${ctx.cardId}/credit-card`).set(bearer(ctx.readKeyA));
+      expect(own.status).toBe(200);
+      expect(own.body.accountId).toBe(ctx.cardId);
     });
 
     async function expectOwnerDataUntouched() {

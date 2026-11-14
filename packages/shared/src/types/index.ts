@@ -138,6 +138,10 @@ export interface InterestEstimate {
 export interface BillingPeriod {
   start: string;
   end: string;
+  /** Period start instant (inclusive), UTC ISO, computed in the card's billing time zone. */
+  startAt: string;
+  /** Closing boundary instant (exclusive), UTC ISO: the start of the day after `end` in the billing time zone. */
+  endAt: string;
   dueDate: string;
   status: BillingPeriodStatus;
   closingDebt: string | null;
@@ -178,4 +182,22 @@ export interface CreditCardBilling {
   page: number;
   pageSize: number;
   totalPeriods: number;
+}
+
+/** Credits that reduced credit-card debt in the report range, split informationally. Decimal strings in the preferred currency. */
+export interface CreditCardCredits {
+  total: string;
+  transfers: string;
+  payments: string;
+  refunds: string;
+  cashback: string;
+  other: string;
+}
+
+/** An existing transaction that may duplicate a pending imported row. */
+export interface PossibleDuplicate {
+  id: string;
+  name: string;
+  date: string;
+  amount: string;
 }

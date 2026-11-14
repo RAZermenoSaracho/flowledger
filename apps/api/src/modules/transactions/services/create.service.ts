@@ -62,6 +62,10 @@ export async function createTransaction(userId: string, body: TransactionInput, 
   return tx ? write(tx) : prisma.$transaction(write);
 }
 
+function isCardCredit(type: "income" | "expense", accountType: string | null | undefined) {
+  return type === "income" && accountType === "credit_card";
+}
+
 /** Converts one pending provider-imported transaction into a real `Transaction`, marking the source row `processed`. `accountAmount` is required (400) when the provider currency differs from the linked account's currency. */
 export async function importProviderImportedTransaction(input: {
   id: string;
@@ -90,7 +94,7 @@ export async function importProviderImportedTransaction(input: {
     type
   });
 
-  if (!categoryId) {
+  if (!categoryId && !isCardCredit(type, existing.providerAccount?.account?.type)) {
     throw new HttpError(400, "Category is required before importing");
   }
 
@@ -135,7 +139,7 @@ export async function importProviderImportedTransaction(input: {
         ...appliedAmounts,
         type,
         date: current.transactionDate,
-        categoryId,
+        categoryId: categoryId ?? null,
         accountId: current.providerAccount?.accountId ?? null
       }
     });
@@ -145,7 +149,7 @@ export async function importProviderImportedTransaction(input: {
       data: {
         status: "processed",
         errorMessage: null,
-        categoryId,
+        categoryId: categoryId ?? null,
         transactionId: transaction.id
       },
       include: importedTransactionInclude
@@ -176,10 +180,13 @@ export async function batchImportProviderImportedTransactions(
       userId,
       id: { in: rows.flatMap((row) => (row.providerAccountRefId ? [row.providerAccountRefId] : [])) }
     },
-    select: { id: true, account: { select: { currency: true } } }
+    select: { id: true, account: { select: { currency: true, type: true } } }
   });
   const rowAccountCurrency = new Map(
     linkedAccounts.map((linked) => [linked.id, linked.account?.currency.toUpperCase()])
+  );
+  const rowAccountType = new Map(
+    linkedAccounts.map((linked) => [linked.id, linked.account?.type])
   );
   const errors: { id: string; message: string }[] = [];
 
@@ -221,7 +228,11 @@ export async function batchImportProviderImportedTransactions(
     }
 
     const categoryId = batchCategoryId ?? row.categoryId;
-    if (!categoryId) {
+    const cardCredit = isCardCredit(
+      type,
+      row.providerAccountRefId ? rowAccountType.get(row.providerAccountRefId) : undefined
+    );
+    if (!categoryId && !cardCredit) {
       errors.push(
         importValidationError(row.id, "Category is required before importing")
       );

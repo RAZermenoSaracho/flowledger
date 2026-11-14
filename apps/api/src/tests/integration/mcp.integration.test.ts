@@ -52,6 +52,7 @@ function rawPost(headers: Record<string, string>) {
 const txBody = { name: "Coffee", amount: "4.5", type: "expense", date: "2024-03-10" };
 
 const READ_TOOLS = [
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",
@@ -93,6 +94,7 @@ const WRITE_TOOLS = [
   "delete_category",
   "delete_notification_model",
   "delete_transaction",
+  "get_credit_card",
   "get_exchange_rate",
   "get_notification_model",
   "get_profile",

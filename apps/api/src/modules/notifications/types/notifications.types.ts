@@ -7,6 +7,8 @@ export type NotificationInput = {
   title: string;
   message: string;
   metadata?: Prisma.InputJsonValue;
+  /** Unique per user; a second notification with the same key is silently skipped. */
+  dedupeKey?: string;
   /** The user whose action triggered this notification; it is dropped when the recipient has blocked that user. */
   senderUserId?: string;
 };

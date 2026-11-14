@@ -270,6 +270,43 @@ describe("/v1 routes", () => {
     });
   });
 
+  describe("credit-card billing", () => {
+    async function createCard(actor: Actor) {
+      const res = await request(app)
+        .post("/accounts")
+        .set(bearer(actor.jwt))
+        .send({
+          name: "Card",
+          type: "credit_card",
+          creditLimit: "30000",
+          statementClosingDay: 20,
+          paymentDueRule: "day_of_next_month",
+          paymentDueValue: 20,
+          billingTimeZone: "America/Mexico_City"
+        });
+      return res.body.account.id as string;
+    }
+
+    it("serves the same body as the internal route with a read key", async () => {
+      const cardId = await createCard(a);
+      const internal = await request(app).get(`/accounts/${cardId}/credit-card`).set(bearer(a.jwt));
+      const v1 = await request(app).get(`/v1/accounts/${cardId}/credit-card`).set(bearer(a.readKey));
+      expect(v1.status).toBe(200);
+      expect(v1.body).toEqual(internal.body);
+    });
+
+    it("returns 404 for another user's card and for a non-card account", async () => {
+      const cardId = await createCard(b);
+      expect((await request(app).get(`/v1/accounts/${cardId}/credit-card`).set(bearer(a.readKey))).status).toBe(404);
+      expect((await request(app).get(`/v1/accounts/${a.accountId}/credit-card`).set(bearer(a.readKey))).status).toBe(404);
+    });
+
+    it("exposes no write route for billing", async () => {
+      const cardId = await createCard(a);
+      expect((await request(app).post(`/v1/accounts/${cardId}/credit-card`).set(bearer(a.writeKey)).send({})).status).toBe(404);
+    });
+  });
+
   describe("audit and rate limit", () => {
     it("emits one audit line per write (201, 403, 404) and none for GET", async () => {
       const { auditLog } = await import("../../../utils/auditLog.js");

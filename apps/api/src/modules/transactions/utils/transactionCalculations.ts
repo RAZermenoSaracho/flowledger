@@ -18,6 +18,7 @@ type CashflowTransaction = {
   amount: AmountValue;
   categoryId?: string | null;
   expenseOffsetCategoryId?: string | null;
+  accountType?: string | null;
 };
 
 export const REPORT_TRANSACTION_TYPES = ["income", "expense"] as const;
@@ -88,6 +89,7 @@ export function withAccountBalances<
 
 /**
  * Aggregates transactions into per-month cashflow buckets, optionally narrowed by category.
+ * Income on a `credit_card` account (`accountType`) is a debt credit, not income: it is skipped for income totals but still counts as an expense reimbursement when it has an offset category.
  * Months are bucketed in `timeZone` (an IANA name), defaulting to UTC. Sums are exact `Decimal`s; the returned figures are numbers.
  */
 export function calculateMonthlyCashflow(
@@ -154,7 +156,10 @@ export function calculateMonthlyCashflow(
         ? categoryIdSet.has(transaction.expenseOffsetCategoryId)
         : false);
 
-    if (transaction.type === "income" && matchesCategory) {
+    const isCardIncome =
+      transaction.type === "income" && transaction.accountType === "credit_card";
+
+    if (transaction.type === "income" && matchesCategory && !isCardIncome) {
       row.income = row.income.plus(amount);
       row.grossIncome = row.grossIncome.plus(amount);
     }
@@ -168,7 +173,8 @@ export function calculateMonthlyCashflow(
     if (
       transaction.type === "income" &&
       transaction.expenseOffsetCategoryId &&
-      matchesCategory
+      matchesCategory &&
+      !isCardIncome
     ) {
       row.incomeOffsets = row.incomeOffsets.plus(amount);
     }

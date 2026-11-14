@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PROVIDER_IMPORTED_TRANSACTION_STATUSES, TRANSACTION_TYPES } from "../constants/index.js";
-import { updateAccountSchema } from "./accounts.js";
+import { creditCardBillingQuerySchema, updateAccountSchema } from "./accounts.js";
 import { categorySchema } from "./categories.js";
 import { optionalDateStringSchema } from "./common.js";
 import { currencyRateQuerySchema } from "./currencies.js";
@@ -55,6 +55,11 @@ export const listImportedToolSchema = z
 
 /** Input of the MCP `set_account_archived` and `set_category_archived` tools: target `id` and desired state. */
 export const setArchivedToolSchema = z.object({ id: z.string().min(1), archived: z.boolean() }).strict();
+
+/** Input of the MCP `get_credit_card` tool: the card account `id` and an optional 1-based billing-periods `page`. */
+export const getCreditCardToolSchema = z
+  .object({ id: z.string().min(1), page: creditCardBillingQuerySchema.shape.page })
+  .strict();
 
 /** Input of the MCP `delete_transaction` tool: the target transaction `id` only. */
 export const transactionIdToolSchema = z.object({ id: z.string().min(1) }).strict();

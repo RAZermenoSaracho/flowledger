@@ -6,7 +6,8 @@ import {
   assertExpenseOffsetAllowed,
   assertGroupRelations,
   assertOwnedRelations,
-  assertTransferAllowed
+  assertTransferAllowed,
+  resolveCreditCardKind
 } from "./transactionValidation.service.js";
 
 /**
@@ -19,6 +20,7 @@ export async function prepareTransactionInput(userId: string, body: TransactionI
   assertExpenseOffsetAllowed(body);
   assertTransferAllowed(body);
   await assertOwnedRelations(userId, body);
+  await resolveCreditCardKind(userId, body, { lenient: false });
   await assertGroupRelations(userId, body);
 
   const { sharedExpense, executionCurrency, ...input } = body;

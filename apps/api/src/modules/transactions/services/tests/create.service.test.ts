@@ -7,7 +7,8 @@ vi.mock("../transactionValidation.service.js", () => ({
   assertGroupRelations: vi.fn(),
   assertOwnedRelations: vi.fn(),
   assertTransferAllowed: vi.fn(),
-  findAccountCurrencies: vi.fn()
+  findAccountCurrencies: vi.fn(),
+  resolveCreditCardKind: vi.fn()
 }));
 
 vi.mock("../../../shared-expenses/services/create.service.js", () => ({
@@ -288,6 +289,66 @@ describe("importProviderImportedTransaction", () => {
     ).rejects.toThrow("Category is required before importing");
   });
 
+  it("imports a positive row on a credit card without a category", async () => {
+    prismaMock.providerImportedTransaction.findFirst.mockResolvedValue({
+      id: "it-1",
+      status: "pending",
+      amount: new Prisma.Decimal("6000"),
+      categoryId: null,
+      currency: "MXN",
+      description: "Payment",
+      transactionDate: new Date(),
+      providerAccount: { accountId: "card-1", account: { currency: "MXN", type: "credit_card" } }
+    } as never);
+    assertImportedTransactionCategoryMock.mockResolvedValue(null);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: null } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "MXN",
+      exchangeRate: 1,
+      amountInPreferredCurrency: new Prisma.Decimal("6000")
+    });
+    const tx = {
+      providerImportedTransaction: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "it-1",
+          status: "pending",
+          amount: new Prisma.Decimal("6000"),
+          description: "Payment",
+          transactionDate: new Date(),
+          providerAccount: { accountId: "card-1" }
+        }),
+        update: vi.fn().mockResolvedValue({ id: "it-1" })
+      },
+      transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
+    };
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    await importProviderImportedTransaction({ id: "it-1", userId: "user-1" });
+
+    expect(tx.transaction.create.mock.calls[0]?.[0].data).toMatchObject({
+      type: "income",
+      categoryId: null,
+      accountId: "card-1"
+    });
+  });
+
+  it("still requires a category for an expense on a credit card", async () => {
+    prismaMock.providerImportedTransaction.findFirst.mockResolvedValue({
+      id: "it-1",
+      status: "pending",
+      amount: new Prisma.Decimal("-10"),
+      categoryId: null,
+      providerAccount: { account: { type: "credit_card" } }
+    } as never);
+    assertImportedTransactionCategoryMock.mockResolvedValue(null);
+
+    await expect(
+      importProviderImportedTransaction({ id: "it-1", userId: "user-1" })
+    ).rejects.toThrow("Category is required before importing");
+  });
+
   describe("applied amounts", () => {
     function setupImport(rowCurrency: string, accountCurrency: string) {
       prismaMock.providerImportedTransaction.findFirst.mockResolvedValue({
@@ -472,6 +533,27 @@ describe("batchImportProviderImportedTransactions", () => {
         ]
       }
     });
+  });
+
+  it("does not require a category for a positive row on a credit card", async () => {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
+      {
+        id: "it-1",
+        status: "pending",
+        amount: new Prisma.Decimal("50"),
+        currency: "MXN",
+        categoryId: null,
+        providerAccountRefId: "pa-1"
+      }
+    ] as never);
+    prismaMock.providerAccount.findMany.mockResolvedValue([
+      { id: "pa-1", account: { currency: "MXN", type: "credit_card" } }
+    ] as never);
+    prismaMock.providerImportedTransaction.findFirst.mockResolvedValue(null);
+
+    await expect(
+      batchImportProviderImportedTransactions("user-1", { selection: { mode: "ids", ids: ["it-1"] } })
+    ).rejects.toThrow("Imported transaction not found");
   });
 
   it("throws a 400 when a row has no resolvable category", async () => {

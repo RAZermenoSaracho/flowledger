@@ -32,4 +32,17 @@ describe("prepareTransactionInput", () => {
     prismaMock.account.findFirst.mockResolvedValue(null);
     await expect(prepareTransactionInput("u1", body)).rejects.toMatchObject({ message: "Account does not exist or is archived" });
   });
+
+  it("rejects creditCardKind on an expense into a non-card account, naming creditCardKind", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "a1", type: "checking" } as never);
+    await expect(
+      prepareTransactionInput("u1", { ...(body as object), type: "income", creditCardKind: "payment" } as never)
+    ).rejects.toMatchObject({ details: { issues: { fieldErrors: { creditCardKind: [expect.any(String)] } } } });
+  });
+
+  it("accepts interest on a card expense", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "a1", type: "credit_card" } as never);
+    const result = await prepareTransactionInput("u1", { ...(body as object), creditCardKind: "interest" } as never);
+    expect(result.input.creditCardKind).toBe("interest");
+  });
 });
