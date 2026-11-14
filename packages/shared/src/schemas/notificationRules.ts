@@ -214,7 +214,7 @@ export function generateNotificationCode(rules: NotificationRules): string {
   return out.join("\n") + "\n";
 }
 
-/** The starting rule set for a new model: the "Compra realizada por" purchase example. */
+/** The starting rule set for a new model: the "Purchase completed for" purchase example. */
 export const DEFAULT_NOTIFICATION_RULES: NotificationRules = {
   normalize: true,
   rules: [
@@ -222,7 +222,7 @@ export const DEFAULT_NOTIFICATION_RULES: NotificationRules = {
       label: "Purchase",
       match: "all",
       conditions: [
-        { kind: "contains", text: "compra realizada por", ignoreCase: false }
+        { kind: "contains", text: "purchase completed for", ignoreCase: false }
       ],
       extract: {
         pattern: String.raw`\$\s*([\d,]+(?:\.\d{1,2})?)`,
@@ -233,7 +233,7 @@ export const DEFAULT_NOTIFICATION_RULES: NotificationRules = {
       action: {
         kind: "expense",
         amount: { group: 1 },
-        name: { fixed: "Compra realizada" }
+        name: { fixed: "Purchase completed" }
       }
     }
   ],

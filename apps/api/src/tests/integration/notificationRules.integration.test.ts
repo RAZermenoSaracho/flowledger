@@ -80,25 +80,25 @@ describe("notification visual rules (real sandbox)", () => {
     const user = await createUser();
     const modelId = await createDefaultModel(user);
 
-    const hit = await playground(user, modelId, "Compra realizada por $150.00");
+    const hit = await playground(user, modelId, "Purchase completed for $150.00");
     expect(hit.status, JSON.stringify(hit.body)).toBe(200);
     expect(hit.body).toMatchObject({
       outcome: "proposal",
-      proposal: { kind: "expense", amount: "150.00", name: "Compra realizada" },
+      proposal: { kind: "expense", amount: "150.00", name: "Purchase completed" },
       transactionPreview: { executionCurrency: "MXN" }
     });
 
     const miss = await playground(user, modelId, "Hola, ¿qué tal?");
     expect(miss.body).toMatchObject({ outcome: "skip", reason: "not a purchase" });
 
-    const run = await runThroughWorker(user, modelId, "Compra realizada por $150.00");
+    const run = await runThroughWorker(user, modelId, "Purchase completed for $150.00");
     expect(run, JSON.stringify(run)).toMatchObject({ status: "completed", reason: null });
     const txs = await prisma.transaction.findMany({ where: { userId: user.userId } });
     expect(txs).toHaveLength(1);
     expect(txs[0]).toMatchObject({
       id: run.transactionId,
       type: "expense",
-      name: "Compra realizada",
+      name: "Purchase completed",
       accountId: null,
       categoryId: null,
       executionCurrency: "MXN"

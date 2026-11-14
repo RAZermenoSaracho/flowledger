@@ -13,13 +13,13 @@ export const notificationHelpers: NotificationHelper[] = [
     signature: "expense(amount, name, account=None, category=None, group=None, date=None, currency=None, notes=None)",
     description:
       "Proposes an expense. Only amount (a string) and name are required. account, category and group are optional slot keys, not record ids; omitted ones are never resolved. Currency when omitted: the bound account's currency, else your preferred currency (USD if you have none).",
-    example: 'return expense(amount="1234.50", name="OXXO")  # or add account="card", category="general", currency="MXN"'
+    example: 'return expense(amount="1234.50", name="Coffee shop")  # or add account="card", category="general", currency="MXN"'
   },
   {
     name: "income",
     signature: "income(amount, name, account=None, category=None, group=None, date=None, currency=None, notes=None)",
     description: "Proposes an income; same arguments and currency resolution as expense.",
-    example: 'return income(amount="2000.00", name="Juan Perez", account="card")'
+    example: 'return income(amount="2000.00", name="Salary", account="card")'
   },
   {
     name: "transfer",
@@ -43,7 +43,7 @@ export const notificationHelpers: NotificationHelper[] = [
     name: "normalize",
     signature: "normalize(s)",
     description: "Lowercases, strips accents and collapses whitespace.",
-    example: 'normalize("  Compraste   en ÓXXO ")  # "compraste en oxxo"'
+    example: 'normalize("  Purchase at   CAFÉ ")  # "purchase at cafe"'
   },
   {
     name: "parse_date",

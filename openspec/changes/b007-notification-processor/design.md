@@ -544,11 +544,11 @@ def process(text, ctx):
     t = normalize(text)
 
     # Purchase
-    if "compra realizada por" in t:
+    if "purchase completed for" in t:
         m = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", t)
         if not m:
             return skip("no amount")
-        return expense(amount=amount(m.group(1)), name="Compra realizada")
+        return expense(amount=amount(m.group(1)), name="Purchase completed")
 
     return skip("not a purchase")
 ```

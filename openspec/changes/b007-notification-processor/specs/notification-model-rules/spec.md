@@ -7,8 +7,8 @@
 A notification model SHALL have exactly one processing definition, its Python script. The Form's visual rules SHALL be derived from that script and never stored or executed separately. The Playground and real ingestion SHALL always execute the saved script.
 
 #### Scenario: Rules built in Form run identically
-- **WHEN** a user builds a rule in Form that skips texts without "compra realizada por", extracts `\$\s*([\d,]+(?:\.\d{1,2})?)` and creates an expense named "Compra realizada", then saves
-- **THEN** the Code tab shows the equivalent Python, and both the Playground and real ingestion of "Compra realizada por $150.00" produce an expense of `150.00` named "Compra realizada" in the default currency, with no account or category
+- **WHEN** a user builds a rule in Form that skips texts without "purchase completed for", extracts `\$\s*([\d,]+(?:\.\d{1,2})?)` and creates an expense named "Purchase completed", then saves
+- **THEN** the Code tab shows the equivalent Python, and both the Playground and real ingestion of "Purchase completed for $150.00" produce an expense of `150.00` named "Purchase completed" in the default currency, with no account or category
 
 ### Requirement: Form edits update the code deterministically
 
@@ -54,5 +54,5 @@ The visual builder SHALL support:
 Transfers SHALL require account and to-account. Expense and income SHALL require only amount and name.
 
 #### Scenario: Ordered rules
-- **WHEN** rule 1 skips texts containing "promo" and rule 2 creates an expense for texts containing "compra"
-- **THEN** "promo compra $5.00" is skipped with rule 1's reason, "compra $5.00" creates an expense, and any other text is skipped with the fallback reason
+- **WHEN** rule 1 skips texts containing "promo" and rule 2 creates an expense for texts containing "purchase"
+- **THEN** "promo purchase $5.00" is skipped with rule 1's reason, "purchase $5.00" creates an expense, and any other text is skipped with the fallback reason

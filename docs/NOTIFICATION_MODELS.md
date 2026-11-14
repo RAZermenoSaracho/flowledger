@@ -80,16 +80,16 @@ def process(text, ctx):
     t = normalize(text)
 
     # Purchase
-    if "compra realizada por" in t:
+    if "purchase completed for" in t:
         m = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", t)
         if not m:
             return skip("no amount")
-        return expense(amount=amount(m.group(1)), name="Compra realizada")
+        return expense(amount=amount(m.group(1)), name="Purchase completed")
 
     return skip("not a purchase")
 ```
 
-`Compra realizada por $150.00` becomes an expense of `150.00` named "Compra realizada" in your default currency, with no account or category.
+`Purchase completed for $150.00` becomes an expense of `150.00` named "Purchase completed" in your default currency, with no account or category.
 
 ## Sandbox
 

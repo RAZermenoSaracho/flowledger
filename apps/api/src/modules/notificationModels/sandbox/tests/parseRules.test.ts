@@ -30,11 +30,11 @@ def process(text,   ctx):
     t = normalize( text )   # keep it normalized
 
     # Purchase
-    if 'compra realizada por' in t:   # the trigger
+    if 'purchase completed for' in t:   # the trigger
         m = re.search(r'\\$\\s*([\\d,]+(?:\\.\\d{1,2})?)', t)
         if not   m:
             return skip('no amount')
-        return expense(name='Compra realizada', amount=amount(m.group(1)))
+        return expense(name='Purchase completed', amount=amount(m.group(1)))
 
     return skip('not a purchase')
 `;
@@ -52,8 +52,8 @@ describe("parseRules (real sandbox)", { timeout: 120_000 }, () => {
     expect(await rulesOf(HAND_WRITTEN)).toEqual(DEFAULT_NOTIFICATION_RULES);
 
     for (const code of [generated, HAND_WRITTEN]) {
-      const hit = await runScript({ code, text: "Compra realizada por $150.00", ctx });
-      expect(hit).toMatchObject({ kind: "proposal", proposal: { kind: "expense", amount: "150.00", name: "Compra realizada" } });
+      const hit = await runScript({ code, text: "Purchase completed for $150.00", ctx });
+      expect(hit).toMatchObject({ kind: "proposal", proposal: { kind: "expense", amount: "150.00", name: "Purchase completed" } });
       expect(await runScript({ code, text: "hello", ctx })).toMatchObject({ kind: "skip", reason: "not a purchase" });
     }
   });
