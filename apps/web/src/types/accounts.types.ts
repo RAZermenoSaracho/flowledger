@@ -1,5 +1,6 @@
 import type {
   AccountType,
+  PaymentDueRule,
   ProviderConnector,
   ProviderInstitution
 } from "@flowledger/shared";
@@ -12,6 +13,12 @@ export type Account = {
   identifier?: string | null;
   currency: string;
   initialBalance: string;
+  creditLimit?: string | null;
+  statementClosingDay?: number | null;
+  paymentDueRule?: PaymentDueRule | null;
+  paymentDueValue?: number | null;
+  billingTimeZone?: string | null;
+  annualInterestRate?: string | null;
   currentBalance?: string;
   currentBalanceInPreferredCurrency?: number;
   source?: "manual" | "synced";

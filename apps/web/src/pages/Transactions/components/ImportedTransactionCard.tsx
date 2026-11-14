@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { routes } from "../../../constants/routes";
 import { Button } from "../../../components/Button";
 import { SelectField } from "../../../components/FormField";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
@@ -69,8 +71,10 @@ export function ImportedTransactionCard({
   const compatibleCategories = categories.filter(
     (category) => !type || category.type === type
   );
+  const isCardIncome =
+    type === "income" && transaction.providerAccount?.account?.type === "credit_card";
   const needsCategory =
-    transaction.status === "pending" && !transaction.categoryId;
+    transaction.status === "pending" && !transaction.categoryId && !isCardIncome;
 
   return (
     <div
@@ -101,6 +105,22 @@ export function ImportedTransactionCard({
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {metadataLine(transaction)}
         </p>
+        {transaction.possibleDuplicates?.length ? (
+          <div className="mt-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100">
+            <p className="font-semibold">Possible duplicate of an existing transaction. Use Ignore if it is.</p>
+            <ul className="mt-1 list-disc pl-4">
+              {transaction.possibleDuplicates.map((duplicate) => (
+                <li key={duplicate.id}>
+                  <Link to={routes.transaction(duplicate.id)} className="underline">
+                    {duplicate.name}
+                  </Link>{" "}
+                  · {new Date(duplicate.date).toLocaleDateString()} ·{" "}
+                  {formatMoney(duplicate.amount, transaction.currency)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {needsCategory ? (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
             This transaction needs classification before import.
@@ -137,7 +157,7 @@ export function ImportedTransactionCard({
           <div className="grid gap-2 sm:grid-cols-2">
             <Button
               type="button"
-              disabled={!transaction.categoryId || isImporting}
+              disabled={(!transaction.categoryId && !isCardIncome) || isImporting}
               onClick={onImport}
             >
               Import

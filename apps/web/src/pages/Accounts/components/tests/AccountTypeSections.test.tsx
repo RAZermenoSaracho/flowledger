@@ -23,7 +23,7 @@ describe("AccountTypeSections", () => {
     expect(screen.queryByText("Savings section")).not.toBeInTheDocument();
   });
 
-  it("registers no sections today", () => {
-    expect(ACCOUNT_TYPE_SECTIONS).toEqual({});
+  it("registers only the credit card section", () => {
+    expect(Object.keys(ACCOUNT_TYPE_SECTIONS)).toEqual(["credit_card"]);
   });
 });

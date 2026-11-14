@@ -1,7 +1,7 @@
 import type { Account } from "../../../types/accounts.types";
 import type { useImportedTransactionsWorkflow } from "../hooks/useImportedTransactionsWorkflow";
 import type { Category } from "../../../types/categories.types";
-import type { ParticipantStatus } from "@flowledger/shared";
+import type { CreditCardKind, ParticipantStatus } from "@flowledger/shared";
 import type { ShareAcceptance } from "../../../types/sharedExpenses.types";
 import type { ProviderImportedTransaction } from "../../../types/transactions.types";
 
@@ -45,6 +45,10 @@ export type TransactionDraft = {
   accountId: string;
   transferToAccountId: string;
   categoryId: string;
+  /** Category a card refund offsets (`expenseOffsetCategoryId`); only meaningful when `creditCardKind` is `refund`. */
+  expenseOffsetCategoryId: string;
+  /** Card entry classification; empty means other credit (income) or charge (expense). */
+  creditCardKind: CreditCardKind | "";
   groupId: string;
   notes: string;
   isShared: boolean;

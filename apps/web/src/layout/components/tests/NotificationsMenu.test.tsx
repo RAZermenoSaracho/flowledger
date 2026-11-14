@@ -291,4 +291,29 @@ describe("NotificationsMenu", () => {
       "true"
     );
   });
+
+  it("labels a credit-card reminder and opens the card's Credit card tab", async () => {
+    mockBaseline({
+      notifications: [
+        makeNotification({
+          type: "credit_card_payment_overdue",
+          title: "Visa payment overdue",
+          metadata: { accountId: "card-1", closingDate: "2027-01-20" }
+        })
+      ]
+    });
+    server.use(
+      http.patch(`${API_URL}/notifications/:id/read`, () =>
+        HttpResponse.json({ notification: makeNotification({ readAt: "2024-01-02T00:00:00.000Z" }) })
+      )
+    );
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(await screen.findByRole("button", { name: "Notifications" }));
+    expect(await screen.findByText("Credit card · Payment overdue")).toBeInTheDocument();
+    await user.click(screen.getByText("Visa payment overdue"));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/accounts/card-1?tab=credit-card");
+  });
 });

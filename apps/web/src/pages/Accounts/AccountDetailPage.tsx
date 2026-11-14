@@ -1,6 +1,6 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { CurrencySelect } from "../../components/CurrencySelect";
@@ -12,10 +12,12 @@ import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
 import { RelatedTransactionsList } from "../Transactions/components/RelatedTransactionsList";
+import { formatFilterValue } from "../../utils/dateTime";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
 import { AddAccountCard } from "./components/AddAccountCard";
+import { CreditCardTab } from "./components/CreditCardTab";
 import { AccountTypeSections } from "./components/AccountTypeSections";
 import { useAccountActions } from "./hooks/useAccountActions";
 import { useAccountForm } from "./hooks/useAccountForm";
@@ -24,11 +26,12 @@ import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
-/** Account Form View at `/accounts/:id`: tabs General (editable fields, sync panel) and Transactions (paginated list); archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
+/** Account Form View at `/accounts/:id`: tabs General (editable fields, type sections, sync panel), Transactions (paginated list, optionally narrowed to a billing period by `periodFrom`/`periodTo`) and, for credit cards, Credit card; archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
 export function AccountDetailPage() {
   const { id = "" } = useParams();
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const accountsQuery = useQuery({
     queryKey: ["accounts", "all"],
@@ -75,6 +78,10 @@ export function AccountDetailPage() {
   }
 
   const { values } = draft;
+  const periodFrom = searchParams.get("periodFrom");
+  const periodTo = searchParams.get("periodTo");
+  const periodStartAt = searchParams.get("periodStartAt");
+  const periodEndAt = searchParams.get("periodEndAt");
 
   const tabs: FormViewTab[] = [
     {
@@ -173,13 +180,48 @@ export function AccountDetailPage() {
       id: "transactions",
       label: "Transactions",
       content: (
-        <RelatedTransactionsList
-          key={account.id}
-          scope={{ field: "accountId", value: account.id }}
-          emptyText="No transactions for this account yet."
-        />
+        <div className="grid gap-3">
+          {periodFrom && periodTo && periodStartAt && periodEndAt ? (
+            <p className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              Billing period {formatFilterValue(periodFrom)} to {formatFilterValue(periodTo)}
+              <button
+                type="button"
+                className="font-semibold text-pine underline dark:text-emerald-300"
+                onClick={() =>
+                  setSearchParams(
+                    (current) => {
+                      const next = new URLSearchParams(current);
+                      next.delete("periodFrom");
+                      next.delete("periodTo");
+                      next.delete("periodStartAt");
+                      next.delete("periodEndAt");
+                      return next;
+                    },
+                    { replace: true }
+                  )
+                }
+              >
+                Clear period
+              </button>
+            </p>
+          ) : null}
+          <RelatedTransactionsList
+            key={`${account.id}:${periodFrom}:${periodTo}`}
+            scope={{
+              field: "accountId",
+              value: account.id,
+              ...(periodStartAt && periodEndAt
+                ? { dateRange: { from: periodStartAt, to: periodEndAt } }
+                : {})
+            }}
+            emptyText="No transactions for this account yet."
+          />
+        </div>
       )
-    }
+    },
+    ...(account.type === "credit_card"
+      ? [{ id: "credit-card", label: "Credit card", content: <CreditCardTab account={account} /> }]
+      : [])
   ];
 
   return (

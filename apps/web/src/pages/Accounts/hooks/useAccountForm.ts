@@ -4,12 +4,13 @@ import { useFormDraft } from "../../../hooks/useFormDraft";
 import * as accountsClient from "../../../services/accounts.client";
 import type { Account } from "../../../types/accounts.types";
 import type { AccountDraft } from "../types/accounts.types";
+import { creditCardBody } from "../utils/creditCardDraft";
 import { validateAccountDraft } from "../utils/accountValidation";
 
 /**
  * Account adapter over `useFormDraft`: `initial` comes from the account (`null` while it loads),
  * `save` sends one `PUT /accounts/:id` with the changed fields only (blank identifier becomes
- * `null`) and then invalidates `accounts` and `transactions`.
+ * `null`; the cycle fields are always sent together) and then invalidates `accounts` and `transactions`.
  */
 export function useAccountForm(account: Account | null) {
   const queryClient = useQueryClient();
@@ -21,7 +22,13 @@ export function useAccountForm(account: Account | null) {
         type: account.type,
         identifier: account.identifier ?? "",
         currency: account.currency,
-        initialBalance: account.initialBalance ?? "0"
+        initialBalance: account.initialBalance ?? "0",
+        creditLimit: account.creditLimit ?? "",
+        statementClosingDay: account.statementClosingDay?.toString() ?? "",
+        paymentDueRule: account.paymentDueRule ?? "",
+        paymentDueValue: account.paymentDueValue?.toString() ?? "",
+        billingTimeZone: account.billingTimeZone ?? "",
+        annualInterestRate: account.annualInterestRate ?? ""
       },
     [account]
   );
@@ -39,7 +46,10 @@ export function useAccountForm(account: Account | null) {
           body.initialBalance = values.initialBalance;
         else if (key === "name") body.name = values.name.trim();
         else if (key === "type") body.type = values.type;
-        else body.currency = values.currency;
+        else if (key === "currency") body.currency = values.currency;
+      }
+      if (values.type === "credit_card") {
+        Object.assign(body, creditCardBody(values, changedKeys));
       }
       await accountsClient.updateAccount(account.id, body);
       await queryClient.invalidateQueries({ queryKey: ["accounts"] });

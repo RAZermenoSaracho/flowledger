@@ -10,6 +10,7 @@ import {
 } from "../../services/notifications.client";
 import { getImportedTransactionsPendingCount } from "../../services/transactions.client";
 import type { Notification } from "../../types/notifications.types";
+import { creditCardNotificationLabel } from "../utils/notificationLabel";
 import { notificationTarget } from "../utils/notificationTarget";
 
 /** Header notification bell: unread badge, imported-transactions-pending shortcut, and a dropdown listing recent notifications. */
@@ -168,6 +169,11 @@ export function NotificationsMenu() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
+                          {creditCardNotificationLabel(notification.type) ? (
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-pine dark:text-emerald-300">
+                              {creditCardNotificationLabel(notification.type)}
+                            </p>
+                          ) : null}
                           <p className="text-sm font-semibold text-ink dark:text-slate-100">
                             {notification.title}
                           </p>

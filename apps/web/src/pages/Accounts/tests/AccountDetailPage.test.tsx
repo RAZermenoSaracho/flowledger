@@ -106,6 +106,35 @@ describe("AccountDetailPage", () => {
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
+  it("narrows Transactions to a billing period, including transfers into the account, and can clear it", async () => {
+    mockAccounts([makeAccount({ type: "credit_card" })]);
+    const wheres: unknown[] = [];
+    server.use(
+      http.get(`${API_URL}/transactions`, ({ request }) => {
+        wheres.push(JSON.parse(new URL(request.url).searchParams.get("query")!).where);
+        return HttpResponse.json({ data: [], meta: { total: 0, hasNext: false } });
+      })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/accounts/:id" element={<AccountDetailPage />} />
+      </Routes>,
+      {
+        route: "/accounts/acc-1?tab=transactions&periodFrom=2027-01-21&periodTo=2027-02-20&periodStartAt=2027-01-21T06:00:00.000Z&periodEndAt=2027-02-21T06:00:00.000Z",
+        withAuth: true
+      }
+    );
+
+    expect(await screen.findByText(/Billing period/)).toBeInTheDocument();
+    await waitFor(() => expect(JSON.stringify(wheres[0])).toContain("transferToAccountId"));
+    expect(JSON.stringify(wheres[0])).toContain("2027-01-21T06:00:00.000Z");
+    expect(JSON.stringify(wheres[0])).toContain("2027-02-21T06:00:00.000Z");
+    await user.click(screen.getByRole("button", { name: "Clear period" }));
+    await waitFor(() => expect(screen.queryByText(/Billing period/)).not.toBeInTheDocument());
+    await waitFor(() => expect(JSON.stringify(wheres.at(-1))).not.toContain("transferToAccountId"));
+  });
+
   it("saves edits in one request", async () => {
     mockAccounts([makeAccount()]);
     let body: unknown;

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -15,7 +15,8 @@ import { TransactionDetailsFields } from "../TransactionDetailsFields";
 
 const accounts = [
   { id: "a1", name: "Checking", currency: "USD" },
-  { id: "a2", name: "Savings", currency: "EUR" }
+  { id: "a2", name: "Savings", currency: "EUR" },
+  { id: "card", name: "Visa", currency: "USD", type: "credit_card" }
 ] as Account[];
 const categories = [
   { id: "c1", name: "Food", type: "expense" },
@@ -239,5 +240,63 @@ describe("TransactionDetailsFields", () => {
     expect(
       screen.queryByText("Imported from provider")
     ).not.toBeInTheDocument();
+  });
+
+  describe("card entry", () => {
+    it("shows the income choices on a card, hides Category, and asks for the refunded category on refund", async () => {
+      const user = userEvent.setup();
+      mockCurrencies();
+      renderWithProviders(
+        <Harness initial={initial({ type: "income", accountId: "card" })} />
+      );
+
+      const entry = await screen.findByLabelText("Card entry");
+      expect(
+        within(entry).getAllByRole("option").map((option) => option.textContent)
+      ).toEqual(["Payment", "Refund", "Cashback", "Other credit"]);
+      expect(screen.queryByLabelText("Category")).not.toBeInTheDocument();
+
+      await user.selectOptions(entry, "refund");
+      await user.selectOptions(screen.getByLabelText("Refunded category"), "c1");
+      expect(values()).toMatchObject({ creditCardKind: "refund", expenseOffsetCategoryId: "c1" });
+    });
+
+    it("shows Interest and Charge for a card expense", async () => {
+      mockCurrencies();
+      renderWithProviders(
+        <Harness initial={initial({ type: "expense", accountId: "card" })} />
+      );
+
+      const entry = await screen.findByLabelText("Card entry");
+      expect(
+        within(entry).getAllByRole("option").map((option) => option.textContent)
+      ).toEqual(["Interest", "Charge"]);
+    });
+
+    it("clears the classification when the account stops being a card", async () => {
+      const user = userEvent.setup();
+      mockCurrencies();
+      renderWithProviders(
+        <Harness initial={initial({ type: "income", accountId: "card", creditCardKind: "payment" })} />
+      );
+
+      await user.selectOptions(await screen.findByLabelText("Account"), "a1");
+
+      expect(screen.queryByLabelText("Card entry")).not.toBeInTheDocument();
+      expect(values().creditCardKind).toBe("");
+    });
+
+    it("clears the classification when the type becomes transfer", async () => {
+      const user = userEvent.setup();
+      mockCurrencies();
+      renderWithProviders(
+        <Harness initial={initial({ type: "income", accountId: "card", creditCardKind: "payment" })} />
+      );
+
+      await user.selectOptions(await screen.findByLabelText("Type"), "transfer");
+
+      expect(screen.queryByLabelText("Card entry")).not.toBeInTheDocument();
+      expect(values().creditCardKind).toBe("");
+    });
   });
 });

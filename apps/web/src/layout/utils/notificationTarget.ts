@@ -1,4 +1,5 @@
 import { routes } from "../../constants/routes";
+import { isCreditCardNotification } from "./notificationLabel";
 import type { Notification } from "../../types/notifications.types";
 
 function metadataString(
@@ -76,6 +77,13 @@ export function notificationTarget(notification: Notification) {
     if (sharedExpenseId) params.set("sharedExpenseId", sharedExpenseId);
     if (participantId) params.set("participantId", participantId);
     return `${routes.debts}?${params.toString()}`;
+  }
+
+  if (isCreditCardNotification(notification.type)) {
+    const accountId = metadataString(metadata, "accountId");
+    return accountId
+      ? `${routes.account(encodeURIComponent(accountId))}?tab=credit-card`
+      : routes.accounts;
   }
 
   if (notification.type === "provider_transactions_pending") {

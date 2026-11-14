@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { WhereNode } from "../../../utils/searchDomain";
 import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { RelatedTransactionsScope } from "../../../types/transactions.types";
@@ -11,21 +12,28 @@ const DEFAULT_SORT = [{ field: "date", direction: "desc" as const }];
 
 /**
  * Server-paginated transactions of one account or group. The SearchBar's `where` is AND-ed with the
- * scope condition; the sort defaults to date desc.
+ * scope condition (with a `dateRange`, the scope also matches transfers into the account and is limited to that range); the sort defaults to date desc.
  * Previous window rows stay visible while the next window loads.
  */
 export function useRelatedTransactions(scope: RelatedTransactionsScope) {
   const [search, setSearch] = useState<SearchBarQuery>({});
+  const { field, value, dateRange } = scope;
+  const rangeFrom = dateRange?.from;
+  const rangeTo = dateRange?.to;
   const where = useMemo(() => {
-    const scopeCondition = {
-      field: scope.field,
-      op: "=" as const,
-      value: scope.value
-    };
-    return search.where
-      ? { and: [scopeCondition, search.where] }
-      : scopeCondition;
-  }, [scope.field, scope.value, search.where]);
+    const scopeCondition: WhereNode = { field, op: "=", value };
+    const base: WhereNode =
+      rangeFrom && rangeTo
+        ? {
+            and: [
+              { or: [scopeCondition, { field: "transferToAccountId", op: "=", value }] },
+              { field: "date", op: ">=", value: rangeFrom },
+              { field: "date", op: "<", value: rangeTo }
+            ]
+          }
+        : scopeCondition;
+    return search.where ? { and: [base, search.where] } : base;
+  }, [field, value, rangeFrom, rangeTo, search.where]);
   const sort = search.sort?.length ? search.sort : DEFAULT_SORT;
 
   const list = usePagination({

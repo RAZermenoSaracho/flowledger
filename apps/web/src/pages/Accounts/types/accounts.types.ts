@@ -1,4 +1,4 @@
-import type { AccountType } from "@flowledger/shared";
+import type { AccountType, PaymentDueRule } from "@flowledger/shared";
 import type { ComponentType } from "react";
 import type { FormDraft } from "../../../types/common.types";
 
@@ -25,13 +25,19 @@ export type SyncfyWidgetResult =
   | { event: "success" | "updated" | "closed"; credential?: unknown }
   | { event: "error" | "socket-error" | "api-error"; credential?: unknown };
 
-/** Editable account fields as held by the account Form View draft; `initialBalance` stays a string while typed. */
+/** Editable account fields as held by the account Form View draft; numeric inputs stay strings while typed and an empty string means "unset". The last six are credit-card-only. */
 export type AccountDraft = {
   name: string;
   type: AccountType;
   identifier: string;
   currency: string;
   initialBalance: string;
+  creditLimit: string;
+  statementClosingDay: string;
+  paymentDueRule: PaymentDueRule | "";
+  paymentDueValue: string;
+  billingTimeZone: string;
+  annualInterestRate: string;
 };
 
 /** Props of a type-specific section rendered inside the account Form View. */

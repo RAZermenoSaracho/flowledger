@@ -27,6 +27,8 @@ function coreFields(draft: TransactionDraft) {
     accountId: draft.accountId || null,
     transferToAccountId: isTransfer ? draft.transferToAccountId || null : null,
     categoryId: isTransfer ? null : draft.categoryId || null,
+    creditCardKind: isTransfer ? null : draft.creditCardKind || null,
+    expenseOffsetCategoryId: isTransfer ? null : draft.expenseOffsetCategoryId || null,
     groupId: isTransfer ? null : draft.groupId || null,
     notes: draft.notes || null
   };
