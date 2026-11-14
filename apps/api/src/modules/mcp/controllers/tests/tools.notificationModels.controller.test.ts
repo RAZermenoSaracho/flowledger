@@ -12,7 +12,7 @@ vi.mock("../../../notificationModels/services/library.service.js", () => ({
   publishModel: vi.fn(),
   updateFromSource: vi.fn()
 }));
-vi.mock("../../../notificationModels/services/read.service.js", () => ({ getModelById: vi.fn(), listModels: vi.fn() }));
+vi.mock("../../../notificationModels/services/read.service.js", () => ({ getModelById: vi.fn(), listModels: vi.fn(), listQueue: vi.fn(), listLogs: vi.fn() }));
 vi.mock("../../../notificationModels/services/test.service.js", () => ({
   parseCodeToRules: vi.fn(),
   testModel: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("../../../../utils/auditLog.js", () => ({ auditLog: vi.fn() }));
 const { createModel } = await import("../../../notificationModels/services/create.service.js");
 const { deleteModel } = await import("../../../notificationModels/services/delete.service.js");
 const { getLibraryModel, installModel, listLibrary, publishModel, updateFromSource } = await import("../../../notificationModels/services/library.service.js");
-const { getModelById, listModels } = await import("../../../notificationModels/services/read.service.js");
+const { getModelById, listModels, listQueue, listLogs } = await import("../../../notificationModels/services/read.service.js");
 const { parseCodeToRules, testModel, validateCode } = await import("../../../notificationModels/services/test.service.js");
 const { updateModel } = await import("../../../notificationModels/services/update.service.js");
 const { auditLog } = await import("../../../../utils/auditLog.js");
@@ -47,12 +47,12 @@ const run = (name: string, args: Record<string, unknown>, set = tools) => set.ge
 beforeEach(() => vi.clearAllMocks());
 
 describe("notification model tool registration", () => {
-  it("registers six reads for a read credential and six more writes for a write credential", () => {
+  it("registers eight reads for a read credential and six more writes for a write credential", () => {
     expect([...readOnly.keys()]).toEqual([
-      "list_notification_models", "get_notification_model", "list_notification_library",
+      "list_notification_models", "list_notification_model_queue", "list_notification_model_logs", "get_notification_model", "list_notification_library",
       "validate_notification_code", "parse_notification_rules", "test_notification_model"
     ]);
-    expect([...tools.keys()].slice(6)).toEqual([
+    expect([...tools.keys()].slice(8)).toEqual([
       "create_notification_model", "update_notification_model", "delete_notification_model",
       "publish_notification_model", "install_notification_model", "update_notification_model_from_source"
     ]);
@@ -70,6 +70,36 @@ describe("notification model tool registration", () => {
 });
 
 describe("notification model read tools", () => {
+  describe.each([
+    ["list_notification_model_queue", listQueue, "processing"],
+    ["list_notification_model_logs", listLogs, "failed"]
+  ] as const)("%s", (name, service, status) => {
+    it("passes auth user, model id and compiled query and returns data/meta", async () => {
+      const result = { data: [{ id: "r1", status }], meta: { total: 1 } };
+      vi.mocked(service).mockResolvedValue(result as never);
+      expect((await run(name, { id: "m1", status, receivedFrom: "2026-01-01", receivedTo: "2026-01-02", page: 2, pageSize: 10 }, readOnly)).structuredContent).toEqual(result);
+      expect(service).toHaveBeenCalledWith("u1", "m1", JSON.stringify({
+        where: { and: [
+          { field: "receivedAt", op: ">=", value: "2026-01-01T00:00:00.000Z" },
+          { field: "receivedAt", op: "<", value: "2026-01-03T00:00:00.000Z" },
+          { field: "status", op: "=", value: status }
+        ] }, pagination: { kind: "offset", page: 2, pageSize: 10 }
+      }));
+    });
+
+    it("returns empty results with pagination defaults", async () => {
+      const result = { data: [], meta: { total: 0 } };
+      vi.mocked(service).mockResolvedValue(result as never);
+      expect((await run(name, { id: "m1" }, readOnly)).structuredContent).toEqual(result);
+      expect(service).toHaveBeenCalledWith("u1", "m1", JSON.stringify({ pagination: { kind: "offset", page: 1, pageSize: 50 } }));
+    });
+
+    it("propagates not-found as isError", async () => {
+      vi.mocked(service).mockRejectedValue(new HttpError(404, "Notification model not found"));
+      expect((await run(name, { id: "missing" }, readOnly)).isError).toBe(true);
+    });
+  });
+
   it("list and get call the services as the credential user", async () => {
     vi.mocked(listModels).mockResolvedValue({ data: [{ id: "m1" }], meta: { total: 1 } } as never);
     vi.mocked(getModelById).mockResolvedValue({ id: "m1" } as never);

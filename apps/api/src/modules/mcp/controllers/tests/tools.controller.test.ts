@@ -52,6 +52,8 @@ const READ_TOOLS = [
   "list_groups",
   "list_imported_transactions",
   "list_notification_library",
+  "list_notification_model_logs",
+  "list_notification_model_queue",
   "list_notification_models",
   "list_notifications",
   "list_shared_expenses",
@@ -94,6 +96,8 @@ const WRITE_TOOLS = [
   "list_groups",
   "list_imported_transactions",
   "list_notification_library",
+  "list_notification_model_logs",
+  "list_notification_model_queue",
   "list_notification_models",
   "list_notifications",
   "list_shared_expenses",
@@ -127,11 +131,11 @@ const validBody = { name: "Coffee", amount: "3", type: "expense", date: "2024-01
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerTools", () => {
-  it("registers exactly the twenty-two read tools for a read credential", () => {
+  it("registers exactly the twenty-four read tools for a read credential", () => {
     expect([...register(["read"]).keys()].sort()).toEqual(READ_TOOLS);
   });
 
-  it("registers exactly the fifty-seven tools for a write credential, with the annotations from the spec", () => {
+  it("registers exactly the fifty-nine tools for a write credential, with the annotations from the spec", () => {
     const tools = register(["read", "write"]);
     expect([...tools.keys()].sort()).toEqual(WRITE_TOOLS);
     expect(tools.get("list_accounts")!.config.annotations).toEqual({ readOnlyHint: true });

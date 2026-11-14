@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_NOTIFICATION_RULES } from "../notificationRules.js";
 import {
   createNotificationModelToolSchema,
+  notificationQueueToolSchema,
+  notificationLogsToolSchema,
   listNotificationLibraryToolSchema,
   testNotificationModelToolSchema,
   updateNotificationModelToolSchema
@@ -39,5 +41,24 @@ describe("other notification tool schemas", () => {
     expect(testNotificationModelToolSchema.safeParse({ id: "m", text: "hi" }).success).toBe(true);
     expect(testNotificationModelToolSchema.safeParse({ text: "hi" }).success).toBe(false);
     expect(listNotificationLibraryToolSchema.parse({})).toEqual({});
+  });
+});
+
+describe.each([
+  ["queue", notificationQueueToolSchema, ["queued", "processing"], ["completed", "skipped", "failed"]],
+  ["logs", notificationLogsToolSchema, ["completed", "skipped", "failed"], ["queued", "processing"]]
+] as const)("%s run schema", (_name, schema, valid, invalid) => {
+  it("defaults pagination and restricts status, size and unknown fields", () => {
+    expect(schema.parse({ id: "m1" })).toEqual({ id: "m1", page: 1, pageSize: 50 });
+    for (const status of valid) expect(schema.safeParse({ id: "m1", status }).success).toBe(true);
+    for (const status of [...invalid, "unknown"]) expect(schema.safeParse({ id: "m1", status }).success).toBe(false);
+    for (const input of [{ pageSize: 101 }, { pageSize: 0 }, { page: 0 }, { query: "{}" }]) {
+      expect(schema.safeParse({ id: "m1", ...input }).success).toBe(false);
+    }
+  });
+
+  it("accepts date-only and ISO datetime bounds and rejects invalid dates", () => {
+    expect(schema.safeParse({ id: "m1", receivedFrom: "2026-01-01", receivedTo: "2026-01-02T00:00:00-06:00" }).success).toBe(true);
+    expect(schema.safeParse({ id: "m1", receivedFrom: "invalid" }).success).toBe(false);
   });
 });

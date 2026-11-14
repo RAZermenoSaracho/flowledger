@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalDateStringSchema } from "./common.js";
 import { createNotificationModelSchema, notificationTestSchema, updateFromSourceSchema, updateNotificationModelSchema, notificationListQuerySchema, validateNotificationCodeSchema } from "./notificationModels.js";
 import { notificationRulesSchema } from "./notificationRules.js";
 
@@ -50,3 +51,18 @@ export const updateNotificationModelToolSchema = updateNotificationModelToolObje
   codeXorRules.check,
   codeXorRules.message
 );
+
+/** Input of the read-only MCP queue tool; received dates use a half-open UTC range. */
+export const notificationQueueToolSchema = z.object({
+  id,
+  status: z.enum(["queued", "processing"]).optional(),
+  receivedFrom: optionalDateStringSchema,
+  receivedTo: optionalDateStringSchema,
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(1).max(100).default(50)
+}).strict();
+
+/** Input of the read-only MCP logs tool, restricted to terminal run statuses. */
+export const notificationLogsToolSchema = notificationQueueToolSchema.extend({
+  status: z.enum(["completed", "skipped", "failed"]).optional()
+}).strict();

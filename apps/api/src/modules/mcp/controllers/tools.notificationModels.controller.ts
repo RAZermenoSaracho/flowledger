@@ -8,6 +8,8 @@ import {
   listNotificationModelsToolSchema,
   notificationCodeToolSchema,
   notificationModelIdToolSchema,
+  notificationQueueToolSchema,
+  notificationLogsToolSchema,
   testNotificationModelToolSchema,
   updateFromSourceSchema,
   updateNotificationModelFromSourceToolSchema,
@@ -19,10 +21,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createModel } from "../../notificationModels/services/create.service.js";
 import { deleteModel } from "../../notificationModels/services/delete.service.js";
 import { getLibraryModel, installModel, listLibrary, publishModel, updateFromSource } from "../../notificationModels/services/library.service.js";
-import { getModelById, listModels } from "../../notificationModels/services/read.service.js";
+import { getModelById, listModels, listQueue, listLogs } from "../../notificationModels/services/read.service.js";
 import { parseCodeToRules, testModel, validateCode } from "../../notificationModels/services/test.service.js";
 import { updateModel } from "../../notificationModels/services/update.service.js";
 import type { McpAuth } from "../types/mcp.types.js";
+import { buildNotificationRunsQuery } from "../utils/notificationRunsQuery.js";
 import { runRead, runWrite } from "../utils/runTool.js";
 
 const READ_ONLY = { readOnlyHint: true } as const;
@@ -39,7 +42,7 @@ const SCRIPT_API =
 const CODE_OR_RULES =
   "Provide either `code` (the Python script, the saved source of truth) or `rules` (the visual rules model the web Form editor uses; the server generates the canonical script from it), never both.";
 
-/** Registers the notification model read tools: list/get models, the public library, code validation, rule parsing and the dry-run `test_notification_model`. */
+/** Registers the notification model read tools: list/get models, queue and logs, the public library, code validation, rule parsing and the dry-run `test_notification_model`. */
 export function registerNotificationModelReadTools(server: McpServer, auth: McpAuth) {
   const userId = auth.extra.userId;
 
@@ -54,6 +57,36 @@ export function registerNotificationModelReadTools(server: McpServer, auth: McpA
       runRead(async () => {
         const { query } = listNotificationModelsToolSchema.parse(args);
         const { data, meta } = await listModels(userId, query);
+        return { data, meta };
+      })
+  );
+
+  server.registerTool(
+    "list_notification_model_queue",
+    {
+      description: "List queued (waiting) and processing (currently running) notifications, oldest receivedAt first. Queue text is truncated to 80 characters. Read-only: never enqueues, retries, cancels or modifies runs. Only real ingested notifications appear; test_notification_model previews never appear.",
+      inputSchema: notificationQueueToolSchema.shape,
+      annotations: READ_ONLY
+    },
+    (args) =>
+      runRead(async () => {
+        const filter = notificationQueueToolSchema.parse(args);
+        const { data, meta } = await listQueue(userId, filter.id, buildNotificationRunsQuery(filter));
+        return { data, meta };
+      })
+  );
+
+  server.registerTool(
+    "list_notification_model_logs",
+    {
+      description: "List completed (transaction created), skipped (intentionally ignored), and failed (processing error) notifications, newest finishedAt first. Text is null after 7-day retention. `reason` holds the skip reason or error; transactionId links to get_transaction. Read-only: never enqueues, retries, cancels or modifies runs. Only real ingested notifications appear; test_notification_model previews never appear.",
+      inputSchema: notificationLogsToolSchema.shape,
+      annotations: READ_ONLY
+    },
+    (args) =>
+      runRead(async () => {
+        const filter = notificationLogsToolSchema.parse(args);
+        const { data, meta } = await listLogs(userId, filter.id, buildNotificationRunsQuery(filter));
         return { data, meta };
       })
   );

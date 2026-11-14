@@ -101,6 +101,71 @@ describe("MCP notification model tools", () => {
     }
   }, 120_000);
 
+  it("reads real queued runs and terminal logs without changing runs, and enforces ownership", async () => {
+    const owner = await actor(true);
+    const reader = (await actor(false, owner.user)).client;
+    const other = await actor(false);
+    const { ingestNotification } = await import("../../modules/notificationModels/services/ingest.service.js");
+    const { claimNextRun } = await import("../../modules/notificationModels/services/claim.service.js");
+    const { processRun } = await import("../../modules/notificationModels/services/processRun.service.js");
+    const created = await call(owner.client, "create_notification_model", {
+      name: "Queue and logs parser", code: CODE, slots: [], bindings: {}, isActive: true
+    });
+    expect(created.isError, JSON.stringify(created)).toBeFalsy();
+    const id = created.structuredContent!.model.id as string;
+    const snapshot = () => prisma.notificationRun.findMany({ where: { modelId: id }, orderBy: { id: "asc" } });
+    const preview = await call(reader, "test_notification_model", { id, text: "Purchase of $5.00" });
+    expect(preview.isError, JSON.stringify(preview)).toBeFalsy();
+    expect(await snapshot()).toEqual([]);
+
+    const text = `Purchase of $150.00 at ${"Store ".repeat(20)}`;
+    const first = await ingestNotification(owner.user.user.id, id, text, undefined, new Date("2026-01-01T12:00:00Z"));
+    const second = await ingestNotification(owner.user.user.id, id, "Unmatched notification", undefined, new Date("2026-01-02T12:00:00Z"));
+    expect([first.status, second.status]).toEqual(["queued", "queued"]);
+    const queuedBefore = await snapshot();
+    expect(queuedBefore).toHaveLength(2);
+    for (const [page, runId] of [[1, first.runId], [2, second.runId]] as const) {
+      const result = await call(reader, "list_notification_model_queue", { id, status: "queued", page, pageSize: 1 });
+      expect(result.isError, JSON.stringify(result)).toBeFalsy();
+      expect(result.structuredContent!.data).toMatchObject([{ id: runId, status: "queued" }]);
+      expect(result.structuredContent!.data).toHaveLength(1);
+      expect(result.structuredContent!.meta).toMatchObject({ total: 2, page, pageSize: 1, pageCount: 2, hasNext: page === 1 });
+      if (page === 1) expect(result.structuredContent!.data[0].text).toBe(text.slice(0, 80));
+    }
+    expect((await call(reader, "list_notification_model_queue", { id, status: "processing" })).structuredContent!.data).toEqual([]);
+    expect((await call(reader, "list_notification_model_logs", { id })).structuredContent!.data).toEqual([]);
+    expect(await snapshot()).toEqual(queuedBefore);
+
+    for (const [runId, outcome] of [[first.runId, "completed"], [second.runId, "skipped"]] as const) {
+      const claimed = await claimNextRun("mcp-notification-models-test");
+      expect(claimed?.id).toBe(runId);
+      expect(await processRun(claimed!)).toBe(outcome);
+    }
+    const terminalBefore = await snapshot();
+    expect(terminalBefore).toHaveLength(2);
+    const logs = await call(reader, "list_notification_model_logs", { id });
+    expect(logs.isError, JSON.stringify(logs)).toBeFalsy();
+    expect(logs.structuredContent!.data.map((run: Json) => run.id)).toEqual([second.runId, first.runId]);
+    expect(logs.structuredContent!.data[0]).toMatchObject({ status: "skipped", reason: "no match", transactionId: null });
+    const completed = logs.structuredContent!.data[1];
+    expect(completed).toMatchObject({ status: "completed", reason: null, transactionId: expect.any(String) });
+    expect((await call(reader, "get_transaction", { id: completed.transactionId })).isError).toBeFalsy();
+    for (const [status, runId] of [["completed", first.runId], ["skipped", second.runId]] as const) {
+      const filtered = await call(reader, "list_notification_model_logs", { id, status, pageSize: 1 });
+      expect(filtered.isError, JSON.stringify(filtered)).toBeFalsy();
+      expect(filtered.structuredContent!.data).toMatchObject([{ id: runId, status }]);
+      expect(filtered.structuredContent!.meta).toMatchObject({ total: 1, page: 1, pageSize: 1 });
+    }
+    expect((await call(reader, "list_notification_model_logs", { id, status: "failed" })).structuredContent!.data).toEqual([]);
+    expect((await call(reader, "list_notification_model_queue", { id })).structuredContent!.data).toEqual([]);
+    for (const tool of ["list_notification_model_queue", "list_notification_model_logs"]) {
+      expect((await call(other.client, tool, { id })).isError, tool).toBe(true);
+      expect((await call(reader, tool, { id: "missing-model" })).isError, tool).toBe(true);
+    }
+    expect(await snapshot()).toEqual(terminalBefore);
+    await Promise.all([owner.client.close(), reader.close(), other.client.close()]);
+  }, 120_000);
+
   it("isolation, library publish/install/unpublish and delete", async () => {
     const owner = await actor(true);
     const other = await actor(true);

@@ -28,7 +28,7 @@ import { registerPersonalWriteTools } from "./tools.writes.controller.js";
 const READ_ONLY = { readOnlyHint: true } as const;
 
 /**
- * Registers the FlowLedger tools on `server`: twenty-two read tools always, and the thirty-five write tools only when
+ * Registers the FlowLedger tools on `server`: twenty-four read tools always, and the thirty-five write tools only when
  * `auth` holds the `write` scope (each write handler re-checks it). The acting user comes solely from `auth`.
  */
 export function registerTools(server: McpServer, auth: McpAuth) {

@@ -299,7 +299,7 @@ describe("MCP OAuth server", () => {
     const write = await grokToken(user, true);
     expect(write.scope).toBe("read write");
     const names = ((await rpc(write.access_token, "tools/list")).tools as { name: string }[]).map((t) => t.name);
-    expect(names).toHaveLength(57);
+    expect(names).toHaveLength(59);
     expect(names).toEqual(expect.arrayContaining(["create_transaction", "update_transaction", "delete_transaction", "search_transactions"]));
 
     const created = await tool(write.access_token, "create_transaction", { name: "Grok coffee", amount: "4.5", type: "expense", date: "2024-03-10" });
@@ -312,7 +312,7 @@ describe("MCP OAuth server", () => {
 
     const read = await grokToken(user, false);
     expect(read.scope).toBe("read");
-    expect((await rpc(read.access_token, "tools/list")).tools).toHaveLength(22);
+    expect((await rpc(read.access_token, "tools/list")).tools).toHaveLength(24);
     expect((await tool(read.access_token, "delete_transaction", { id })).isError).toBe(true);
 
     expect((await tool(write.access_token, "delete_transaction", { id })).isError).toBeUndefined();
