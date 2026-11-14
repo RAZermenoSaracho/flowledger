@@ -6,8 +6,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/modules/notificationModels/sandbox && cp src/modules/notificationModels/sandbox/prelude.py src/modules/notificationModels/sandbox/sandboxChild.mjs dist/modules/notificationModels/sandbox/",
     "start": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
+    "dev:worker": "tsx watch src/worker.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -26,6 +28,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "pyodide": "314.0.7",
     "zod": "^3.25.0"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 /** Permission scopes a personal API key can carry. */
-export type ApiKeyScope = "read" | "write";
+export type ApiKeyScope = "read" | "write" | "ingest";
 
 /** Personal API key metadata as returned by the API; never contains the secret. */
 export type ApiKey = {

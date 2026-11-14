@@ -8,6 +8,8 @@ Source of truth: `database/prisma/schema.prisma`
 
 | Enum | Values |
 |---|---|
+| `NotificationModelVisibility` | `private`, `public` |
+| `NotificationRunStatus` | `queued`, `processing`, `completed`, `skipped`, `failed` |
 | `CategoryType` | `income`, `expense` |
 | `TransactionType` | `income`, `expense`, `transfer` |
 | `AccountType` | `cash`, `checking`, `savings`, `credit_card`, `investment`, `other` |
@@ -38,7 +40,7 @@ Core user record. All user-owned data cascades on delete.
 | `mobileSidebarSide` | String | Default `"left"`; which side the mobile nav sidebar opens from |
 | `createdAt` / `updatedAt` | DateTime | Auto-managed |
 
-Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `refreshTokens`, `apiKeys`
+Relations: `authAccounts`, `accounts`, `categoryMemberships`, `transactions`, `providerConnections`, `providerAccounts`, `providerImportedTransactions`, `providerWebhookEvents`, `ownedSharedExpenses`, `sharedExpenseParticipations`, `settlementRequestsMade`, `settlementRequestsReceived`, `groupMemberships`, `ownedGroups`, `notifications`, `notificationModels`, `refreshTokens`, `apiKeys`
 
 ---
 
@@ -441,6 +443,88 @@ Unique: `(provider, providerEventId)` — prevents duplicate processing.
 
 ---
 
+### NotificationModel
+
+Owner's editable Python notification script. Deleting the owner cascades models; deleting a model cascades its versions and runs.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `userId` | String | FK → User |
+| `name` | String | Display name |
+| `description` | String? | Optional description |
+| `code` | String | Validated Python subset |
+| `isActive` | Boolean | Default `false`; required slots must be bound before activation |
+| `visibility` | NotificationModelVisibility | Default `private` |
+| `slots` | Json | Default `[]`; key, kind (`account`, `category`, `group`), label, required |
+| `bindings` | Json | Default `{}`; slot key → record ID; never published |
+| `settings` | Json | Default `{}`; string values published as defaults |
+| `sourceVersionId` | String? | FK → NotificationModelVersion; set null when source version is deleted |
+| `createdAt` / `updatedAt` | DateTime | Auto-managed |
+
+Relations: `user`, `sourceVersion` (`InstalledFrom`), `versions` (`PublishedVersions`), `runs`. Indexes: `userId`, `visibility`.
+
+---
+
+### NotificationModelVersion
+
+Immutable published snapshot. Installation copies it into a private, inactive model with empty bindings.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `modelId` | String | FK → NotificationModel; cascade on delete |
+| `version` | Int | Incrementing version within the model |
+| `name` | String | Published name |
+| `description` | String? | Published description |
+| `code` | String | Published script |
+| `slots` | Json | Published slot definitions |
+| `settings` | Json | Published setting defaults; no bindings |
+| `createdAt` | DateTime | Auto-managed |
+
+Unique: `(modelId, version)`. Relations: `model` (`PublishedVersions`), `installs` (`InstalledFrom`). Deleting the version leaves installed copies intact with null source tracking.
+
+---
+
+### NotificationRun
+
+Durable queued notification and execution outcome. Transaction creation and the `completed` update commit together.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `modelId` | String | FK → NotificationModel; cascade on delete |
+| `userId` | String | Owner copied at ingest for concurrency/fairness; not a separate FK |
+| `status` | NotificationRunStatus | Default `queued` |
+| `dedupeKey` | String | Idempotency header or text hash plus ten-minute bucket |
+| `text` | String? | Cleared 7 days after terminal `finishedAt` |
+| `proposal` | Json? | Validated transaction proposal |
+| `reason` | String? | Skip/error reason, at most 500 characters |
+| `workerId` | String? | Claiming process ID; not a FK |
+| `transactionId` | String? (unique) | FK → Transaction; set null when transaction is deleted |
+| `receivedAt` | DateTime | Default `now()` |
+| `startedAt` / `finishedAt` | DateTime? | Claim and terminal timestamps |
+
+Unique: `(modelId, dedupeKey)`. Indexes: `(status, userId)`, `(modelId, status, receivedAt)`, `(status, finishedAt)`. Relations: `model`, `transaction`; Transaction has a `notificationRun` back-relation. Terminal runs are deleted after 30 days without deleting their transactions; retention never deletes queued/processing runs.
+
+---
+
+### NotificationWorker
+
+One liveness row per worker process; no model/run foreign keys.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String | PK; random worker ID per process start |
+| `hostname` | String | Worker host |
+| `pid` | Int | Process ID |
+| `startedAt` | DateTime | Default `now()` |
+| `lastSeenAt` | DateTime | Default `now()`; refreshed every 15 s |
+
+Index: `lastSeenAt`. Removed on graceful shutdown; stale rows are deleted after 1 hour. Recovery fails in-flight runs when their worker has not been seen within 2 minutes. See `docs/NOTIFICATION_MODELS.md`.
+
+---
+
 ## Key relationships diagram
 
 ```
@@ -454,6 +538,8 @@ User
  │                     └── ProviderImportedTransaction → Transaction (on import)
  ├── ProviderWebhookEvent
  ├── Notification
+ ├── NotificationModel → NotificationModelVersion
+ │                     └── NotificationRun → Transaction
  ├── UserAuthAccount (Google OAuth mapping, Syncfy user mapping)
  └── RefreshToken (session rotation)
 ```

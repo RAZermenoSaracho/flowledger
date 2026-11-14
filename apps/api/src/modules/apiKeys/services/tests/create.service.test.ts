@@ -9,6 +9,7 @@ describe("createApiKey", () => {
     const result = await createApiKey("user-1", {
       name: "CI",
       allowWrite: false,
+      ingestOnly: false,
       lifetime: "never"
     });
 
@@ -22,10 +23,18 @@ describe("createApiKey", () => {
   it("grants read+write and an expiry when requested", async () => {
     prismaMock.apiKey.create.mockResolvedValue({ id: "k1" } as never);
 
-    await createApiKey("user-1", { name: "CI", allowWrite: true, lifetime: "1y" });
+    await createApiKey("user-1", { name: "CI", allowWrite: true, ingestOnly: false, lifetime: "1y" });
 
     const data = prismaMock.apiKey.create.mock.calls[0]![0].data;
     expect(data.scopes).toEqual(["read", "write"]);
     expect(data.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("stores only the ingest scope for an ingest-only key", async () => {
+    prismaMock.apiKey.create.mockResolvedValue({ id: "k1" } as never);
+
+    await createApiKey("user-1", { name: "Phone", allowWrite: false, ingestOnly: true, lifetime: "never" });
+
+    expect(prismaMock.apiKey.create.mock.calls[0]![0].data.scopes).toEqual(["ingest"]);
   });
 });

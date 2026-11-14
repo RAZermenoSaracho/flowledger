@@ -81,7 +81,7 @@ export function ApiKeysSection() {
             title={<p className="font-semibold">{key.name}</p>}
             subtitle={
               <p className="text-slate-500 dark:text-slate-400">
-                {key.hint}… · {key.scopes.includes("write") ? "Read + Write" : "Read"} ·{" "}
+                {key.hint}… · {key.scopes.includes("ingest") ? "Ingest only" : key.scopes.includes("write") ? "Read + Write" : "Read"} ·{" "}
                 {key.revokedAt ? "Revoked" : formatExpiry(key.expiresAt)} ·{" "}
                 {formatLastUsed(key.lastUsedAt)}
               </p>

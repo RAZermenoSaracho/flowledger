@@ -11,7 +11,7 @@ export async function createApiKey(userId: string, input: CreateApiKeyInput) {
       name: input.name,
       hint,
       secretHash,
-      scopes: input.allowWrite ? ["read", "write"] : ["read"],
+      scopes: input.ingestOnly ? ["ingest"] : input.allowWrite ? ["read", "write"] : ["read"],
       expiresAt: resolveExpiresAt(input.lifetime, new Date())
     },
     select: publicApiKeySelect

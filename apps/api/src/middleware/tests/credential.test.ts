@@ -115,7 +115,7 @@ describe("requireCredential", () => {
 });
 
 describe("requireScope", () => {
-  const run = (scope: "read" | "write", scopes: string[]) => {
+  const run = (scope: "read" | "write" | "ingest", scopes: string[]) => {
     const next = vi.fn();
     requireScope(scope)({ credential: { scopes } } as never, {} as never, next);
     return next.mock.calls[0]![0];
@@ -129,6 +129,13 @@ describe("requireScope", () => {
     expect(run("write", ["read", "write"])).toBeUndefined();
     expect(run("read", ["write"])).toBeUndefined();
     expect(run("read", ["read"])).toBeUndefined();
+  });
+
+  it("403s an ingest-only key on read and write routes, and a write key on the ingest route", () => {
+    expect(run("read", ["ingest"])).toMatchObject({ statusCode: 403 });
+    expect(run("write", ["ingest"])).toMatchObject({ statusCode: 403 });
+    expect(run("ingest", ["read", "write"])).toMatchObject({ statusCode: 403 });
+    expect(run("ingest", ["ingest"])).toBeUndefined();
   });
 
   it("403s when there is no credential", () => {

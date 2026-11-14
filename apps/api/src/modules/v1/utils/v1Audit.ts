@@ -5,7 +5,7 @@ import { auditLog } from "../../../utils/auditLog.js";
  * Builds middleware that writes exactly one audit line when the response
  * finishes. Must run after `requireCredential` (no-op without a credential).
  * `resourceId` is `req.params.id` or `req.params.userId` (read eagerly: Express resets params before `finish`), else the id of the
- * `transaction`, `account`, `category`, `group`, `sharedExpense` `block` or `settlementRequest` in the JSON response body (captured by wrapping `res.json`). Never reads `req.body`.
+ * `transaction`, `account`, `category`, `group`, `sharedExpense` `block` or `settlementRequest`, or the top-level `runId`, in the JSON response body (captured by wrapping `res.json`). Never reads `req.body`.
  */
 export function auditV1Write(op: string) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -14,7 +14,8 @@ export function auditV1Write(op: string) {
     const json = res.json.bind(res);
     res.json = (body: unknown) => {
       const created = body as Record<string, { id?: string } | undefined> | null;
-      createdId = (
+      const runId = (body as { runId?: unknown } | null)?.runId;
+      createdId = (typeof runId === "string" ? runId : null) ?? (
         created?.transaction ??
         created?.account ??
         created?.category ??

@@ -42,8 +42,9 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-006 | Account Form View | High | ST-005 | Completed | None |
 | ST-007 | Transaction Form View | Medium | ST-005 | Completed | None |
 | ST-008 | Personal Financial Metrics | Medium | None | Completed | None |
-| ST-010 | Notification regex rules | Medium | ST-005 | Planned | None |
-| ST-011 | Notification ingestion endpoint | Medium | ST-010 | Planned | None |
+| ST-010 | Notification processing models (sandboxed Python) | Medium | ST-005 | Completed (PR #52) | None |
+| ST-011 | Asynchronous notification ingestion endpoint | Medium | ST-010 | Completed (PR #52) | None |
+| ST-032 | Community notification model library and versioning | Medium | ST-010 | Completed (PR #52) | None |
 | ST-013 | Credit-card limit and available credit | Medium | ST-006 | Planned | None |
 | ST-014 | Credit-card statements, payment tracking, and reminders | Medium | ST-013, ST-007, ST-023 | Planned | None |
 | ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Planned | None |
@@ -366,54 +367,60 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 
 Deferred to the Odoo Flowledger project backlog as task #130 (Flowledger project, Backlog stage). Requirements and open questions are preserved there; not scheduled in any batch.
 
-### ST-010: Notification regex rules
+### ST-010: Notification processing models (sandboxed Python)
 
-**Objective:** A user can define, test, and activate rules that extract transaction data from notification text.
+**Objective:** Users define, test, and activate their own models that turn notification text into transaction proposals.
 
-**Scope:** User-owned rule configuration in a form view built on ST-005, with field patterns, activation validation, a test against sample text, and safe regex evaluation. Extraction fields, pattern testing, activation requirements, and validation are regex-domain code; the shared foundation provides the editing experience. The endpoint itself is ST-011. This is inbound notification ingestion only, not a general integration platform.
+**Scope:** Constrained-Python `process(text, ctx)` scripts returning expense, income, transfer, or skip; named slots bound to the owner's accounts, categories and Groups; settings; a list view and a Form View with Form, Code, Playground, Queue and Logs tabs.
+This replaces the earlier regex-field-rule plan.
 
 **Acceptance criteria:**
-- A user can create, edit, activate, and deactivate their own rules; no other user can see or use them.
-- A rule cannot be activated until every mandatory field has a valid extraction rule (or an agreed default).
-- Optional fields may be left unconfigured.
-- Testing against sample text shows what each pattern extracts, without creating anything.
-- Pathological patterns and oversized input cannot stall the API.
-- The configuration form uses the shared Form View, with no separate form lifecycle, and works at mobile width.
+- Users manage only their own models. Activation requires valid code and every required slot bound to an owned, non-archived record.
+- The side-effect-free Playground shows a proposal and transaction preview, skip reason, or error without creating anything.
+- An AST allowlist and restricted builtins guard execution in a fresh permission-restricted sandbox child process running CPython on WebAssembly (Pyodide).
+- Limits are 2 s of script time, 256 MB resident memory, 4,000 input characters and 64 KB stdout; malicious scripts cannot stall the API.
+- Node 24 runtime checks (permission model loads the Python runtime, memory cap, cold start) are part of the sandbox runner.
 
 **Dependencies:** ST-005.
 
-**Relevant existing architecture:** `Transaction` requires `name`, `amount`, `type`, and `date`. Currency falls back to the account's, then the user's preferred currency; `accountId` and `categoryId` are optional. No regex runs on user input today, and there is no RE2 dependency, worker, or timeout code.
+**Relevant existing architecture:** No regex, script or queue code exists. `createTransaction(userId, input)` is reusable; amounts are decimal strings, and a transfer is one row from `accountId` to `transferToAccountId`. The shared Form View and ListView are reusable. CSP forbids WebAssembly in the browser, so execution is server-side.
 
-**Open questions:**
-- **Feasibility gate, settle first:** research found no iOS Shortcuts trigger that reads another app's notifications, so **the intended iPhone workflow may be impossible for bank push notifications**. The available triggers appear to be SMS/iMessage, Mail, and a Wallet transaction trigger that covers card taps only. Android can read notifications through Tasker-style apps with user-granted access; Android 15 reportedly restricts OTP notifications. These findings come mostly from secondary sources, so verify on real devices. If the user's banks do not send SMS or email, this intent's value on iPhone changes significantly.
-- Which fields must be extracted, and which may have a rule-level default? For example, `type` could be fixed per rule and `date` could be the time received.
-- How should safe evaluation work: RE2 (a new native dependency) or a worker with a timeout, plus pattern and input limits?
-- How does a rule choose its account?
+### ST-011: Asynchronous notification ingestion endpoint
 
-### ST-011: Notification ingestion endpoint
+**Objective:** A client sends text to a model and receives a run ID while processing creates at most one transaction.
 
-**Objective:** An automation can send notification text to FlowLedger with a dedicated credential and get a reviewable record.
-
-**Scope:** Authenticated inbound endpoint, restricted credential, input and rate limits, duplicate protection, the pending/incomplete record flow, and visible setup details. Incomplete extractions land in review instead of failing silently.
+**Scope:** `POST /v1/notification-models/:id/notifications`, a separate ingest-only API-key scope, a persistent per-model queue of `NotificationRun` rows and a separate worker process from the same `apps/api` codebase, supervised by PM2, with configurable global and per-user concurrency (`NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL`, `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER`). Transactions go directly through `createTransaction`; `ProviderImportedTransaction` staging is not used, and the Logs tab is the review surface.
 
 **Acceptance criteria:**
-- A user can see their endpoint and create and revoke a credential that can do nothing except ingest. The secret is shown only once.
-- Valid text produces a reviewable record, or a transaction if that behavior is chosen in discovery.
-- Missing optional data produces a pending record that the user can complete.
-- Sending the same notification again creates no duplicate.
-- Malformed or oversized payloads, and requests over the rate limit, are rejected safely.
-- One user's key can never create or reveal another user's data, including through dedupe collisions.
-- Notification text and credentials never appear in application logs.
+- Accepted requests (JSON `{ "text": ... }` only) return 202 with `runId` once the run is persisted (503 if persistence fails); unknown, foreign or inactive models return 404. Ingest-only keys cannot call other routes, and read/write keys cannot ingest.
+- Dedupe is per model, using `Idempotency-Key` or a text hash in a fixed 10-minute bucket; duplicates return the existing run.
+- Enforce the shared `/v1` rate limit, 4,000-character text and at most 500 queued runs per owner (429 with `Retry-After: 60`); concurrency limits never reject acceptance.
+- Scheduling is fair across users and models, and runs of one model start in FIFO order. Serializable database claims enforce global and per-user limits across all worker processes.
+- The HTTP API never claims or executes runs. Worker stop, crash or restart leaves the API available and ingests returning 202 with durable queued runs; workers poll every 2 s without a wake signal.
+- Each worker updates its liveness row every 15 s; processing runs of a worker stale for more than 2 minutes fail as `worker_lost`. Workers exit 1 before processing if the schema is not migrated, and PM2 restarts them with backoff. The unauthenticated `/health/notification-worker` reports only the count seen within 60 s (200 if positive, otherwise 503 with zero).
+- No automatic retries: a run whose worker crashed becomes failed `worker_lost` with no transaction, and a run is completed only if its transaction was created in the same database transaction. Graceful shutdown returns aborted pre-creation runs to queued.
+- Clear text 7 days after a run finishes and delete finished runs after 30 days. Notification text and credentials never appear in application logs.
 
 **Dependencies:** ST-010.
 
-**Relevant existing architecture:** Reuse the `ApiKey` system (hashed `fl_` keys with expiry, revocation, and last-used tracking, managed in `Profile/components/ApiKeysSection.tsx`). Scopes are only `read` and `write`, so an ingest-only scope is new. `utils/rateLimit.ts` can be reused. `express.json` applies a global 1 MB limit in `app.ts` before routes, so a smaller limit needs route ordering attention. morgan logs URLs, so keys belong in headers only. `ProviderImportedTransaction` fits as staging and already has a review flow, MCP tools, and `/v1` endpoints.
+**Relevant existing architecture:** Reuse hashed `fl_` API keys, credential middleware, `createRateLimiter` and `createTransaction`. The new scope is separate from read/write. No durable job queue exists today.
 
-**Open questions:**
-- Staging fit: `providerCredentialId` and `providerAccountId` are required strings, so would synthetic values be acceptable? `FinancialProviderAdapter` is shaped for outbound sync. Is using the staging table without the adapter compatible with the rule against parallel provider systems?
-- Dedupe keys: the unique key is global, not per user, so ingestion keys must be namespaced per user. Should the key be client-supplied or a text hash? Could legitimate identical purchases collide?
-- `rawData` would store notification text in the database. How long should it be kept, and should it be stored in full?
-- Do these rows count toward a future imported-transaction retention limit (deferred ST-009)?
+### ST-032: Community notification model library and versioning
+
+**Objective:** Users share model versions and install independent copies using their own mappings.
+
+**Scope:** Publish immutable numbered versions, browse the community library, install private copies, detect available updates and offer optional updates. Updates are never automatic.
+
+**Acceptance criteria:**
+- Published versions snapshot name, description, code, slots and settings, never bindings; the user sees what will be published before confirming.
+- Installation creates an independent, inactive, private copy with empty bindings, its own endpoint and runs, and source-version tracking.
+- A newer public version is shown as available; declining it leaves the copy usable.
+- An optional update keeps the user's name, merges settings by key and preserves bindings whose slot key and kind are unchanged. Missing required bindings must be supplied or the update fails.
+- Warn before updating locally modified code; copies continue working if the source becomes private or is deleted.
+
+**Dependencies:** ST-010.
+
+**Relevant existing architecture:** No notification model or version tables exist today. B-007 adds them once; copies reuse the same model, sandbox, slots and owner-scoped transaction service.
 
 ### ST-012: Debit support (retired)
 
@@ -810,7 +817,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-004 | ST-005, ST-006, ST-007, ST-003, ST-024, ST-008 | Odoo-inspired directly-editable Form View with tabs and `RelatedList`, Profile, then Account, Transaction (with prefilled drafts, Details/Sharing/Related tabs, atomic save), convert and edit shared transactions with participant consent, blocking, public usernames and universal invitations (one migration, owned by ST-003), Group views with card overview, and Financial overview counting accepted shares only, all in one PR | S-001 to S-005 (sequencing only) | XL (grew with consent, blocking, and public identity) | Completed (PR #40, deployed 2026-11-12; also shipped: Form View tabs General/Transactions, Group category cards and create modal, server-side pagination through `createSieve`, immutable settled allocations with extra allocation lines, MCP OAuth for Meta AI Muse (hosted client document) and Grok, and per-client AI connection guide) |
 | B-005 | None | Retired; ST-008 was absorbed into B-004 | None | n/a | Retired |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Completed (PR #44, deployed 2026-11-12. Also shipped: a unified `Decimal(38,18)` money model with exact decimal-string API/MCP contracts; crypto Sharing and settlements with exact largest-remainder splits; per-currency group summaries; the account currency lock (#013); and the `TransactionCorrection` audit. Production kept its 24 transactions via the idempotent fill.) |
-| B-007 | ST-010, ST-011 | Notification regex rules and the ingestion endpoint | B-004 | L | Planned |
+| B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Completed (PR #52, deployed 2026-11-13) |
 | B-008 | ST-013, ST-014 | Credit-card limit, available credit, statements, payments with their accounting, and reminders | B-004, B-006 | XL | Planned |
 | B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Planned |
 | B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
@@ -819,9 +826,9 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-013 | ST-019 | On-chain wallet sync | B-009 | M | Planned |
 | B-014 | ST-020 | User-configured external sync | B-009, B-012 | L | Planned |
 
-Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004 and B-008 are the two XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003 and B-005 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
+Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004, B-007 and B-008 are the three XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003 and B-005 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** B-007 is next. B-001, B-002, B-004, B-006, and S-001 to S-005 are complete.
+**Where to start:** B-008 is next. B-001, B-002, B-004, B-006, B-007, and S-001 to S-005 are complete.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
@@ -833,7 +840,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 | Candidate grouping | Decision | Reason |
 |---|---|---|
-| ST-010 + ST-011 | Merged (B-007) | The endpoint is useless without rules, both share the iPhone feasibility gate, and the pair is one inbound-notification feature |
+| ST-010 + ST-011 + ST-032 | Merged (B-007) | One end-to-end feature; the library reuses the model, sandbox and slot design, and shipping the data model once avoids a second migration of the same tables; implemented in ordered phases inside the PR |
 | ST-013 + ST-014 | Merged (B-008) | One credit-card feature; the limit and the statement view live on the same account section, and ST-014's three former parts are one reviewable flow |
 | ST-015 + ST-016 | Merged (B-009) | Manual crypto portfolios are ST-015's first complete use, and ST-016 prices exactly those holdings with no new provider |
 | ST-008 with ST-015 | Kept separate (B-004, B-009) | ST-023 removes ST-008's temporary cross-currency disclosure, so ST-008 must ship before ST-023, while ST-015 needs ST-023 |
@@ -847,6 +854,8 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 | ST-008 with ST-005 | Bundled (B-004) | ST-008 integrates into Profile, which ST-005 migrates; it is read-only and has no form-state dependency; it counts only accepted shares (ST-003) |
 
 **Large batches kept whole:**
+
+- **B-007:** Phases in order: data model, config and shared contracts, sandbox runner, model API, persistent queue + ingestion + worker, web UI (five tabs), library, docs and staging acceptance.
 - **B-004:** ST-005, ST-006, ST-007, ST-003, ST-024, and ST-008 stay six independent intents, each with its own OpenSpec change, scope, and criteria, but by deliberate product-owner decision they ship as one larger feature branch and one PR targeting `razs_ai` that is **not to be split** into phases, parts, or optional follow-ups. Implementation order within the PR: ST-005 first as the shared foundation (with Profile as proof of no behavior loss), then ST-006, then ST-007 and ST-003 (separately specified; ST-003 extends ST-007's editing lifecycle), then ST-024, then ST-008. The batch grew in scope (participant consent, user blocking, public usernames and privacy, one migration) but stays XL and unsplit.
 - **B-006:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest L batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
 - **B-008:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant, so ST-014 is not split. The batch is XL because it holds ST-013 plus the statements, payments, and reminders of ST-014 in one PR. Its proposal should confirm the fit and may order the work internally as limit, statements, payments, then reminders. Reviewers should treat the payment accounting as the focus.
@@ -858,7 +867,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 
 | Batch | Check before starting |
 |---|---|
-| B-007 | Real-device verification of which notification paths work on iPhone and Android (iPhone automations may not be able to read bank push notifications), and a recorded supported-path decision before implementation. If no path works for the user's banks, reconsider the batch. |
+| B-007 | None beyond the sandbox runner's own Node 24 runtime checks. |
 | B-009 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
 | B-011 | Provider choice, rate limits, and display and redistribution licensing |
 | B-012 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it. Security review of encryption and key management. |
@@ -908,12 +917,12 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Testing:** Balance calculation across currency combinations, rate changes leaving balances and history untouched, net-only versus explicit-fee records, an 18-decimal round trip, fiat behaving as before, correction rows, every write path, and no change for same-currency records.
 - **Done when:** Native balances are exact and correct, each cross-currency record has an auditable history, and every financial correction records who changed what and when.
 
-**B-007: ST-010, ST-011.**
-- **Deliverable:** Rule configuration on the shared Form View, a sample-text test, and safe regex evaluation (ST-010); the ingest endpoint, a restricted credential, and the review flow (ST-011).
-- **Implementation order:** ST-010, then ST-011.
-- **Prerequisites:** B-004. It is sequenced after B-006 by product priority, with no technical dependency on B-006. **Real-device feasibility verification is required first:** test on real iOS and Android devices which notification paths can reach FlowLedger, and record a supported-path decision before implementation. Do not assume unrestricted iPhone access to bank push notifications; research found no Shortcuts trigger that reads another app's notifications (see ST-010), and iPhone support may be limited to SMS, Mail, or Wallet-tap triggers. Android depends on user-granted notification access and Android 15 restrictions.
-- **Testing:** Activation rules, pathological patterns, oversized input, and user isolation. Duplicates, limits, cross-user isolation, and no notification text or credentials in logs.
-- **Done when:** A user can test and activate a rule, no pattern can stall the API, and an automation can send text and get a reviewable record. On the supported path decided in the prerequisites, this gives an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions.
+**B-007: ST-010, ST-011, ST-032.**
+- **Deliverable:** User-owned sandboxed Python models with slots and bindings, list and five-tab Form View (Form, Code, Playground, Queue, Logs); an ingest-only key, a JSON-only async per-model endpoint, a persistent per-model queue with configurable concurrency, fairness and a separate PM2-supervised worker process from the same codebase; community publishing, installation and optional version updates.
+- **Implementation order:** Data model, config and shared contracts, sandbox runner, model API, persistent queue + ingestion + worker, web UI (five tabs), library, docs and staging acceptance.
+- **Prerequisites:** B-004 is the only technical batch dependency. Before the first production deploy, the owner registers the PM2 worker from `~/production/flowledger/apps/api` using `pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker`, then `pm2 save`, and adds `pm2 restart flowledger-prod-worker --update-env` after the API restart in external `~/scripts/deploy-flowledger-prod.sh`. Deployment order stays migrate → build → API → worker. The architecture decision in the [OpenSpec design](openspec/changes/b007-notification-processor/design.md) is a separate worker process from the same `apps/api` codebase, sharing only Postgres, with no `apps/engine`, new service, repository, database or worker-specific dependency. More workers means more `dist/worker.js` processes; Lambda later swaps only the sandbox execution body, with no AWS now.
+- **Testing:** Malicious-script suite (imports, dunder/frame access, `str.format` traversal, infinite loop, memory bomb, ReDoS), activation, side-effect-free tests, cross-user isolation (add rows to `financialIsolation.integration.test.ts`), duplicates, inactive models, missing mappings, queue saturation, concurrency limits and misconfigured env, fairness, persistence failure (503), worker stop/kill/restart isolation (API stays available, ingests return 202, queued runs survive and drain after startup), multi-worker concurrency, worker health check (503 with no worker seen within 60 s, 200 with live count), unmigrated-schema startup refusal, crashed in-flight runs (`worker_lost` after worker liveness is stale more than 2 minutes), graceful shutdown, retention (7/30 days), and no text or credentials in logs. Library installation, immutable versions, settings merge, binding preservation and local-modification warnings.
+- **Done when:** A posted notification creates exactly one correct transaction, a promotion is skipped, and a copy installed from the library works with the installer's own mappings.
 
 **B-008: ST-013, ST-014.**
 - **Deliverable:** The credit limit, derived available credit, and the debit-card inference fix (ST-013); statements with dates, amount, and status; the partial and full payment flow, the modal, optional transaction creation through a draft, the chosen accounting mechanism, and outstanding and overdue highlighting; and in-app reminders delivered once per statement (ST-014).
@@ -1004,7 +1013,8 @@ ST-005 --+--> ST-007 --+--> ST-023 ---------+
          |                           +--> ST-022
          +--> ST-024
          |
-         +--> ST-010 --> ST-011
+         +--> ST-010 --+--> ST-011
+                       +--> ST-032
 
 ST-001 --> ST-023 (execution instant and shared date helper)
 ST-023 --> ST-015 (exact crypto quantities)
@@ -1046,12 +1056,7 @@ These belong to the relevant intent's discovery and are deliberately not decided
 - Whether any wallet-connection library is warranted, and which RPC or indexer provider to use. Reported free-tier figures conflict.
 
 **API credential details (ST-011, ST-018, ST-020)**
-- How an ingest scope fits the existing `read`/`write` model and UI.
 - Encryption, key management, and rotation for readable secrets.
-
-**Notification automation (ST-010)**
-- Real-device confirmation of iOS triggers, unattended "Run Immediately" behavior, and which of the user's banks send SMS or email.
-- Android 15 sensitive-notification behavior, and restricted settings for sideloaded automation apps.
 
 **SSRF (ST-020)**
 - A starting checklist is in the [OWASP SSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html): HTTPS only, validate all resolved addresses, pin the validated IP, disable or re-validate redirects, and limit time and response size.

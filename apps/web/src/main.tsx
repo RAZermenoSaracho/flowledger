@@ -11,6 +11,8 @@ import { AppLayout } from "./layout/AppLayout";
 import { ProtectedRoute } from "./layout/ProtectedRoute";
 import { AccountDetailPage } from "./pages/Accounts/AccountDetailPage";
 import { AccountsPage } from "./pages/Accounts/AccountsPage";
+import { NotificationModelDetailPage } from "./pages/NotificationModels/NotificationModelDetailPage";
+import { NotificationModelsPage } from "./pages/NotificationModels/NotificationModelsPage";
 import { CategoriesPage } from "./pages/Categories/CategoriesPage";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { DebtsPage } from "./pages/Debts/DebtsPage";
@@ -74,6 +76,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 />
                 <Route path="/accounts" element={<AccountsPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
+                <Route
+                  path={routes.notificationModels}
+                  element={<NotificationModelsPage />}
+                />
+                <Route
+                  path={routes.legacyNotificationLibrary}
+                  element={<Navigate to={routes.notificationLibrary} replace />}
+                />
+                <Route
+                  path={routes.newNotificationModel}
+                  element={<NotificationModelDetailPage />}
+                />
+                <Route
+                  path="/notification-models/:id"
+                  element={<NotificationModelDetailPage />}
+                />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/groups/:id" element={<GroupDetailPage />} />

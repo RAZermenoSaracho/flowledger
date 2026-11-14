@@ -14,7 +14,7 @@ describe("CreateApiKeyForm", () => {
     await user.type(screen.getByLabelText("Name"), "CLI");
     await user.click(screen.getByRole("button", { name: "Create key" }));
 
-    expect(onSubmit).toHaveBeenCalledWith({ name: "CLI", allowWrite: false, lifetime: "1m" });
+    expect(onSubmit).toHaveBeenCalledWith({ name: "CLI", allowWrite: false, ingestOnly: false, lifetime: "1m" });
   });
 
   it("warns when Never is selected", async () => {
@@ -32,5 +32,20 @@ describe("CreateApiKeyForm", () => {
     await user.type(screen.getByLabelText("Name"), "CLI");
     await user.click(screen.getByRole("button", { name: "Create key" }));
     await waitFor(() => expect(screen.getByText("Nope")).toBeInTheDocument());
+  });
+
+  it("submits ingestOnly and disables write while it is checked", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<CreateApiKeyForm onSubmit={onSubmit} />);
+
+    await user.click(screen.getByLabelText("Read + Write"));
+    await user.click(screen.getByLabelText("Notification ingest only"));
+    expect(screen.getByLabelText("Read + Write")).toBeDisabled();
+    expect(screen.getByLabelText("Read + Write")).not.toBeChecked();
+
+    await user.type(screen.getByLabelText("Name"), "Phone");
+    await user.click(screen.getByRole("button", { name: "Create key" }));
+    expect(onSubmit).toHaveBeenCalledWith({ name: "Phone", allowWrite: false, ingestOnly: true, lifetime: "1m" });
   });
 });

@@ -35,9 +35,9 @@ Node `>=24` required (see `.nvmrc` / `engines` in root `package.json`).
 
 ```bash
 cp .env.example .env          # fill in secrets before running
-npm run dev                   # builds shared, then runs API + web in parallel
+npm run dev                   # builds shared, then runs API + notification worker + web in parallel
 npm run build                 # production build of all workspaces
-npm run start                 # build + run API node + Vite preview (port 5174)
+npm run start                 # build + run API + notification worker + Vite preview (port 5174)
 npm run typecheck             # type-check all workspaces
 npm run test                  # run all test suites
 npm run test:coverage         # run all test suites with coverage reports
@@ -63,6 +63,8 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | `SYNCFY_API_KEY` | Syncfy API key (optional; disables Syncfy if absent) |
 | `SYNCFY_WEBHOOK_SIGNATURE_KEY` | HMAC key for webhook signature verification; required when `SYNCFY_API_KEY` is set |
 | `SYNCFY_AUTO_SYNC_ENABLED` | Global Syncfy availability switch: when false, all Syncfy operations (connect, resync, webhook processing, scheduler) are disabled; see `docs/PROVIDER_SYNC.md` |
+| `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` | Notification run concurrency across workers (default `4`, integer `1–64`) |
+| `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` | Per-user notification concurrency (default `2`, integer `1–64`, must be ≤ global); invalid limits prevent API/worker startup |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | Scheduler interval (default `60`) |
 
 ---
@@ -186,6 +188,7 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 
 | Doc | Contents |
 |---|---|
+| `docs/NOTIFICATION_MODELS.md` | Notification scripts, sandbox, queue, ingestion and worker deployment |
 | `docs/DATA_MODEL.md` | All Prisma models, relationships, enum values |
 | `docs/AUTH_FLOW.md` | JWT, Google OAuth, middleware, token storage |
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
