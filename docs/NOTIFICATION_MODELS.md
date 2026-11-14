@@ -172,19 +172,11 @@ Before starting, the worker checks schema readiness with `notificationRun.findFi
 
 `GET /health/notification-worker` on the API is unauthenticated: **200 `{ "workers": n }`** when at least one worker was seen within 60 s, otherwise **503 `{ "workers": 0 }`**.
 
-The operator makes two host changes; `~/scripts/deploy-flowledger-prod.sh` is outside the repo:
+`~/scripts/deploy-flowledger-prod.sh` (outside the repo) restarts `flowledger-prod-worker` right after `flowledger-prod-api`, or registers it with this command when PM2 has no such process yet, then runs `pm2 save`:
 
-1. One-time PM2 registration:
-
-   ```bash
-   cd ~/production/flowledger/apps/api && pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker && pm2 save
-   ```
-
-2. In `~/scripts/deploy-flowledger-prod.sh`, add this line after `pm2 restart flowledger-prod-api` and before `pm2 save`:
-
-   ```bash
-   pm2 restart flowledger-prod-worker --update-env
-   ```
+```bash
+cd ~/production/flowledger/apps/api && pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker
+```
 
 After deploy:
 

@@ -215,7 +215,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   4. After deploy: `curl -fsS http://127.0.0.1:4000/health/notification-worker` returns 200, and `pm2 status` shows both processes online.
 
   Verify: the doc and the skill contain the exact commands, and the PR description lists the two manual host steps for the owner. Implementation does not edit the host or the external script.
-- [ ] 7.4 Staging acceptance on `flowledger-dev` (owner present):
+- [x] 7.4 Staging acceptance on `flowledger-dev` (owner present):
   - create a Plata model, check it, run it in the playground, bind slots and activate;
   - create an ingest key;
   - POST `{"text": …}` → exactly one correct transaction;
@@ -229,7 +229,7 @@ API paths below are relative to `apps/api/src/modules/notificationModels/` unles
   - a second account installs the model from the library, binds its own records and ingests successfully.
 
   Record the outcomes in the PR. Verify: a PR comment with the checklist.
-- [ ] 7.5 Update `SHORT_TERM_ROADMAP.md` (ST-010, ST-011 and ST-032 statuses; B-007 status) and log any deferred finding in `docs/KNOWN_ISSUES.md`. Verify: the diff touches only those rows and entries.
+- [x] 7.5 Update `SHORT_TERM_ROADMAP.md` (ST-010, ST-011 and ST-032 statuses; B-007 status) and log any deferred finding in `docs/KNOWN_ISSUES.md`. Verify: the diff touches only those rows and entries.
 
 ## 8. Visual rules (Form ↔ Code)
 

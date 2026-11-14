@@ -21,15 +21,11 @@ push to `main`
 
 The API and notification worker are independent PM2 processes from the same build. Stopping the worker pauses processing; ingestion continues until queue capacity is reached. See [Notification Models — Deployment](../../../docs/NOTIFICATION_MODELS.md#deployment).
 
-The operator applies two host changes:
+`~/scripts/deploy-flowledger-prod.sh` (outside the repo) runs migrate → build → API restart → worker restart, then web and `pm2 save`. When PM2 has no `flowledger-prod-worker` yet it registers it instead:
 
-1. Register the worker once:
-
-   ```bash
-   cd ~/production/flowledger/apps/api && pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker && pm2 save
-   ```
-
-2. In `~/scripts/deploy-flowledger-prod.sh` (outside the repo), add `pm2 restart flowledger-prod-worker --update-env` after `pm2 restart flowledger-prod-api` and before `pm2 save`. Keep migrate → build → API → worker order.
+```bash
+cd ~/production/flowledger/apps/api && pm2 start npm --name flowledger-prod-worker --kill-timeout 15000 --exp-backoff-restart-delay 1000 -- run start:worker
+```
 
 Staging uses the same commands with its own checkout and process name. After deployment, run `curl -fsS http://127.0.0.1:4000/health/notification-worker` and `pm2 status`; expect 200 and both processes online.
 
