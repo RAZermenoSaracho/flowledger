@@ -42,6 +42,10 @@ describe("formatStatus", () => {
 });
 
 describe("getAccountTypeLabel", () => {
+  it("labels credit_card as 'Credit'", () => {
+    expect(getAccountTypeLabel("credit_card")).toBe("Credit");
+  });
+
   it("labels every account type without the raw enum", () => {
     for (const type of ACCOUNT_TYPES) {
       const label = getAccountTypeLabel(type);
