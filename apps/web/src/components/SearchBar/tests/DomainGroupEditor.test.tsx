@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   addChild,
   createCondition,
+  createConditionWithValue,
   createEmptyGroup,
   type DomainGroupNode,
   type SearchFieldConfig
@@ -69,5 +70,72 @@ describe("DomainGroupEditor", () => {
 
     await userEvent.type(screen.getByLabelText("Value"), "x");
     expect(onRootChange.mock.calls.at(-1)![0].children[0].value).toBe("x");
+  });
+
+  describe("non-pickable fields", () => {
+    const periodField: SearchFieldConfig = {
+      name: "period",
+      label: "Billing period",
+      type: "date",
+      ops: ["between"],
+      pickable: false,
+      describe: () => "Sep 1 – Sep 30"
+    };
+
+    function setupWithPeriod() {
+      let root = createEmptyGroup("and");
+      root = addChild(
+        root,
+        root.id,
+        createConditionWithValue("period", "between", ["a", "b"])
+      );
+      root = addChild(root, root.id, createCondition(fields[0]!));
+      const onRootChange = vi.fn();
+      render(
+        <DomainGroupEditor
+          root={root}
+          node={root}
+          fields={[periodField, ...fields]}
+          onRootChange={onRootChange}
+          isRoot
+        />
+      );
+      return onRootChange;
+    }
+
+    it("renders read-only summary text and a remove button, without pickers", () => {
+      setupWithPeriod();
+      expect(
+        screen.getByText("Billing period Sep 1 – Sep 30")
+      ).toBeInTheDocument();
+      expect(screen.getAllByLabelText("Field")).toHaveLength(1);
+      expect(
+        screen.getAllByRole("button", { name: "Remove condition" })
+      ).toHaveLength(2);
+    });
+
+    it("removes the read-only condition", async () => {
+      const onRootChange = setupWithPeriod();
+      await userEvent.click(
+        screen.getAllByRole("button", { name: "Remove condition" })[0]!
+      );
+      const next = onRootChange.mock.calls[0]![0] as DomainGroupNode;
+      expect(next.children).toHaveLength(1);
+      expect(next.children[0]).toMatchObject({ fieldName: "name" });
+    });
+
+    it("excludes it from the field picker and from + Condition", async () => {
+      const onRootChange = setupWithPeriod();
+      const options = Array.from(
+        screen.getByLabelText("Field").querySelectorAll("option")
+      ).map((o) => o.textContent);
+      expect(options).toEqual(["Name", "Amount"]);
+      await userEvent.click(
+        screen.getByRole("button", { name: "+ Condition" })
+      );
+      expect(onRootChange.mock.calls[0]![0].children.at(-1)).toMatchObject({
+        fieldName: "name"
+      });
+    });
   });
 });

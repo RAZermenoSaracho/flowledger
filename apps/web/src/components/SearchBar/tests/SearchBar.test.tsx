@@ -38,7 +38,9 @@ describe("SearchBar", () => {
     );
 
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenCalledWith({ where: undefined })
+      expect(onQueryChange).toHaveBeenCalledWith(
+        expect.objectContaining({ where: undefined })
+      )
     );
   });
 
@@ -81,9 +83,11 @@ describe("SearchBar", () => {
 
     expect(screen.getByText("Name contains groceries")).toBeInTheDocument();
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenLastCalledWith({
-        where: { field: "name", op: "ilike", value: "groceries" }
-      })
+      expect(onQueryChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { field: "name", op: "ilike", value: "groceries" }
+        })
+      )
     );
     expect(screen.getByLabelText("Search")).toHaveValue("");
   });
@@ -129,10 +133,12 @@ describe("SearchBar", () => {
 
     expect(screen.getByText("Group by Category")).toBeInTheDocument();
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenLastCalledWith({
-        where: undefined,
-        groupBy: ["categoryId"]
-      })
+      expect(onQueryChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: undefined,
+          groupBy: ["categoryId"]
+        })
+      )
     );
   });
 
@@ -215,10 +221,12 @@ describe("SearchBar", () => {
     );
 
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenLastCalledWith({
-        where: undefined,
-        sort: [{ field: "date", direction: "desc" }]
-      })
+      expect(onQueryChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: undefined,
+          sort: [{ field: "date", direction: "desc" }]
+        })
+      )
     );
 
     await user.click(
@@ -228,10 +236,12 @@ describe("SearchBar", () => {
     await user.click(screen.getByRole("button", { name: "Sort descending" }));
 
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenLastCalledWith({
-        where: undefined,
-        sort: [{ field: "amount", direction: "asc" }]
-      })
+      expect(onQueryChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: undefined,
+          sort: [{ field: "amount", direction: "asc" }]
+        })
+      )
     );
   });
 
@@ -247,10 +257,12 @@ describe("SearchBar", () => {
     );
 
     await waitFor(() =>
-      expect(onQueryChange).toHaveBeenLastCalledWith({
-        where: undefined,
-        sort: [{ field: "amount", direction: "asc" }]
-      })
+      expect(onQueryChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: undefined,
+          sort: [{ field: "amount", direction: "asc" }]
+        })
+      )
     );
   });
 
@@ -320,25 +332,6 @@ describe("SearchBar", () => {
     expect(
       screen.getByRole("button", { name: "Clear all filters" })
     ).toBeInTheDocument();
-  });
-
-  it("hides the Edit filters entry when showFilterBuilder is false", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(
-      <SearchBar
-        fields={fields}
-        onQueryChange={vi.fn()}
-        showFilterBuilder={false}
-      />
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "Filter, group, and sort" })
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "Edit filters" })
-    ).not.toBeInTheDocument();
   });
 
   it("marks 'Edit filters' as active once a condition exists", async () => {

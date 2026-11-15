@@ -3,16 +3,32 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
+import {
+  createConditionWithValue,
+  createEmptyGroup
+} from "../../../../utils/searchDomain";
 import { server } from "../../../../tests/mocks/server";
 import type { RelatedTransactionsScope } from "../../../../types/transactions.types";
 import { useRelatedTransactions } from "../useRelatedTransactions";
 
 const API_URL = "http://localhost:4000";
 
-type Query = { where: unknown; sort: unknown; pagination: { kind: string; offset: number; limit: number } };
+type Query = {
+  where: unknown;
+  sort: unknown;
+  pagination: { kind: string; offset: number; limit: number };
+};
 
 function meta(offset: number, limit: number) {
-  return { total: 40, page: null, pageSize: null, pageCount: null, hasNext: offset + limit < 40, hasPrevious: offset > 0, executionTime: 1 };
+  return {
+    total: 40,
+    page: null,
+    pageSize: null,
+    pageCount: null,
+    hasNext: offset + limit < 40,
+    hasPrevious: offset > 0,
+    executionTime: 1
+  };
 }
 
 function mockTransactions(status = 200) {
@@ -22,14 +38,19 @@ function mockTransactions(status = 200) {
       const query = JSON.parse(new URL(request.url).searchParams.get("query")!);
       queries.push(query);
       if (status !== 200) return new HttpResponse(null, { status });
-      return HttpResponse.json({ data: [], meta: meta(query.pagination.offset, query.pagination.limit) });
+      return HttpResponse.json({
+        data: [],
+        meta: meta(query.pagination.offset, query.pagination.limit)
+      });
     })
   );
   return queries;
 }
 
 function render(scope: RelatedTransactionsScope) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
   return renderHook(({ scope }) => useRelatedTransactions(scope), {
@@ -38,7 +59,10 @@ function render(scope: RelatedTransactionsScope) {
   });
 }
 
-const accountScope: RelatedTransactionsScope = { field: "accountId", value: "a1" };
+const accountScope: RelatedTransactionsScope = {
+  field: "accountId",
+  value: "a1"
+};
 
 describe("useRelatedTransactions", () => {
   it("requests the scope condition, date desc, range 0-20", async () => {
@@ -52,24 +76,78 @@ describe("useRelatedTransactions", () => {
     });
   });
 
-  it("with a date range also matches transfers into the account", async () => {
+  it("widens an account scope to transfers in only while the transfersInWith condition exists", async () => {
     const queries = mockTransactions();
     const { result } = render({
       ...accountScope,
-      dateRange: { from: "2027-01-21T06:00:00.000Z", to: "2027-02-21T06:00:00.000Z" }
+      transfersInWith: "billingPeriod"
     });
     await waitFor(() => expect(result.current.pager.total).toBe(40));
     expect(queries[0]?.where).toEqual({
+      field: "accountId",
+      op: "=",
+      value: "a1"
+    });
+
+    const period = createConditionWithValue("billingPeriod", "between", [
+      "s",
+      "e"
+    ]);
+    const domain = { ...createEmptyGroup("and"), children: [period] };
+    const date = {
       and: [
-        {
-          or: [
-            { field: "accountId", op: "=", value: "a1" },
-            { field: "transferToAccountId", op: "=", value: "a1" }
-          ]
-        },
-        { field: "date", op: ">=", value: "2027-01-21T06:00:00.000Z" },
-        { field: "date", op: "<", value: "2027-02-21T06:00:00.000Z" }
+        { field: "date", op: ">=", value: "s" },
+        { field: "date", op: "<", value: "e" }
       ]
+    };
+    act(() => result.current.setSearch({ where: date, domain }));
+    await waitFor(() =>
+      expect(queries.at(-1)?.where).toEqual({
+        and: [
+          {
+            or: [
+              { field: "accountId", op: "=", value: "a1" },
+              { field: "transferToAccountId", op: "=", value: "a1" }
+            ]
+          },
+          date
+        ]
+      })
+    );
+
+    const other = {
+      ...createEmptyGroup("and"),
+      children: [createConditionWithValue("name", "=", "x")]
+    };
+    const name = { field: "name", op: "=", value: "x" };
+    act(() => result.current.setSearch({ where: name, domain: other }));
+    await waitFor(() =>
+      expect(queries.at(-1)?.where).toEqual({
+        and: [{ field: "accountId", op: "=", value: "a1" }, name]
+      })
+    );
+  });
+
+  it("never widens a group scope", async () => {
+    const queries = mockTransactions();
+    const { result } = render({
+      field: "groupId",
+      value: "g1",
+      transfersInWith: "billingPeriod"
+    });
+    await waitFor(() => expect(result.current.pager.total).toBe(40));
+    const domain = {
+      ...createEmptyGroup("and"),
+      children: [
+        createConditionWithValue("billingPeriod", "between", ["s", "e"])
+      ]
+    };
+    act(() => result.current.setSearch({ domain }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(queries.at(-1)?.where).toEqual({
+      field: "groupId",
+      op: "=",
+      value: "g1"
     });
   });
 
@@ -94,18 +172,26 @@ describe("useRelatedTransactions", () => {
     await waitFor(() => expect(queries.at(-1)?.pagination.offset).toBe(20));
 
     rerender({ scope: { field: "groupId", value: "g1" } });
-    await waitFor(() => expect(queries.at(-1)?.where).toMatchObject({ field: "groupId" }));
+    await waitFor(() =>
+      expect(queries.at(-1)?.where).toMatchObject({ field: "groupId" })
+    );
     expect(result.current.pager.offset).toBe(0);
 
     act(() => result.current.pager.onRangeChange(20, 20));
     await waitFor(() => expect(result.current.pager.offset).toBe(20));
-    act(() => result.current.setSearch({ where: { field: "name", op: "ilike", value: "x" } }));
+    act(() =>
+      result.current.setSearch({
+        where: { field: "name", op: "ilike", value: "x" }
+      })
+    );
     await waitFor(() => expect(result.current.pager.offset).toBe(0));
   });
 
   it("reports an error message when the request fails", async () => {
     mockTransactions(500);
     const { result } = render(accountScope);
-    await waitFor(() => expect(result.current.error).toBe("Could not load transactions."));
+    await waitFor(() =>
+      expect(result.current.error).toBe("Could not load transactions.")
+    );
   });
 });

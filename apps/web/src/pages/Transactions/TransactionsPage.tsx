@@ -3,15 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AddRecordButton } from "../../components/AddRecordButton";
 import { Tabs } from "../../components/Tabs";
-import { useCurrenciesQuery } from "../../components/CurrencySelect";
 import { ListView } from "../../components/ListView";
 import { groupByFields } from "../../utils/groupByFields";
 import { SearchBar, type SearchBarQuery } from "../../components/SearchBar";
 import { ImportedTransactionsTab } from "./components/ImportedTransactionsTab";
 import { TransactionRow } from "./components/TransactionRow";
 import { useImportedTransactionsWorkflow } from "./hooks/useImportedTransactionsWorkflow";
+import { useTransactionSearchFields } from "./hooks/useTransactionSearchFields";
+import { transactionGroupKey } from "./utils/transactions";
 import {
-  buildTransactionSearchFields,
   TRANSACTION_DEFAULT_SEARCH_FIELD,
   TRANSACTION_GROUPABLE_FIELDS,
   TRANSACTION_SORTABLE_FIELDS
@@ -20,33 +20,11 @@ import { usePagination } from "../../hooks/usePagination";
 import { routes } from "../../constants/routes";
 import { listAccounts } from "../../services/accounts.client";
 import * as categoriesClient from "../../services/categories.client";
-import { listGroups } from "../../services/groups.client";
 import * as transactionsClient from "../../services/transactions.client";
 import type { Transaction } from "../../types/transactions.types";
-import { transactionDateInputValue } from "../../utils/dateTime";
 import type { TransactionsTab } from "./types/transactions.types";
 
 const TRANSACTIONS_DEFAULT_LIMIT = 50;
-
-function transactionGroupKey(transaction: Transaction, groupById: string) {
-  if (groupById === "category") {
-    return {
-      key: transaction.categoryId ?? "uncategorized",
-      label: transaction.category?.name ?? "Uncategorized"
-    };
-  }
-  if (groupById === "account") {
-    return {
-      key: transaction.accountId ?? "no-account",
-      label: transaction.account?.name ?? "No account"
-    };
-  }
-  if (groupById === "month") {
-    const month = transactionDateInputValue(transaction).slice(0, 7);
-    return { key: month, label: month };
-  }
-  return { key: "", label: "" };
-}
 
 function isTransactionsTab(value: string | null): value is TransactionsTab {
   return value === "transactions" || value === "imported";
@@ -96,36 +74,8 @@ export function TransactionsPage() {
     queryKey: ["categories"],
     queryFn: async () => (await categoriesClient.listCategories()).categories
   });
-  const allCategoriesQuery = useQuery({
-    queryKey: ["categories", "all"],
-    queryFn: async () =>
-      (await categoriesClient.listCategories({ scope: "all" })).categories
-  });
-  const groupsQuery = useQuery({
-    queryKey: ["groups"],
-    queryFn: async () => (await listGroups()).groups
-  });
-  const currenciesQuery = useCurrenciesQuery();
-  const currencyCodes = useMemo(
-    () =>
-      [
-        ...(currenciesQuery.data?.fiat ?? []),
-        ...(currenciesQuery.data?.crypto ?? [])
-      ].map((currency) => currency.code),
-    [currenciesQuery.data]
-  );
-
-  // Memoized: an inline `data ?? []` fallback produces a fresh array
-  // reference on every render whenever `data` is undefined, which would
-  // invalidate `transactionSearchFields` below every render, which in
-  // turn feeds SearchBar's `fields` prop — SearchBar re-fires its own
-  // onQueryChange effect whenever `fields` changes identity, causing an
-  // unbounded render loop (see ImportedTransactionsFiltersCard.tsx for
-  // the same hazard called out explicitly).
-  const allTransactionCategories = useMemo(
-    () => allCategoriesQuery.data ?? [],
-    [allCategoriesQuery.data]
-  );
+  // Memoized: an inline `data ?? []` fallback is a fresh array every render, and the imported tab's SearchBar
+  // re-fires `onQueryChange` whenever its `fields` change identity (see ImportedTransactionsFiltersCard.tsx).
   const importedFilterAccounts = useMemo(
     () => accountsQuery.data ?? [],
     [accountsQuery.data]
@@ -154,29 +104,7 @@ export function TransactionsPage() {
     }
   });
 
-  // Sourced from the full currency list (independent of the current
-  // transaction filter/results), not from `visibleTransactions` — every
-  // condition's value picker must offer every possible value for a
-  // field, regardless of what other conditions already narrow the
-  // result set to. Deriving this from filtered results would make
-  // currencies excluded by an existing condition disappear from the
-  // picker, making it impossible to ever build e.g. an OR across two
-  // currencies.
-  const transactionSearchFields = useMemo(
-    () =>
-      buildTransactionSearchFields({
-        accounts: accountsQuery.data ?? [],
-        categories: allTransactionCategories,
-        groups: groupsQuery.data ?? [],
-        currencyOptions: currencyCodes
-      }),
-    [
-      accountsQuery.data,
-      allTransactionCategories,
-      groupsQuery.data,
-      currencyCodes
-    ]
-  );
+  const transactionSearchFields = useTransactionSearchFields();
 
   const groupedTransactions = useMemo(
     () =>
