@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../../tests/mocks/server";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
@@ -124,46 +124,168 @@ describe("AccountDetailPage", () => {
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
-  it("narrows Transactions to a billing period, including transfers into the account, and can clear it", async () => {
-    mockAccounts([makeAccount({ type: "credit_card" })]);
-    const wheres: unknown[] = [];
-    server.use(
-      http.get(`${API_URL}/transactions`, ({ request }) => {
-        wheres.push(
-          JSON.parse(new URL(request.url).searchParams.get("query")!).where
-        );
-        return HttpResponse.json({
-          data: [],
-          meta: { total: 0, hasNext: false }
-        });
-      })
-    );
-    const user = userEvent.setup();
-    renderWithProviders(
-      <Routes>
-        <Route path="/accounts/:id" element={<AccountDetailPage />} />
-      </Routes>,
-      {
-        route:
-          "/accounts/acc-1?tab=transactions&periodFrom=2027-01-21&periodTo=2027-02-20&periodStartAt=2027-01-21T06:00:00.000Z&periodEndAt=2027-02-21T06:00:00.000Z",
-        withAuth: true
-      }
-    );
+  describe("Transactions tab SearchBar", () => {
+    const START = "2026-09-21T06:00:00.000Z";
+    const END = "2026-10-21T06:00:00.000Z";
+    const PERIOD_ROUTE = `/accounts/acc-1?tab=transactions&periodFrom=2026-09-21&periodTo=2026-10-20&periodStartAt=${START}&periodEndAt=${END}`;
+    const PERIOD_CHIP = "Billing period Sep 21, 2026 – Oct 20, 2026";
+    const scope = { field: "accountId", op: "=", value: "acc-1" };
+    const periodWhere = {
+      and: [
+        { field: "date", op: ">=", value: START },
+        { field: "date", op: "<", value: END }
+      ]
+    };
+    const withTransfers = {
+      or: [scope, { field: "transferToAccountId", op: "=", value: "acc-1" }]
+    };
 
-    expect(await screen.findByText(/Billing period/)).toBeInTheDocument();
-    expect(screen.getByText("Active filter:")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(JSON.stringify(wheres[0])).toContain("transferToAccountId")
-    );
-    expect(JSON.stringify(wheres[0])).toContain("2027-01-21T06:00:00.000Z");
-    expect(JSON.stringify(wheres[0])).toContain("2027-02-21T06:00:00.000Z");
-    await user.click(screen.getByRole("button", { name: "Clear period" }));
-    await waitFor(() =>
-      expect(screen.queryByText(/Billing period/)).not.toBeInTheDocument()
-    );
-    await waitFor(() =>
-      expect(JSON.stringify(wheres.at(-1))).not.toContain("transferToAccountId")
-    );
+    function setup(route: string, type: Account["type"] = "credit_card") {
+      mockAccounts([
+        makeAccount({ type, billingTimeZone: "America/Mexico_City" })
+      ]);
+      const wheres: unknown[] = [];
+      server.use(
+        http.get(`${API_URL}/groups`, () => HttpResponse.json({ groups: [] })),
+        http.get(`${API_URL}/categories`, () =>
+          HttpResponse.json({ categories: [] })
+        ),
+        http.get(`${API_URL}/transactions`, ({ request }) => {
+          wheres.push(
+            JSON.parse(new URL(request.url).searchParams.get("query")!).where
+          );
+          return HttpResponse.json({
+            data: [],
+            meta: { total: 0, hasNext: false }
+          });
+        })
+      );
+      function Probe() {
+        const location = useLocation();
+        const navigate = useNavigate();
+        return (
+          <>
+            <output aria-label="search">{location.search}</output>
+            <button
+              onClick={() =>
+                navigate(
+                  "/accounts/acc-1?tab=transactions&periodFrom=2026-10-21&periodTo=2026-11-20&periodStartAt=2026-10-21T06:00:00.000Z&periodEndAt=2026-11-21T06:00:00.000Z"
+                )
+              }
+            >
+              go next period
+            </button>
+            <button onClick={() => navigate(-1)}>go back</button>
+          </>
+        );
+      }
+      renderWithProviders(
+        <>
+          <Probe />
+          <Routes>
+            <Route path="/accounts/:id" element={<AccountDetailPage />} />
+          </Routes>
+        </>,
+        { route, withAuth: true }
+      );
+      return wheres;
+    }
+
+    it("offers the full transaction fields, without Billing period in the picker", async () => {
+      setup(PERIOD_ROUTE.split("&period")[0]!);
+      const user = userEvent.setup();
+      await screen.findByLabelText("Search transactions");
+      await user.click(
+        screen.getByRole("button", { name: "Filter, group, and sort" })
+      );
+      await user.click(screen.getByRole("button", { name: "Edit filters" }));
+      await user.click(screen.getByRole("button", { name: "+ Condition" }));
+      const options = Array.from(
+        screen.getByLabelText("Field").querySelectorAll("option")
+      ).map((option) => option.textContent);
+      expect(options).toEqual(
+        expect.arrayContaining(["Amount", "Category", "Date", "Type"])
+      );
+      expect(options).not.toContain("Billing period");
+    });
+
+    it("shows the period as a chip and queries its exact instants, including transfers in", async () => {
+      const wheres = setup(PERIOD_ROUTE);
+      expect(await screen.findByText(PERIOD_CHIP)).toBeInTheDocument();
+      expect(screen.queryByText("Active filter:")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(wheres.at(-1)).toEqual({ and: [withTransfers, periodWhere] })
+      );
+    });
+
+    it("ANDs the period with another condition", async () => {
+      const wheres = setup(PERIOD_ROUTE);
+      const user = userEvent.setup();
+      await screen.findByText(PERIOD_CHIP);
+      await user.type(
+        screen.getByLabelText("Search transactions"),
+        "coffee{Enter}"
+      );
+      await waitFor(() =>
+        expect(JSON.stringify(wheres.at(-1))).toContain('"value":"coffee"')
+      );
+      expect(JSON.stringify(wheres.at(-1))).toContain(START);
+      expect(JSON.stringify(wheres.at(-1))).toContain("transferToAccountId");
+    });
+
+    it("removing the chip clears the period URL params, keeps other filters and drops the transfer widening", async () => {
+      const wheres = setup(PERIOD_ROUTE);
+      const user = userEvent.setup();
+      await screen.findByText(PERIOD_CHIP);
+      await user.type(
+        screen.getByLabelText("Search transactions"),
+        "coffee{Enter}"
+      );
+      await waitFor(() =>
+        expect(JSON.stringify(wheres.at(-1))).toContain('"value":"coffee"')
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: `Remove ${PERIOD_CHIP} filter` })
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText("search")).toHaveTextContent(
+          "?tab=transactions"
+        )
+      );
+      expect(screen.getByLabelText("search")).not.toHaveTextContent("period");
+      await waitFor(() =>
+        expect(wheres.at(-1)).toEqual({
+          and: [scope, { field: "name", op: "ilike", value: "coffee" }]
+        })
+      );
+      expect(screen.queryByText(PERIOD_CHIP)).not.toBeInTheDocument();
+      expect(screen.getByText("Name contains coffee")).toBeInTheDocument();
+    });
+
+    it("restores the chip from the URL on a fresh render", async () => {
+      setup(PERIOD_ROUTE);
+      expect(await screen.findByText(PERIOD_CHIP)).toBeInTheDocument();
+    });
+
+    it("remounts with the new period on an external URL change and back", async () => {
+      const wheres = setup(PERIOD_ROUTE);
+      const user = userEvent.setup();
+      await screen.findByText(PERIOD_CHIP);
+      await user.click(screen.getByRole("button", { name: "go next period" }));
+      expect(
+        await screen.findByText("Billing period Oct 21, 2026 – Nov 20, 2026")
+      ).toBeInTheDocument();
+      expect(screen.queryByText(PERIOD_CHIP)).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(JSON.stringify(wheres.at(-1))).toContain(
+          "2026-11-21T06:00:00.000Z"
+        )
+      );
+
+      await user.click(screen.getByRole("button", { name: "go back" }));
+      expect(await screen.findByText(PERIOD_CHIP)).toBeInTheDocument();
+    });
   });
 
   it("saves edits in one request", async () => {

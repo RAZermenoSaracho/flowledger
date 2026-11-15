@@ -26,6 +26,8 @@ export type SearchBarQuery = {
   /** Selected groupable field names — presentational bucketing for the
    * consumer to apply client-side, not a DSQL groupBy/aggregation. */
   groupBy?: string[];
+  /** The editable condition tree behind `where`, for consumers that mirror a condition elsewhere (e.g. the URL). */
+  domain?: DomainGroupNode;
 };
 
 // A quick-search term uses "contains" for string fields (that's the
@@ -52,7 +54,6 @@ export function SearchBar({
   initialSort,
   initialDomain,
   placeholder = "Search",
-  showFilterBuilder = true,
   onQueryChange
 }: {
   fields: SearchFieldConfig[];
@@ -76,8 +77,6 @@ export function SearchBar({
    */
   initialDomain?: DomainGroupNode;
   placeholder?: string;
-  /** `false` hides the panel's Filter section (the FilterBuilder entry), for lists whose fields are too few for it to help. */
-  showFilterBuilder?: boolean;
   onQueryChange: (query: SearchBarQuery) => void;
 }) {
   const [domain, setDomain] = useState<DomainGroupNode>(
@@ -104,7 +103,8 @@ export function SearchBar({
     () => ({
       where: domainToWhere(domain, fields),
       sort: sortBy ? [{ field: sortBy, direction: sortDirection }] : undefined,
-      groupBy: groupBys.length > 0 ? groupBys : undefined
+      groupBy: groupBys.length > 0 ? groupBys : undefined,
+      domain
     }),
     [domain, fields, sortBy, sortDirection, groupBys]
   );
@@ -299,25 +299,23 @@ export function SearchBar({
             role="menu"
             className="absolute right-0 top-full z-30 mt-2 grid w-80 gap-3 rounded-md border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-700 dark:bg-slate-900"
           >
-            {showFilterBuilder ? (
-              <div>
-                <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Filter
-                </p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="mt-1 w-full"
-                  onClick={() => {
-                    setIsFilterBuilderOpen(true);
-                    setIsPanelOpen(false);
-                  }}
-                >
-                  Edit filters
-                  {activeConditionCount > 0 ? " (active)" : ""}
-                </Button>
-              </div>
-            ) : null}
+            <div>
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Filter
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="mt-1 w-full"
+                onClick={() => {
+                  setIsFilterBuilderOpen(true);
+                  setIsPanelOpen(false);
+                }}
+              >
+                Edit filters
+                {activeConditionCount > 0 ? " (active)" : ""}
+              </Button>
+            </div>
 
             {groupableFields.length > 0 ? (
               <div className="border-t border-slate-200 pt-3 dark:border-slate-700">

@@ -1,6 +1,6 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -18,7 +18,8 @@ import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
 import { RelatedTransactionsList } from "../Transactions/components/RelatedTransactionsList";
-import { formatFilterValue } from "../../utils/dateTime";
+import type { SearchBarQuery } from "../../components/SearchBar";
+import { createEmptyGroup, hasConditionOn } from "../../utils/searchDomain";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
@@ -30,11 +31,17 @@ import { useAccountForm } from "./hooks/useAccountForm";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
+import {
+  BILLING_PERIOD_FIELD,
+  billingPeriodCondition,
+  billingPeriodField
+} from "./utils/billingPeriodFilter";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
 /**
  * Account Form View. At `/accounts/:id`: tabs General (editable fields, type sections, sync panel), Transactions
- * (paginated list, optionally narrowed to a billing period by `periodFrom`/`periodTo`) and, for credit cards, Credit
+ * (the standard transaction SearchBar; a `periodStartAt`/`periodEndAt` URL pair opens it with a removable Billing period
+ * condition, kept in sync with the URL) and, for credit cards, Credit
  * card; archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state.
  * At `/accounts/new`: an unsaved manual-account draft (General fields and type sections only) that creates nothing
  * until Save, then opens the new account.
@@ -65,6 +72,62 @@ export function AccountDetailPage() {
   );
   const actions = useAccountActions(id);
   const sync = useAccountProviderSync();
+
+  const periodStartAt = searchParams.get("periodStartAt");
+  const periodEndAt = searchParams.get("periodEndAt");
+  const periodKey =
+    periodStartAt && periodEndAt ? `${periodStartAt}|${periodEndAt}` : "";
+  // The Transactions tab's SearchBar reads its domain once on mount: an external URL change (period link,
+  // back/forward) remounts it, while removing the period chip only clears the URL and keeps the other filters.
+  const [periodListKey, setPeriodListKey] = useState(0);
+  const periodClearedBySearch = useRef(false);
+  const lastPeriodKey = useRef(periodKey);
+  useEffect(() => {
+    if (periodKey === lastPeriodKey.current) return;
+    lastPeriodKey.current = periodKey;
+    if (periodClearedBySearch.current) periodClearedBySearch.current = false;
+    else setPeriodListKey((key) => key + 1);
+  }, [periodKey]);
+  const billingTimeZone =
+    account?.type === "credit_card" ? account.billingTimeZone : null;
+  const periodFields = useMemo(
+    () => (billingTimeZone ? [billingPeriodField(billingTimeZone)] : undefined),
+    [billingTimeZone]
+  );
+  const periodDomain = useMemo(
+    () =>
+      periodFields && periodStartAt && periodEndAt
+        ? {
+            ...createEmptyGroup("and"),
+            children: [billingPeriodCondition(periodStartAt, periodEndAt)]
+          }
+        : undefined,
+    [periodFields, periodStartAt, periodEndAt]
+  );
+
+  function syncPeriodToUrl(query: SearchBarQuery) {
+    if (
+      !periodKey ||
+      !query.domain ||
+      hasConditionOn(query.domain, BILLING_PERIOD_FIELD)
+    )
+      return;
+    periodClearedBySearch.current = true;
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        for (const key of [
+          "periodFrom",
+          "periodTo",
+          "periodStartAt",
+          "periodEndAt"
+        ])
+          next.delete(key);
+        return next;
+      },
+      { replace: true }
+    );
+  }
 
   if (accountsQuery.isLoading || (isNew && auth.isInitializing)) {
     return <Card>Loading...</Card>;
@@ -99,10 +162,6 @@ export function AccountDetailPage() {
   }
 
   const { values } = draft;
-  const periodFrom = searchParams.get("periodFrom");
-  const periodTo = searchParams.get("periodTo");
-  const periodStartAt = searchParams.get("periodStartAt");
-  const periodEndAt = searchParams.get("periodEndAt");
 
   const tabs: FormViewTab[] = [
     {
@@ -207,51 +266,18 @@ export function AccountDetailPage() {
             id: "transactions",
             label: "Transactions",
             content: (
-              <div className="grid gap-3">
-                {periodFrom && periodTo && periodStartAt && periodEndAt ? (
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="text-slate-600 dark:text-slate-300">
-                      Active filter:
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-pine/10 py-1 pl-3 pr-1 font-medium text-pine dark:bg-emerald-900/40 dark:text-emerald-200">
-                      Billing period {formatFilterValue(periodFrom)} –{" "}
-                      {formatFilterValue(periodTo)}
-                      <button
-                        type="button"
-                        aria-label="Clear period"
-                        title="Show all transactions"
-                        className="rounded-full p-1 hover:bg-pine/20 focus:outline-none focus:ring-2 focus:ring-pine dark:hover:bg-emerald-800"
-                        onClick={() =>
-                          setSearchParams(
-                            (current) => {
-                              const next = new URLSearchParams(current);
-                              next.delete("periodFrom");
-                              next.delete("periodTo");
-                              next.delete("periodStartAt");
-                              next.delete("periodEndAt");
-                              return next;
-                            },
-                            { replace: true }
-                          )
-                        }
-                      >
-                        <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </span>
-                  </div>
-                ) : null}
-                <RelatedTransactionsList
-                  key={`${account.id}:${periodFrom}:${periodTo}`}
-                  scope={{
-                    field: "accountId",
-                    value: account.id,
-                    ...(periodStartAt && periodEndAt
-                      ? { dateRange: { from: periodStartAt, to: periodEndAt } }
-                      : {})
-                  }}
-                  emptyText="No transactions for this account yet."
-                />
-              </div>
+              <RelatedTransactionsList
+                key={`${account.id}:${periodListKey}`}
+                scope={{
+                  field: "accountId",
+                  value: account.id,
+                  transfersInWith: BILLING_PERIOD_FIELD
+                }}
+                extraFields={periodFields}
+                initialDomain={periodDomain}
+                onQueryChange={syncPeriodToUrl}
+                emptyText="No transactions for this account yet."
+              />
             )
           },
           ...(account.type === "credit_card"

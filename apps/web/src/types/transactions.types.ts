@@ -150,6 +150,9 @@ export type DataSieveMeta = {
 export type RelatedTransactionsScope = {
   field: "accountId" | "groupId";
   value: string;
-  /** Account scopes only: half-open `[from, to)` UTC instants; also matches transfers into the account. */
-  dateRange?: { from: string; to: string };
+  /**
+   * Account scopes only: name of a SearchBar field (e.g. a billing period) whose condition, when present anywhere in
+   * the domain, widens the scope to also match transfers into the account.
+   */
+  transfersInWith?: string;
 };

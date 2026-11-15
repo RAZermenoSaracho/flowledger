@@ -10,6 +10,7 @@ import {
   defaultValueForField,
   domainToSummaryText,
   domainToWhere,
+  hasConditionOn,
   isValueComplete,
   matchesWhere,
   operatorsForField,
@@ -778,5 +779,52 @@ describe("pruneIncompleteConditions", () => {
       children: [keep, createConditionWithValue("d", "=", ""), nullCond, inner]
     };
     expect(pruneIncompleteConditions(root).children).toEqual([keep, nullCond]);
+  });
+});
+
+describe("custom compile / describe / hasConditionOn", () => {
+  const custom: SearchFieldConfig = {
+    name: "period",
+    label: "Period",
+    type: "date",
+    ops: ["between"],
+    pickable: false,
+    compile: (node) => {
+      const [a, b] = node.value as [string, string];
+      return { and: [{ field: "date", op: ">=", value: a }, { field: "date", op: "<", value: b }] };
+    },
+    describe: (node) => `custom ${(node.value as string[]).join("..")}`
+  };
+  const period = createConditionWithValue("period", "between", ["A", "B"]);
+
+  it("uses the field's compile for the where", () => {
+    const base = createEmptyGroup("and");
+    const root = addChild(base, base.id, period);
+    expect(domainToWhere(root, [custom, stringField])).toEqual({
+      and: [{ field: "date", op: ">=", value: "A" }, { field: "date", op: "<", value: "B" }]
+    });
+  });
+
+  it("ANDs a custom condition with a regular one", () => {
+    const base = createEmptyGroup("and");
+    let root = addChild(base, base.id, period);
+    root = addChild(root, base.id, createConditionWithValue("name", "=", "x"));
+    expect(JSON.stringify(domainToWhere(root, [custom, stringField]))).toContain('"field":"name"');
+    expect(JSON.stringify(domainToWhere(root, [custom, stringField]))).toContain('"op":"<"');
+  });
+
+  it("uses the field's describe for the summary text", () => {
+    expect(domainToSummaryText(period, [custom])).toBe("Period custom A..B");
+  });
+
+  it("hasConditionOn finds a nested condition by field name", () => {
+    const base = createEmptyGroup("and");
+    let root = addChild(base, base.id, createConditionWithValue("name", "=", "x"));
+    expect(hasConditionOn(root, "period")).toBe(false);
+    const inner = createEmptyGroup("or");
+    root = addChild(root, base.id, inner);
+    root = addChild(root, inner.id, period);
+    expect(hasConditionOn(root, "period")).toBe(true);
+    expect(hasConditionOn(period, "name")).toBe(false);
   });
 });
