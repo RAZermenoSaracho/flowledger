@@ -370,6 +370,8 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Suggested fix:** Close on Escape and return focus to the opener, matching the Reports popover.
 
+**Tracking:** Added on 2026-11-15 as a future requirement of Odoo task #139 (universal model search and filters): Escape closes the editor in the shared component, keeps applied filters, discards unsaved changes like the existing close action, respects focus and nested overlays, with regression tests. Not part of B-008.
+
 ---
 
 ## [RESOLVED] #029 — Refresh token rows are never deleted

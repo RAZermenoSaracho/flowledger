@@ -13,10 +13,11 @@ The account view SHALL pass `tabs` to the shared Form View:
 - It SHALL list the account's transactions newest first (date descending, then id descending).
 - They SHALL be loaded server-side 20 rows at a time through the existing `GET /transactions` endpoint filtered by `accountId`.
 - It SHALL use the shared related-transactions list, which the Group view also uses. That list provides:
-  - the shared search bar with name search and the transaction sort options;
+  - the standard transactions search bar, with the same fields, operators, AND/OR groups, chips, grouping and sorting as the Transactions page;
   - the shared pagination control showing the editable record range with Previous/Next;
   - loading, empty and error states.
 - Each row SHALL link to the transaction and show date, category and amount.
+- The account (or group) scope SHALL be applied outside the user's filters and AND-ed with them, so filters can only narrow it.
 - No new endpoint is introduced for this tab, and ownership remains enforced by the server.
 
 **Credit card tab:**
@@ -31,7 +32,12 @@ The account view SHALL pass `tabs` to the shared Form View:
   - remaining to avoid interest;
   - status.
 - The table SHALL be readable at mobile width as stacked records.
-- Selecting a period SHALL open the account's existing Transactions list filtered to that period's dates. There SHALL be no statement editing.
+- Selecting a period SHALL open the account's Transactions tab with a removable "Billing period" condition in its search bar, not a separate filter control:
+  - the condition uses the period's exact start and end instants from the API (half-open, in the card's billing time zone), and its chip shows the dates in that zone;
+  - it combines with any other condition, appears read-only in the filter editor and is not offered in the field picker;
+  - while it is present, transfers into the card are included, matching how billing counts them;
+  - it is carried in the URL (`periodStartAt`, `periodEndAt`), so refresh, back/forward and the period link restore it; removing the chip clears it from the URL and keeps the other filters.
+- There SHALL be no statement editing.
 - It SHALL offer these actions:
   - "Pay": a prefilled transfer draft into this card for the current remaining amount;
   - "Record external payment": a prefilled income draft on this card classified `payment`;
@@ -62,7 +68,11 @@ All figures in the Credit card tab SHALL come from the API. The web app SHALL NO
 
 #### Scenario: Period drill-down
 - **WHEN** the user selects the period from 2027-01-21 to 2027-02-20
-- **THEN** the card's transactions dated in that period are listed, through the existing transactions list
+- **THEN** the Transactions tab opens with a "Billing period" chip, listing the card's transactions and the transfers into it within that period's exact boundaries
+
+#### Scenario: Removing the period condition
+- **WHEN** the user has a Billing period and a name condition and removes the Billing period chip
+- **THEN** the name condition stays, the period leaves the URL, and the list returns to the account's own transactions
 
 #### Scenario: Estimate is distinct
 - **WHEN** a period has an estimate and a confirmed interest charge
@@ -92,3 +102,17 @@ These fields SHALL use the same draft and Save as the common fields. Every other
 #### Scenario: Adding a type section
 - **WHEN** a type registers a section in the account domain
 - **THEN** that section appears only for accounts of that type, under the same draft and Save, and no shared Form View file changes
+
+## ADDED Requirements
+
+### Requirement: Manual account creation view
+
+The accounts page SHALL offer an "Add account" chooser with "Manual account" and "Sync accounts". "Manual account" SHALL open `/accounts/new`, an unsaved draft on the shared Form View with the General fields and type sections only, which creates nothing until Save and then opens the new account. "Sync accounts" SHALL keep the provider flow and SHALL be disabled while bank sync is unavailable.
+
+#### Scenario: Manual creation
+- **WHEN** the user chooses "Manual account", fills the fields and presses Save
+- **THEN** one account is created and its view opens at `/accounts/<id>`
+
+#### Scenario: Discarded draft
+- **WHEN** the user leaves `/accounts/new` without saving
+- **THEN** no account is created
