@@ -16,7 +16,9 @@ describe("serialize", () => {
       destinationAmount: new Prisma.Decimal("100000000000"),
       feeAmount: new Prisma.Decimal("0.5"),
       initialBalance: new Prisma.Decimal("-3"),
-      currentBalance: new Prisma.Decimal("1e-18")
+      currentBalance: new Prisma.Decimal("1e-18"),
+      creditLimit: new Prisma.Decimal("48000.000000000000000000"),
+      annualInterestRate: new Prisma.Decimal("60.5")
     });
     expect(result).toEqual({
       amount: "0.000000000000000001",
@@ -25,7 +27,9 @@ describe("serialize", () => {
       destinationAmount: "100000000000",
       feeAmount: "0.5",
       initialBalance: "-3",
-      currentBalance: "0.000000000000000001"
+      currentBalance: "0.000000000000000001",
+      creditLimit: "48000",
+      annualInterestRate: "60.5"
     });
   });
 

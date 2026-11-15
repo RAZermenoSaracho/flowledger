@@ -5,18 +5,18 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "../../../../tests/mocks/server";
 import { useAccountProviderSync } from "../../hooks/useAccountProviderSync";
-import { AddAccountCard } from "../AddAccountCard";
+import { SyncAccountsCard } from "../SyncAccountsCard";
 
 const API_URL = "http://localhost:4000";
 
 vi.mock("../../utils/syncfyWidget", () => ({ openSyncfyWidget: vi.fn() }));
 
 function Harness() {
-  const sync = useAccountProviderSync({ defaultCurrency: "USD" });
+  const sync = useAccountProviderSync();
   return (
     <>
       <button onClick={() => sync.setIsFormOpen(true)}>Open form</button>
-      <AddAccountCard sync={sync} />
+      <SyncAccountsCard sync={sync} />
     </>
   );
 }
@@ -54,26 +54,27 @@ function mockBaseline() {
   );
 }
 
-describe("AddAccountCard", () => {
-  it("renders nothing when the form is closed", () => {
+describe("SyncAccountsCard", () => {
+  it("renders nothing when the panel is closed", () => {
     mockBaseline();
     renderHarness();
-    expect(screen.queryByText("Add account")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sync accounts")).not.toBeInTheDocument();
   });
 
-  it("shows the mode picker when opened with no mode chosen", async () => {
+  it("shows the sync-only panel with no manual-account form when opened", async () => {
     mockBaseline();
     const user = userEvent.setup();
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
 
-    expect(screen.getByText("Add account")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Sync accounts/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sync accounts" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Manual account/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
-  it("closes the form via Cancel", async () => {
+  it("closes the panel via Cancel", async () => {
     mockBaseline();
     const user = userEvent.setup();
     renderHarness();
@@ -81,46 +82,10 @@ describe("AddAccountCard", () => {
     await user.click(screen.getByRole("button", { name: "Open form" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    expect(screen.queryByText("Add account")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sync accounts")).not.toBeInTheDocument();
   });
 
-  it("submits the manual-account form", async () => {
-    mockBaseline();
-    let createdBody: unknown;
-    server.use(
-      http.post(`${API_URL}/accounts`, async ({ request }) => {
-        createdBody = await request.json();
-        return HttpResponse.json({
-          account: { id: "acc-1", name: "Checking", type: "checking", currency: "USD", initialBalance: 0, isArchived: false, createdAt: "", updatedAt: "" }
-        });
-      })
-    );
-    const user = userEvent.setup();
-    renderHarness();
-
-    await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Manual account/ }));
-
-    expect(screen.getByText("New manual account")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Name"), "Checking");
-    await user.click(screen.getByRole("button", { name: "Save account" }));
-
-    await waitFor(() => expect(createdBody).toMatchObject({ name: "Checking" }));
-  });
-
-  it("goes back to the mode picker from the manual form", async () => {
-    mockBaseline();
-    const user = userEvent.setup();
-    renderHarness();
-
-    await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Manual account/ }));
-    await user.click(screen.getByRole("button", { name: "Back" }));
-
-    expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
-  });
-
-  it("lists connectors in sync mode and starts a connection on click", async () => {
+  it("lists connectors and starts a connection on click", async () => {
     mockBaseline();
     server.use(
       http.post(`${API_URL}/providers/connections`, () =>
@@ -138,7 +103,6 @@ describe("AddAccountCard", () => {
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
 
     await waitFor(() => expect(screen.getByText("Example Bank")).toBeInTheDocument());
     await user.click(screen.getByText("Example Bank").closest("button")!);
@@ -171,7 +135,6 @@ describe("AddAccountCard", () => {
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
 
     await waitFor(() => expect(screen.getByText("Discovered Checking")).toBeInTheDocument());
     expect(screen.getByText(/Balance \$250\.00/)).toBeInTheDocument();
@@ -191,7 +154,6 @@ describe("AddAccountCard", () => {
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
 
     await waitFor(() =>
       expect(
@@ -226,7 +188,6 @@ describe("AddAccountCard", () => {
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
     await waitFor(() => expect(screen.getByText("Discovered Checking")).toBeInTheDocument());
     // Already auto-selected by the hook when the provider account arrived.
     expect(screen.getByRole("checkbox")).toBeChecked();
@@ -238,21 +199,7 @@ describe("AddAccountCard", () => {
     );
   });
 
-  it("goes back to the mode picker from sync mode", async () => {
-    mockBaseline();
-    const user = userEvent.setup();
-    renderHarness();
-
-    await user.click(screen.getByRole("button", { name: "Open form" }));
-    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
-    await waitFor(() => expect(screen.getByText("Example Bank")).toBeInTheDocument());
-
-    await user.click(screen.getByRole("button", { name: "Back" }));
-
-    expect(screen.getByRole("button", { name: /Manual account/ })).toBeInTheDocument();
-  });
-
-  it("keeps the sync option visible but aria-disabled with a tooltip, and makes no provider calls, when no connectors are available", async () => {
+  it("disables Refresh with a tooltip, and makes no provider calls, when no connectors are available", async () => {
     mockBaseline();
     const providerCalls = vi.fn();
     server.use(
@@ -270,29 +217,25 @@ describe("AddAccountCard", () => {
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
-    const syncCard = screen.getByRole("button", { name: /Sync accounts/ });
-    await waitFor(() => expect(syncCard).toHaveAttribute("aria-disabled", "true"));
-    expect(syncCard).toHaveTextContent("Bank connections are temporarily disabled.");
-    expect(syncCard).not.toHaveTextContent(/provider widget will open/);
+    const refresh = screen.getByRole("button", { name: "Refresh" });
+    await waitFor(() => expect(refresh).toHaveAttribute("aria-disabled", "true"));
 
-    await user.click(syncCard);
-    expect(screen.getByText("Add account")).toBeInTheDocument();
+    await user.click(refresh);
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Bank synchronization is temporarily unavailable."
     );
-    expect(syncCard).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
     expect(providerCalls).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /Manual account/ })).not.toHaveAttribute("aria-disabled");
   });
 
-  it("keeps the sync option enabled when connectors exist", async () => {
+  it("keeps Refresh enabled when connectors exist", async () => {
     mockBaseline();
     const user = userEvent.setup();
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "Open form" }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /Sync accounts/ })).not.toHaveAttribute("aria-disabled"));
+    await waitFor(() => expect(screen.getByText("Example Bank")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Refresh" })).not.toHaveAttribute("aria-disabled");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 });
