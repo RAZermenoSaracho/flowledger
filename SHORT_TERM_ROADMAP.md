@@ -45,8 +45,8 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-010 | Notification processing models (sandboxed Python) | Medium | ST-005 | Completed (PR #52) | None |
 | ST-011 | Asynchronous notification ingestion endpoint | Medium | ST-010 | Completed (PR #52) | None |
 | ST-032 | Community notification model library and versioning | Medium | ST-010 | Completed (PR #52) | None |
-| ST-013 | Credit-card limit and available credit | Medium | ST-006 | Planned | None |
-| ST-014 | Credit-card billing periods, payments, interest, and reminders | Medium | ST-013, ST-007, ST-023 | Planned | None |
+| ST-013 | Credit-card limit and available credit | Medium | ST-006 | Completed (PR #56) | None |
+| ST-014 | Credit-card billing periods, payments, interest, and reminders | Medium | ST-013, ST-007, ST-023 | Completed (PR #56) | None |
 | ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Planned | None |
 | ST-016 | Automatic crypto holding prices | Medium | ST-015 | Planned | None |
 | ST-017 | Stock and ETF market data | Low | ST-021 | Planned | None |
@@ -554,11 +554,11 @@ Billing periods, payments, interest and reminders are ST-014.
   - Closed, due soon (3 days before), partially paid, paid and overdue notifications each fire at most once per card, closing date and type.
   - The database enforces this, with no statement id. It holds across restarts, repeated or concurrent worker runs, and later history edits.
   - A satisfied period gets no due-soon or overdue reminder, and neither does a period whose debt was already settled through a later payment.
-- **UI:** the Credit card tab shows debt, limit, available credit, utilization, next closing, next due date, the current amount to avoid interest and the estimate. Its billing-periods table has these columns: period start, period end, payment due, debt, payments and credits, remaining to avoid interest, and status. The API also returns each period's confirmed interest and estimate. It is paginated and readable on mobile. Selecting a period drills down to the existing Transactions list. It reuses `FormView`, the shared list and table components, tabs, fields and money formatting. The web app computes nothing.
+- **UI:** the Credit card tab shows debt, limit, available credit, utilization, next closing, next due date, the current amount to avoid interest and the estimate. Its billing-periods table has these columns: period start, period end, payment due, debt, payments and credits, remaining to avoid interest, and status. The API also returns each period's confirmed interest and estimate. It is paginated and readable on mobile. Selecting a period opens the account's Transactions tab with a removable Billing period condition in the standard transactions search bar, which combines with any other filter. It reuses `FormView`, the shared list and table components, tabs, fields and money formatting. The web app computes nothing.
 
 **Dependencies:** ST-013, ST-007 (prefilled transaction drafts) and ST-023 (cross-currency payments).
 
-**Delivery:** Batch B-008, together with ST-013, in one PR, built in this order: card rules, calculator, API, reminders, then UI. The design is in the [OpenSpec change](openspec/changes/b008-credit-cards/design.md).
+**Delivery:** Batch B-008, together with ST-013, in one PR, built in this order: card rules, calculator, API, reminders, then UI. The design is in the [OpenSpec change](openspec/changes/archive/2026-11-15-b008-credit-cards/design.md).
 
 **Relevant existing architecture:**
 - The B-007 notification worker's 60-second maintenance timer is the only multi-process-safe periodic hook. Reminder idempotency comes from a unique `Notification.dedupeKey`.
@@ -885,7 +885,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-005 | None | Retired; ST-008 was absorbed into B-004 | None | n/a | Retired |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Completed (PR #44, deployed 2026-11-12. Also shipped: a unified `Decimal(38,18)` money model with exact decimal-string API/MCP contracts; crypto Sharing and settlements with exact largest-remainder splits; per-currency group summaries; the account currency lock (#013); and the `TransactionCorrection` audit. Production kept its 24 transactions via the idempotent fill.) |
 | B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Completed (PR #52, deployed 2026-11-13; also shipped: MCP notification model tools for CRUD, scripts and Form rules, dry-run tests, queue and logs, and the library, PR #54) |
-| B-008 | ST-013, ST-014 | Credit-card limit, available credit, dynamic billing periods, automatic payment recognition, interest, and reminders | B-004, B-006 | XL | Planned |
+| B-008 | ST-013, ST-014 | Credit-card limit, available credit, dynamic billing periods, automatic payment recognition, interest, and reminders | B-004, B-006 | XL | Completed (PR #56, deployed 2026-11-15; acceptance fixes PRs #57 to #60: the dedicated `/accounts/new` manual creation view and Add account chooser, the "Credit" type label, clearer payment-due settings, and the standard transactions search bar on account and group Transactions tabs with the billing period as a first-class condition; released in PR #61) |
 | B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Planned |
 | B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
 | B-011 | ST-017 | Stock and ETF market data | B-010 | M | Planned |
@@ -895,7 +895,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004, B-007 and B-008 are the three XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003 and B-005 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** B-008 is next. B-001, B-002, B-004, B-006, B-007, and S-001 to S-005 are complete.
+**Where to start:** B-009 is next. B-001, B-002, B-004, B-006, B-007, B-008, and S-001 to S-005 are complete.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
@@ -994,7 +994,7 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 **B-008: ST-013, ST-014.**
 - **Deliverable:** The credit limit, derived debt, available credit and utilization, the `creditCardKind` classification (payment or interest), and the debit-card inference fix (ST-013). Per-card billing configuration and a dynamic billing calculator covering periods, closing debt, payment windows, remaining to avoid interest, status, and carry-forward. Payments are recognized automatically from transfers and classified income on every ingestion path. Also an average-daily-balance interest estimate, confirmed interest as ordinary expenses, possible-duplicate hints in import review, the Credit card tab with its billing-periods table, and idempotent in-app reminders (ST-014).
 - **Implementation order:** Card rules and classification (ST-013), then the cycle and billing calculator, the API, `/v1` and MCP, reminders, and finally the UI (ST-014). A satisfied period gets no reminder.
-- **Prerequisites:** B-004 (account view, and prefilled transaction drafts) and B-006. The architecture is settled in the [OpenSpec design](openspec/changes/b008-credit-cards/design.md).
+- **Prerequisites:** B-004 (account view, and prefilled transaction drafts) and B-006. The architecture is settled in the [OpenSpec design](openspec/changes/archive/2026-11-15-b008-credit-cards/design.md).
 - **Testing:**
   - Cards: over-limit, overpaid and no-limit cards; type inference; classification validation; the report exclusion.
   - Boundaries: in the billing time zone, at midnight, in short months, in leap years and across year boundaries.
