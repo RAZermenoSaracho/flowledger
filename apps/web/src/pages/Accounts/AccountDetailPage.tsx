@@ -21,7 +21,7 @@ import { formatFilterValue } from "../../utils/dateTime";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
-import { SyncAccountsCard } from "./components/SyncAccountsCard";
+import { AddAccountCard } from "./components/AddAccountCard";
 import { CreditCardTab } from "./components/CreditCardTab";
 import { AccountTypeSections } from "./components/AccountTypeSections";
 import { useAccountActions } from "./hooks/useAccountActions";
@@ -261,7 +261,7 @@ export function AccountDetailPage() {
 
   return (
     <div className="grid gap-6">
-      <SyncAccountsCard sync={sync} />
+      <AddAccountCard sync={sync} />
       <Card>
         <FormView
           title={account ? account.name : "New account"}

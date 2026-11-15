@@ -11,11 +11,13 @@ import { openSyncfyWidget } from "../utils/syncfyWidget";
  * `availableProviders` is derived from the connectors list (empty while loading or when the
  * operator disables a provider); provider actions no-op for providers not in it.
  * `isBankSyncUnavailable` is true only once connectors have loaded with no provider available.
+ * `addMode` is `null` while the Add account chooser shows and `"sync"` once the provider panel is open.
  */
 export function useAccountProviderSync() {
   const queryClient = useQueryClient();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"sync" | null>(null);
 
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
     null
@@ -54,7 +56,7 @@ export function useAccountProviderSync() {
     queryFn: async () =>
       (await accountsClient.listProviderAccounts({ status: "unlinked" }))
         .accounts,
-    enabled: isFormOpen && isBankSyncAvailable,
+    enabled: addMode === "sync" && isBankSyncAvailable,
     refetchInterval: activeConnection ? 5000 : false
   });
 
@@ -209,6 +211,7 @@ export function useAccountProviderSync() {
     setSyncfyWidgetError(null);
     setSelectedProviderAccountIds([]);
     setProviderAccountLinkTargets({});
+    setAddMode(null);
     setIsFormOpen(false);
   }
 
@@ -234,6 +237,7 @@ export function useAccountProviderSync() {
       return;
 
     setIsFormOpen(true);
+    setAddMode("sync");
     setSelectedConnectorId(`connector:${sync.provider}`);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
@@ -244,6 +248,8 @@ export function useAccountProviderSync() {
   return {
     isFormOpen,
     setIsFormOpen,
+    addMode,
+    setAddMode,
     selectedConnectorId,
     setSelectedConnectorId,
     activeConnection,

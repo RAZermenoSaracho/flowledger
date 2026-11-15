@@ -304,7 +304,7 @@ describe("AccountDetailPage", () => {
       expect(screen.queryByLabelText("Credit limit")).not.toBeInTheDocument();
     });
 
-    it("shows the credit-card section when the type is Credit card", async () => {
+    it("shows the credit-card section when the type is Credit", async () => {
       mockAccounts([]);
       const user = userEvent.setup();
       renderNew();
