@@ -22,8 +22,8 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-function renderProviderSync(defaultCurrency = "USD") {
-  return renderHook(() => useAccountProviderSync({ defaultCurrency }), { wrapper });
+function renderProviderSync() {
+  return renderHook(() => useAccountProviderSync(), { wrapper });
 }
 
 function mockBaseline() {
@@ -60,32 +60,25 @@ afterEach(() => {
 });
 
 describe("useAccountProviderSync", () => {
-  it("starts with the form closed and no mode selected", () => {
+  it("starts with the form closed", () => {
     const { result } = renderProviderSync();
     expect(result.current.isFormOpen).toBe(false);
-    expect(result.current.addMode).toBeNull();
-    expect(result.current.currency).toBe("USD");
   });
 
-  it("createAccount resets the form and closes it on success", async () => {
+  it("only loads discovered accounts while the form is open and bank sync is available", async () => {
+    let calls = 0;
     server.use(
-      http.post(`${API_URL}/accounts`, () =>
-        HttpResponse.json({
-          account: { id: "acc-1", name: "Checking", type: "checking", currency: "USD", initialBalance: 0, isArchived: false, createdAt: "", updatedAt: "" }
-        })
-      )
+      http.get(`${API_URL}/providers/accounts`, () => {
+        calls += 1;
+        return HttpResponse.json({ accounts: [] });
+      })
     );
-    const { result } = renderProviderSync();
+    const { result } = await renderLoadedProviderSync();
+    expect(calls).toBe(0);
 
-    act(() => result.current.setName("Checking"));
     act(() => result.current.setIsFormOpen(true));
 
-    await act(async () => {
-      await result.current.createAccount.mutateAsync();
-    });
-
-    expect(result.current.name).toBe("");
-    expect(result.current.isFormOpen).toBe(false);
+    await waitFor(() => expect(calls).toBe(1));
   });
 
   it("startProviderConnection navigates directly when the connection returns a url", async () => {
@@ -186,17 +179,15 @@ describe("useAccountProviderSync", () => {
     expect(result.current.providerAccountLinkTargets).toEqual({});
   });
 
-  it("closeForm resets every field", () => {
+  it("closeForm closes the panel and clears the selection", () => {
     const { result } = renderProviderSync();
 
-    act(() => result.current.setName("Checking"));
-    act(() => result.current.setAddMode("manual"));
     act(() => result.current.setIsFormOpen(true));
+    act(() => result.current.toggleProviderAccount("pa-1"));
     act(() => result.current.closeForm());
 
-    expect(result.current.name).toBe("");
-    expect(result.current.addMode).toBeNull();
     expect(result.current.isFormOpen).toBe(false);
+    expect(result.current.selectedProviderAccountIds).toEqual([]);
   });
 
   it("startSyncedCredentialFlow is a no-op when the sync entry is missing a providerCredentialId", () => {
@@ -218,7 +209,7 @@ describe("useAccountProviderSync", () => {
     expect(result.current.isFormOpen).toBe(false);
   });
 
-  it("startSyncedCredentialFlow opens the form in sync mode and starts the credential flow", async () => {
+  it("startSyncedCredentialFlow opens the panel and starts the credential flow", async () => {
     server.use(
       http.post(`${API_URL}/providers/connections`, () =>
         HttpResponse.json({
@@ -250,7 +241,6 @@ describe("useAccountProviderSync", () => {
     act(() => result.current.startSyncedCredentialFlow(account, "sync-1", "credential"));
 
     expect(result.current.isFormOpen).toBe(true);
-    expect(result.current.addMode).toBe("sync");
     expect(result.current.selectedConnectorId).toBe("connector:syncfy");
 
     await waitFor(() =>

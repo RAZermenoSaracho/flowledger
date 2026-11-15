@@ -1,4 +1,4 @@
-import type { AccountType, ProviderConnectionFlow } from "@flowledger/shared";
+import type { ProviderConnectionFlow } from "@flowledger/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import * as accountsClient from "../../../services/accounts.client";
@@ -12,21 +12,10 @@ import { openSyncfyWidget } from "../utils/syncfyWidget";
  * operator disables a provider); provider actions no-op for providers not in it.
  * `isBankSyncUnavailable` is true only once connectors have loaded with no provider available.
  */
-export function useAccountProviderSync({
-  defaultCurrency
-}: {
-  defaultCurrency: string;
-}) {
+export function useAccountProviderSync() {
   const queryClient = useQueryClient();
 
-  const [addMode, setAddMode] = useState<"manual" | "sync" | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-
-  const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>("checking");
-  const [identifier, setIdentifier] = useState("");
-  const [currency, setCurrency] = useState(defaultCurrency);
-  const [initialBalance, setInitialBalance] = useState("0");
 
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
     null
@@ -65,7 +54,7 @@ export function useAccountProviderSync({
     queryFn: async () =>
       (await accountsClient.listProviderAccounts({ status: "unlinked" }))
         .accounts,
-    enabled: addMode === "sync" && isBankSyncAvailable,
+    enabled: isFormOpen && isBankSyncAvailable,
     refetchInterval: activeConnection ? 5000 : false
   });
 
@@ -111,26 +100,6 @@ export function useAccountProviderSync({
       return [...keptIds, ...missingIds];
     });
   }, [providerAccountsQuery.data]);
-
-  const createAccount = useMutation({
-    mutationFn: () =>
-      accountsClient.createAccount({
-        name,
-        type,
-        identifier: identifier || null,
-        currency,
-        initialBalance: initialBalance || "0"
-      }),
-    onSuccess: async () => {
-      setName("");
-      setIdentifier("");
-      setCurrency(defaultCurrency);
-      setInitialBalance("0");
-      setAddMode(null);
-      setIsFormOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
-    }
-  });
 
   const startProviderConnection = useMutation({
     mutationFn: (target: { provider: string }) =>
@@ -235,12 +204,6 @@ export function useAccountProviderSync({
   });
 
   function closeForm() {
-    setName("");
-    setType("checking");
-    setIdentifier("");
-    setCurrency(defaultCurrency);
-    setInitialBalance("0");
-    setAddMode(null);
     setSelectedConnectorId(null);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
@@ -271,7 +234,6 @@ export function useAccountProviderSync({
       return;
 
     setIsFormOpen(true);
-    setAddMode("sync");
     setSelectedConnectorId(`connector:${sync.provider}`);
     setActiveConnection(null);
     setSyncfyWidgetError(null);
@@ -280,20 +242,8 @@ export function useAccountProviderSync({
   }
 
   return {
-    addMode,
-    setAddMode,
     isFormOpen,
     setIsFormOpen,
-    name,
-    setName,
-    type,
-    setType,
-    identifier,
-    setIdentifier,
-    currency,
-    setCurrency,
-    initialBalance,
-    setInitialBalance,
     selectedConnectorId,
     setSelectedConnectorId,
     activeConnection,
@@ -311,7 +261,6 @@ export function useAccountProviderSync({
     isBankSyncUnavailable,
     providerAccountsQuery,
     linkableAccountsQuery,
-    createAccount,
     startProviderConnection,
     confirmProviderAccounts,
     startProviderCredentialFlow,

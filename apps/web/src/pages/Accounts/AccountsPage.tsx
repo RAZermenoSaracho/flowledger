@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../../components/Button";
 import { AddRecordButton } from "../../components/AddRecordButton";
 import { ListView } from "../../components/ListView";
 import { groupByFields } from "../../utils/groupByFields";
@@ -8,11 +10,15 @@ import {
   createConditionWithValue,
   createEmptyGroup
 } from "../../utils/searchDomain";
+import { routes } from "../../constants/routes";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountListItem } from "./components/AccountListItem";
-import { AddAccountCard } from "./components/AddAccountCard";
-import { BankSyncUnavailableNotice } from "./components/UnavailableActionTooltip";
+import { SyncAccountsCard } from "./components/SyncAccountsCard";
+import {
+  BankSyncUnavailableNotice,
+  UnavailableActionTooltip
+} from "./components/UnavailableActionTooltip";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { Account } from "../../types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
@@ -43,9 +49,10 @@ function accountGroupKey(account: Account, groupById: string) {
   return { key: "", label: "" };
 }
 
-/** Accounts list page: search/filter/group controls, and provider sync widget; rows link to the account view. */
+/** Accounts list page: search/filter/group controls, "Add account" (opens the `/accounts/new` Form View) and "Sync accounts" (provider sync panel); rows link to the account view. */
 export function AccountsPage() {
   const auth = useAuth();
+  const navigate = useNavigate();
 
   const [accountQuery, setAccountQuery] = useState<SearchBarQuery>({});
   const accountSearchFields = useMemo(() => buildAccountSearchFields(), []);
@@ -61,36 +68,49 @@ export function AccountsPage() {
       ).accounts
   });
 
-  const sync = useAccountProviderSync({
-    defaultCurrency: auth.user?.preferredCurrency || "USD"
-  });
+  const sync = useAccountProviderSync();
 
   const visibleAccounts = useMemo(
     () => accountsQuery.data ?? [],
     [accountsQuery.data]
   );
   const groupedAccounts = useMemo(
-    () =>
-      groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
+    () => groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
     [visibleAccounts, accountQuery.groupBy]
   );
 
   return (
     <div className="grid gap-6">
-      <AddAccountCard sync={sync} />
+      <SyncAccountsCard sync={sync} />
 
       {sync.isBankSyncUnavailable ? <BankSyncUnavailableNotice /> : null}
 
       <ListView
         title="Accounts"
         actions={
-          <AddRecordButton
-            label="account"
-            onClick={() => {
-              sync.setAddMode(null);
-              sync.setIsFormOpen(true);
-            }}
-          />
+          <>
+            <UnavailableActionTooltip unavailable={sync.isBankSyncUnavailable}>
+              {(a11y) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 shrink-0 whitespace-nowrap"
+                  onClick={
+                    sync.isBankSyncUnavailable
+                      ? undefined
+                      : () => sync.setIsFormOpen(true)
+                  }
+                  {...a11y}
+                >
+                  Sync accounts
+                </Button>
+              )}
+            </UnavailableActionTooltip>
+            <AddRecordButton
+              label="account"
+              onClick={() => navigate(routes.newAccount)}
+            />
+          </>
         }
         toolbar={
           <SearchBar

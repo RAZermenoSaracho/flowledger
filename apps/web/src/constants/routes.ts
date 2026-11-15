@@ -9,6 +9,7 @@ export const routes = {
   newTransaction: "/transactions/new",
   transaction: (id: string) => `/transactions/${id}`,
   accounts: "/accounts",
+  newAccount: "/accounts/new",
   account: (id: string) => `/accounts/${id}`,
   categories: "/categories",
   groups: "/groups",

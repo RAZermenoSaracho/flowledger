@@ -261,4 +261,130 @@ describe("AccountDetailPage", () => {
     expect(window.confirm).toHaveBeenCalled();
     expect(await screen.findByText("Accounts list")).toBeInTheDocument();
   });
+
+  it("renders a credit card whose API payload has numeric card amounts", async () => {
+    mockAccounts([
+      makeAccount({
+        type: "credit_card",
+        creditLimit: 48000,
+        annualInterestRate: 60
+      } as unknown as Partial<Account>)
+    ]);
+    renderPage();
+
+    expect(await screen.findByLabelText("Credit limit")).toHaveValue(48000);
+    expect(screen.getByLabelText("Annual interest rate (%)")).toHaveValue(60);
+    expect(screen.getByRole("tab", { name: "Credit card" })).toBeInTheDocument();
+  });
+
+  describe("new account (/accounts/new)", () => {
+    function renderNew() {
+      return renderWithProviders(
+        <Routes>
+          <Route path="/accounts/new" element={<AccountDetailPage />} />
+          <Route path="/accounts/:id" element={<AccountDetailPage />} />
+          <Route path="/accounts" element={<p>Accounts list</p>} />
+        </Routes>,
+        { route: "/accounts/new", withAuth: true }
+      );
+    }
+
+    it("renders an empty General form with no tabs beyond General, sync panel or actions", async () => {
+      mockAccounts([]);
+      renderNew();
+
+      expect(await screen.findByRole("heading", { name: "New account" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Name")).toHaveValue("");
+      expect(screen.getByLabelText("Type")).toHaveValue("checking");
+      expect(screen.getByLabelText("Initial balance")).toHaveValue(0);
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["General"]);
+      expect(screen.queryByRole("button", { name: "Record actions" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /resync/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(screen.queryByLabelText("Credit limit")).not.toBeInTheDocument();
+    });
+
+    it("shows the credit-card section when the type is Credit card", async () => {
+      mockAccounts([]);
+      const user = userEvent.setup();
+      renderNew();
+
+      await user.selectOptions(await screen.findByLabelText("Type"), "credit_card");
+
+      expect(screen.getByLabelText("Credit limit")).toBeInTheDocument();
+      expect(screen.getByLabelText("Statement closing day")).toBeInTheDocument();
+    });
+
+    it("rejects an out-of-range closing day and keeps Save disabled", async () => {
+      mockAccounts([]);
+      const user = userEvent.setup();
+      renderNew();
+
+      await user.type(await screen.findByLabelText("Name"), "Visa");
+      await user.selectOptions(screen.getByLabelText("Type"), "credit_card");
+      await user.type(screen.getByLabelText("Statement closing day"), "40");
+
+      expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    it("rejects a negative credit limit and keeps Save disabled", async () => {
+      mockAccounts([]);
+      const user = userEvent.setup();
+      renderNew();
+
+      await user.type(await screen.findByLabelText("Name"), "Visa");
+      await user.selectOptions(screen.getByLabelText("Type"), "credit_card");
+      await user.type(screen.getByLabelText("Credit limit"), "-5");
+
+      expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    it("creates the account on Save and opens its detail page", async () => {
+      mockAccounts([]);
+      const created = makeAccount({ id: "acc-new", name: "Wallet" });
+      let body: unknown;
+      server.use(
+        http.post(`${API_URL}/accounts`, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ account: created }, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      renderNew();
+
+      await user.type(await screen.findByLabelText("Name"), "Wallet");
+      server.use(
+        http.get(`${API_URL}/accounts`, () => HttpResponse.json({ accounts: [created] }))
+      );
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() =>
+        expect(body).toMatchObject({ name: "Wallet", type: "checking", currency: "USD" })
+      );
+      expect(await screen.findByRole("heading", { name: "Wallet" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Transactions" })).toBeInTheDocument();
+    });
+
+    it("creates nothing when going back without saving", async () => {
+      mockAccounts([]);
+      let posted = false;
+      server.use(
+        http.post(`${API_URL}/accounts`, () => {
+          posted = true;
+          return HttpResponse.json({ account: makeAccount() }, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      renderNew();
+
+      await user.type(await screen.findByLabelText("Name"), "Wallet");
+      await user.click(screen.getByRole("link", { name: /Back to accounts/ }));
+      await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+      expect(await screen.findByText("Accounts list")).toBeInTheDocument();
+      expect(posted).toBe(false);
+    });
+  });
 });

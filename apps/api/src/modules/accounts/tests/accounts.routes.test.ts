@@ -172,6 +172,12 @@ describe("GET /accounts/:id/credit-card", () => {
     }
   }
 
+  it("returns card limit and rate as exact decimal strings in the account list", async () => {
+    const { auth, card } = await setup();
+    const listed = (await auth(request(app).get("/accounts"))).body.accounts.find((a: { id: string }) => a.id === card);
+    expect(listed).toMatchObject({ creditLimit: "30000", annualInterestRate: "60", statementClosingDay: 20 });
+  });
+
   it("requires authentication", async () => {
     expect((await request(app).get("/accounts/x/credit-card")).status).toBe(401);
   });

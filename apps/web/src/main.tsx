@@ -75,6 +75,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   element={<TransactionEditRedirect />}
                 />
                 <Route path="/accounts" element={<AccountsPage />} />
+                <Route path={routes.newAccount} element={<AccountDetailPage />} />
                 <Route path="/accounts/:id" element={<AccountDetailPage />} />
                 <Route
                   path={routes.notificationModels}

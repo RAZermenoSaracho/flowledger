@@ -9,6 +9,8 @@ const NATIVE_AMOUNT_KEYS = new Set([
   "feeAmount",
   "initialBalance",
   "currentBalance",
+  "creditLimit",
+  "annualInterestRate",
   "shareAmount",
   "paidAmount",
   "totalAmount",
