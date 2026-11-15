@@ -23,9 +23,7 @@ describe("accountSchema", () => {
   });
 
   it("rejects an empty name", () => {
-    expect(accountSchema.safeParse({ ...valid, name: "" }).success).toBe(
-      false
-    );
+    expect(accountSchema.safeParse({ ...valid, name: "" }).success).toBe(false);
   });
 
   it("rejects an unknown account type", () => {
@@ -35,19 +33,21 @@ describe("accountSchema", () => {
   });
 
   it("keeps a decimal-string initialBalance unchanged", () => {
-    expect(accountSchema.parse({ ...valid, initialBalance: "150.5" })).toMatchObject(
-      { initialBalance: "150.5" }
-    );
+    expect(
+      accountSchema.parse({ ...valid, initialBalance: "150.5" })
+    ).toMatchObject({ initialBalance: "150.5" });
   });
 
   it("rejects a numeric initialBalance", () => {
-    expect(accountSchema.safeParse({ ...valid, initialBalance: 150.5 }).success).toBe(false);
+    expect(
+      accountSchema.safeParse({ ...valid, initialBalance: 150.5 }).success
+    ).toBe(false);
   });
 
   it("accepts a null identifier", () => {
-    expect(accountSchema.safeParse({ ...valid, identifier: null }).success).toBe(
-      true
-    );
+    expect(
+      accountSchema.safeParse({ ...valid, identifier: null }).success
+    ).toBe(true);
   });
 });
 
@@ -69,9 +69,9 @@ describe("accountsQueryParamSchema", () => {
   });
 
   it("accepts a query string", () => {
-    expect(
-      accountsQueryParamSchema.safeParse({ query: "{}" }).success
-    ).toBe(true);
+    expect(accountsQueryParamSchema.safeParse({ query: "{}" }).success).toBe(
+      true
+    );
   });
 
   it("rejects a query string over 4000 characters", () => {
@@ -94,47 +94,110 @@ describe("accountSchema credit-card fields", () => {
   };
   const issuePaths = (input: unknown) => {
     const result = accountSchema.safeParse(input);
-    return result.success ? [] : result.error.issues.map((i) => i.path.join("."));
+    return result.success
+      ? []
+      : result.error.issues.map((i) => i.path.join("."));
   };
 
   it("accepts a fully configured card and a card with no cycle", () => {
     expect(accountSchema.safeParse(card).success).toBe(true);
-    expect(accountSchema.safeParse({ name: "Visa", type: "credit_card" }).success).toBe(true);
+    expect(
+      accountSchema.safeParse({ name: "Visa", type: "credit_card" }).success
+    ).toBe(true);
   });
 
   it("rejects card fields on a non-card account, naming the field", () => {
     expect(issuePaths({ ...card, type: "checking" })).toContain("creditLimit");
-    expect(issuePaths({ name: "C", type: "cash", billingTimeZone: "UTC" })).toEqual(["billingTimeZone"]);
+    expect(
+      issuePaths({ name: "C", type: "cash", billingTimeZone: "UTC" })
+    ).toEqual(["billingTimeZone"]);
   });
 
   it("rejects a partial cycle", () => {
-    expect(issuePaths({ ...card, billingTimeZone: undefined })).toEqual(["billingTimeZone"]);
+    expect(issuePaths({ ...card, billingTimeZone: undefined })).toEqual([
+      "billingTimeZone"
+    ]);
   });
 
   it("rejects a due day after the closing day, and days_after_closing above 28", () => {
-    expect(issuePaths({ ...card, paymentDueValue: 25 })).toEqual(["paymentDueValue"]);
+    expect(issuePaths({ ...card, paymentDueValue: 25 })).toEqual([
+      "paymentDueValue"
+    ]);
     expect(
-      issuePaths({ ...card, paymentDueRule: "days_after_closing", paymentDueValue: 35 })
+      issuePaths({
+        ...card,
+        paymentDueRule: "days_after_closing",
+        paymentDueValue: 35
+      })
     ).toEqual(["paymentDueValue"]);
     expect(
-      accountSchema.safeParse({ ...card, paymentDueRule: "days_after_closing", paymentDueValue: 25 }).success
+      accountSchema.safeParse({
+        ...card,
+        paymentDueRule: "days_after_closing",
+        paymentDueValue: 25
+      }).success
     ).toBe(true);
   });
 
+  const messageAt = (input: unknown, path: string) => {
+    const result = accountSchema.safeParse(input);
+    return result.success
+      ? undefined
+      : result.error.issues.find((i) => i.path.join(".") === path)?.message;
+  };
+
+  it("accepts a fixed due day equal to the closing day and rejects one above it", () => {
+    expect(
+      accountSchema.safeParse({ ...card, paymentDueValue: 20 }).success
+    ).toBe(true);
+    expect(
+      messageAt({ ...card, paymentDueValue: 21 }, "paymentDueValue")
+    ).toMatch(/With a closing day of 20, the due day can be at most 20/);
+  });
+
+  it("accepts 28 days after closing and rejects 29 with the day-limit message", () => {
+    const rule = { ...card, paymentDueRule: "days_after_closing" as const };
+    expect(
+      accountSchema.safeParse({ ...rule, paymentDueValue: 28 }).success
+    ).toBe(true);
+    expect(
+      messageAt({ ...rule, paymentDueValue: 29 }, "paymentDueValue")
+    ).toMatch(/at most 28 days after closing/);
+  });
+
+  it("explains that the cycle fields are all-or-none", () => {
+    expect(
+      messageAt({ ...card, billingTimeZone: undefined }, "billingTimeZone")
+    ).toMatch(/together, or leave all of them empty/);
+  });
+
   it("rejects a bad time zone, out-of-range closing day and rate", () => {
-    expect(issuePaths({ ...card, billingTimeZone: "Mars/Base" })).toContain("billingTimeZone");
-    expect(issuePaths({ ...card, statementClosingDay: 32 })).toContain("statementClosingDay");
-    expect(issuePaths({ ...card, annualInterestRate: "1001" })).toContain("annualInterestRate");
+    expect(issuePaths({ ...card, billingTimeZone: "Mars/Base" })).toContain(
+      "billingTimeZone"
+    );
+    expect(issuePaths({ ...card, statementClosingDay: 32 })).toContain(
+      "statementClosingDay"
+    );
+    expect(issuePaths({ ...card, annualInterestRate: "1001" })).toContain(
+      "annualInterestRate"
+    );
   });
 
   it("keeps the flat base shape for MCP and a partial update schema", () => {
     expect(Object.keys(accountBaseSchema.shape)).toContain("creditLimit");
-    expect(updateAccountSchema.safeParse({ creditLimit: "10" }).success).toBe(true);
+    expect(updateAccountSchema.safeParse({ creditLimit: "10" }).success).toBe(
+      true
+    );
   });
 
   it("refineCreditCardAccount validates a merged object", () => {
-    const schema = z.object({}).passthrough().superRefine(refineCreditCardAccount);
-    expect(schema.safeParse({ type: "savings", creditLimit: "5" }).success).toBe(false);
+    const schema = z
+      .object({})
+      .passthrough()
+      .superRefine(refineCreditCardAccount);
+    expect(
+      schema.safeParse({ type: "savings", creditLimit: "5" }).success
+    ).toBe(false);
   });
 });
 
@@ -142,6 +205,8 @@ describe("creditCardBillingQuerySchema", () => {
   it("defaults page to 1 and rejects 0", () => {
     expect(creditCardBillingQuerySchema.parse({}).page).toBe(1);
     expect(creditCardBillingQuerySchema.parse({ page: "3" }).page).toBe(3);
-    expect(creditCardBillingQuerySchema.safeParse({ page: "0" }).success).toBe(false);
+    expect(creditCardBillingQuerySchema.safeParse({ page: "0" }).success).toBe(
+      false
+    );
   });
 });

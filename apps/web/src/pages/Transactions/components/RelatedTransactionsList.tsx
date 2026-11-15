@@ -18,7 +18,7 @@ const RELATED_TRANSACTION_SEARCH_FIELDS: SearchFieldConfig[] = [
 ];
 
 /**
- * "Transactions" tab body for an account or group Form View: a name search and the scope's
+ * "Transactions" tab body for an account or group Form View: a name search (no FilterBuilder, Name is its only field) and the scope's
  * transactions (newest first by default) with the range pager in the header. Render it with `key` set to
  * the record id so paging and search reset when the record changes.
  */
@@ -39,6 +39,7 @@ export function RelatedTransactionsList({
         defaultSearchField="name"
         initialSort={{ field: "date", direction: "desc" }}
         placeholder="Search by name"
+        showFilterBuilder={false}
         onQueryChange={list.setSearch}
       />
       <RelatedList<Transaction>

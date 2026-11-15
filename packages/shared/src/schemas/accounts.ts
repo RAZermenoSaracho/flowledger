@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ACCOUNT_TYPES, PAYMENT_DUE_RULES } from "../constants/index.js";
+import {
+  ACCOUNT_TYPES,
+  MAX_DAYS_AFTER_CLOSING,
+  PAYMENT_DUE_RULES
+} from "../constants/index.js";
 import {
   currencyCodeSchema,
   decimalAmountSchema,
@@ -85,30 +89,39 @@ export function refineCreditCardAccount(
         code: z.ZodIssueCode.custom,
         path: [field],
         message:
-          "statementClosingDay, paymentDueRule, paymentDueValue and billingTimeZone must be provided together"
+          "Set the statement closing day, payment due date and billing time zone together, or leave all of them empty"
       });
     }
     return;
   }
 
   const { paymentDueRule, paymentDueValue, statementClosingDay } = account;
-  if (paymentDueRule == null || paymentDueValue == null || statementClosingDay == null) {
+  if (
+    paymentDueRule == null ||
+    paymentDueValue == null ||
+    statementClosingDay == null
+  ) {
     return;
   }
-  const max = paymentDueRule === "day_of_next_month" ? statementClosingDay : 28;
+  const max =
+    paymentDueRule === "day_of_next_month"
+      ? statementClosingDay
+      : MAX_DAYS_AFTER_CLOSING;
   if (paymentDueValue > max) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["paymentDueValue"],
       message:
         paymentDueRule === "day_of_next_month"
-          ? "paymentDueValue must not be after the statement closing day"
-          : "paymentDueValue must be between 1 and 28 days"
+          ? `With a closing day of ${statementClosingDay}, the due day can be at most ${statementClosingDay} so payment is due before the next statement closes. For a due date in the same month as closing, use "days after closing".`
+          : `The payment can be due at most ${MAX_DAYS_AFTER_CLOSING} days after closing, so it falls before the next statement closes (February cycles are 28 days).`
     });
   }
 }
 
-export const accountSchema = accountBaseSchema.superRefine(refineCreditCardAccount);
+export const accountSchema = accountBaseSchema.superRefine(
+  refineCreditCardAccount
+);
 
 export const updateAccountSchema = accountBaseSchema.partial();
 
@@ -126,7 +139,9 @@ export const creditCardBillingQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1)
 });
 
-export type CreditCardBillingQuery = z.infer<typeof creditCardBillingQuerySchema>;
+export type CreditCardBillingQuery = z.infer<
+  typeof creditCardBillingQuerySchema
+>;
 export type AccountInput = z.infer<typeof accountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type AccountsQueryParam = z.infer<typeof accountsQueryParamSchema>;
