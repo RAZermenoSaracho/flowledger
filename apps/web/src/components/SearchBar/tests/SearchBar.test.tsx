@@ -11,10 +11,20 @@ import {
 } from "../../../utils/searchDomain";
 import { SearchBar } from "../SearchBar";
 
-const nameField: SearchFieldConfig = { name: "name", label: "Name", type: "string" };
-const amountField: SearchFieldConfig = { name: "amount", label: "Amount", type: "number" };
+const nameField: SearchFieldConfig = {
+  name: "name",
+  label: "Name",
+  type: "string"
+};
+const amountField: SearchFieldConfig = {
+  name: "amount",
+  label: "Amount",
+  type: "number"
+};
 const fields = [nameField, amountField];
-const groupableFields: GroupableField[] = [{ name: "categoryId", label: "Category" }];
+const groupableFields: GroupableField[] = [
+  { name: "categoryId", label: "Category" }
+];
 const sortableFields: SortableField[] = [
   { name: "date", label: "Date" },
   { name: "amount", label: "Amount" }
@@ -23,16 +33,26 @@ const sortableFields: SortableField[] = [
 describe("SearchBar", () => {
   it("calls onQueryChange once on mount with an empty query", async () => {
     const onQueryChange = vi.fn();
-    renderWithProviders(<SearchBar fields={fields} onQueryChange={onQueryChange} />);
+    renderWithProviders(
+      <SearchBar fields={fields} onQueryChange={onQueryChange} />
+    );
 
-    await waitFor(() => expect(onQueryChange).toHaveBeenCalledWith({ where: undefined }));
+    await waitFor(() =>
+      expect(onQueryChange).toHaveBeenCalledWith({ where: undefined })
+    );
   });
 
   it("shows the free-text box only when defaultSearchField is set", () => {
     const { rerender } = renderWithProviders(
-      <SearchBar fields={fields} onQueryChange={vi.fn()} placeholder="Search transactions" />
+      <SearchBar
+        fields={fields}
+        onQueryChange={vi.fn()}
+        placeholder="Search transactions"
+      />
     );
-    expect(screen.queryByLabelText("Search transactions")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Search transactions")
+    ).not.toBeInTheDocument();
 
     rerender(
       <SearchBar
@@ -80,9 +100,15 @@ describe("SearchBar", () => {
     );
 
     await user.type(screen.getByLabelText("Search"), "groceries{Enter}");
-    await user.click(screen.getByRole("button", { name: "Remove Name contains groceries filter" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Remove Name contains groceries filter"
+      })
+    );
 
-    expect(screen.queryByText("Name contains groceries")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Name contains groceries")
+    ).not.toBeInTheDocument();
   });
 
   it("opens the filter/group/sort panel and toggles a group-by field", async () => {
@@ -96,7 +122,9 @@ describe("SearchBar", () => {
       />
     );
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.click(screen.getByLabelText("Category"));
 
     expect(screen.getByText("Group by Category")).toBeInTheDocument();
@@ -111,12 +139,20 @@ describe("SearchBar", () => {
   it("removes a group-by pill by clicking its remove button", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <SearchBar fields={fields} groupableFields={groupableFields} onQueryChange={vi.fn()} />
+      <SearchBar
+        fields={fields}
+        groupableFields={groupableFields}
+        onQueryChange={vi.fn()}
+      />
     );
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.click(screen.getByLabelText("Category"));
-    await user.click(screen.getByRole("button", { name: "Remove Group by Category filter" }));
+    await user.click(
+      screen.getByRole("button", { name: "Remove Group by Category filter" })
+    );
 
     expect(screen.queryByText("Group by Category")).not.toBeInTheDocument();
   });
@@ -130,7 +166,9 @@ describe("SearchBar", () => {
       </div>
     );
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Outside" }));
@@ -142,8 +180,13 @@ describe("SearchBar", () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar fields={fields} onQueryChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
-    await user.pointer({ keys: "[MouseLeft>]", target: screen.getByRole("menu") });
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
+    await user.pointer({
+      keys: "[MouseLeft>]",
+      target: screen.getByRole("menu")
+    });
 
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
@@ -152,7 +195,9 @@ describe("SearchBar", () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar fields={fields} onQueryChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -162,7 +207,11 @@ describe("SearchBar", () => {
     const user = userEvent.setup();
     const onQueryChange = vi.fn();
     renderWithProviders(
-      <SearchBar fields={fields} sortableFields={sortableFields} onQueryChange={onQueryChange} />
+      <SearchBar
+        fields={fields}
+        sortableFields={sortableFields}
+        onQueryChange={onQueryChange}
+      />
     );
 
     await waitFor(() =>
@@ -172,7 +221,9 @@ describe("SearchBar", () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.selectOptions(screen.getByLabelText("Sort by"), "amount");
     await user.click(screen.getByRole("button", { name: "Sort descending" }));
 
@@ -209,7 +260,11 @@ describe("SearchBar", () => {
       children: [createConditionWithValue("name", "=", "groceries")]
     };
     renderWithProviders(
-      <SearchBar fields={fields} initialDomain={initialDomain} onQueryChange={vi.fn()} />
+      <SearchBar
+        fields={fields}
+        initialDomain={initialDomain}
+        onQueryChange={vi.fn()}
+      />
     );
 
     expect(screen.getByText("Name is groceries")).toBeInTheDocument();
@@ -227,22 +282,32 @@ describe("SearchBar", () => {
       />
     );
 
-    expect(screen.queryByRole("button", { name: "Clear all filters" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear all filters" })
+    ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Search"), "groceries{Enter}");
-    expect(screen.getByRole("button", { name: "Clear all filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear all filters" })
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear all filters" }));
 
-    expect(screen.queryByText("Name contains groceries")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Clear all filters" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Name contains groceries")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear all filters" })
+    ).not.toBeInTheDocument();
   });
 
   it("opens FilterBuilder from the panel and applies an edited domain back as a pill", async () => {
     const user = userEvent.setup();
     renderWithProviders(<SearchBar fields={fields} onQueryChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
     await user.click(screen.getByRole("button", { name: "Edit filters" }));
 
     expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
@@ -252,7 +317,28 @@ describe("SearchBar", () => {
     await user.click(screen.getByRole("button", { name: "Done" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear all filters" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear all filters" })
+    ).toBeInTheDocument();
+  });
+
+  it("hides the Edit filters entry when showFilterBuilder is false", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <SearchBar
+        fields={fields}
+        onQueryChange={vi.fn()}
+        showFilterBuilder={false}
+      />
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Edit filters" })
+    ).not.toBeInTheDocument();
   });
 
   it("marks 'Edit filters' as active once a condition exists", async () => {
@@ -267,9 +353,13 @@ describe("SearchBar", () => {
     );
 
     await user.type(screen.getByLabelText("Search"), "groceries{Enter}");
-    await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
 
-    expect(screen.getByRole("button", { name: "Edit filters (active)" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit filters (active)" })
+    ).toBeInTheDocument();
   });
 
   describe("keyboard chip removal", () => {
@@ -287,7 +377,9 @@ describe("SearchBar", () => {
       const input = screen.getByLabelText("Search");
       await user.type(input, "a{Enter}b{Enter}");
       if (withGroup) {
-        await user.click(screen.getByRole("button", { name: "Filter, group, and sort" }));
+        await user.click(
+          screen.getByRole("button", { name: "Filter, group, and sort" })
+        );
         await user.click(screen.getByLabelText("Category"));
       }
       await user.click(input);
@@ -301,7 +393,9 @@ describe("SearchBar", () => {
       expect(screen.getByText("Name contains a")).toBeInTheDocument();
       expect(screen.queryByText("Name contains b")).not.toBeInTheDocument();
       expect(input).toHaveFocus();
-      expect(screen.getByRole("status")).toHaveTextContent("Removed Name contains b filter");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Removed Name contains b filter"
+      );
     });
 
     it("removes the group-by chip before filter chips", async () => {
@@ -334,7 +428,11 @@ describe("SearchBar", () => {
     it("does nothing with no chips", async () => {
       const user = userEvent.setup();
       renderWithProviders(
-        <SearchBar fields={fields} onQueryChange={vi.fn()} defaultSearchField="name" />
+        <SearchBar
+          fields={fields}
+          onQueryChange={vi.fn()}
+          defaultSearchField="name"
+        />
       );
       await user.click(screen.getByLabelText("Search"));
       await user.keyboard("{Backspace}");
@@ -344,13 +442,17 @@ describe("SearchBar", () => {
 
     it("Delete and Backspace on a focused remove button remove that chip and focus the input", async () => {
       const { user, input } = await setup();
-      screen.getByRole("button", { name: "Remove Name contains a filter" }).focus();
+      screen
+        .getByRole("button", { name: "Remove Name contains a filter" })
+        .focus();
       await user.keyboard("{Delete}");
 
       expect(screen.queryByText("Name contains a")).not.toBeInTheDocument();
       expect(input).toHaveFocus();
 
-      screen.getByRole("button", { name: "Remove Name contains b filter" }).focus();
+      screen
+        .getByRole("button", { name: "Remove Name contains b filter" })
+        .focus();
       await user.keyboard("{Backspace}");
       expect(screen.queryByText("Name contains b")).not.toBeInTheDocument();
     });
@@ -367,9 +469,13 @@ describe("SearchBar", () => {
           }}
         />
       );
-      await user.click(screen.getByRole("button", { name: /^Remove .* filter$/ }));
+      await user.click(
+        screen.getByRole("button", { name: /^Remove .* filter$/ })
+      );
 
-      expect(screen.getByRole("button", { name: "Filter, group, and sort" })).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Filter, group, and sort" })
+      ).toHaveFocus();
     });
   });
 });

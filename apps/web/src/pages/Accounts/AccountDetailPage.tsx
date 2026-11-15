@@ -1,5 +1,6 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import {
   Link,
   useNavigate,
@@ -208,29 +209,36 @@ export function AccountDetailPage() {
             content: (
               <div className="grid gap-3">
                 {periodFrom && periodTo && periodStartAt && periodEndAt ? (
-                  <p className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    Billing period {formatFilterValue(periodFrom)} to{" "}
-                    {formatFilterValue(periodTo)}
-                    <button
-                      type="button"
-                      className="font-semibold text-pine underline dark:text-emerald-300"
-                      onClick={() =>
-                        setSearchParams(
-                          (current) => {
-                            const next = new URLSearchParams(current);
-                            next.delete("periodFrom");
-                            next.delete("periodTo");
-                            next.delete("periodStartAt");
-                            next.delete("periodEndAt");
-                            return next;
-                          },
-                          { replace: true }
-                        )
-                      }
-                    >
-                      Clear period
-                    </button>
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Active filter:
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-pine/10 py-1 pl-3 pr-1 font-medium text-pine dark:bg-emerald-900/40 dark:text-emerald-200">
+                      Billing period {formatFilterValue(periodFrom)} –{" "}
+                      {formatFilterValue(periodTo)}
+                      <button
+                        type="button"
+                        aria-label="Clear period"
+                        title="Show all transactions"
+                        className="rounded-full p-1 hover:bg-pine/20 focus:outline-none focus:ring-2 focus:ring-pine dark:hover:bg-emerald-800"
+                        onClick={() =>
+                          setSearchParams(
+                            (current) => {
+                              const next = new URLSearchParams(current);
+                              next.delete("periodFrom");
+                              next.delete("periodTo");
+                              next.delete("periodStartAt");
+                              next.delete("periodEndAt");
+                              return next;
+                            },
+                            { replace: true }
+                          )
+                        }
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </span>
+                  </div>
                 ) : null}
                 <RelatedTransactionsList
                   key={`${account.id}:${periodFrom}:${periodTo}`}

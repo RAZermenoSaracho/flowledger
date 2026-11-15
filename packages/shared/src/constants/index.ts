@@ -1,7 +1,20 @@
 /** Mirrors the Prisma `PaymentDueRule` enum. */
-export const PAYMENT_DUE_RULES = ["day_of_next_month", "days_after_closing"] as const;
+export const PAYMENT_DUE_RULES = [
+  "day_of_next_month",
+  "days_after_closing"
+] as const;
+/**
+ * Largest `days_after_closing` value: a due date must not fall after the next statement closing (each payment
+ * window belongs to exactly one period), and the shortest cycle (February, or day 31 clamped to Feb 28) is 28 days.
+ */
+export const MAX_DAYS_AFTER_CLOSING = 28;
 /** Mirrors the Prisma `CreditCardKind` enum. */
-export const CREDIT_CARD_KINDS = ["payment", "refund", "cashback", "interest"] as const;
+export const CREDIT_CARD_KINDS = [
+  "payment",
+  "refund",
+  "cashback",
+  "interest"
+] as const;
 export const TRANSACTION_TYPES = ["income", "expense", "transfer"] as const;
 export const PROVIDER_IMPORTED_TRANSACTION_STATUSES = [
   "pending",
@@ -41,7 +54,10 @@ export const NOTIFICATION_TYPES = [
   "credit_card_period_paid",
   "credit_card_payment_overdue"
 ] as const;
-export const IDENTITY_VISIBILITIES = ["username_only", "username_and_name"] as const;
+export const IDENTITY_VISIBILITIES = [
+  "username_only",
+  "username_and_name"
+] as const;
 export const SHARE_ACCEPTANCES = ["proposed", "accepted", "rejected"] as const;
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 30;

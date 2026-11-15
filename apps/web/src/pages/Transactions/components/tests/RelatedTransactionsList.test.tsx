@@ -38,12 +38,19 @@ function meta(offset: number, total = 21) {
   };
 }
 
-type Query = { where: unknown; sort: unknown; pagination: { kind: string; offset: number; limit: number } };
+type Query = {
+  where: unknown;
+  sort: unknown;
+  pagination: { kind: string; offset: number; limit: number };
+};
 
 function mockTransactions(respond: (query: Query) => Response | object) {
   const queries: Query[] = [];
   server.use(
-    http.post(`${API_URL}/auth/refresh`, () => new HttpResponse(null, { status: 401 })),
+    http.post(
+      `${API_URL}/auth/refresh`,
+      () => new HttpResponse(null, { status: 401 })
+    ),
     http.get(`${API_URL}/transactions`, ({ request }) => {
       const query = JSON.parse(new URL(request.url).searchParams.get("query")!);
       queries.push(query);
@@ -63,14 +70,16 @@ describe("RelatedTransactionsList", () => {
     );
     const user = userEvent.setup();
     renderWithProviders(
-      <RelatedTransactionsList scope={{ field: "accountId", value: "acc-1" }} emptyText="Nothing" />,
+      <RelatedTransactionsList
+        scope={{ field: "accountId", value: "acc-1" }}
+        emptyText="Nothing"
+      />,
       { withAuth: true }
     );
 
-    expect(await screen.findByRole("link", { name: "Groceries" })).toHaveAttribute(
-      "href",
-      "/transactions/t1"
-    );
+    expect(
+      await screen.findByRole("link", { name: "Groceries" })
+    ).toHaveAttribute("href", "/transactions/t1");
     expect(screen.getByText("$12.50")).toBeInTheDocument();
     expect(screen.getByText("1-20 / 21")).toBeInTheDocument();
     expect(screen.queryByText("Account")).not.toBeInTheDocument();
@@ -81,15 +90,45 @@ describe("RelatedTransactionsList", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Next records" }));
-    expect(await screen.findByRole("link", { name: "Coffee" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Coffee" })
+    ).toBeInTheDocument();
     expect(queries.at(-1)?.pagination.offset).toBe(20);
     expect(screen.getByRole("button", { name: "Next records" })).toBeDisabled();
   });
 
-  it("shows an Account column for a group scope", async () => {
-    mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(0, 1) }));
+  it("offers no filter builder in the search panel", async () => {
+    mockTransactions(() => ({
+      data: [tx("t1", "Groceries")],
+      meta: meta(0, 1)
+    }));
+    const user = userEvent.setup();
     renderWithProviders(
-      <RelatedTransactionsList scope={{ field: "groupId", value: "g1" }} emptyText="Nothing" />,
+      <RelatedTransactionsList
+        scope={{ field: "accountId", value: "acc-1" }}
+        emptyText="Nothing"
+      />,
+      { withAuth: true }
+    );
+    await screen.findByRole("link", { name: "Groceries" });
+    await user.click(
+      screen.getByRole("button", { name: "Filter, group, and sort" })
+    );
+    expect(
+      screen.queryByRole("button", { name: "Edit filters" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an Account column for a group scope", async () => {
+    mockTransactions(() => ({
+      data: [tx("t1", "Groceries")],
+      meta: meta(0, 1)
+    }));
+    renderWithProviders(
+      <RelatedTransactionsList
+        scope={{ field: "groupId", value: "g1" }}
+        emptyText="Nothing"
+      />,
       { withAuth: true }
     );
     expect(await screen.findByText("Checking")).toBeInTheDocument();
@@ -97,17 +136,26 @@ describe("RelatedTransactionsList", () => {
   });
 
   it("ANDs a name search with the scope and returns to page 1", async () => {
-    const queries = mockTransactions(() => ({ data: [tx("t1", "Groceries")], meta: meta(0) }));
+    const queries = mockTransactions(() => ({
+      data: [tx("t1", "Groceries")],
+      meta: meta(0)
+    }));
     const user = userEvent.setup();
     renderWithProviders(
-      <RelatedTransactionsList scope={{ field: "accountId", value: "acc-1" }} emptyText="Nothing" />,
+      <RelatedTransactionsList
+        scope={{ field: "accountId", value: "acc-1" }}
+        emptyText="Nothing"
+      />,
       { withAuth: true }
     );
     await screen.findByRole("link", { name: "Groceries" });
     await user.click(screen.getByRole("button", { name: "Next records" }));
     await screen.findByText("21-21 / 21");
 
-    await user.type(screen.getByPlaceholderText("Search by name"), "cof{Enter}");
+    await user.type(
+      screen.getByPlaceholderText("Search by name"),
+      "cof{Enter}"
+    );
 
     await screen.findByText("1-20 / 21");
     expect(queries.at(-1)).toMatchObject({
@@ -124,17 +172,27 @@ describe("RelatedTransactionsList", () => {
   it("shows the empty text and an error state", async () => {
     mockTransactions(() => ({ data: [], meta: meta(0, 0) }));
     const { unmount } = renderWithProviders(
-      <RelatedTransactionsList scope={{ field: "groupId", value: "g1" }} emptyText="Nothing here" />,
+      <RelatedTransactionsList
+        scope={{ field: "groupId", value: "g1" }}
+        emptyText="Nothing here"
+      />,
       { withAuth: true }
     );
     expect(await screen.findByText("Nothing here")).toBeInTheDocument();
     unmount();
 
-    mockTransactions(() => HttpResponse.json({ message: "boom" }, { status: 500 }));
+    mockTransactions(() =>
+      HttpResponse.json({ message: "boom" }, { status: 500 })
+    );
     renderWithProviders(
-      <RelatedTransactionsList scope={{ field: "groupId", value: "g1" }} emptyText="Nothing here" />,
+      <RelatedTransactionsList
+        scope={{ field: "groupId", value: "g1" }}
+        emptyText="Nothing here"
+      />,
       { withAuth: true }
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load transactions.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load transactions."
+    );
   });
 });

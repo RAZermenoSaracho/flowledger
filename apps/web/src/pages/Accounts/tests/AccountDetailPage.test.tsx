@@ -42,7 +42,15 @@ function mockAccounts(accounts: Account[]) {
     http.get(`${API_URL}/providers/connectors`, () =>
       HttpResponse.json({
         connectors: [
-          { provider: "syncfy", connectorId: "c1", title: "Bank", description: "d", country: "US", category: "bank", coverageLabel: "Popular" }
+          {
+            provider: "syncfy",
+            connectorId: "c1",
+            title: "Bank",
+            description: "d",
+            country: "US",
+            category: "bank",
+            coverageLabel: "Popular"
+          }
         ]
       })
     ),
@@ -89,7 +97,15 @@ describe("AccountDetailPage", () => {
       http.get(`${API_URL}/transactions`, () =>
         HttpResponse.json({
           data: [],
-          meta: { total: 0, page: 1, pageSize: 20, pageCount: 0, hasNext: false, hasPrevious: false, executionTime: 1 }
+          meta: {
+            total: 0,
+            page: 1,
+            pageSize: 20,
+            pageCount: 0,
+            hasNext: false,
+            hasPrevious: false,
+            executionTime: 1
+          }
         })
       )
     );
@@ -102,7 +118,9 @@ describe("AccountDetailPage", () => {
       "Transactions"
     ]);
     await user.click(screen.getByRole("tab", { name: "Transactions" }));
-    expect(await screen.findByText("No transactions for this account yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No transactions for this account yet.")
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
@@ -111,8 +129,13 @@ describe("AccountDetailPage", () => {
     const wheres: unknown[] = [];
     server.use(
       http.get(`${API_URL}/transactions`, ({ request }) => {
-        wheres.push(JSON.parse(new URL(request.url).searchParams.get("query")!).where);
-        return HttpResponse.json({ data: [], meta: { total: 0, hasNext: false } });
+        wheres.push(
+          JSON.parse(new URL(request.url).searchParams.get("query")!).where
+        );
+        return HttpResponse.json({
+          data: [],
+          meta: { total: 0, hasNext: false }
+        });
       })
     );
     const user = userEvent.setup();
@@ -121,18 +144,26 @@ describe("AccountDetailPage", () => {
         <Route path="/accounts/:id" element={<AccountDetailPage />} />
       </Routes>,
       {
-        route: "/accounts/acc-1?tab=transactions&periodFrom=2027-01-21&periodTo=2027-02-20&periodStartAt=2027-01-21T06:00:00.000Z&periodEndAt=2027-02-21T06:00:00.000Z",
+        route:
+          "/accounts/acc-1?tab=transactions&periodFrom=2027-01-21&periodTo=2027-02-20&periodStartAt=2027-01-21T06:00:00.000Z&periodEndAt=2027-02-21T06:00:00.000Z",
         withAuth: true
       }
     );
 
     expect(await screen.findByText(/Billing period/)).toBeInTheDocument();
-    await waitFor(() => expect(JSON.stringify(wheres[0])).toContain("transferToAccountId"));
+    expect(screen.getByText("Active filter:")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(JSON.stringify(wheres[0])).toContain("transferToAccountId")
+    );
     expect(JSON.stringify(wheres[0])).toContain("2027-01-21T06:00:00.000Z");
     expect(JSON.stringify(wheres[0])).toContain("2027-02-21T06:00:00.000Z");
     await user.click(screen.getByRole("button", { name: "Clear period" }));
-    await waitFor(() => expect(screen.queryByText(/Billing period/)).not.toBeInTheDocument());
-    await waitFor(() => expect(JSON.stringify(wheres.at(-1))).not.toContain("transferToAccountId"));
+    await waitFor(() =>
+      expect(screen.queryByText(/Billing period/)).not.toBeInTheDocument()
+    );
+    await waitFor(() =>
+      expect(JSON.stringify(wheres.at(-1))).not.toContain("transferToAccountId")
+    );
   });
 
   it("saves edits in one request", async () => {
@@ -274,7 +305,9 @@ describe("AccountDetailPage", () => {
 
     expect(await screen.findByLabelText("Credit limit")).toHaveValue(48000);
     expect(screen.getByLabelText("Annual interest rate (%)")).toHaveValue(60);
-    expect(screen.getByRole("tab", { name: "Credit card" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Credit card" })
+    ).toBeInTheDocument();
   });
 
   describe("new account (/accounts/new)", () => {
@@ -293,13 +326,21 @@ describe("AccountDetailPage", () => {
       mockAccounts([]);
       renderNew();
 
-      expect(await screen.findByRole("heading", { name: "New account" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("heading", { name: "New account" })
+      ).toBeInTheDocument();
       expect(screen.getByLabelText("Name")).toHaveValue("");
       expect(screen.getByLabelText("Type")).toHaveValue("checking");
       expect(screen.getByLabelText("Initial balance")).toHaveValue(0);
-      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["General"]);
-      expect(screen.queryByRole("button", { name: "Record actions" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /resync/i })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+        "General"
+      ]);
+      expect(
+        screen.queryByRole("button", { name: "Record actions" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /resync/i })
+      ).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
       expect(screen.queryByLabelText("Credit limit")).not.toBeInTheDocument();
     });
@@ -309,10 +350,15 @@ describe("AccountDetailPage", () => {
       const user = userEvent.setup();
       renderNew();
 
-      await user.selectOptions(await screen.findByLabelText("Type"), "credit_card");
+      await user.selectOptions(
+        await screen.findByLabelText("Type"),
+        "credit_card"
+      );
 
       expect(screen.getByLabelText("Credit limit")).toBeInTheDocument();
-      expect(screen.getByLabelText("Statement closing day")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Statement closing day")
+      ).toBeInTheDocument();
     });
 
     it("rejects an out-of-range closing day and keeps Save disabled", async () => {
@@ -356,15 +402,25 @@ describe("AccountDetailPage", () => {
 
       await user.type(await screen.findByLabelText("Name"), "Wallet");
       server.use(
-        http.get(`${API_URL}/accounts`, () => HttpResponse.json({ accounts: [created] }))
+        http.get(`${API_URL}/accounts`, () =>
+          HttpResponse.json({ accounts: [created] })
+        )
       );
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       await waitFor(() =>
-        expect(body).toMatchObject({ name: "Wallet", type: "checking", currency: "USD" })
+        expect(body).toMatchObject({
+          name: "Wallet",
+          type: "checking",
+          currency: "USD"
+        })
       );
-      expect(await screen.findByRole("heading", { name: "Wallet" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Transactions" })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("heading", { name: "Wallet" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Transactions" })
+      ).toBeInTheDocument();
     });
 
     it("creates nothing when going back without saving", async () => {
