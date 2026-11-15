@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { hasConditionOn, type WhereNode } from "../../../utils/searchDomain";
 import type { SearchBarQuery } from "../../../components/SearchBar";
 import * as transactionsClient from "../../../services/transactions.client";
 import type { RelatedTransactionsScope } from "../../../types/transactions.types";
@@ -10,22 +11,28 @@ const RELATED_TRANSACTIONS_DEFAULT_LIMIT = 20;
 const DEFAULT_SORT = [{ field: "date", direction: "desc" as const }];
 
 /**
- * Server-paginated transactions of one account or group. The SearchBar's `where` is AND-ed with the
- * scope condition; the sort defaults to date desc.
- * Previous window rows stay visible while the next window loads.
+ * Server-paginated transactions of one account or group. The scope condition is always AND-ed with the SearchBar's
+ * `where`, so user filters can only narrow it; with a `scope.transfersInWith` condition in the domain, an account scope
+ * also matches transfers into the account. The sort defaults to date desc. Previous window rows stay visible while
+ * the next window loads.
  */
 export function useRelatedTransactions(scope: RelatedTransactionsScope) {
   const [search, setSearch] = useState<SearchBarQuery>({});
+  const { field, value, transfersInWith } = scope;
+  const includeTransfersIn =
+    field === "accountId" &&
+    !!transfersInWith &&
+    !!search.domain &&
+    hasConditionOn(search.domain, transfersInWith);
   const where = useMemo(() => {
-    const scopeCondition = {
-      field: scope.field,
-      op: "=" as const,
-      value: scope.value
-    };
-    return search.where
-      ? { and: [scopeCondition, search.where] }
+    const scopeCondition: WhereNode = { field, op: "=", value };
+    const base: WhereNode = includeTransfersIn
+      ? {
+          or: [scopeCondition, { field: "transferToAccountId", op: "=", value }]
+        }
       : scopeCondition;
-  }, [scope.field, scope.value, search.where]);
+    return search.where ? { and: [base, search.where] } : base;
+  }, [field, value, includeTransfersIn, search.where]);
   const sort = search.sort?.length ? search.sort : DEFAULT_SORT;
 
   const list = usePagination({
@@ -44,6 +51,7 @@ export function useRelatedTransactions(scope: RelatedTransactionsScope) {
 
   return {
     pager: list.pager,
+    search,
     setSearch,
     rows: list.items,
     isLoading: list.isLoading,

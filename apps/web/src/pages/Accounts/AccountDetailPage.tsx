@@ -1,6 +1,12 @@
 import { ACCOUNT_TYPES } from "@flowledger/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "react-router-dom";
 import { ActionMenuItem } from "../../components/ActionMenu";
 import { Card } from "../../components/Card";
 import { CurrencySelect } from "../../components/CurrencySelect";
@@ -12,40 +18,121 @@ import { FormView } from "../../components/FormView";
 import type { FormViewTab } from "../../types/common.types";
 import { routes } from "../../constants/routes";
 import { RelatedTransactionsList } from "../Transactions/components/RelatedTransactionsList";
+import type { SearchBarQuery } from "../../components/SearchBar";
+import { createEmptyGroup, hasConditionOn } from "../../utils/searchDomain";
 import { useAuth } from "../../hooks/useAuth";
 import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
 import { AddAccountCard } from "./components/AddAccountCard";
+import { CreditCardTab } from "./components/CreditCardTab";
 import { AccountTypeSections } from "./components/AccountTypeSections";
 import { useAccountActions } from "./hooks/useAccountActions";
 import { useAccountForm } from "./hooks/useAccountForm";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
+import {
+  BILLING_PERIOD_FIELD,
+  billingPeriodCondition,
+  billingPeriodField
+} from "./utils/billingPeriodFilter";
 import "@syncfy/authentication-widget/dist/syncfy-authentication-widget.css";
 
-/** Account Form View at `/accounts/:id`: tabs General (editable fields, sync panel) and Transactions (paginated list); archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state. */
+/**
+ * Account Form View. At `/accounts/:id`: tabs General (editable fields, type sections, sync panel), Transactions
+ * (the standard transaction SearchBar; a `periodStartAt`/`periodEndAt` URL pair opens it with a removable Billing period
+ * condition, kept in sync with the URL) and, for credit cards, Credit
+ * card; archive/restore/delete in the actions menu. Unknown or foreign ids show the same not-found state.
+ * At `/accounts/new`: an unsaved manual-account draft (General fields and type sections only) that creates nothing
+ * until Save, then opens the new account.
+ */
 export function AccountDetailPage() {
   const { id = "" } = useParams();
+  const isNew = !id;
   const auth = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const accountsQuery = useQuery({
     queryKey: ["accounts", "all"],
+    enabled: !isNew,
     queryFn: async () => (await accountsClient.listAccounts()).accounts
   });
   const account = accountsQuery.data?.find((item) => item.id === id) ?? null;
 
-  const draft = useAccountForm(account);
+  const draft = useAccountForm(
+    account,
+    isNew && !auth.isInitializing
+      ? {
+          currency: auth.user?.preferredCurrency || "USD",
+          onCreated: (created) =>
+            navigate(routes.account(created.id), { replace: true })
+        }
+      : undefined
+  );
   const actions = useAccountActions(id);
-  const sync = useAccountProviderSync({
-    defaultCurrency: auth.user?.preferredCurrency || "USD"
-  });
+  const sync = useAccountProviderSync();
 
-  if (accountsQuery.isLoading) {
+  const periodStartAt = searchParams.get("periodStartAt");
+  const periodEndAt = searchParams.get("periodEndAt");
+  const periodKey =
+    periodStartAt && periodEndAt ? `${periodStartAt}|${periodEndAt}` : "";
+  // The Transactions tab's SearchBar reads its domain once on mount: an external URL change (period link,
+  // back/forward) remounts it, while removing the period chip only clears the URL and keeps the other filters.
+  const [periodListKey, setPeriodListKey] = useState(0);
+  const periodClearedBySearch = useRef(false);
+  const lastPeriodKey = useRef(periodKey);
+  useEffect(() => {
+    if (periodKey === lastPeriodKey.current) return;
+    lastPeriodKey.current = periodKey;
+    if (periodClearedBySearch.current) periodClearedBySearch.current = false;
+    else setPeriodListKey((key) => key + 1);
+  }, [periodKey]);
+  const billingTimeZone =
+    account?.type === "credit_card" ? account.billingTimeZone : null;
+  const periodFields = useMemo(
+    () => (billingTimeZone ? [billingPeriodField(billingTimeZone)] : undefined),
+    [billingTimeZone]
+  );
+  const periodDomain = useMemo(
+    () =>
+      periodFields && periodStartAt && periodEndAt
+        ? {
+            ...createEmptyGroup("and"),
+            children: [billingPeriodCondition(periodStartAt, periodEndAt)]
+          }
+        : undefined,
+    [periodFields, periodStartAt, periodEndAt]
+  );
+
+  function syncPeriodToUrl(query: SearchBarQuery) {
+    if (
+      !periodKey ||
+      !query.domain ||
+      hasConditionOn(query.domain, BILLING_PERIOD_FIELD)
+    )
+      return;
+    periodClearedBySearch.current = true;
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        for (const key of [
+          "periodFrom",
+          "periodTo",
+          "periodStartAt",
+          "periodEndAt"
+        ])
+          next.delete(key);
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  if (accountsQuery.isLoading || (isNew && auth.isInitializing)) {
     return <Card>Loading...</Card>;
   }
-  if (!account) {
+  if (!account && !isNew) {
     return (
       <Card>
         <h1 className="text-xl font-semibold">Account not found</h1>
@@ -140,46 +227,70 @@ export function AccountDetailPage() {
 
           <AccountTypeSections type={values.type} draft={draft} />
 
-          <div className="mt-4">
-            <AccountSyncPanel
-              account={account}
-              resyncMessages={sync.resyncMessages}
-              isSyncAvailable={
-                !sync.connectorsQuery.isSuccess ||
-                (account.sync ?? []).every((item) =>
-                  sync.availableProviders.has(item.provider)
-                )
-              }
-              isStartingCredentialFlow={
-                sync.startProviderCredentialFlow.isPending
-              }
-              hasCredentialFlowError={sync.startProviderCredentialFlow.isError}
-              onResync={(syncId) =>
-                sync.startSyncedCredentialFlow(account, syncId, "credential")
-              }
-              onReconnect={(syncId) =>
-                sync.startSyncedCredentialFlow(
-                  account,
-                  syncId,
-                  "updateCredential"
-                )
-              }
-            />
-          </div>
+          {account ? (
+            <div className="mt-4">
+              <AccountSyncPanel
+                account={account}
+                resyncMessages={sync.resyncMessages}
+                isSyncAvailable={
+                  !sync.connectorsQuery.isSuccess ||
+                  (account.sync ?? []).every((item) =>
+                    sync.availableProviders.has(item.provider)
+                  )
+                }
+                isStartingCredentialFlow={
+                  sync.startProviderCredentialFlow.isPending
+                }
+                hasCredentialFlowError={
+                  sync.startProviderCredentialFlow.isError
+                }
+                onResync={(syncId) =>
+                  sync.startSyncedCredentialFlow(account, syncId, "credential")
+                }
+                onReconnect={(syncId) =>
+                  sync.startSyncedCredentialFlow(
+                    account,
+                    syncId,
+                    "updateCredential"
+                  )
+                }
+              />
+            </div>
+          ) : null}
         </>
       )
     },
-    {
-      id: "transactions",
-      label: "Transactions",
-      content: (
-        <RelatedTransactionsList
-          key={account.id}
-          scope={{ field: "accountId", value: account.id }}
-          emptyText="No transactions for this account yet."
-        />
-      )
-    }
+    ...(account
+      ? [
+          {
+            id: "transactions",
+            label: "Transactions",
+            content: (
+              <RelatedTransactionsList
+                key={`${account.id}:${periodListKey}`}
+                scope={{
+                  field: "accountId",
+                  value: account.id,
+                  transfersInWith: BILLING_PERIOD_FIELD
+                }}
+                extraFields={periodFields}
+                initialDomain={periodDomain}
+                onQueryChange={syncPeriodToUrl}
+                emptyText="No transactions for this account yet."
+              />
+            )
+          },
+          ...(account.type === "credit_card"
+            ? [
+                {
+                  id: "credit-card",
+                  label: "Credit card",
+                  content: <CreditCardTab account={account} />
+                }
+              ]
+            : [])
+        ]
+      : [])
   ];
 
   return (
@@ -187,39 +298,45 @@ export function AccountDetailPage() {
       <AddAccountCard sync={sync} />
       <Card>
         <FormView
-          title={account.name}
-          subtitle={`${getAccountTypeLabel(account.type)}${account.isArchived ? " · Archived" : ""}`}
+          title={account ? account.name : "New account"}
+          subtitle={
+            account
+              ? `${getAccountTypeLabel(account.type)}${account.isArchived ? " · Archived" : ""}`
+              : undefined
+          }
           draft={draft}
           tabs={tabs}
           backLink={{ to: routes.accounts, label: "Back to accounts" }}
+          isNew={isNew}
           actions={
-            <>
-              {account.isArchived ? (
+            account ? (
+              <>
+                {account.isArchived ? (
+                  <ActionMenuItem
+                    disabled={actions.restoreAccount.isPending}
+                    onClick={() => actions.restoreAccount.mutate()}
+                  >
+                    Restore
+                  </ActionMenuItem>
+                ) : (
+                  <ActionMenuItem
+                    disabled={actions.archiveAccount.isPending}
+                    onClick={() => actions.archiveAccount.mutate()}
+                  >
+                    Archive
+                  </ActionMenuItem>
+                )}
                 <ActionMenuItem
-                  disabled={actions.restoreAccount.isPending}
-                  onClick={() => actions.restoreAccount.mutate()}
+                  variant="danger"
+                  disabled={actions.deleteAccount.isPending}
+                  onClick={confirmDelete}
                 >
-                  Restore
+                  Delete
                 </ActionMenuItem>
-              ) : (
-                <ActionMenuItem
-                  disabled={actions.archiveAccount.isPending}
-                  onClick={() => actions.archiveAccount.mutate()}
-                >
-                  Archive
-                </ActionMenuItem>
-              )}
-              <ActionMenuItem
-                variant="danger"
-                disabled={actions.deleteAccount.isPending}
-                onClick={confirmDelete}
-              >
-                Delete
-              </ActionMenuItem>
-            </>
+              </>
+            ) : undefined
           }
-        >
-        </FormView>
+        />
       </Card>
     </div>
   );

@@ -1,7 +1,9 @@
 import { Card } from "../../../components/Card";
+import type { CreditCardCredits } from "@flowledger/shared";
 import { formatMoney } from "../../../utils/currency";
+import { isNonZero } from "../../../utils/money";
 
-/** Income/expenses/balance summary tiles for reports. */
+/** Income/expenses/balance summary tiles for reports, plus a separate "Credit card credits" tile (never part of income) when the range has any. */
 export function ReportSummaryCards({
   currency,
   totalIncome,
@@ -10,7 +12,8 @@ export function ReportSummaryCards({
   reportModeLabel,
   totalGrossIncome,
   totalGrossExpenses,
-  totalExpenseReimbursements
+  totalExpenseReimbursements,
+  creditCardCredits
 }: {
   currency: string;
   totalIncome: number;
@@ -20,6 +23,7 @@ export function ReportSummaryCards({
   totalGrossIncome: number;
   totalGrossExpenses: number;
   totalExpenseReimbursements: number;
+  creditCardCredits?: CreditCardCredits;
 }) {
   return (
     <section className="grid gap-4 md:grid-cols-3">
@@ -55,6 +59,21 @@ export function ReportSummaryCards({
           {formatMoney(reportBalance, currency)}
         </p>
       </Card>
+      {creditCardCredits && isNonZero(creditCardCredits.total) ? (
+        <Card className="min-w-0 md:col-span-3">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Credit card credits</p>
+          <p className="mt-2 break-words text-xl font-bold sm:text-2xl">
+            {formatMoney(creditCardCredits.total, currency)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Not included in income. Transfers {formatMoney(creditCardCredits.transfers, currency)} | Payments{" "}
+            {formatMoney(creditCardCredits.payments, currency)} | Refunds{" "}
+            {formatMoney(creditCardCredits.refunds, currency)} | Cashback{" "}
+            {formatMoney(creditCardCredits.cashback, currency)} | Other{" "}
+            {formatMoney(creditCardCredits.other, currency)}
+          </p>
+        </Card>
+      ) : null}
     </section>
   );
 }

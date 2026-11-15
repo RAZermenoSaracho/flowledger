@@ -91,6 +91,18 @@ export type SearchFieldConfig = {
    * field (see its `defaultSearchField` prop).
    */
   expandsToFields?: string[];
+  /**
+   * Custom compilation for a condition on this field, replacing the type-based one (operator/value only shape the
+   * node). For conditions whose query is not a plain column comparison, e.g. a billing period's exact instants.
+   */
+  compile?: (node: DomainConditionNode) => WhereNode | undefined;
+  /** Custom chip/summary text for a condition's value, replacing the operator + value rendering. */
+  describe?: (node: DomainConditionNode) => string;
+  /**
+   * `false` keeps the field out of `<FilterBuilder>`'s field picker: its conditions are created by the page (e.g.
+   * from a link) and show there read-only, still removable and combinable with any other condition.
+   */
+  pickable?: boolean;
 };
 
 /** A field offered in `<SearchBar>`'s "Group by" picker. */
@@ -273,6 +285,7 @@ function conditionToWhere(
   if (!isValueComplete(node.operator, node.value)) return undefined;
 
   const field = fields.find((entry) => entry.name === node.fieldName);
+  if (field?.compile) return field.compile(node);
   const targetFields = field?.expandsToFields ?? [node.fieldName];
   const isNumber = field?.type === "number";
   const isBoolean = field?.type === "boolean";
@@ -484,7 +497,7 @@ export function domainToSummaryText(node: DomainNode, fields: SearchFieldConfig[
   if (node.type === "condition") {
     const field = fields.find((entry) => entry.name === node.fieldName);
     if (!field) return "";
-    return `${field.label} ${conditionValueText(field, node)}`;
+    return `${field.label} ${field.describe ? field.describe(node) : conditionValueText(field, node)}`;
   }
 
   const parts = node.children
@@ -493,4 +506,11 @@ export function domainToSummaryText(node: DomainNode, fields: SearchFieldConfig[
   if (parts.length === 0) return "";
   if (parts.length === 1) return parts[0]!;
   return parts.map((part) => `(${part})`).join(node.connector === "and" ? " AND " : " OR ");
+}
+
+/** Whether any condition anywhere in the tree filters on `fieldName`. */
+export function hasConditionOn(node: DomainNode, fieldName: string): boolean {
+  return node.type === "condition"
+    ? node.fieldName === fieldName
+    : node.children.some((child) => hasConditionOn(child, fieldName));
 }

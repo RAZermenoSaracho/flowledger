@@ -17,7 +17,8 @@ const {
   assertGroupRelations,
   assertOwnedRelations,
   assertTransferAllowed,
-  findAccountCurrencies
+  findAccountCurrencies,
+  resolveCreditCardKind
 } = await import("../transactionValidation.service.js");
 
 describe("assertOwnedRelations", () => {
@@ -193,5 +194,91 @@ describe("findAccountCurrencies", () => {
       destinationCurrency: null
     });
     expect(prismaMock.account.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveCreditCardKind", () => {
+  const strict = { lenient: false };
+
+  function cardAccount(type = "credit_card") {
+    prismaMock.account.findFirst.mockResolvedValue({ type } as never);
+  }
+
+  it("returns null without reading the account when no kind is set", async () => {
+    prismaMock.account.findFirst.mockClear();
+    await expect(resolveCreditCardKind("user-1", { type: "income", accountId: "a" }, strict)).resolves.toBeNull();
+    expect(prismaMock.account.findFirst).not.toHaveBeenCalled();
+  });
+
+  it.each(["payment", "cashback"] as const)("accepts %s on card income", async (kind) => {
+    cardAccount();
+    await expect(
+      resolveCreditCardKind("user-1", { type: "income", accountId: "a", creditCardKind: kind }, strict)
+    ).resolves.toBe(kind);
+  });
+
+  it("scopes the account lookup to the user", async () => {
+    cardAccount();
+    await resolveCreditCardKind("user-1", { type: "income", accountId: "a", creditCardKind: "payment" }, strict);
+    expect(prismaMock.account.findFirst).toHaveBeenCalledWith({
+      where: { id: "a", userId: "user-1" },
+      select: { type: true }
+    });
+  });
+
+  it("accepts a refund with an offset category", async () => {
+    cardAccount();
+    await expect(
+      resolveCreditCardKind(
+        "user-1",
+        { type: "income", accountId: "a", creditCardKind: "refund", expenseOffsetCategoryId: "c" },
+        strict
+      )
+    ).resolves.toBe("refund");
+  });
+
+  it("rejects a refund without an offset category, naming expenseOffsetCategoryId", async () => {
+    cardAccount();
+    await expect(
+      resolveCreditCardKind("user-1", { type: "income", accountId: "a", creditCardKind: "refund" }, strict)
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { expenseOffsetCategoryId: [expect.any(String)] } } }
+    });
+  });
+
+  it("accepts interest on a card expense", async () => {
+    cardAccount();
+    await expect(
+      resolveCreditCardKind("user-1", { type: "expense", accountId: "a", creditCardKind: "interest" }, strict)
+    ).resolves.toBe("interest");
+  });
+
+  it.each([
+    ["payment on an expense", { type: "expense", creditCardKind: "payment" }, "credit_card"],
+    ["interest on income", { type: "income", creditCardKind: "interest" }, "credit_card"],
+    ["payment on a checking account", { type: "income", creditCardKind: "payment" }, "checking"],
+    ["payment on a transfer", { type: "transfer", creditCardKind: "payment" }, "credit_card"]
+  ] as const)("rejects %s, naming creditCardKind", async (_label, input, accountType) => {
+    cardAccount(accountType);
+    await expect(
+      resolveCreditCardKind("user-1", { ...input, accountId: "a" }, strict)
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      details: { issues: { fieldErrors: { creditCardKind: [expect.any(String)] } } }
+    });
+  });
+
+  it("rejects a kind with no account", async () => {
+    await expect(
+      resolveCreditCardKind("user-1", { type: "income", accountId: null, creditCardKind: "payment" }, strict)
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("returns null instead of throwing in lenient mode", async () => {
+    cardAccount("checking");
+    await expect(
+      resolveCreditCardKind("user-1", { type: "income", accountId: "a", creditCardKind: "payment" }, { lenient: true })
+    ).resolves.toBeNull();
   });
 });

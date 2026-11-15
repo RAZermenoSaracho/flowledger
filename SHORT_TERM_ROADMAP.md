@@ -46,7 +46,7 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-011 | Asynchronous notification ingestion endpoint | Medium | ST-010 | Completed (PR #52) | None |
 | ST-032 | Community notification model library and versioning | Medium | ST-010 | Completed (PR #52) | None |
 | ST-013 | Credit-card limit and available credit | Medium | ST-006 | Planned | None |
-| ST-014 | Credit-card statements, payment tracking, and reminders | Medium | ST-013, ST-007, ST-023 | Planned | None |
+| ST-014 | Credit-card billing periods, payments, interest, and reminders | Medium | ST-013, ST-007, ST-023 | Planned | None |
 | ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Planned | None |
 | ST-016 | Automatic crypto holding prices | Medium | ST-015 | Planned | None |
 | ST-017 | Stock and ETF market data | Low | ST-021 | Planned | None |
@@ -352,7 +352,7 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 
 **Progressive enhancement:**
 - ST-023 corrects cross-currency balances and removes the related disclosure once affected test data follows the pre-production data policy. Exchange-rate movement can still change net worth, because it is a current valuation, but never an account's native balance.
-- ST-014 decides how declared card payments affect net worth.
+- ST-014 (B-008) keeps net worth on the same calculation: card debt reduces it, available credit and interest estimates never count, and an external card payment (income classified `payment`) raises it like any money arriving from outside FlowLedger.
 - ST-015 adds holdings to this same calculation (B-009) and removes the `investment` disclosure for accounts with holdings. It must not introduce a second net-worth calculation.
 - Investment returns stay deferred on ST-015. Emergency fund coverage and fixed vs variable expenses wait for a confirmed need for the classification they share.
 
@@ -432,80 +432,147 @@ Two small gaps remain, and neither justifies its own intent:
 
 ### ST-013: Credit-card limit and available credit
 
-**Objective:** Credit-card accounts show the limit, outstanding balance, and available credit.
+**Objective:** Credit cards behave as credit liabilities rather than cash accounts. Each card shows its limit, outstanding debt, available credit and utilization, all derived from the one existing ledger.
 
-**Scope:** Add a credit limit to credit-card accounts and derive the rest, as a section of the account form view. Correct debit-card misclassification (see ST-012). Billing cycles and payment tracking are ST-014.
+**Scope:**
+- An editable credit limit on credit-card accounts.
+- Derived outstanding debt, credit balance, available credit, utilization and over-limit state.
+- Consistent behavior of the existing transaction types on cards, and the net-worth treatment.
+- A minimal card-entry classification.
+- The debit-card misclassification fix (see ST-012).
+
+Billing periods, payments, interest and reminders are ST-014.
+
+**Accounting rules (approved):**
+- **Balance and debt:** a card's balance uses the existing signed balance calculation, so debt is a negative balance. Outstanding debt = max(0, −balance), and credit balance = max(0, balance). Available credit = limit + balance, in the card currency.
+- **Expense on a card:** increases debt and is reported as spending on its date.
+- **Income on a card:** reduces debt and needs no source account or category. It is a payment, refund, cashback or other credit against the liability, and it is never ordinary earned income.
+- **Transfer into a card:** a payment. It reduces both the source balance and the debt, and creates no income or expense.
+- **Transfer out of a card:** increases debt and is not a payment.
+- **Classification field:** one nullable, informational field, `creditCardKind`.
+  - On card income it takes `payment`, `refund` (which needs the existing refunded-category offset) or `cashback`; null means "other credit".
+  - On card expense it takes `interest`.
+  - There is no new transaction type, payment table or ingestion hook.
+- **Credits:** every credit into a card reduces its debt, and the billing obligation, equally.
+- **Reporting (Option A):**
+  - Gross Income keeps its real-income meaning, so card income is never Gross or Net income.
+  - Debt reductions appear separately, as "Credit card credits": transfers, external payments, refunds, cashback and other credits.
+  - Net Income excludes payments and transfers.
+  - A card refund with a refunded category still lowers Net Expenses through the existing reimbursement offset.
+  - A card payment never creates a second expense.
+  - Non-card reporting is unchanged.
+- **Syncfy:** pending imports affect nothing until the user books them. A booked card credit is ordinary card income.
+- **Net worth:** card debt reduces it. Available credit, limits and interest estimates never count as cash, assets or net worth.
+- **Precision:** the B-006 exact-decimal and multicurrency rules apply unchanged.
 
 **Acceptance criteria:**
-- A user can set and edit a limit on credit-card accounts only.
-- Outstanding balance and available credit are derived from existing balances and match recorded transactions.
-- Available credit goes negative when the limit is exceeded, and this is visually clear.
-- An overpaid card is displayed sensibly.
-- Cards without a limit, including all existing ones, keep working.
-- A newly synced account named as a debit card is not classified as a credit card, and the treatment of accounts already misclassified is decided.
+- **Limit:** a user can set and edit a limit on credit-card accounts only, through the web app, `/v1` and MCP. A limit on another type is rejected.
+- **Derived values:** debt, credit balance, available credit and utilization are derived, never stored.
+- **Purchase scenario:**
+  - setup: a debit account holds MXN 20,000, and a card has a 30,000 limit;
+  - action: a 5,000 card purchase;
+  - result: the debit account still holds 20,000, card debt is 5,000, and available credit is 25,000;
+  - result: expenses include 5,000, and net worth falls by 5,000.
+- **Transfer payment:** a 6,000 transfer from debit into the card reduces both balances and adds no expense or income.
+- **Card income:** income on the card reduces debt and never counts as Gross or Net income.
+- **Reporting scenarios:**
+  - Salary 8,000, a card purchase of 2,000 and a 3,000 debit-to-card transfer give income 8,000, expenses 2,000, a net of 6,000 and credit card credits of 3,000. Net worth changes by +6,000, and only through the income and the expense.
+  - A 3,000 external payment lowers debt to 7,000, adds no income, adds 3,000 of credits and raises net worth by 3,000.
+  - A 1,000 purchase followed by a 400 refund gives gross expenses of 1,000 and net expenses of 600, with no income.
+  - A 50 cashback lowers debt by 50 and adds no income.
+  - A 2,000 purchase paid by a 2,000 transfer is counted as one expense only.
+- **Over limit and overpaid:** an over-limit card shows negative available credit, clearly marked. An overpaid card shows a credit balance. Raising the limit never changes net worth.
+- **Existing cards:** cards without a limit, including all existing ones, keep working.
+- **Debit-card inference:** a newly synced "debit card" or "tarjeta de débito" is classified `checking`. Misclassified accounts follow the pre-production data policy, with no migration.
 
 **Dependencies:** ST-006.
 
-**Relevant existing architecture:** `Account` has no limit, statement, or due-date fields. Card debt is a negative derived balance. A payment recorded as a transfer from checking raises the card balance toward zero correctly. `normalizeAccountType` in `providerAccountMetadata.ts` holds the inference order.
+**Relevant existing architecture:**
+- **Balance calculation:** `calculateAccountBalance` is the single balance calculation, used by the accounts list and by net worth. Card debt is already negative.
+- **Transfers:** a transfer is one row and is excluded from reports through `reportFilters.ts` and `isReportTransactionType`.
+- **Type inference:** `normalizeAccountType` matches `card|tarjeta` before `debit`.
 
-### ST-014: Credit-card statements, payment tracking, and reminders
+### ST-014: Credit-card billing periods, payments, interest and reminders
 
-**Objective:** Users can track each statement's dates, amount, and payments, with or without recording a transaction, and get reminded before payment is due, while balances stay financially coherent.
+**Objective:** Users see each billing period's debt, payments, remaining amount, due date and status, plus estimated interest exposure, and are reminded before payment is due. Everything is calculated from existing transactions at read time.
 
-**Scope:** Billing cycles or statements, payment tracking, the payment interaction below, optional transaction creation, highlighting of outstanding payments, and in-app reminders. The accounting mechanism is chosen during this intent's discovery.
+**Scope:**
+- Per-card closing day, due-date rule, billing time zone and annual interest rate.
+- A dynamic billing calculator.
+- Automatic payment recognition from transfers and classified income.
+- Interest estimates and confirmed interest charges.
+- Possible-duplicate hints in import review.
+- Idempotent in-app reminders.
+- A Credit card tab with a billing-periods table.
 
-**Payment interaction:**
-1. The user marks a statement as partially or fully paid.
-2. Partially paid asks for the amount. Fully paid uses the remaining statement amount, subject to confirmation.
-3. A modal asks whether to also record the payment as a transaction.
-4. **Record a transaction:** the app opens a prefilled transaction draft in the Transaction Form View. Nothing is created until the user saves, and the user has a way back to the card.
-5. **Do not record a transaction:** the payment stays in statement tracking, with the amount paid and remaining amount preserved and the status updated. No standard transaction is forced.
+**Architecture (approved): fully dynamic billing.**
+- Billing is a read-time projection of the card configuration and the transaction ledger.
+- There are no statement records or snapshots, no payment model or allocation records, no stored balances or totals, no statement-generation job and no sourceless transfers.
+- Historical periods are recalculated when their transactions change. This is intentional.
 
-The modal offers clear partial and full options, an amount input when appropriate, and clear feedback about payment status and account balance. Its visual design belongs to implementation planning, using `/ui-ux-pro-max` and `/ui-styling`.
-
-**Important invariant:** Payment tracking and transaction creation are separate user actions, but financial balance changes must have one authoritative accounting representation. If the user later creates a transaction corresponding to a previously declared payment, the payment must not apply twice.
+**Billing rules:**
+- **Boundaries:** all boundaries are half-open intervals in the card's billing time zone.
+  - Period N runs from the start of the day after the previous closing date up to the start of the day after its own closing date.
+  - A closing day beyond the month's length means the month's last day.
+  - The due date is either a day of the following month or a number of days after closing. It never falls after the next closing, and validation enforces this.
+- **Closing debt** is the whole-ledger balance at the closing boundary. It already includes earlier unpaid debt, payments and refunds made before closing, transfers out, interest and fees. It is not the sum of the period's purchases.
+- **Payment window:** period N's window runs from its closing boundary to the next closing boundary. Inside that window:
+  - credits are transfers into the card plus all card income, including refunds and cashback;
+  - remaining to avoid interest = max(0, closing debt − credits);
+  - the breakdown into transfers, external payments, refunds, cashback and other credits is informational only.
+- **No double counting:**
+  - Windows are disjoint, so each transaction counts toward one period only.
+  - A payment made before closing is already part of the closing debt.
+  - Unpaid debt stays in the ledger and appears in later closing debts.
+  - The amount currently owed is the latest period's remaining amount, never a sum across periods.
+- **Status:** open, pending, partially paid, paid, paid late or overdue. A period stays overdue as history once its unpaid amount is carried into later periods.
+- **Interest:**
+  - The estimate is shown only while part of the amount to avoid interest is unpaid at the due date, or projected to be. It uses the average daily balance over the payment window, at the configured rate, assuming the grace period is lost. It is labeled as an estimate and lists its assumptions.
+  - It never creates a transaction or changes debt, available credit or net worth.
+  - Confirmed interest is an ordinary card expense classified `interest`, attributed to the period that contains its date.
+- **Limitations:** installment plans, promotional balances, deferred interest, tax, minimum payments and issuer-specific fees are not modeled, and no issuer amount is fabricated.
 
 **Acceptance criteria:**
-- Each statement shows its amount, amount paid, remaining amount, and status (unpaid, partially paid, or fully paid), distinct from the current card balance and available credit.
-- A user can pay partially or fully, and can choose whether to record a transaction, including declining.
-- Opening the prefilled draft creates nothing until the user saves it.
-- Payment history is preserved, including multiple partial payments on one statement.
-- Marking a statement as paid never resets the whole card balance, and it is never treated as an ordinary expense.
-- Every balance change from a payment can be traced to one auditable record, without a second balance system.
-- Recording a transaction for a previously declared payment does not reduce the balance a second time.
-- A scenario test covers: limit $30,000, statement $10,000, $2,000 of purchases after closing, and current debt $12,000. Declaring a $6,000 payment gives paid $6,000, remaining $4,000, status partially paid, and a current debt that reflects the payment exactly once, including after the matching transaction is later recorded.
-- The next cycle starts unpaid; paid status does not persist as a permanent account flag.
-- Outstanding and overdue payments are highlighted.
-- A reminder arrives once per statement, even after restarts and repeated scheduler runs.
+- **Boundaries:**
+  - With closing day 20 and the due date on the 20th of the next month, the period from Oct 21 to Nov 20 is due Dec 20, and the next period runs from Nov 21 to Dec 20.
+  - Closing day 31 closes on Feb 28 2027 and Feb 29 2028.
+  - The period closing Dec 20 2026 is due Jan 20 2027.
+  - A purchase at 23:59 local time on the 20th belongs to the closing period, and one at 00:00 on the 21st belongs to the next.
+- **Before closing:** a 5,000 purchase, a 500 refund and a 1,000 transfer before closing give a closing debt of 3,500. None of them reduces that period's remaining amount again.
+- **After closing:** a 2,000 purchase after closing does not raise the previous period's obligation.
+- **Partial payment:** limit 30,000, closing debt 10,000 and current debt 12,000. A 6,000 transfer leaves debit 14,000, debt 6,000 and available credit 24,000. The period shows payments 6,000, remaining 4,000 and partially paid, with no extra expense. A full 10,000 payment marks it paid and leaves 2,000 of newer purchases as debt.
+- **External payment:** income classified `payment` gives the same billing result as a transfer. Refunds and cashback inside the window also reduce the remaining amount.
+- **Syncfy:** pending imports change nothing; booked imports follow the normal rules.
+- **Boundaries:** the due date includes its whole local day, and daylight-saving transitions are handled.
+- **Multiple unpaid periods:** period A closes at 10,000. After a 4,000 payment and a 3,000 purchase, period B closes at 9,000 (6,000 carried plus 3,000). A later 9,000 payment counts toward B only. A stays overdue, and no transaction is created to carry the debt.
+- **Recalculation:** editing, deleting, moving or backdating a transaction recalculates every affected period.
+- **Interest estimate:** at 60%, with daily debts of 10,000 for 11 days, 6,000 for 4 days and 9,000 for 16 days, the estimate is 456.99. It is labeled as an estimate and changes no balance.
+- **Confirmed interest:** a 457 expense classified `interest` raises debt and expenses by 457 and lowers available credit and net worth by 457.
+- **Duplicate import:** a later imported duplicate of a recorded payment or interest charge is listed as a possible duplicate and resolved with the existing ignore action.
+- **Same result from any path:** results are identical whether the transactions come from web, `/v1`, MCP, a Notification Model or an import. Billing results are isolated per user.
+- **Reminders:**
+  - Closed, due soon (3 days before), partially paid, paid and overdue notifications each fire at most once per card, closing date and type.
+  - The database enforces this, with no statement id. It holds across restarts, repeated or concurrent worker runs, and later history edits.
+  - A satisfied period gets no due-soon or overdue reminder, and neither does a period whose debt was already settled through a later payment.
+- **UI:** the Credit card tab shows debt, limit, available credit, utilization, next closing, next due date, the current amount to avoid interest and the estimate. Its billing-periods table has these columns: period start, period end, payment due, debt, payments and credits, remaining to avoid interest, and status. The API also returns each period's confirmed interest and estimate. It is paginated and readable on mobile. Selecting a period drills down to the existing Transactions list. It reuses `FormView`, the shared list and table components, tabs, fields and money formatting. The web app computes nothing.
 
-**Dependencies:** ST-013, ST-007 for prefilled transaction drafts, and ST-023, since a card payment can cross currencies.
+**Dependencies:** ST-013, ST-007 (prefilled transaction drafts) and ST-023 (cross-currency payments).
 
-**Delivery:** Batch B-008, together with ST-013, in one PR. Statements and status, payments and their accounting, and reminders are built in that order inside it. The accounting mechanism is settled before the batch starts, because it shapes statement storage.
+**Delivery:** Batch B-008, together with ST-013, in one PR, built in this order: card rules, calculator, API, reminders, then UI. The design is in the [OpenSpec change](openspec/changes/b008-credit-cards/design.md).
 
-**Relevant existing architecture:** No statement, billing, or due-date concept exists. Transfers from checking to a card are the only existing path correct for both accounts, and reports exclude transfers from income and expense. `Transaction.accountId` is nullable in the schema, but the API requires both sides of a transfer. `ProviderImportedTransaction.transactionId` and `SharedExpense.transactionId` show a nullable unique link pattern. Notifications are in-app only (`Notification` with a `NotificationType` enum, so a new type needs a migration); there is no email or push, and per-statement deduplication would be new. The only background job is `SyncfyAutoSyncScheduler`, a `setInterval` in the API process with an in-memory overlap guard, so it is not safe across multiple instances.
+**Relevant existing architecture:**
+- The B-007 notification worker's 60-second maintenance timer is the only multi-process-safe periodic hook. Reminder idempotency comes from a unique `Notification.dedupeKey`.
+- Transaction indexes on `accountId` and `transferToAccountId` support one bounded ledger read per card. Composite date indexes are the upgrade path if a card's ledger grows very large.
+- Neither the user nor the account has a time zone, so the card stores its billing time zone.
 
-**Open questions:**
-- **What is the authoritative accounting mechanism for a payment declared without a transaction?** Candidates to investigate:
-
-| Candidate | Current debt in the $6,000 scenario | Later matching transaction |
-|---|---|---|
-| Transfer with no source account | Correct, one row | Must update that same row, and needs the validator relaxed |
-| Payment record carrying the amount, optionally linked to a transaction | Correct; the calculation gains one input | Effect must count only while unlinked, or the transfer's card side is ignored |
-| Income on the card | Correct, but inflates income reports | Double-counts unless reconciled |
-| Editing `initialBalance` | Correct, but rewrites history with no record | Double-counts |
-
-  The last two conflict with the requirements above and are listed so they aren't revisited.
-- **Should a declared payment name a source account?** Without one, card debt falls by $6,000 while no other account falls, so net worth (ST-008) rises by $6,000 until the matching transaction is recorded. Should this be allowed, disclosed, or avoided by asking for a source?
-- How are declared payments matched to later transactions: an explicit user link, a suggestion, or both? This includes Syncfy-imported payments, which can arrive after a declared payment.
-- If the user opens the draft and abandons it, is the payment still declared? Does it take effect when declared, or when the transaction is saved?
-- What happens if a linked transaction is edited to a different amount or deleted? Today's link pattern nulls the link on delete.
-- How are payments above the remaining statement amount handled? How are declared payments corrected or reversed?
-- Which transaction type should the prefilled draft default to? Existing semantics favor a transfer from another account, not an expense, but this is confirmed in discovery.
-- Should status attach to a stored statement or be computed per cycle? A per-cycle record is the leading option, since a permanent boolean would be wrong the next month.
-- Is the statement amount entered by the user or derived from transactions in the cycle?
-- Are in-app reminders enough for a user who doesn't open the app? If not, email or push is a separate decision.
-- How are short months and closing dates on non-business days handled?
-- Do existing test records conflict with the chosen accounting mechanism, such as past card payments recorded as expenses? If so, the proposal applies the pre-production data policy, with no compatibility layer for them.
+**Resolved questions:** Every earlier open question is settled by the dynamic design:
+- payments live only in the ledger;
+- external payments are classified income, not sourceless transfers;
+- duplicates are hinted and ignored, with no match records;
+- status is derived per period;
+- in-app reminders only;
+- non-business-day due dates are not modeled;
+- past test card payments recorded as expenses follow the pre-production data policy.
 
 ### ST-015: Manual holdings and valuations
 
@@ -818,7 +885,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-005 | None | Retired; ST-008 was absorbed into B-004 | None | n/a | Retired |
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Completed (PR #44, deployed 2026-11-12. Also shipped: a unified `Decimal(38,18)` money model with exact decimal-string API/MCP contracts; crypto Sharing and settlements with exact largest-remainder splits; per-currency group summaries; the account currency lock (#013); and the `TransactionCorrection` audit. Production kept its 24 transactions via the idempotent fill.) |
 | B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Completed (PR #52, deployed 2026-11-13; also shipped: MCP notification model tools for CRUD, scripts and Form rules, dry-run tests, queue and logs, and the library, PR #54) |
-| B-008 | ST-013, ST-014 | Credit-card limit, available credit, statements, payments with their accounting, and reminders | B-004, B-006 | XL | Planned |
+| B-008 | ST-013, ST-014 | Credit-card limit, available credit, dynamic billing periods, automatic payment recognition, interest, and reminders | B-004, B-006 | XL | Planned |
 | B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Planned |
 | B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
 | B-011 | ST-017 | Stock and ETF market data | B-010 | M | Planned |
@@ -841,7 +908,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 | Candidate grouping | Decision | Reason |
 |---|---|---|
 | ST-010 + ST-011 + ST-032 | Merged (B-007) | One end-to-end feature; the library reuses the model, sandbox and slot design, and shipping the data model once avoids a second migration of the same tables; implemented in ordered phases inside the PR |
-| ST-013 + ST-014 | Merged (B-008) | One credit-card feature; the limit and the statement view live on the same account section, and ST-014's three former parts are one reviewable flow |
+| ST-013 + ST-014 | Merged (B-008) | One credit-card feature; the limit and the billing-periods view live on the same Credit card tab, and ST-014's calculator, interest, and reminders are one reviewable flow |
 | ST-015 + ST-016 | Merged (B-009) | Manual crypto portfolios are ST-015's first complete use, and ST-016 prices exactly those holdings with no new provider |
 | ST-008 with ST-015 | Kept separate (B-004, B-009) | ST-023 removes ST-008's temporary cross-currency disclosure, so ST-008 must ship before ST-023, while ST-015 needs ST-023 |
 | ST-021 + ST-022 | Merged (B-010) | Both create the instrument record that ST-015 left open and a form view over it, so one model decision covers both |
@@ -858,7 +925,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 - **B-007:** Phases in order: data model, config and shared contracts, sandbox runner, model API, persistent queue + ingestion + worker, web UI (five tabs), library, docs and staging acceptance.
 - **B-004:** ST-005, ST-006, ST-007, ST-003, ST-024, and ST-008 stay six independent intents, each with its own OpenSpec change, scope, and criteria, but by deliberate product-owner decision they ship as one larger feature branch and one PR targeting `razs_ai` that is **not to be split** into phases, parts, or optional follow-ups. Implementation order within the PR: ST-005 first as the shared foundation (with Profile as proof of no behavior loss), then ST-006, then ST-007 and ST-003 (separately specified; ST-003 extends ST-007's editing lifecycle), then ST-024, then ST-008. The batch grew in scope (participant consent, user blocking, public usernames and privacy, one migration) but stays XL and unsplit.
 - **B-006:** Splitting it would merge balances that disagree with their recorded execution details. **It is the largest L batch and sits at the top of the L range:** it combines FX persistence, an API number-to-string contract change, and correction history across four write paths. Its proposal should confirm that it fits one reviewable PR. The decimal-string contract is the main size risk.
-- **B-008:** Splitting declared payments from recorded transactions would merge a state that can break the no-double-counting invariant, so ST-014 is not split. The batch is XL because it holds ST-013 plus the statements, payments, and reminders of ST-014 in one PR. Its proposal should confirm the fit and may order the work internally as limit, statements, payments, then reminders. Reviewers should treat the payment accounting as the focus.
+- **B-008:** Billing is a read-time projection of the ledger, with no stored statements, payments, or allocation state, so nothing can drift from the transactions. The batch holds ST-013 plus ST-014's billing calculator, interest, and reminders in one PR, built in the order card rules, calculator, API, reminders, then UI. Reviewers should focus on the period boundaries, the disjoint payment-window allocation, and the carry-forward rules.
 - **B-009:** The main double-counting risk (holdings against derived balances) is reviewed inside this PR through the net-worth tests, instead of a separate PR.
 - **B-012:** ST-018 is not split. Encrypted credential storage is the first commit-level step and needs a security review of encryption and key management before implementation starts, because it is FlowLedger's first readable per-user secret and B-014 reuses it.
 - **B-014:** It may be dropped at its go/no-go check. If it goes ahead, discovery should re-evaluate splitting it.
@@ -925,11 +992,19 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Done when:** A posted notification creates exactly one correct transaction, a promotion is skipped, and a copy installed from the library works with the installer's own mappings.
 
 **B-008: ST-013, ST-014.**
-- **Deliverable:** The credit limit, derived available credit, and the debit-card inference fix (ST-013); statements with dates, amount, and status; the partial and full payment flow, the modal, optional transaction creation through a draft, the chosen accounting mechanism, and outstanding and overdue highlighting; and in-app reminders delivered once per statement (ST-014).
-- **Implementation order:** ST-013, then ST-014 (statements, then payments, then reminders). Outstanding and overdue highlighting ships with payments so it raises no false alarms, and a fully paid statement gets no reminder.
-- **Prerequisites:** B-004 (account view, and prefilled transaction drafts) and B-006. The accounting mechanism and statement storage are decided first.
-- **Testing:** Over-limit, overpaid, and no-limit cards, plus type inference. Cycle boundaries, short months, and a new cycle starting unpaid. The $30,000/$10,000/$2,000/$12,000/$6,000 scenario, multiple partial payments, later matching, linked edits and deletes, and net worth. Reminder restarts, repeated scheduler runs, and paid statements.
-- **Done when:** Limit, outstanding balance, and available credit show on the account view, every balance change from a payment traces to one record and never applies twice, and all ST-014 criteria are met.
+- **Deliverable:** The credit limit, derived debt, available credit and utilization, the `creditCardKind` classification (payment or interest), and the debit-card inference fix (ST-013). Per-card billing configuration and a dynamic billing calculator covering periods, closing debt, payment windows, remaining to avoid interest, status, and carry-forward. Payments are recognized automatically from transfers and classified income on every ingestion path. Also an average-daily-balance interest estimate, confirmed interest as ordinary expenses, possible-duplicate hints in import review, the Credit card tab with its billing-periods table, and idempotent in-app reminders (ST-014).
+- **Implementation order:** Card rules and classification (ST-013), then the cycle and billing calculator, the API, `/v1` and MCP, reminders, and finally the UI (ST-014). A satisfied period gets no reminder.
+- **Prerequisites:** B-004 (account view, and prefilled transaction drafts) and B-006. The architecture is settled in the [OpenSpec design](openspec/changes/b008-credit-cards/design.md).
+- **Testing:**
+  - Cards: over-limit, overpaid and no-limit cards; type inference; classification validation; the report exclusion.
+  - Boundaries: in the billing time zone, at midnight, in short months, in leap years and across year boundaries.
+  - Closing debt: pre-closing payments and refunds counted once, and post-closing purchases not retroactive.
+  - Payments: the 30,000/10,000/2,000/12,000/6,000 scenario on every write path, full payment and overpayment, multiple overdue periods without double counting, and carry-forward.
+  - Recalculation: after edits, deletes, moves and backdating.
+  - Interest: the estimate against the confirmed charge, and net worth.
+  - Reminders: restarts, repeated and concurrent runs, no resend after a history edit, and overdue when the due date equals the next closing.
+  - Isolation: cross-user rows for the billing endpoint.
+- **Done when:** The Credit card tab shows limit, debt, available credit, and dynamically derived billing periods. Every payment, credit, and interest charge is one ordinary ledger transaction counted toward at most one period. All ST-013 and ST-014 criteria are met.
 
 **B-009: ST-015, ST-016.**
 - **Deliverable:** Holdings and manual valuations on the account view, with manual crypto portfolios as the first use, aggregate account value, and holdings in the existing net-worth calculation (ST-015); market values on crypto holdings, with manual overrides taking priority (ST-016).

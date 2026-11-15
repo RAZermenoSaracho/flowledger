@@ -1,6 +1,6 @@
 import type { NotificationClient, NotificationInput } from "../types/notifications.types.js";
 
-/** Bulk-inserts notifications within `tx`, silently dropping any with no `userId` (e.g. unregistered shared-expense participants) and any whose recipient has blocked its `senderUserId`. */
+/** Bulk-inserts notifications within `tx`, silently dropping any with no `userId` (e.g. unregistered shared-expense participants) and any whose recipient has blocked its `senderUserId`. A `dedupeKey` makes the insert idempotent per user: a row whose `(userId, dedupeKey)` already exists is skipped. */
 export async function createNotifications(
   tx: NotificationClient,
   notifications: NotificationInput[]
@@ -27,12 +27,16 @@ export async function createNotifications(
       type: notification.type,
       title: notification.title,
       message: notification.message,
-      metadata: notification.metadata
+      metadata: notification.metadata,
+      ...(notification.dedupeKey ? { dedupeKey: notification.dedupeKey } : {})
     }));
 
   if (data.length === 0) return;
 
-  await tx.notification.createMany({ data });
+  await tx.notification.createMany({
+    data,
+    ...(data.some((row) => row.dedupeKey) ? { skipDuplicates: true } : {})
+  });
 }
 
 /**

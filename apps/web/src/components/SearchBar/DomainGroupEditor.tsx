@@ -1,6 +1,7 @@
 import { ChevronDown, X } from "lucide-react";
 import { useState } from "react";
 import {
+  domainToSummaryText,
   addChild,
   createCondition,
   createEmptyGroup,
@@ -117,11 +118,12 @@ export function DomainGroupEditor({
         <Button
           type="button"
           variant="secondary"
-          disabled={fields.length === 0}
-          onClick={() =>
-            fields[0] &&
-            onRootChange(addChild(root, node.id, createCondition(fields[0])))
-          }
+          disabled={!fields.some(isPickable)}
+          onClick={() => {
+            const first = fields.find(isPickable);
+            if (first)
+              onRootChange(addChild(root, node.id, createCondition(first)));
+          }}
         >
           + Condition
         </Button>
@@ -138,6 +140,8 @@ export function DomainGroupEditor({
     </div>
   );
 }
+
+const isPickable = (field: SearchFieldConfig) => field.pickable !== false;
 
 function ConditionEditor({
   root,
@@ -181,6 +185,22 @@ function ConditionEditor({
   if (!field) return null;
   const operators = operatorsForField(field);
 
+  if (!isPickable(field)) {
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 p-3 text-sm dark:border-slate-700">
+        <span>{domainToSummaryText(condition, fields)}</span>
+        <button
+          type="button"
+          className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          aria-label="Remove condition"
+          onClick={() => onRootChange(removeNode(root, condition.id))}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-700">
       <div className="flex items-start justify-between gap-2">
@@ -190,7 +210,7 @@ function ConditionEditor({
             value={field.name}
             onChange={(event) => selectField(event.target.value)}
           >
-            {fields.map((entry) => (
+            {fields.filter(isPickable).map((entry) => (
               <option key={entry.name} value={entry.name}>
                 {entry.label}
               </option>

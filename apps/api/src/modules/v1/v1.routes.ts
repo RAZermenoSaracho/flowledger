@@ -21,6 +21,7 @@ import { notFound } from "../../utils/httpError.js";
 import { createRateLimiter } from "../../utils/rateLimit.js";
 import { postIngest } from "../notificationModels/controllers/ingest.controller.js";
 import { postAccount } from "../accounts/controllers/create.controller.js";
+import { getCreditCard } from "../accounts/controllers/creditCard.read.controller.js";
 import { getAccounts } from "../accounts/controllers/read.controller.js";
 import { deleteAccountHandler } from "../accounts/controllers/delete.controller.js";
 import {
@@ -73,6 +74,7 @@ v1Router.get(
   validate(accountsQueryParamSchema, "query"),
   asyncHandler(getAccounts)
 );
+v1Router.get("/accounts/:id/credit-card", requireScope("read"), asyncHandler(getCreditCard));
 v1Router.get(
   "/categories",
   requireScope("read"),

@@ -7,7 +7,8 @@ vi.mock("../transactionValidation.service.js", () => ({
   assertGroupRelations: vi.fn(),
   assertOwnedRelations: vi.fn(),
   assertTransferAllowed: vi.fn(),
-  findAccountCurrencies: vi.fn()
+  findAccountCurrencies: vi.fn(),
+  resolveCreditCardKind: vi.fn()
 }));
 
 vi.mock("../../../shared-expenses/services/apply.service.js", () => ({
@@ -30,8 +31,9 @@ vi.mock("../../utils/importedTransactionQuery.js", async (importOriginal) => {
   return { ...actual, resolveImportedTransactionSelectionIds: vi.fn() };
 });
 
-const { findAccountCurrencies } = await import("../transactionValidation.service.js");
+const { findAccountCurrencies, resolveCreditCardKind } = await import("../transactionValidation.service.js");
 const findAccountCurrenciesMock = vi.mocked(findAccountCurrencies);
+const resolveCreditCardKindMock = vi.mocked(resolveCreditCardKind);
 const { applySharedExpenseToTransaction } = await import(
   "../../../shared-expenses/services/apply.service.js"
 );
@@ -100,6 +102,8 @@ function mockTx(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  resolveCreditCardKindMock.mockReset();
+  resolveCreditCardKindMock.mockResolvedValue(null);
   prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: "USD" } as never);
   findAccountCurrenciesMock.mockResolvedValue({ accountCurrency: "USD", destinationCurrency: null });
 });
@@ -676,5 +680,51 @@ describe("batchUnignoreImportedTransactions", () => {
     });
 
     expect(count).toBe(1);
+  });
+});
+
+describe("updateTransaction creditCardKind", () => {
+  function setup(existingOverrides: Record<string, unknown>) {
+    prismaMock.transaction.findFirst.mockResolvedValue(existingTransaction(existingOverrides) as never);
+    const tx = mockTx();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)(
+      (arg: unknown) => (typeof arg === "function" ? (arg as (t: unknown) => unknown)(tx) : Promise.resolve(arg))
+    );
+    return tx;
+  }
+
+  it("validates an explicit kind strictly against the merged type, account and offset category", async () => {
+    const tx = setup({ type: "income", expenseOffsetCategoryId: "cat-9" });
+    resolveCreditCardKindMock.mockResolvedValue("refund");
+
+    await updateTransaction("user-1", "txn-1", { creditCardKind: "refund" });
+
+    expect(resolveCreditCardKindMock).toHaveBeenCalledWith(
+      "user-1",
+      { type: "income", accountId: "acc-1", expenseOffsetCategoryId: "cat-9", creditCardKind: "refund" },
+      { lenient: false }
+    );
+    expect(tx.transaction.update.mock.calls[0]?.[0].data).toMatchObject({ creditCardKind: "refund" });
+  });
+
+  it("re-checks a stored kind leniently and clears it when the transaction no longer qualifies", async () => {
+    const tx = setup({ type: "income", creditCardKind: "payment" });
+
+    await updateTransaction("user-1", "txn-1", { type: "expense" });
+
+    expect(resolveCreditCardKindMock).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ type: "expense", creditCardKind: "payment" }),
+      { lenient: true }
+    );
+    expect(tx.transaction.update.mock.calls[0]?.[0].data).toMatchObject({ creditCardKind: null });
+  });
+
+  it("leaves creditCardKind out of the write when none is stored or sent", async () => {
+    const tx = setup({});
+
+    await updateTransaction("user-1", "txn-1", { name: "x" });
+
+    expect(tx.transaction.update.mock.calls[0]?.[0].data).not.toHaveProperty("creditCardKind");
   });
 });

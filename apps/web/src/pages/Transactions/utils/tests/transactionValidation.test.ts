@@ -12,6 +12,15 @@ const valid = (overrides: Partial<TransactionDraft> = {}): TransactionDraft => (
 });
 
 describe("validateTransactionDraft", () => {
+  it("requires the refunded category for a card refund only", () => {
+    expect(validateTransactionDraft(valid({ type: "income", creditCardKind: "refund" })).expenseOffsetCategoryId).toBeTruthy();
+    expect(
+      validateTransactionDraft(valid({ type: "income", creditCardKind: "refund", expenseOffsetCategoryId: "c1" }))
+        .expenseOffsetCategoryId
+    ).toBeUndefined();
+    expect(validateTransactionDraft(valid({ type: "income", creditCardKind: "payment" })).expenseOffsetCategoryId).toBeUndefined();
+  });
+
   it("accepts a valid draft", () => {
     expect(validateTransactionDraft(valid())).toEqual({});
   });

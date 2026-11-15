@@ -1,6 +1,8 @@
 import type {
   ACCOUNT_TYPES,
   CATEGORY_TYPES,
+  CREDIT_CARD_KINDS,
+  PAYMENT_DUE_RULES,
   MOBILE_SIDEBAR_SIDES,
   PARTICIPANT_STATUSES,
   NOTIFICATION_TYPES,
@@ -11,6 +13,8 @@ import type {
 } from "../constants/index.js";
 
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
+export type PaymentDueRule = (typeof PAYMENT_DUE_RULES)[number];
+export type CreditCardKind = (typeof CREDIT_CARD_KINDS)[number];
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export type SharedExpenseStatus = (typeof SHARED_EXPENSE_STATUSES)[number];
@@ -90,3 +94,110 @@ export type ProviderConnectionFlow = {
     styleUrl?: string;
   };
 };
+
+/** Lifecycle of one credit-card billing period. */
+export type BillingPeriodStatus =
+  | "open"
+  | "pending"
+  | "partially_paid"
+  | "paid"
+  | "paid_late"
+  | "overdue";
+
+/** Credits applied to a period, by source; decimal strings in the card currency. */
+export interface CreditBreakdown {
+  transfers: string;
+  payments: string;
+  refunds: string;
+  cashback: string;
+  other: string;
+}
+
+/** Live balance and limit usage of a card; decimal strings in the card currency. */
+export interface CreditCardMetrics {
+  currency: string;
+  balance: string;
+  debt: string;
+  creditBalance: string;
+  creditLimit: string | null;
+  availableCredit: string | null;
+  utilizationPercent: string | null;
+  overLimit: boolean;
+}
+
+/** Interest projection for a period: `none` when nothing accrues, `unavailable` when inputs are missing. */
+export interface InterestEstimate {
+  status: "none" | "unavailable" | "estimated";
+  amount: string | null;
+  projected: boolean;
+  avoidAmount: string | null;
+  assumptions: string[];
+}
+
+/** One closed or open billing period. Dates are local `YYYY-MM-DD` in the card's billing time zone; `closingDebt` is null while open. */
+export interface BillingPeriod {
+  start: string;
+  end: string;
+  /** Period start instant (inclusive), UTC ISO, computed in the card's billing time zone. */
+  startAt: string;
+  /** Closing boundary instant (exclusive), UTC ISO: the start of the day after `end` in the billing time zone. */
+  endAt: string;
+  dueDate: string;
+  status: BillingPeriodStatus;
+  closingDebt: string | null;
+  credits: string;
+  creditsBreakdown: CreditBreakdown;
+  remaining: string | null;
+  onTimeRemaining: string | null;
+  confirmedInterest: string;
+  estimate: InterestEstimate;
+}
+
+/** The stored billing configuration of a credit card, as returned by the API. */
+export interface CreditCardBillingConfig {
+  creditLimit: string | null;
+  statementClosingDay: number;
+  paymentDueRule: PaymentDueRule;
+  paymentDueValue: number;
+  billingTimeZone: string;
+  annualInterestRate: string | null;
+}
+
+/** Response of `GET /accounts/:id/credit-card`; `periods` is one page, newest first. `config`/`openPeriod`/`current` are null when the card has no billing cycle configured. */
+export interface CreditCardBilling {
+  accountId: string;
+  configured: boolean;
+  config: CreditCardBillingConfig | null;
+  metrics: CreditCardMetrics;
+  openPeriod: { start: string; nextClosingDate: string; nextDueDate: string } | null;
+  current: {
+    closingDate: string;
+    dueDate: string;
+    remaining: string;
+    status: BillingPeriodStatus;
+    daysUntilDue: number;
+    estimate: InterestEstimate;
+  } | null;
+  periods: BillingPeriod[];
+  page: number;
+  pageSize: number;
+  totalPeriods: number;
+}
+
+/** Credits that reduced credit-card debt in the report range, split informationally. Decimal strings in the preferred currency. */
+export interface CreditCardCredits {
+  total: string;
+  transfers: string;
+  payments: string;
+  refunds: string;
+  cashback: string;
+  other: string;
+}
+
+/** An existing transaction that may duplicate a pending imported row. */
+export interface PossibleDuplicate {
+  id: string;
+  name: string;
+  date: string;
+  amount: string;
+}

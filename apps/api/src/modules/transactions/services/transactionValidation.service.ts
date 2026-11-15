@@ -1,5 +1,6 @@
+import type { CreditCardKind } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
-import { HttpError } from "../../../utils/httpError.js";
+import { badRequest, HttpError } from "../../../utils/httpError.js";
 import {
   assertCategory,
   getGroupMembership
@@ -184,4 +185,52 @@ export async function findAccountCurrencies(
     accountCurrency: currencyOf(accountId),
     destinationCurrency: currencyOf(transferToAccountId)
   };
+}
+
+function fieldError(field: string, message: string) {
+  return badRequest(message, { issues: { formErrors: [], fieldErrors: { [field]: [message] } } });
+}
+
+/**
+ * Resolves the `creditCardKind` a transaction may carry: `payment`/`refund`/`cashback` only on income into a `credit_card` account,
+ * `interest` only on an expense on one, never on a transfer; `refund` also requires `expenseOffsetCategoryId`.
+ *
+ * With `lenient: false` a non-qualifying kind throws a 400 naming `creditCardKind` (or `expenseOffsetCategoryId` for a refund);
+ * with `lenient: true` (a stored kind that may have stopped qualifying after an edit) it returns `null` so the caller clears it.
+ * The account is only read when a kind is set. Returns the kind to persist.
+ */
+export async function resolveCreditCardKind(
+  userId: string,
+  input: {
+    type?: "income" | "expense" | "transfer";
+    accountId?: string | null;
+    creditCardKind?: CreditCardKind | null;
+    expenseOffsetCategoryId?: string | null;
+  },
+  { lenient }: { lenient: boolean }
+): Promise<CreditCardKind | null> {
+  const kind = input.creditCardKind ?? null;
+  if (!kind) return null;
+
+  const account = input.accountId
+    ? await prisma.account.findFirst({
+        where: { id: input.accountId, userId },
+        select: { type: true }
+      })
+    : null;
+  const expected = kind === "interest" ? "expense" : "income";
+  if (account?.type !== "credit_card" || input.type !== expected) {
+    if (lenient) return null;
+    throw fieldError(
+      "creditCardKind",
+      kind === "interest"
+        ? "creditCardKind interest is only allowed on an expense on a credit card account"
+        : `creditCardKind ${kind} is only allowed on income on a credit card account`
+    );
+  }
+  if (kind === "refund" && !input.expenseOffsetCategoryId) {
+    if (lenient) return null;
+    throw fieldError("expenseOffsetCategoryId", "A refund requires expenseOffsetCategoryId (the refunded category)");
+  }
+  return kind;
 }

@@ -1,5 +1,5 @@
 import type { PublicUser } from "./users.types";
-import type { TransactionType } from "@flowledger/shared";
+import type { CreditCardKind, PossibleDuplicate, TransactionType } from "@flowledger/shared";
 import type { Account } from "./accounts.types";
 import type { Category } from "./categories.types";
 import type { Group } from "./groups.types";
@@ -24,6 +24,7 @@ export type Transaction = {
   date: string;
   categoryId?: string | null;
   expenseOffsetCategoryId?: string | null;
+  creditCardKind?: CreditCardKind | null;
   groupId?: string | null;
   accountId?: string | null;
   transferToAccountId?: string | null;
@@ -103,6 +104,8 @@ export type ProviderImportedTransaction = {
   createdAt: string;
   updatedAt: string;
   category?: Category | null;
+  /** Pending rows only: up to 3 existing transactions with the same amount near the same date. Informational. */
+  possibleDuplicates?: PossibleDuplicate[];
   transaction?: Transaction | null;
   providerAccount?: {
     id: string;
@@ -144,4 +147,12 @@ export type DataSieveMeta = {
 };
 
 /** Record a related transactions list is scoped to. */
-export type RelatedTransactionsScope = { field: "accountId" | "groupId"; value: string };
+export type RelatedTransactionsScope = {
+  field: "accountId" | "groupId";
+  value: string;
+  /**
+   * Account scopes only: name of a SearchBar field (e.g. a billing period) whose condition, when present anywhere in
+   * the domain, widens the scope to also match transfers into the account.
+   */
+  transfersInWith?: string;
+};

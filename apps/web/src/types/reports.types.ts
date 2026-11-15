@@ -1,4 +1,4 @@
-import type { CategoryType, TransactionType } from "@flowledger/shared";
+import type { CategoryType, CreditCardCredits, TransactionType } from "@flowledger/shared";
 
 /** Income/expense/balance summary totals, both gross and net. */
 export type Summary = {
@@ -13,6 +13,8 @@ export type Summary = {
   reportIncome: number;
   reportExpenses: number;
   reportBalance: number;
+  /** Credit-card credits in range; separate from income in both gross and net modes. */
+  creditCardCredits?: CreditCardCredits;
 };
 
 /** Per-category report row shape. */

@@ -1,4 +1,4 @@
-import type { ReportFilters } from "@flowledger/shared";
+import type { CreditCardCredits, ReportFilters } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { calculateMonthlyCashflow } from "../../transactions/utils/transactionCalculations.js";
@@ -8,6 +8,7 @@ import type { CurrencyGroupedSum } from "../types/reports.types.js";
 import {
   baseReportWhere,
   cashflowReportWhere,
+  nonCardIncomeWhere,
   offsetReportWhere,
   selectedCategoryIds,
   selectedGroupIds
@@ -63,6 +64,54 @@ async function sumCurrencyRows(
   return totals.get("total") ?? new Prisma.Decimal(0);
 }
 
+/** Sums credits that reduced credit-card debt: transfers into a card plus all income booked on a card, split by `creditCardKind`. Independent of the amount mode. */
+async function getCreditCardCredits(
+  baseWhere: Prisma.TransactionWhereInput,
+  targetCurrency: string
+): Promise<CreditCardCredits> {
+  const [transferRows, incomeRows] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ["executionCurrency"],
+      where: {
+        ...baseWhere,
+        type: "transfer",
+        transferToAccount: { type: "credit_card" }
+      },
+      _sum: { amount: true }
+    }),
+    prisma.transaction.groupBy({
+      by: ["creditCardKind", "executionCurrency"],
+      where: { ...baseWhere, type: "income", account: { type: "credit_card" } },
+      _sum: { amount: true }
+    })
+  ]);
+  const transfers = await sumCurrencyRows(transferRows, targetCurrency);
+  const byKind = await collapseCurrencySums(
+    incomeRows,
+    (row) =>
+      row.creditCardKind === "payment" ||
+      row.creditCardKind === "refund" ||
+      row.creditCardKind === "cashback"
+        ? row.creditCardKind
+        : "other",
+    targetCurrency
+  );
+  const zero = new Prisma.Decimal(0);
+  const payments = byKind.get("payment") ?? zero;
+  const refunds = byKind.get("refund") ?? zero;
+  const cashback = byKind.get("cashback") ?? zero;
+  const other = byKind.get("other") ?? zero;
+
+  return {
+    total: transfers.plus(payments).plus(refunds).plus(cashback).plus(other).toString(),
+    transfers: transfers.toString(),
+    payments: payments.toString(),
+    refunds: refunds.toString(),
+    cashback: cashback.toString(),
+    other: other.toString()
+  };
+}
+
 /** Computes the top-of-page income/expense/balance summary for the reports dashboard. */
 export async function getSummaryReport(userId: string, filters: ReportFilters) {
   const targetCurrency = await resolveReportCurrency(userId, filters);
@@ -74,7 +123,8 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
         by: ["executionCurrency"],
         where: {
           ...baseWhere,
-          type: "income"
+          type: "income",
+          AND: [nonCardIncomeWhere]
         },
         _sum: { amount: true }
       }),
@@ -83,7 +133,8 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
         where: {
           ...baseWhere,
           type: "income",
-          expenseOffsetCategoryId: null
+          expenseOffsetCategoryId: null,
+          AND: [nonCardIncomeWhere]
         },
         _sum: { amount: true }
       }),
@@ -111,6 +162,7 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
     sumCurrencyRows(expenseReimbursementRows, targetCurrency)
   ]);
   const totalNetExpenses = totalGrossExpenses.minus(totalExpenseReimbursements);
+  const creditCardCredits = await getCreditCardCredits(baseWhere, targetCurrency);
   const amountMode = filters.amountMode ?? "net";
   const reportIncome = amountMode === "gross" ? totalGrossIncome : totalNetIncome;
   const reportExpenses =
@@ -128,7 +180,8 @@ export async function getSummaryReport(userId: string, filters: ReportFilters) {
       currentBalance: totalGrossIncome.minus(totalGrossExpenses).toNumber(),
       reportIncome: reportIncome.toNumber(),
       reportExpenses: reportExpenses.toNumber(),
-      reportBalance: reportIncome.minus(reportExpenses).toNumber()
+      reportBalance: reportIncome.minus(reportExpenses).toNumber(),
+      creditCardCredits
     },
     currency: targetCurrency
   };
@@ -149,7 +202,10 @@ export async function getByCategoryReport(
       by: ["categoryId", "type", "executionCurrency"],
       where: {
         ...baseWhere,
-        type: { in: ["income", "expense"] }
+        OR: [
+          { type: "expense" },
+          { type: "income", AND: [nonCardIncomeWhere] }
+        ]
       },
       _sum: { amount: true }
     }),
@@ -163,7 +219,8 @@ export async function getByCategoryReport(
       where: {
         ...baseWhere,
         type: "income",
-        expenseOffsetCategoryId: { not: null }
+        expenseOffsetCategoryId: { not: null },
+        AND: [nonCardIncomeWhere]
       },
       _sum: { amount: true }
     })
@@ -292,14 +349,16 @@ export async function getMonthlyCashflowReport(
       amount: true,
       executionCurrency: true,
       categoryId: true,
-      expenseOffsetCategoryId: true
+      expenseOffsetCategoryId: true,
+      account: { select: { type: true } }
     },
     orderBy: { date: "asc" },
     take: MAX_CASHFLOW_TRANSACTIONS
   });
   const convertedTransactions = await Promise.all(
-    transactions.map(async (transaction) => ({
+    transactions.map(async ({ account, ...transaction }) => ({
       ...transaction,
+      accountType: account?.type ?? null,
       amount: await convertAmount(
         transaction.amount,
         transaction.executionCurrency,

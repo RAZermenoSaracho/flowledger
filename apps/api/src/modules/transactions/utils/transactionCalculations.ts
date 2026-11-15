@@ -18,6 +18,7 @@ type CashflowTransaction = {
   amount: AmountValue;
   categoryId?: string | null;
   expenseOffsetCategoryId?: string | null;
+  accountType?: string | null;
 };
 
 export const REPORT_TRANSACTION_TYPES = ["income", "expense"] as const;
@@ -30,8 +31,34 @@ function isReportTransactionType(
 }
 
 /**
+ * The signed effect of one transaction on `accountId`'s native balance: income and transfer-in add
+ * (`accountAmount` / `destinationAmount`), expense and transfer-out subtract `accountAmount`, and an unrelated transaction is zero.
+ */
+export function transactionBalanceDelta(
+  transaction: AccountBalanceTransaction,
+  accountId: string
+): Prisma.Decimal {
+  if (transaction.accountId === accountId) {
+    const applied = new Prisma.Decimal(transaction.accountAmount ?? 0);
+    if (transaction.type === "income") return applied;
+    if (transaction.type === "expense" || transaction.type === "transfer") {
+      return applied.negated();
+    }
+  }
+
+  if (
+    transaction.type === "transfer" &&
+    transaction.transferToAccountId === accountId
+  ) {
+    return new Prisma.Decimal(transaction.destinationAmount ?? 0);
+  }
+
+  return new Prisma.Decimal(0);
+}
+
+/**
  * Computes an account's native balance with exact decimal arithmetic:
- * `initialBalance + income.accountAmount - (expense|transfer-out).accountAmount + transfer-in.destinationAmount`.
+ * `initialBalance` plus the sum of {@link transactionBalanceDelta}.
  * A transfer fee is never subtracted here; the applied amounts already include its effect.
  */
 export function calculateAccountBalance(
@@ -39,24 +66,11 @@ export function calculateAccountBalance(
   transactions: AccountBalanceTransaction[],
   initialBalance: AmountValue = 0
 ): Prisma.Decimal {
-  return transactions.reduce((balance, transaction) => {
-    if (transaction.accountId === accountId) {
-      const applied = new Prisma.Decimal(transaction.accountAmount ?? 0);
-      if (transaction.type === "income") return balance.plus(applied);
-      if (transaction.type === "expense" || transaction.type === "transfer") {
-        return balance.minus(applied);
-      }
-    }
-
-    if (
-      transaction.type === "transfer" &&
-      transaction.transferToAccountId === accountId
-    ) {
-      return balance.plus(transaction.destinationAmount ?? 0);
-    }
-
-    return balance;
-  }, new Prisma.Decimal(initialBalance));
+  return transactions.reduce(
+    (balance, transaction) =>
+      balance.plus(transactionBalanceDelta(transaction, accountId)),
+    new Prisma.Decimal(initialBalance)
+  );
 }
 
 /** Attaches `currentBalance` (a `Prisma.Decimal`, see {@link calculateAccountBalance}) to each account. */
@@ -75,6 +89,7 @@ export function withAccountBalances<
 
 /**
  * Aggregates transactions into per-month cashflow buckets, optionally narrowed by category.
+ * Income on a `credit_card` account (`accountType`) is a debt credit, not income: it is skipped for income totals but still counts as an expense reimbursement when it has an offset category.
  * Months are bucketed in `timeZone` (an IANA name), defaulting to UTC. Sums are exact `Decimal`s; the returned figures are numbers.
  */
 export function calculateMonthlyCashflow(
@@ -141,7 +156,10 @@ export function calculateMonthlyCashflow(
         ? categoryIdSet.has(transaction.expenseOffsetCategoryId)
         : false);
 
-    if (transaction.type === "income" && matchesCategory) {
+    const isCardIncome =
+      transaction.type === "income" && transaction.accountType === "credit_card";
+
+    if (transaction.type === "income" && matchesCategory && !isCardIncome) {
       row.income = row.income.plus(amount);
       row.grossIncome = row.grossIncome.plus(amount);
     }
@@ -155,7 +173,8 @@ export function calculateMonthlyCashflow(
     if (
       transaction.type === "income" &&
       transaction.expenseOffsetCategoryId &&
-      matchesCategory
+      matchesCategory &&
+      !isCardIncome
     ) {
       row.incomeOffsets = row.incomeOffsets.plus(amount);
     }

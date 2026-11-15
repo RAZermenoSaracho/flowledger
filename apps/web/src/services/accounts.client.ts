@@ -1,4 +1,4 @@
-import type { AccountType } from "@flowledger/shared";
+import type { AccountInput, UpdateAccountInput } from "@flowledger/shared";
 import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type {
@@ -25,13 +25,7 @@ export function listAccounts(query: AccountsQuery = {}) {
 }
 
 /** Creates a manual (non-provider-linked) account. */
-export function createAccount(body: {
-  name: string;
-  type: AccountType;
-  identifier?: string | null;
-  currency: string;
-  initialBalance: string;
-}) {
+export function createAccount(body: AccountInput) {
   return apiRequest<{ account: Account }>("/accounts", {
     method: "POST",
     body
@@ -39,16 +33,7 @@ export function createAccount(body: {
 }
 
 /** Updates an account's fields; any subset may be sent. */
-export function updateAccount(
-  accountId: string,
-  body: {
-    name?: string;
-    type?: AccountType;
-    identifier?: string | null;
-    currency?: string;
-    initialBalance?: string;
-  }
-) {
+export function updateAccount(accountId: string, body: UpdateAccountInput) {
   return apiRequest<{ account: Account }>(`/accounts/${accountId}`, {
     method: "PUT",
     body

@@ -11,6 +11,7 @@ import { formatMoney } from "../../../utils/currency";
 import { formatTransactionDate, transactionDateNowInputValue } from "../../../utils/dateTime";
 import { formatEnumLabel } from "../../../utils/enumLabels";
 import type { TransactionDraft } from "../types/transactions.types";
+import { cardEntryOptions, isCardDraft, reconcileCardEntry, selectCardEntry } from "../utils/creditCardEntry";
 import {
   changeAmount,
   changeType,
@@ -33,7 +34,7 @@ import {
  * `transaction` (existing only) adds the read-only amount in the user's preferred currency.
  * When the execution currency differs from the source account's (or a transfer's destination's),
  * the required "Amount in account currency" / "Amount received" field and an optional fee appear,
- * prefilled from the current rate (`useRateSuggestion`) but always editable; hidden ones are cleared by `reconcileCurrencyFields`.
+ * prefilled from the current rate (`useRateSuggestion`) but always editable; hidden ones are cleared by `reconcileCurrencyFields`. On a credit card the "Card entry" field classifies the entry (a refund also asks for the refunded category) and card income has no Category field.
  */
 export function TransactionDetailsFields({
   draft,
@@ -62,9 +63,13 @@ export function TransactionDetailsFields({
   const accountCurrency = differingCurrency(values, accounts, values.accountId);
   const destinationCurrency = differingCurrency(values, accounts, destinationAccountId(values));
   const showFee = feeApplies(values, accounts);
+  const cardOptions = cardEntryOptions(values, accounts);
+  const isCardIncome = values.type === "income" && isCardDraft(values, accounts);
 
   function update(change: (current: TransactionDraft) => TransactionDraft) {
-    draft.update((current) => reconcileCurrencyFields(change(current), accounts));
+    draft.update((current) =>
+      reconcileCurrencyFields(reconcileCardEntry(change(current), accounts), accounts)
+    );
   }
 
   useRateSuggestion({
@@ -266,22 +271,61 @@ export function TransactionDetailsFields({
         </EditableField>
       ) : (
         <>
-          <EditableField label="Category" {...field("categoryId")}>
-            <select
-              className={editableControlClassName}
-              value={values.categoryId}
-              onChange={(event) => draft.setField("categoryId", event.target.value)}
-            >
-              <option value="">None</option>
-              {categoryOptions
-                .filter((category) => category.type === values.type)
-                .map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+          {cardOptions ? (
+            <EditableField label="Card entry" {...field("creditCardKind")}>
+              <select
+                className={editableControlClassName}
+                value={values.creditCardKind}
+                onChange={(event) =>
+                  draft.update((current) =>
+                    selectCardEntry(current, event.target.value as TransactionDraft["creditCardKind"])
+                  )
+                }
+              >
+                {cardOptions.map((option) => (
+                  <option key={option.label} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
-            </select>
-          </EditableField>
+              </select>
+            </EditableField>
+          ) : null}
+          {values.creditCardKind === "refund" ? (
+            <EditableField label="Refunded category" {...field("expenseOffsetCategoryId")}>
+              <select
+                className={editableControlClassName}
+                value={values.expenseOffsetCategoryId}
+                onChange={(event) => draft.setField("expenseOffsetCategoryId", event.target.value)}
+              >
+                <option value="">Select category</option>
+                {categories
+                  .filter((category) => category.type === "expense")
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+              </select>
+            </EditableField>
+          ) : null}
+          {isCardIncome ? null : (
+            <EditableField label="Category" {...field("categoryId")}>
+              <select
+                className={editableControlClassName}
+                value={values.categoryId}
+                onChange={(event) => draft.setField("categoryId", event.target.value)}
+              >
+                <option value="">None</option>
+                {categoryOptions
+                  .filter((category) => category.type === values.type)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+              </select>
+            </EditableField>
+          )}
           <EditableField label="Group" {...field("groupId")}>
             <select
               className={editableControlClassName}

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../../utils/httpError.js";
 import type { McpAuth } from "../../types/mcp.types.js";
 
+vi.mock("../../../accounts/services/creditCard.read.service.js", () => ({ getCreditCardBilling: vi.fn() }));
 vi.mock("../../../debts/services/read.service.js", () => ({ listDebts: vi.fn() }));
 vi.mock("../../../currencies/services/read.service.js", () => ({ getExchangeRate: vi.fn(), listCurrencies: vi.fn() }));
 vi.mock("../../../notifications/services/read.service.js", () => ({
@@ -19,6 +20,7 @@ vi.mock("../../../transactions/services/read.service.js", () => ({
   getTransactionById: vi.fn()
 }));
 
+const { getCreditCardBilling } = await import("../../../accounts/services/creditCard.read.service.js");
 const { listDebts } = await import("../../../debts/services/read.service.js");
 const { getExchangeRate, listCurrencies } = await import("../../../currencies/services/read.service.js");
 const { listNotifications, countUnreadNotifications } = await import("../../../notifications/services/read.service.js");
@@ -46,7 +48,7 @@ const run = (name: string, args: Record<string, unknown> = {}) => tools.get(name
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerPersonalReadTools", () => {
-  it("registers eight read-only tools", () => {
+  it("registers nine read-only tools", () => {
     expect([...tools.keys()]).toEqual([
       "list_debts",
       "get_report",
@@ -55,7 +57,8 @@ describe("registerPersonalReadTools", () => {
       "get_transaction",
       "list_currencies",
       "get_profile",
-      "list_imported_transactions"
+      "list_imported_transactions",
+      "get_credit_card"
     ]);
     for (const { config } of tools.values()) expect(config.annotations).toEqual({ readOnlyHint: true });
   });
@@ -137,6 +140,19 @@ describe("registerPersonalReadTools", () => {
     );
     expect(result.structuredContent!.importedTransactions).toHaveLength(100);
     expect(result.structuredContent).toMatchObject({ total: 250, pendingCount: 3 });
+  });
+
+  it("get_credit_card returns the billing for the credential's user and forwards the page", async () => {
+    vi.mocked(getCreditCardBilling).mockResolvedValue({ accountId: "card-1", metrics: { debt: "5000" } } as never);
+    const result = await run("get_credit_card", { id: "card-1", page: 2 });
+
+    expect(getCreditCardBilling).toHaveBeenCalledWith("u1", "card-1", 2);
+    expect(result.structuredContent).toEqual({ accountId: "card-1", metrics: { debt: "5000" } });
+  });
+
+  it("get_credit_card maps a not-found card to an error result", async () => {
+    vi.mocked(getCreditCardBilling).mockRejectedValue(new HttpError(404, "Account not found"));
+    expect((await run("get_credit_card", { id: "other", page: 1 })).isError).toBe(true);
   });
 
   it("maps service errors to isError results", async () => {

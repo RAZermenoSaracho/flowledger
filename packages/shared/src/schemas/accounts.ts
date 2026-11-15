@@ -1,16 +1,129 @@
 import { z } from "zod";
-import { ACCOUNT_TYPES } from "../constants/index.js";
-import { currencyCodeSchema, decimalAmountSchema } from "./common.js";
+import {
+  ACCOUNT_TYPES,
+  MAX_DAYS_AFTER_CLOSING,
+  PAYMENT_DUE_RULES
+} from "../constants/index.js";
+import {
+  currencyCodeSchema,
+  decimalAmountSchema,
+  positiveDecimalAmountSchema,
+  timeZoneSchema
+} from "./common.js";
 
-export const accountSchema = z.object({
+const percentRateSchema = decimalAmountSchema.refine(
+  (value) => !value.startsWith("-") && Number(value) <= 1000,
+  "Rate must be between 0 and 1000"
+);
+
+/** Flat account fields, kept un-refined so `.shape` and `.partial()` stay available (MCP tool inputs, updates). Credit-card fields are only valid for `credit_card` accounts; see {@link refineCreditCardAccount}. */
+export const accountBaseSchema = z.object({
   name: z.string().trim().min(1).max(120),
   type: z.enum(ACCOUNT_TYPES),
   identifier: z.string().trim().max(120).optional().nullable(),
   currency: currencyCodeSchema.default("USD"),
-  initialBalance: decimalAmountSchema.default("0")
+  initialBalance: decimalAmountSchema.default("0"),
+  creditLimit: positiveDecimalAmountSchema.optional().nullable(),
+  statementClosingDay: z.number().int().min(1).max(31).optional().nullable(),
+  paymentDueRule: z.enum(PAYMENT_DUE_RULES).optional().nullable(),
+  paymentDueValue: z.number().int().min(1).optional().nullable(),
+  billingTimeZone: timeZoneSchema.optional().nullable(),
+  annualInterestRate: percentRateSchema.optional().nullable()
 });
 
-export const updateAccountSchema = accountSchema.partial();
+type CreditCardAccountFields = Partial<
+  Pick<
+    z.infer<typeof accountBaseSchema>,
+    | "type"
+    | "creditLimit"
+    | "statementClosingDay"
+    | "paymentDueRule"
+    | "paymentDueValue"
+    | "billingTimeZone"
+    | "annualInterestRate"
+  >
+>;
+
+const CARD_ONLY_FIELDS = [
+  "creditLimit",
+  "statementClosingDay",
+  "paymentDueRule",
+  "paymentDueValue",
+  "billingTimeZone",
+  "annualInterestRate"
+] as const;
+
+const CYCLE_FIELDS = [
+  "statementClosingDay",
+  "paymentDueRule",
+  "paymentDueValue",
+  "billingTimeZone"
+] as const;
+
+/**
+ * Enforces the credit-card rules on a complete (merged) account object: card fields only on `credit_card`
+ * accounts, cycle fields all-or-none, and the due value within its rule's range. Issue paths name the offending field.
+ * Used by `accountSchema`; the update flow calls it on the merged stored + patched state.
+ */
+export function refineCreditCardAccount(
+  account: CreditCardAccountFields,
+  ctx: z.RefinementCtx
+) {
+  if (account.type !== "credit_card") {
+    for (const field of CARD_ONLY_FIELDS) {
+      if (account[field] != null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "Only credit card accounts can set this field"
+        });
+      }
+    }
+    return;
+  }
+
+  const missing = CYCLE_FIELDS.filter((field) => account[field] == null);
+  if (missing.length > 0 && missing.length < CYCLE_FIELDS.length) {
+    for (const field of missing) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field],
+        message:
+          "Set the statement closing day, payment due date and billing time zone together, or leave all of them empty"
+      });
+    }
+    return;
+  }
+
+  const { paymentDueRule, paymentDueValue, statementClosingDay } = account;
+  if (
+    paymentDueRule == null ||
+    paymentDueValue == null ||
+    statementClosingDay == null
+  ) {
+    return;
+  }
+  const max =
+    paymentDueRule === "day_of_next_month"
+      ? statementClosingDay
+      : MAX_DAYS_AFTER_CLOSING;
+  if (paymentDueValue > max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["paymentDueValue"],
+      message:
+        paymentDueRule === "day_of_next_month"
+          ? `With a closing day of ${statementClosingDay}, the due day can be at most ${statementClosingDay} so payment is due before the next statement closes. For a due date in the same month as closing, use "days after closing".`
+          : `The payment can be due at most ${MAX_DAYS_AFTER_CLOSING} days after closing, so it falls before the next statement closes (February cycles are 28 days).`
+    });
+  }
+}
+
+export const accountSchema = accountBaseSchema.superRefine(
+  refineCreditCardAccount
+);
+
+export const updateAccountSchema = accountBaseSchema.partial();
 
 // GET /accounts accepts a single JSON-encoded `query` param (DSQL
 // where/sort), same shape and rationale as transactions' query param — see
@@ -21,6 +134,14 @@ export const accountsQueryParamSchema = z.object({
   query: z.string().max(4000).optional()
 });
 
+/** Query of `GET /accounts/:id/credit-card`: which page of billing periods (newest first) to return. */
+export const creditCardBillingQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1)
+});
+
+export type CreditCardBillingQuery = z.infer<
+  typeof creditCardBillingQuerySchema
+>;
 export type AccountInput = z.infer<typeof accountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type AccountsQueryParam = z.infer<typeof accountsQueryParamSchema>;

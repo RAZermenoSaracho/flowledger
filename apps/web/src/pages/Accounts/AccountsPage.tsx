@@ -43,7 +43,7 @@ function accountGroupKey(account: Account, groupById: string) {
   return { key: "", label: "" };
 }
 
-/** Accounts list page: search/filter/group controls, and provider sync widget; rows link to the account view. */
+/** Accounts list page: search/filter/group controls and "Add account" (the Manual account / Sync accounts chooser card); rows link to the account view. */
 export function AccountsPage() {
   const auth = useAuth();
 
@@ -61,17 +61,14 @@ export function AccountsPage() {
       ).accounts
   });
 
-  const sync = useAccountProviderSync({
-    defaultCurrency: auth.user?.preferredCurrency || "USD"
-  });
+  const sync = useAccountProviderSync();
 
   const visibleAccounts = useMemo(
     () => accountsQuery.data ?? [],
     [accountsQuery.data]
   );
   const groupedAccounts = useMemo(
-    () =>
-      groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
+    () => groupByFields(visibleAccounts, accountQuery.groupBy, accountGroupKey),
     [visibleAccounts, accountQuery.groupBy]
   );
 

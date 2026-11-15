@@ -152,7 +152,8 @@ async function computeSavingsRate(
         amount: true,
         executionCurrency: true,
         categoryId: true,
-        expenseOffsetCategoryId: true
+        expenseOffsetCategoryId: true,
+        account: { select: { type: true } }
       }
     })
   ).filter((row) => monthOf(row.date, timeZone) === month);
@@ -172,8 +173,9 @@ async function computeSavingsRate(
   }
 
   const cashflow = calculateMonthlyCashflow(
-    rows.map((row, index) => ({
+    rows.map(({ account, ...row }, index) => ({
       ...row,
+      accountType: account?.type ?? null,
       amount: (converted[index] as PromiseFulfilledResult<Prisma.Decimal>).value
     })),
     {},

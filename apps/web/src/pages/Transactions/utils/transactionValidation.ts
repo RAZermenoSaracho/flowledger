@@ -70,9 +70,14 @@ export function validateTransactionDraft(draft: TransactionDraft, accounts: Acco
     accountId: draft.accountId || null,
     transferToAccountId: isTransfer ? draft.transferToAccountId || null : null,
     categoryId: isTransfer ? null : draft.categoryId || null,
+    expenseOffsetCategoryId: isTransfer ? null : draft.expenseOffsetCategoryId || null,
+    creditCardKind: isTransfer ? null : draft.creditCardKind || null,
     groupId: isTransfer ? null : draft.groupId || null,
     notes: draft.notes || null
   });
+  if (draft.creditCardKind === "refund" && !draft.expenseOffsetCategoryId) {
+    errors.expenseOffsetCategoryId = "Choose the refunded category";
+  }
   if (!result.success) {
     for (const issue of result.error.issues) {
       const key = String(issue.path[0] ?? "");

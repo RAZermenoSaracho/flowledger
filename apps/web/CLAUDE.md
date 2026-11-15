@@ -49,6 +49,8 @@ Routes are typed constants in `src/constants/routes.ts`. The router wraps authen
 | `/transactions/:id` | `TransactionDetailPage` (editable Form View) | Yes |
 | `/transactions/:id/edit` | redirects to `/transactions/:id` | Yes |
 | `/accounts` | `AccountsPage` | Yes |
+| `/accounts/new` | `AccountDetailPage` (unsaved manual-account draft; opens the new account on Save) | Yes |
+| `/accounts/:id` | `AccountDetailPage` (editable Form View) | Yes |
 | `/categories` | `CategoriesPage` | Yes |
 | `/groups` | `GroupsPage` | Yes |
 | `/groups/:id` | `GroupDetailPage` | Yes |

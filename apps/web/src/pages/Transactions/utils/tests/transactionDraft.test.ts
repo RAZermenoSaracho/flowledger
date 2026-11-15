@@ -43,6 +43,8 @@ describe("transaction draft helpers", () => {
       accountId: "acc-1",
       transferToAccountId: "",
       categoryId: "cat-1",
+      expenseOffsetCategoryId: "",
+      creditCardKind: "",
       groupId: "",
       notes: "",
       isShared: false,

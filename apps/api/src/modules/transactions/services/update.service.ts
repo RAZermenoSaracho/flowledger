@@ -8,7 +8,8 @@ import {
   assertGroupRelations,
   assertOwnedRelations,
   assertTransferAllowed,
-  findAccountCurrencies
+  findAccountCurrencies,
+  resolveCreditCardKind
 } from "./transactionValidation.service.js";
 import { resolveAppliedAmounts } from "../utils/appliedAmounts.js";
 import { financialFieldsChanged, financialSnapshot } from "../utils/transactionCorrection.js";
@@ -100,6 +101,17 @@ export async function updateTransaction(userId: string, id: string, input: Updat
   await assertGroupRelations(userId, relationInput);
 
   const mergedType = body.type !== undefined ? body.type : existing.type;
+  const cardKindInput = {
+    type: mergedType,
+    accountId: relationInput.accountId,
+    expenseOffsetCategoryId: relationInput.expenseOffsetCategoryId
+  };
+  const explicitKind = body.creditCardKind !== undefined;
+  const creditCardKind = await resolveCreditCardKind(
+    userId,
+    { ...cardKindInput, creditCardKind: explicitKind ? body.creditCardKind : existing.creditCardKind },
+    { lenient: !explicitKind }
+  );
   const mergedExecutionCurrency = body.executionCurrency ?? existing.executionCurrency;
   const amountChanged = body.amount !== undefined;
   const baseChanged =
@@ -177,6 +189,7 @@ export async function updateTransaction(userId: string, id: string, input: Updat
       data: {
         ...body,
         ...(body.date ? { date: new Date(body.date) } : {}),
+        ...(explicitKind || existing.creditCardKind ? { creditCardKind } : {}),
         ...currencyFields,
         ...appliedAmounts
       },

@@ -224,6 +224,48 @@ Creditor manually marks the full debt as paid immediately (no settlement request
 
 ---
 
+## Credit cards
+
+A credit card is an `Account` of type `credit_card`. There are no statement, payment or allocation tables: billing is a pure function of the card configuration, its ledger rows and `now` (`accounts/utils/creditCardBilling.ts`, `buildCardBilling`), exposed through `GET /accounts/:id/credit-card`, its `/v1` mirror and the MCP tool `get_credit_card`. The reminder service reuses the same calculator.
+
+### Accounting and transaction semantics
+
+- **One balance formula:** debt is a negative account balance. `transactionBalanceDelta` (extracted from `calculateAccountBalance`) gives each row's signed effect on the card, and both the balance and the billing use it. `metrics.balance` therefore equals the accounts-list balance.
+- **Charges:** an expense on the card, or a transfer out of it, increases debt. Expenses classified `interest` are charges reported as confirmed interest.
+- **Credits:** a transfer into the card (a payment from another account) and any income on the card reduce debt. A transfer into a card is a repayment, not income.
+- **Imports:** a pending `ProviderImportedTransaction` is staging and affects nothing; once booked it is an ordinary ledger row. Card income needs no category on import.
+
+### Classification (`creditCardKind`)
+
+An optional label, validated in `prepareTransactionInput` so every write path (web, `/v1`, MCP, notification models, import) enforces it: `payment`, `refund` or `cashback` on card income, `interest` on a card expense. A `refund` requires `expenseOffsetCategoryId`, so it reduces Net Expenses through the existing reimbursement offset. Null on card income means "other credit". The label never changes a balance or a billing figure; it only feeds the credits breakdown and reports.
+
+### Periods, windows and carry-forward
+
+Periods are half-open intervals in the card's `billingTimeZone`, computed with `Intl` (`creditCardCycle.ts`): period N is [`close(N-1)`, `close(N)`), where `close` is the start of the day after the (clamped) closing day. The due date is `day_of_next_month` or `days_after_closing`; the whole due day counts as on time. Validation keeps `due(N) <= close(N+1)`.
+
+- **Closing debt** is the balance at the boundary (`max(0, -B(close(N)))`), so it already includes earlier debt and everything paid or refunded before closing, each counted once.
+- **Window allocation:** every credit dated in window N ([`close(N)`, `close(N+1)`)) counts toward period N only. `remaining = max(0, closingDebt - credits)`; `onTimeRemaining` counts only credits before the due instant.
+- **Carry-forward:** the next closing debt already contains the unpaid remainder, so the amount currently owed is the latest closed period's `remaining`, never a sum. Older unpaid periods stay `overdue` as history.
+- **Status:** `open`, `pending`, `partially_paid`, `paid`, `paid_late` (settled but after the due date) or `overdue`.
+
+### Reporting: Gross and Net
+
+Card income and transfers into cards are excluded from income totals (`nonCardIncomeWhere` in `reports/utils/reportFilters.ts`) in the summary, category, cashflow, financial-overview savings-rate and `/transactions/summary` reports, so a card payment is not income. `offsetReportWhere` is unchanged, so a classified card refund still lowers Net Expenses. The report summary adds `creditCardCredits` (card repayments and card income with a per-kind breakdown), identical in Gross and Net modes. Users without cards see unchanged totals. Net worth treats card debt as a liability; the credit limit is never wealth.
+
+### Syncfy lifecycle
+
+Syncfy accounts are typed by `normalizeAccountType`, which matches debit before card, so a "Debit Card" is never a credit card. A synced credit card needs the cycle fields configured by the user before billing appears. Provider rows stay pending until booked; booking a card credit creates income on the card with no category, a card charge creates an expense.
+
+### Interest estimate
+
+When `annualInterestRate` is set and `onTimeRemaining > 0`, the estimate is `rate / 100 / 365 x sum of end-of-day debt` over the local days of the payment window (days after `now` use current debt), rounded to the currency's minor units. While before the due date it is a projection and `avoidAmount` is the amount to pay to avoid it. Limitations: simple daily interest on a 365-day year, the grace period assumed lost on the whole balance, no tax, no installment, promotional or deferred-interest balances; without a rate it is `unavailable`. It is never stored; confirmed interest is a `creditCardKind: interest` expense. Results are estimates, not issuer statements.
+
+### Reminders
+
+See "Notifications" below and `docs/NOTIFICATION_MODELS.md`.
+
+---
+
 ## Reports
 
 Located: `apps/api/src/modules/reports/services/read.service.ts`, `reports/utils/reportCurrency.ts`, `reports/utils/categoryChartRows.ts`, and `transactions/utils/transactionCalculations.ts`.
@@ -300,3 +342,7 @@ Notifications are created by calling `createNotifications()` (`notifications/ser
 The `provider_transactions_pending` notification is upserted (one per user, updated with current count). It is automatically marked read when all pending imported transactions are resolved.
 
 Navigation targets for notifications are computed in `apps/web/src/layout/utils/notificationTarget.ts` → `notificationTarget()`.
+
+### Credit card reminders
+
+`notifications/services/creditCardReminders.service.ts` runs in the notification worker's maintenance (every minute) over every active, fully configured card, reusing `loadCardEntries` and `buildCardBilling`. For the latest closed period it creates `credit_card_period_closed` (closing debt > 0), `credit_card_payment_due_soon` (due in 0-3 days, remaining > 0), `credit_card_period_partially_paid` (credits > 0, remaining > 0) and `credit_card_period_paid` (closing debt > 0, remaining 0). For the most recent period whose due day has ended it creates `credit_card_payment_overdue` when remaining and the current card debt are both > 0. Each carries the dedupe key `cc:<type>:<accountId>:<closingDate>` (no amounts), unique per user in the database, so reruns, concurrent workers and later history edits never resend an event. Only the card owner is notified; archived cards are skipped.

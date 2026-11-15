@@ -97,6 +97,7 @@ export function ReportsPage() {
         totalGrossIncome={summary?.totalGrossIncome ?? 0}
         totalGrossExpenses={summary?.totalGrossExpenses ?? 0}
         totalExpenseReimbursements={summary?.totalExpenseReimbursements ?? 0}
+        creditCardCredits={summary?.creditCardCredits}
       />
 
       <section className="grid gap-6 xl:grid-cols-2">

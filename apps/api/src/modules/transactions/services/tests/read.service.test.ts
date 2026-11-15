@@ -241,6 +241,7 @@ describe("listImportedTransactions", () => {
     const result = await listImportedTransactions("user-1", undefined);
 
     expect(result).toEqual({ importedTransactions: [], total: 0, pendingCount: 0 });
+    expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
     expect(prismaMock.providerImportedTransaction.findMany).not.toHaveBeenCalled();
   });
 
@@ -270,7 +271,7 @@ describe("listImportedTransactions", () => {
 
     const result = await listImportedTransactions("user-1", undefined);
 
-    expect(result.importedTransactions).toEqual([{ id: "it-1" }]);
+    expect(result.importedTransactions).toEqual([{ id: "it-1", possibleDuplicates: [] }]);
   });
 });
 
@@ -422,5 +423,112 @@ describe("getTransactionsSummary", () => {
       expenses: 0,
       balance: 0
     });
+  });
+});
+
+describe("getTransactionsSummary — credit-card income", () => {
+  it("runs the income bucket with a card-account exclusion that keeps unlinked income", async () => {
+    groupByMock.mockResolvedValue([{ type: "income", total: "8000" }] as never);
+
+    await getTransactionsSummary("user-1", undefined);
+
+    const calls = (prismaMock.transaction.groupBy as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const serialized = calls.map((call) => JSON.stringify(call[0]));
+    expect(serialized.some((json) => json.includes("credit_card"))).toBe(true);
+    expect(serialized.some((json) => !json.includes("credit_card"))).toBe(true);
+  });
+});
+
+describe("listImportedTransactions — possibleDuplicates", () => {
+  const DAY = 86_400_000;
+  const base = new Date("2026-03-10T12:00:00Z");
+  const pendingRow = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    status: "pending",
+    amount: -250,
+    transactionDate: base,
+    providerAccount: { accountId: "acc-1" },
+    ...over
+  });
+  const txn = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    name: `Txn ${id}`,
+    date: base,
+    accountId: "acc-1",
+    transferToAccountId: null,
+    accountAmount: 250,
+    destinationAmount: null,
+    ...over
+  });
+
+  function setup(rows: unknown[], candidates: unknown[]) {
+    resolveImportedTransactionIdsMock.mockResolvedValue({
+      ids: (rows as { id: string }[]).map((r) => r.id),
+      total: rows.length
+    });
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue(rows as never);
+    prismaMock.providerImportedTransaction.count.mockResolvedValue(rows.length);
+    prismaMock.transaction.findMany.mockResolvedValue(candidates as never);
+  }
+
+  it("matches by account, absolute amount and date, and issues the unlinked-only query once", async () => {
+    setup([pendingRow("it-1"), pendingRow("it-2", { amount: -999 })], [txn("t-1")]);
+
+    const { importedTransactions } = await listImportedTransactions("user-1", undefined);
+
+    expect(importedTransactions[0]!.possibleDuplicates).toEqual([
+      { id: "t-1", name: "Txn t-1", date: base.toISOString(), amount: "250" }
+    ]);
+    expect(importedTransactions[1]!.possibleDuplicates).toEqual([]);
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.findMany.mock.calls[0]![0]).toMatchObject({
+      where: { userId: "user-1", providerImportedTransaction: null }
+    });
+  });
+
+  it("includes exactly +/-5 days and excludes beyond", async () => {
+    setup(
+      [pendingRow("it-1")],
+      [
+        txn("in-early", { date: new Date(base.getTime() - 5 * DAY) }),
+        txn("in-late", { date: new Date(base.getTime() + 5 * DAY) }),
+        txn("out", { date: new Date(base.getTime() + 5 * DAY + 1000) })
+      ]
+    );
+
+    const { importedTransactions } = await listImportedTransactions("user-1", undefined);
+
+    expect(importedTransactions[0]!.possibleDuplicates.map((d) => d.id).sort()).toEqual([
+      "in-early",
+      "in-late"
+    ]);
+  });
+
+  it("uses destinationAmount for the destination side of a transfer and caps at 3", async () => {
+    setup(
+      [pendingRow("it-1")],
+      [
+        txn("dest", { accountId: "other", transferToAccountId: "acc-1", accountAmount: 1, destinationAmount: 250 }),
+        txn("wrong-side", { accountId: "other", transferToAccountId: "acc-1", accountAmount: 250, destinationAmount: 1 }),
+        txn("a"),
+        txn("b"),
+        txn("c")
+      ]
+    );
+
+    const { importedTransactions } = await listImportedTransactions("user-1", undefined);
+    const ids = importedTransactions[0]!.possibleDuplicates.map((d) => d.id);
+
+    expect(ids).toHaveLength(3);
+    expect(ids).not.toContain("wrong-side");
+  });
+
+  it("gives non-pending rows an empty list and skips the query when nothing is pending", async () => {
+    setup([pendingRow("it-1", { status: "ignored" })], [txn("t-1")]);
+
+    const { importedTransactions } = await listImportedTransactions("user-1", undefined);
+
+    expect(importedTransactions[0]!.possibleDuplicates).toEqual([]);
+    expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
   });
 });

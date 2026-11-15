@@ -27,7 +27,7 @@ Entries are numbered sequentially and never renumbered. Mark `[OPEN]` while unre
 
 **Scope:**
 - `apps/web/src/pages/Accounts/components/AccountListItem.tsx` (~line 177-179): `{account.type.replace("_", " ")} · {account.currency}` inside a `<p className="... capitalize ...">`
-- `apps/web/src/pages/Accounts/components/AddAccountCard.tsx` (~line 246-248): same pattern for `providerAccount.type`
+- `apps/web/src/pages/Accounts/components/AddAccountCard.tsx`: same pattern for `providerAccount.type`
 - `apps/web/src/pages/Transactions/components/ImportedTransactionCard.tsx` (~line 101-107): `{transaction.status}` inside a `<span className="... capitalize ...">` (`PROVIDER_IMPORTED_TRANSACTION_STATUSES`: `"pending"|"processed"|"ignored"`)
 
 **Description:** These three currently render *correctly* — `ACCOUNT_TYPES`' only multi-word value (`credit_card`) becomes "credit card" via `.replace("_", " ")` and then "Credit Card" via the CSS `capitalize` class; the imported-transaction statuses are all single words so `capitalize` alone is sufficient. So this is not a display bug today. It is, however, a second, different mechanism for the same "format an enum value for display" problem that `apps/web/src/utils/enumLabels.ts`'s `formatEnumLabel()` was written to solve in Task 2 — these three sites don't use it. Latent risk: `.replace("_", " ")` only replaces the *first* underscore (not `replaceAll`), so this would silently break if `ACCOUNT_TYPES` ever gained a value with two or more underscores.

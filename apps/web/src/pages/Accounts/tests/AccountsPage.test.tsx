@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../tests/utils/renderWithProviders";
 import { server } from "../../../tests/mocks/server";
@@ -44,7 +45,7 @@ function mockBaseline(accounts: Account[] = []) {
 }
 
 describe("AccountsPage", () => {
-  it("renders accounts and keeps the add-account form closed by default", async () => {
+  it("renders accounts and keeps the sync panel closed by default", async () => {
     mockBaseline([makeAccount()]);
     renderWithProviders(<AccountsPage />, { withAuth: true });
 
@@ -52,7 +53,7 @@ describe("AccountsPage", () => {
       expect(screen.getByText("Checking")).toBeInTheDocument()
     );
     expect(
-      screen.queryByRole("heading", { name: "Add account" })
+      screen.queryByRole("heading", { name: "Sync accounts" })
     ).not.toBeInTheDocument();
   });
 
@@ -65,10 +66,16 @@ describe("AccountsPage", () => {
     );
   });
 
-  it("opens the add-account form via the AddRecordButton", async () => {
+  it("opens the Add account chooser without navigating", async () => {
     mockBaseline([]);
     const user = userEvent.setup();
-    renderWithProviders(<AccountsPage />, { withAuth: true });
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<AccountsPage />} />
+        <Route path="/accounts/new" element={<p>New account view</p>} />
+      </Routes>,
+      { withAuth: true }
+    );
 
     await waitFor(() =>
       expect(screen.getByText("No accounts found.")).toBeInTheDocument()
@@ -80,6 +87,105 @@ describe("AccountsPage", () => {
     expect(
       screen.getByRole("heading", { name: "Add account" })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Manual account/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Sync accounts/ })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("New account view")).not.toBeInTheDocument();
+  });
+
+  it("has no standalone Sync accounts button in the list header", async () => {
+    mockBaseline([]);
+    renderWithProviders(<AccountsPage />, { withAuth: true });
+
+    await waitFor(() =>
+      expect(screen.getByText("No accounts found.")).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByRole("button", { name: /Sync accounts/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it("Add account then Manual account lands on /accounts/new", async () => {
+    mockBaseline([]);
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<AccountsPage />} />
+        <Route path="/accounts/new" element={<p>New account view</p>} />
+      </Routes>,
+      { withAuth: true }
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("No accounts found.")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Add account" })[0]!
+    );
+    await user.click(screen.getByRole("button", { name: /Manual account/ }));
+
+    expect(await screen.findByText("New account view")).toBeInTheDocument();
+  });
+
+  it("opens the sync panel from the chooser, without a manual form", async () => {
+    mockBaseline([]);
+    server.use(
+      http.get(`${API_URL}/providers/connectors`, () =>
+        HttpResponse.json({
+          connectors: [
+            {
+              provider: "syncfy",
+              connectorId: "c1",
+              title: "Bank",
+              description: "d",
+              country: "MX",
+              category: "bank",
+              coverageLabel: "Popular"
+            }
+          ]
+        })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<AccountsPage />, { withAuth: true });
+
+    await waitFor(() =>
+      expect(screen.getByText("No accounts found.")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Add account" })[0]!
+    );
+    const syncOption = screen.getByRole("button", { name: /Sync accounts/ });
+    await waitFor(() =>
+      expect(syncOption).not.toHaveAttribute("aria-disabled")
+    );
+    await user.click(syncOption);
+
+    expect(
+      screen.getByRole("heading", { name: "Sync accounts" })
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  });
+
+  it("does not open the sync panel when bank sync is unavailable", async () => {
+    mockBaseline([]);
+    const user = userEvent.setup();
+    renderWithProviders(<AccountsPage />, { withAuth: true });
+
+    await waitFor(() =>
+      expect(screen.getByText("No accounts found.")).toBeInTheDocument()
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Add account" })[0]!
+    );
+    await user.click(screen.getByRole("button", { name: /Sync accounts/ }));
+
+    expect(
+      screen.queryByRole("heading", { name: "Sync accounts" })
+    ).not.toBeInTheDocument();
   });
 
   it("groups accounts by type when 'Group by Type' is active", async () => {

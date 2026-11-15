@@ -17,7 +17,9 @@ Source of truth: `database/prisma/schema.prisma`
 | `ParticipantStatus` | `pending`, `partial`, `paid` |
 | `SettlementStatus` | `pending`, `approved`, `rejected` |
 | `GroupRole` | `admin`, `member` |
-| `NotificationType` | `group_member_added`, `shared_expense_added`, `debt_owes_money`, `debt_owed_money`, `settlement_requested`, `settlement_approved`, `settlement_rejected`, `settlement_payment_registration_needed`, `provider_transactions_pending` |
+| `NotificationType` | `group_member_added`, `shared_expense_added`, `debt_owes_money`, `debt_owed_money`, `settlement_requested`, `settlement_approved`, `settlement_rejected`, `settlement_payment_registration_needed`, `provider_transactions_pending`, `credit_card_period_closed`, `credit_card_payment_due_soon`, `credit_card_period_partially_paid`, `credit_card_period_paid`, `credit_card_payment_overdue` |
+| `PaymentDueRule` | `day_of_next_month`, `days_after_closing` |
+| `CreditCardKind` | `payment`, `refund`, `cashback`, `interest` |
 
 ---
 
@@ -135,6 +137,14 @@ A financial account owned by a user. Can be manual (user-created) or linked to a
 | `initialBalance` | Decimal(30,18) | Starting balance; locked currency once any transaction references the account |
 | `isArchived` | Boolean | Soft delete |
 | `archivedAt` | DateTime? | When archived |
+| `creditLimit` | Decimal(38,18)? | Credit cards only; card limit in the account currency |
+| `statementClosingDay` | Int? | Credit cards only; day of month (1-31) the statement closes, clamped to short months |
+| `paymentDueRule` | PaymentDueRule? | Credit cards only; how the due date derives from the closing date |
+| `paymentDueValue` | Int? | Credit cards only; day of next month (`day_of_next_month`, 1..closing day) or days after closing (`days_after_closing`, 1..28) |
+| `billingTimeZone` | String? | Credit cards only; IANA zone in which closing and due dates are evaluated |
+| `annualInterestRate` | Decimal(38,18)? | Credit cards only; annual rate in percent (0-1000) used for interest estimates |
+
+The cycle fields (`statementClosingDay`, `paymentDueRule`, `paymentDueValue`, `billingTimeZone`) are set all together or not at all.
 
 Relations: `transactions` (from account), `transferDestinationTransactions` (to account in transfers), `providerAccounts`
 
@@ -192,6 +202,7 @@ A financial transaction. The core financial record.
 | `accountId` | String? | FK → Account (source account) |
 | `transferToAccountId` | String? | FK → Account (destination, transfers only) |
 | `notes` | String? | User notes |
+| `creditCardKind` | CreditCardKind? | Only on credit-card transactions: `payment`, `refund`, `cashback`, or `interest`; validated server-side |
 
 Key constraints:
 - Transfer transactions: `accountId` and `transferToAccountId` required, no category or group.
@@ -335,6 +346,7 @@ In-app notification for a user.
 | `message` | String | Full message |
 | `readAt` | DateTime? | Null = unread |
 | `metadata` | Json? | Typed JSON with context (IDs, counts) |
+| `dedupeKey` | String? | Idempotency key for generated notifications; unique per user via `(userId, dedupeKey)` (nulls are not deduplicated) |
 
 ---
 

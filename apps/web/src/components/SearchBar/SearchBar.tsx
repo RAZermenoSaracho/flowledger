@@ -26,6 +26,8 @@ export type SearchBarQuery = {
   /** Selected groupable field names — presentational bucketing for the
    * consumer to apply client-side, not a DSQL groupBy/aggregation. */
   groupBy?: string[];
+  /** The editable condition tree behind `where`, for consumers that mirror a condition elsewhere (e.g. the URL). */
+  domain?: DomainGroupNode;
 };
 
 // A quick-search term uses "contains" for string fields (that's the
@@ -81,7 +83,9 @@ export function SearchBar({
     () => initialDomain ?? createEmptyGroup("and")
   );
   const [groupBys, setGroupBys] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState(initialSort?.field ?? sortableFields[0]?.name ?? "");
+  const [sortBy, setSortBy] = useState(
+    initialSort?.field ?? sortableFields[0]?.name ?? ""
+  );
   const [sortDirection, setSortDirection] = useState<SortDirection>(
     initialSort?.direction ?? "desc"
   );
@@ -99,7 +103,8 @@ export function SearchBar({
     () => ({
       where: domainToWhere(domain, fields),
       sort: sortBy ? [{ field: sortBy, direction: sortDirection }] : undefined,
-      groupBy: groupBys.length > 0 ? groupBys : undefined
+      groupBy: groupBys.length > 0 ? groupBys : undefined,
+      domain
     }),
     [domain, fields, sortBy, sortDirection, groupBys]
   );
@@ -118,8 +123,13 @@ export function SearchBar({
   }
 
   /** Single removal path for every chip: updates state, announces, and moves focus off the removed button. */
-  function removeChip(chip: { kind: "filter" | "group"; id: string; text: string }) {
-    if (chip.kind === "filter") setDomain((current) => removeNode(current, chip.id));
+  function removeChip(chip: {
+    kind: "filter" | "group";
+    id: string;
+    text: string;
+  }) {
+    if (chip.kind === "filter")
+      setDomain((current) => removeNode(current, chip.id));
     else toggleGroupBy(chip.id);
     setAnnouncement(`Removed ${chip.text} filter`);
     (inputRef.current ?? menuButtonRef.current)?.focus();
@@ -131,9 +141,15 @@ export function SearchBar({
   }
 
   function removeLastChip() {
-    const lastGroupId = [...groupBys].reverse().find((id) => groupChipText(id) !== null);
+    const lastGroupId = [...groupBys]
+      .reverse()
+      .find((id) => groupChipText(id) !== null);
     if (lastGroupId) {
-      removeChip({ kind: "group", id: lastGroupId, text: groupChipText(lastGroupId)! });
+      removeChip({
+        kind: "group",
+        id: lastGroupId,
+        text: groupChipText(lastGroupId)!
+      });
       return;
     }
     const lastFilter = domain.children[domain.children.length - 1];
@@ -162,7 +178,10 @@ export function SearchBar({
       defaultSearchOperator(field),
       trimmed
     );
-    setDomain((current) => ({ ...current, children: [...current.children, condition] }));
+    setDomain((current) => ({
+      ...current,
+      children: [...current.children, condition]
+    }));
     setSearchDraft("");
   }
 
@@ -213,7 +232,9 @@ export function SearchBar({
                 <FilterPill
                   key={`group-${groupById}`}
                   text={text}
-                  onRemove={() => removeChip({ kind: "group", id: groupById, text })}
+                  onRemove={() =>
+                    removeChip({ kind: "group", id: groupById, text })
+                  }
                 />
               );
             })}
@@ -225,7 +246,9 @@ export function SearchBar({
                 ref={inputRef}
                 aria-label={placeholder}
                 placeholder={
-                  domain.children.length === 0 && groupBys.length === 0 ? placeholder : ""
+                  domain.children.length === 0 && groupBys.length === 0
+                    ? placeholder
+                    : ""
                 }
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
@@ -380,7 +403,13 @@ export function SearchBar({
   );
 }
 
-function FilterPill({ text, onRemove }: { text: string; onRemove: () => void }) {
+function FilterPill({
+  text,
+  onRemove
+}: {
+  text: string;
+  onRemove: () => void;
+}) {
   return (
     <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-mint px-3 py-1 text-xs font-semibold text-pine dark:bg-emerald-950 dark:text-emerald-200">
       <span className="max-w-64 truncate">{text}</span>
@@ -390,7 +419,10 @@ function FilterPill({ text, onRemove }: { text: string; onRemove: () => void }) 
         aria-label={`Remove ${text} filter`}
         onClick={onRemove}
         onKeyDown={(event) => {
-          if ((event.key === "Backspace" || event.key === "Delete") && !event.repeat) {
+          if (
+            (event.key === "Backspace" || event.key === "Delete") &&
+            !event.repeat
+          ) {
             event.preventDefault();
             onRemove();
           }
