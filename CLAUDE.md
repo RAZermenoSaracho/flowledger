@@ -105,6 +105,7 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
 
 ## Constraints for agents
 
+- **English only:** all conversation with the user (summaries, explanations, questions, reports) and everything written to the repository (code, comments, docs, OpenSpec artifacts, tasks, commit messages, PR text) must be in English, even if earlier messages or requests were in another language. User-facing product copy that is deliberately localized is the only exception.
 - Work on branch `razs_ai`, not `main`.
 - Never modify `.env` files or commit secrets. Document new variables only.
 - Never expose `passwordHash`, OAuth secrets, provider API keys, or webhook signature keys in responses or logs.
