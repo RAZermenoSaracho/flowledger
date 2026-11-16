@@ -6,6 +6,7 @@ import {
   transactionIdToolSchema
 } from "@flowledger/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getAccountHoldings } from "../../accounts/services/holdings.read.service.js";
 import { getCreditCardBilling } from "../../accounts/services/creditCard.read.service.js";
 import { listDebts } from "../../debts/services/read.service.js";
 import { capDebtLists } from "../../debts/utils/capDebtLists.js";
@@ -145,5 +146,16 @@ export function registerPersonalReadTools(server: McpServer, auth: McpAuth) {
       annotations: READ_ONLY
     },
     ({ id, page }) => runRead(async () => ({ ...(await getCreditCardBilling(userId, id, page)) }))
+  );
+
+  server.registerTool(
+    "list_holdings",
+    {
+      description:
+        "List the holdings of one of the user's investment or crypto accounts by account id, with each holding's exact quantity, unit price in its original currency, source (cash, manual or market), last-updated time, value in the account currency (null when missing, with a reason) and the account aggregate (`value`, `status` complete or partial, `netDeposited`). Quantities and prices are exact decimal strings. Same data as GET /accounts/:id/holdings.",
+      inputSchema: transactionIdToolSchema.shape,
+      annotations: READ_ONLY
+    },
+    ({ id }) => runRead(async () => ({ ...(await getAccountHoldings(userId, id)) }))
   );
 }

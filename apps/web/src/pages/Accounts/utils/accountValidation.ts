@@ -3,6 +3,7 @@ import { amountPrecisionError } from "../../../utils/currency";
 import type { FormErrors } from "../../../types/common.types";
 import type { AccountDraft } from "../types/accounts.types";
 import { creditCardFields } from "./creditCardDraft";
+import { validateHoldingRows } from "./holdingsDraft";
 
 /** Validates the account draft with the shared update schema plus the card rules, returning the first message per field. */
 export function validateAccountDraft(values: AccountDraft): FormErrors {
@@ -27,5 +28,5 @@ export function validateAccountDraft(values: AccountDraft): FormErrors {
     const precision = amountPrecisionError(values.initialBalance, values.currency);
     if (precision) errors.initialBalance = precision;
   }
-  return errors;
+  return { ...validateHoldingRows(values.holdings), ...errors };
 }

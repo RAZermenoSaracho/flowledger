@@ -19,6 +19,7 @@ function setupBaseMocks() {
   prismaMock.account.findMany.mockResolvedValue([]);
   prismaMock.account.count.mockResolvedValue(0);
   prismaMock.transaction.findMany.mockResolvedValue([]);
+  prismaMock.holding.findMany.mockResolvedValue([]);
 }
 
 beforeEach(() => {
@@ -196,5 +197,45 @@ describe("listAccounts — native balances", () => {
       }
     });
     expect(serialize(result).map((account) => account.currentBalance)).toEqual(["400", "1712.5"]);
+  });
+});
+
+describe("listAccounts — holdings valuation", () => {
+  it("attaches null to accounts without holdings and the aggregate with netDeposited to those with holdings", async () => {
+    prismaMock.account.findMany.mockResolvedValue([
+      { id: "plain", currency: "USD", initialBalance: new Prisma.Decimal("10"), providerAccounts: [] },
+      { id: "inv", type: "investment", currency: "USD", initialBalance: new Prisma.Decimal("1000"), providerAccounts: [] }
+    ] as never);
+    prismaMock.holding.findMany.mockResolvedValue([
+      {
+        id: "h1",
+        userId: "user-1",
+        accountId: "inv",
+        kind: "fiat",
+        code: "USD",
+        quantity: new Prisma.Decimal("850"),
+        manualUnitPrice: null,
+        manualPriceCurrency: null,
+        manualPricedAt: null
+      }
+    ] as never);
+
+    const result = serialize(await listAccounts("user-1", undefined));
+
+    expect(prismaMock.holding.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.holding.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", accountId: { in: ["plain", "inv"] } } })
+    );
+    const byId = Object.fromEntries(result.map((account) => [account.id, account]));
+    expect(byId.plain!.holdingsValuation).toBeNull();
+    expect(byId.plain!.currentBalance).toBe("10");
+    expect(byId.inv!.holdingsValuation).toEqual({
+      currency: "USD",
+      value: "850.00",
+      status: "complete",
+      missingCount: 0,
+      netDeposited: "1000"
+    });
+    expect(byId.inv!.currentBalance).toBe("1000");
   });
 });

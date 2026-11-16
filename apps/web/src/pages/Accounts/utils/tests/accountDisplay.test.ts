@@ -54,6 +54,10 @@ describe("getAccountTypeLabel", () => {
     }
   });
 
+  it("labels crypto as Crypto", () => {
+    expect(getAccountTypeLabel("crypto")).toBe("Crypto");
+  });
+
   it("labels checking as checking / debit", () => {
     expect(getAccountTypeLabel("checking")).toBe("Checking / debit");
   });

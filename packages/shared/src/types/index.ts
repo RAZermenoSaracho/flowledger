@@ -1,5 +1,8 @@
 import type {
   ACCOUNT_TYPES,
+  HOLDING_KINDS,
+  HOLDING_MISSING_REASONS,
+  HOLDING_VALUATION_SOURCES,
   CATEGORY_TYPES,
   CREDIT_CARD_KINDS,
   PAYMENT_DUE_RULES,
@@ -17,6 +20,9 @@ export type PaymentDueRule = (typeof PAYMENT_DUE_RULES)[number];
 export type CreditCardKind = (typeof CREDIT_CARD_KINDS)[number];
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
+export type HoldingKind = (typeof HOLDING_KINDS)[number];
+export type HoldingValuationSource = (typeof HOLDING_VALUATION_SOURCES)[number];
+export type HoldingMissingReason = (typeof HOLDING_MISSING_REASONS)[number];
 export type SharedExpenseStatus = (typeof SHARED_EXPENSE_STATUSES)[number];
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
@@ -200,4 +206,51 @@ export interface PossibleDuplicate {
   name: string;
   date: string;
   amount: string;
+}
+
+/**
+ * A holding's resolved valuation. Known valuations have a decimal-string `value` in the account currency and a null
+ * `missingReason`; missing ones have `value: null` and a reason, never `"0"`. `unitPrice`/`priceCurrency` keep the
+ * original quotation or manual entry currency. `valuedAt` is the last successful update (null for `cash` and missing).
+ */
+export interface HoldingValuation {
+  source: HoldingValuationSource | null;
+  unitPrice: string | null;
+  priceCurrency: string | null;
+  valuedAt: string | null;
+  value: string | null;
+  missingReason: HoldingMissingReason | null;
+}
+
+/** A stored holding with its valuation. `quantity` and `manualUnitPrice` are exact decimal strings. */
+export interface Holding {
+  id: string;
+  accountId: string;
+  kind: HoldingKind;
+  code: string;
+  quantity: string;
+  manualUnitPrice: string | null;
+  manualPriceCurrency: string | null;
+  manualPricedAt: string | null;
+  valuation: HoldingValuation;
+}
+
+/**
+ * Aggregate of an account with holdings, in the account currency. `value` is the known subtotal (missing holdings
+ * excluded, rounded once); `status` is `partial` when any holding is missing. `netDeposited` is the transaction-derived
+ * balance, informational only and never part of the value or net worth.
+ */
+export interface HoldingsValuation {
+  currency: string;
+  value: string;
+  status: "complete" | "partial";
+  missingCount: number;
+  netDeposited: string;
+}
+
+/** Response of `GET`/`PATCH /accounts/:id/holdings`. */
+export interface AccountHoldings {
+  accountId: string;
+  holdings: Holding[];
+  valuation: HoldingsValuation;
 }

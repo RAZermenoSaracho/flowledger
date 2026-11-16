@@ -29,6 +29,17 @@ export function formatTransactionDate(
   });
 }
 
+/** Formats a valuation's last-updated instant (an ISO string) in the device's timezone and locale, with the same date and time options as {@link formatTransactionDate}. */
+export function formatValuationTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
 /** A transaction's execution time in the device's timezone, as a `datetime-local` value (`YYYY-MM-DDTHH:mm`). Its first 7 characters are the displayed month. */
 export function transactionDateInputValue(
   transaction: Pick<Transaction, "date">

@@ -2,12 +2,14 @@ import {
   accountBaseSchema,
   accountSchema,
   categorySchema,
+  holdingsChangeSetSchema,
   setArchivedToolSchema,
   transactionIdToolSchema,
   updateAccountSchema,
   updateAccountToolSchema,
   updateCategorySchema,
-  updateCategoryToolSchema
+  updateCategoryToolSchema,
+  updateHoldingsToolSchema
 } from "@flowledger/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createAccount } from "../../accounts/services/create.service.js";
@@ -17,6 +19,7 @@ import {
   restoreAccount,
   updateAccount
 } from "../../accounts/services/update.service.js";
+import { applyHoldingChanges } from "../../accounts/services/holdings.update.service.js";
 import { createCategory } from "../../categories/services/create.service.js";
 import { deleteCategory } from "../../categories/services/delete.service.js";
 import {
@@ -79,6 +82,22 @@ export function registerPersonalWriteTools(server: McpServer, auth: McpAuth) {
         const { id, archived } = setArchivedToolSchema.parse(args);
         const account = await (archived ? archiveAccount : restoreAccount)(userId, id);
         return { data: { account }, resourceId: id, status: 200 };
+      })
+  );
+
+  server.registerTool(
+    "update_holdings",
+    {
+      description:
+        "Change the holdings of one of the user's investment or crypto accounts atomically: `upsert` items without `id` create a holding (needs `kind` crypto or fiat, `code` and `quantity`), items with `id` update its quantity or manual price (`manualUnitPrice: null` clears the override); `remove` ids permanently delete holdings. Holdings not mentioned are untouched. Quantities and prices are exact decimal strings, never numbers; fiat quantities are limited to the currency's minor units and crypto to 18 decimals. Returns the same body as list_holdings. Confirm removals with the user.",
+      inputSchema: updateHoldingsToolSchema.shape,
+      annotations: { destructiveHint: true, idempotentHint: false }
+    },
+    async (args) =>
+      runWrite(auth, "mcp.update_holdings", args.id, async () => {
+        const { id, ...rest } = updateHoldingsToolSchema.parse(args);
+        const body = await applyHoldingChanges(userId, id, holdingsChangeSetSchema.parse(rest));
+        return { data: { ...body }, resourceId: id, status: 200 };
       })
   );
 

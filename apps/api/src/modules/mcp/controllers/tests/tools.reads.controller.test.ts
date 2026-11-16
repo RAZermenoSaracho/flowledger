@@ -3,6 +3,7 @@ import { HttpError } from "../../../../utils/httpError.js";
 import type { McpAuth } from "../../types/mcp.types.js";
 
 vi.mock("../../../accounts/services/creditCard.read.service.js", () => ({ getCreditCardBilling: vi.fn() }));
+vi.mock("../../../accounts/services/holdings.read.service.js", () => ({ getAccountHoldings: vi.fn() }));
 vi.mock("../../../debts/services/read.service.js", () => ({ listDebts: vi.fn() }));
 vi.mock("../../../currencies/services/read.service.js", () => ({ getExchangeRate: vi.fn(), listCurrencies: vi.fn() }));
 vi.mock("../../../notifications/services/read.service.js", () => ({
@@ -21,6 +22,7 @@ vi.mock("../../../transactions/services/read.service.js", () => ({
 }));
 
 const { getCreditCardBilling } = await import("../../../accounts/services/creditCard.read.service.js");
+const { getAccountHoldings } = await import("../../../accounts/services/holdings.read.service.js");
 const { listDebts } = await import("../../../debts/services/read.service.js");
 const { getExchangeRate, listCurrencies } = await import("../../../currencies/services/read.service.js");
 const { listNotifications, countUnreadNotifications } = await import("../../../notifications/services/read.service.js");
@@ -48,7 +50,7 @@ const run = (name: string, args: Record<string, unknown> = {}) => tools.get(name
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerPersonalReadTools", () => {
-  it("registers nine read-only tools", () => {
+  it("registers ten read-only tools", () => {
     expect([...tools.keys()]).toEqual([
       "list_debts",
       "get_report",
@@ -58,7 +60,8 @@ describe("registerPersonalReadTools", () => {
       "list_currencies",
       "get_profile",
       "list_imported_transactions",
-      "get_credit_card"
+      "get_credit_card",
+      "list_holdings"
     ]);
     for (const { config } of tools.values()) expect(config.annotations).toEqual({ readOnlyHint: true });
   });
@@ -153,6 +156,20 @@ describe("registerPersonalReadTools", () => {
   it("get_credit_card maps a not-found card to an error result", async () => {
     vi.mocked(getCreditCardBilling).mockRejectedValue(new HttpError(404, "Account not found"));
     expect((await run("get_credit_card", { id: "other", page: 1 })).isError).toBe(true);
+  });
+
+  it("list_holdings returns the same body as the REST service for the credential's user only", async () => {
+    const body = { accountId: "a1", holdings: [{ quantity: "0.1" }], valuation: { value: "5.00" } };
+    vi.mocked(getAccountHoldings).mockResolvedValue(body as never);
+    const result = await run("list_holdings", { id: "a1" });
+
+    expect(getAccountHoldings).toHaveBeenCalledWith("u1", "a1");
+    expect(result.structuredContent).toEqual(body);
+  });
+
+  it("list_holdings maps a foreign account's not-found to an error result", async () => {
+    vi.mocked(getAccountHoldings).mockRejectedValue(new HttpError(404, "Account not found"));
+    expect((await run("list_holdings", { id: "other" })).isError).toBe(true);
   });
 
   it("maps service errors to isError results", async () => {

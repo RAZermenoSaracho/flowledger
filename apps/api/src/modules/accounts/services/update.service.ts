@@ -1,4 +1,8 @@
-import { refineCreditCardAccount, type UpdateAccountInput } from "@flowledger/shared";
+import {
+  HOLDING_ACCOUNT_TYPES,
+  refineCreditCardAccount,
+  type UpdateAccountInput
+} from "@flowledger/shared";
 import { z } from "zod";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
@@ -17,7 +21,7 @@ const mergedCardRulesSchema = z.object({}).passthrough().superRefine(refineCredi
 /**
  * Updates an account's editable fields, throwing a 404 if it isn't owned by `userId`, a 400 naming `currency` when the currency changes
  * while any transaction references the account, and a 400 naming the offending field when the merged stored + patched account breaks the credit-card rules.
- * Moving the type away from `credit_card` clears the six card fields.
+ * Changing to a type that cannot hold holdings while holdings exist is a 400 naming `type`. Moving the type away from `credit_card` clears the six card fields.
  */
 export async function updateAccount(userId: string, id: string, body: UpdateAccountInput) {
   const existing = await prisma.account.findFirst({
@@ -36,6 +40,15 @@ export async function updateAccount(userId: string, id: string, body: UpdateAcco
         issues: { formErrors: [], fieldErrors: { currency: [message] } }
       });
     }
+  }
+
+  if (
+    body.type !== undefined &&
+    !(HOLDING_ACCOUNT_TYPES as readonly string[]).includes(body.type) &&
+    (await prisma.holding.count({ where: { accountId: existing.id, userId } })) > 0
+  ) {
+    const message = "Remove the account's holdings before changing it to a type that cannot hold them";
+    throw badRequest(message, { issues: { formErrors: [], fieldErrors: { type: [message] } } });
   }
 
   const leavesCard =

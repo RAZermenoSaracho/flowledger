@@ -12,7 +12,8 @@ Source of truth: `database/prisma/schema.prisma`
 | `NotificationRunStatus` | `queued`, `processing`, `completed`, `skipped`, `failed` |
 | `CategoryType` | `income`, `expense` |
 | `TransactionType` | `income`, `expense`, `transfer` |
-| `AccountType` | `cash`, `checking`, `savings`, `credit_card`, `investment`, `other` |
+| `AccountType` | `cash`, `checking`, `savings`, `credit_card`, `investment`, `crypto`, `other` |
+| `HoldingKind` | `crypto`, `fiat` |
 | `SharedExpenseStatus` | `open`, `settled`, `cancelled` |
 | `ParticipantStatus` | `pending`, `partial`, `paid` |
 | `SettlementStatus` | `pending`, `approved`, `rejected` |
@@ -146,7 +147,28 @@ A financial account owned by a user. Can be manual (user-created) or linked to a
 
 The cycle fields (`statementClosingDay`, `paymentDueRule`, `paymentDueValue`, `billingTimeZone`) are set all together or not at all.
 
-Relations: `transactions` (from account), `transferDestinationTransactions` (to account in transfers), `providerAccounts`
+Relations: `transactions` (from account), `transferDestinationTransactions` (to account in transfers), `providerAccounts`, `holdings`
+
+Only `investment` and `crypto` accounts may have holdings. Once an account has at least one holding, its value is the sum of its holdings; its transaction-derived balance is reported separately as "Net deposited" and never counts toward net worth (see `docs/DOMAIN_LOGIC.md`).
+
+---
+
+### Holding
+
+One position in an `investment` or `crypto` account. Quantities are manual; valuations come from a manual override or a market quotation at read time and are never stored, apart from the manual override itself.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | String (cuid) | PK |
+| `userId` | String | FK → User (cascade); every query scopes by it |
+| `accountId` | String | FK → Account (cascade) |
+| `kind` | HoldingKind | `fiat` = uninvested cash (ISO 4217 `code`), `crypto` = crypto asset |
+| `code` | String | Upper-case instrument code; `(accountId, kind, code)` is unique |
+| `quantity` | Decimal(38,18) | Exact positive quantity; fiat limited to the currency's minor units |
+| `manualUnitPrice` | Decimal(38,18)? | Manual valuation override (crypto only); wins over market quotations until cleared |
+| `manualPriceCurrency` | String? | Currency of the manual price, stored as entered |
+| `manualPricedAt` | DateTime? | When the manual valuation was set (or the date the user entered); unchanged by quantity-only edits |
+| `createdAt` / `updatedAt` | DateTime | |
 
 ---
 
@@ -541,7 +563,7 @@ Index: `lastSeenAt`. Removed on graceful shutdown; stale rows are deleted after 
 
 ```
 User
- ├── Account (manual or linked to ProviderAccount)
+ ├── Account (manual or linked to ProviderAccount) → Holding (investment/crypto only)
  ├── Transaction → SharedExpense → SharedExpenseParticipant → SettlementRequest
  ├── Category (personal)
  ├── GroupMember → Group → Category (group)

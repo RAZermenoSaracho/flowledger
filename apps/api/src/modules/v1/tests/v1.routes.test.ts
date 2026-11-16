@@ -307,6 +307,38 @@ describe("/v1 routes", () => {
     });
   });
 
+  describe("holdings", () => {
+    const path = (id: string) => `/v1/accounts/${id}/holdings`;
+    const change = { upsert: [{ kind: "fiat", code: "USD", quantity: "12.50" }] };
+
+    async function createCrypto(actor: Actor) {
+      const res = await request(app)
+        .post("/accounts")
+        .set(bearer(actor.jwt))
+        .send({ name: "Wallet", type: "crypto", currency: "USD" });
+      return res.body.account.id as string;
+    }
+
+    it("splits scopes: a read key reads, only a write key patches", async () => {
+      const id = await createCrypto(a);
+      expect((await request(app).patch(path(id)).set(bearer(a.readKey)).send(change)).status).toBe(403);
+      const patched = await request(app).patch(path(id)).set(bearer(a.writeKey)).send(change);
+      expect(patched.status).toBe(200);
+
+      const v1 = await request(app).get(path(id)).set(bearer(a.readKey));
+      const internal = await request(app).get(`/accounts/${id}/holdings`).set(bearer(a.jwt));
+      expect(v1.status).toBe(200);
+      expect(v1.body).toEqual(internal.body);
+      expect(v1.body).toEqual(patched.body);
+    });
+
+    it("returns 404 for another user's account", async () => {
+      const id = await createCrypto(b);
+      expect((await request(app).get(path(id)).set(bearer(a.readKey))).status).toBe(404);
+      expect((await request(app).patch(path(id)).set(bearer(a.writeKey)).send(change)).status).toBe(404);
+    });
+  });
+
   describe("audit and rate limit", () => {
     it("emits one audit line per write (201, 403, 404) and none for GET", async () => {
       const { auditLog } = await import("../../../utils/auditLog.js");

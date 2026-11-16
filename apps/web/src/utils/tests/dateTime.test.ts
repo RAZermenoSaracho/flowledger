@@ -3,6 +3,7 @@ import {
   filterBoundInstant,
   formatFilterValue,
   formatTransactionDate,
+  formatValuationTime,
   localDayStartInstant,
   transactionDateInputValue,
   transactionDateNowInputValue,
@@ -38,6 +39,15 @@ function dateIn(zone: string, iso: string) {
 afterEach(() => {
   vi.useRealTimers();
   process.env.TZ = originalTz;
+});
+
+describe.each(ZONES)("formatValuationTime in %s", (zone) => {
+  it("uses the transaction date and time format in the device timezone", () => {
+    useZone(zone);
+    const iso = "2026-11-06T03:00:00.000Z";
+    expect(formatValuationTime(iso)).toBe(dateTimeIn(zone, iso));
+    expect(formatValuationTime(iso)).toBe(formatTransactionDate({ date: iso }));
+  });
 });
 
 describe.each(ZONES)("formatTransactionDate in %s", (zone) => {

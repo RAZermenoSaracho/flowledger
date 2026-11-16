@@ -125,7 +125,7 @@ For crypto and fiat, the code is the complete identity FlowLedger has today: no 
 
 A new pure util, `accounts/utils/holdingValuation.ts`, exposes `valueHoldings(holdings, accountCurrency, { quote, rate })`. It returns per-holding valuations and the aggregate. It takes no `now`, because time plays no part in valuation. The rules are applied in this order:
 
-1. `fiat`: price 1 in its own code, source `cash`, with no timestamp. Cash has no price to update. The UI shows no "Last updated" time for cash, and a cash holding is never missing.
+1. `fiat`: price 1 in its own code, source `cash`, with no timestamp. Cash has no price to update, so the UI shows no "Last updated" time for it. A cash holding can be missing only as `rate_unavailable`, when it is held in a currency other than the account's and that conversion fails.
 2. `manualUnitPrice`: source `manual`, with price currency `manualPriceCurrency` and `valuedAt = manualPricedAt`.
 3. `crypto`: `quote(code)` returns `{ price, currency, fetchedAt }`, giving source `market`, price currency = `quote.currency` and `valuedAt = fetchedAt`. In B-009 the service builds `quote` from `getCryptoUsdtPrice` and `getBinanceTickerFetchedAt` (D5), with currency `USDT`.
 4. Otherwise the holding is missing:

@@ -75,3 +75,27 @@ describe("AccountListItem", () => {
     expect(screen.queryByText("$450.00")).not.toBeInTheDocument();
   });
 });
+
+describe("AccountListItem holdings value", () => {
+  it("shows the holdings value, labeled Partial when partial", () => {
+    renderItem(
+      makeAccount({
+        holdingsValuation: {
+          currency: "USD",
+          value: "1600",
+          status: "partial",
+          missingCount: 1,
+          netDeposited: "1000"
+        }
+      })
+    );
+    expect(screen.getByText(/Holdings value/)).toHaveTextContent("Holdings value $1,600.00Partial");
+    expect(screen.getByText(/FlowLedger balance/)).toBeInTheDocument();
+  });
+
+  it("renders exactly as before without holdings", () => {
+    renderItem(makeAccount({ holdingsValuation: null }));
+    expect(screen.queryByText(/Holdings value/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Partial")).not.toBeInTheDocument();
+  });
+});

@@ -316,9 +316,27 @@ The route layer then adds `reportIncome`/`reportExpenses` per row, selected by `
 
 `GET /reports/financial-overview?timeZone=` (`reports/services/financialOverview.service.ts`), shown in the Profile General tab. Both metrics are in the user's `preferredCurrency` (USD fallback) and are computed independently: a failure in one returns `{ status: "error" }` for it while the other is still returned.
 
-- **Net worth (estimate)** = balances of non-archived accounts + outstanding amounts owed to me − outstanding amounts I owe. Only **accepted** shares count (`isCountedShare()`); proposed shares are reported as `awaitingAcceptance` (a count) and are never added. Items whose exchange rate is unavailable are left out and listed in `excluded`, with `partial: true`.
+- **Net worth (estimate)** = values of non-archived accounts + outstanding amounts owed to me − outstanding amounts I owe. An account's value is its holdings aggregate when it has holdings (see [Holdings and valuations](#holdings-and-valuations)), otherwise its transaction-derived balance — never both. A holding without a value is listed in `excluded` as `<account> · <code>` and makes the result partial; the account's known subtotal still counts. Only **accepted** shares count (`isCountedShare()`); proposed shares are reported as `awaitingAcceptance` (a count) and are never added. Items whose exchange rate is unavailable are left out and listed in `excluded`, with `partial: true`.
 - **Savings rate** = (net income − net expenses) / net income × 100 for the previous complete calendar month in `timeZone`, using the monthly-cashflow net figures. Statuses: `ok`, `no_data` (no income/expense rows that month), `unavailable_income` (net income ≤ 0) and `unavailable_rate` (a conversion failed).
-- `disclosures` explain the estimate: `archived_balance_excluded`, `rates_missing`, `past_month_current_rates` (past months converted at current rates), `cross_currency_effects`, `investment_recorded_balance` (investments use recorded, not market, value) and `synced_balances`.
+- `disclosures` explain the estimate: `archived_balance_excluded`, `rates_missing`, `past_month_current_rates` (past months converted at current rates), `cross_currency_effects`, `investment_recorded_balance` (`investment`/`crypto` accounts **without holdings** use recorded, not market, value), `synced_balances` and `crypto_usdt_as_usd` (a counted holding uses a Binance USDT quotation, converted as USDT = USD).
+
+---
+
+## Holdings and valuations
+
+`investment` and `crypto` accounts can hold positions (`Holding`: `kind` `fiat` | `crypto`, `code`, exact `quantity`). Uninvested cash is a `fiat` holding. Once an account has a holding, **its value is the sum of its holdings**; the transaction-derived balance is still computed and shown as **Net deposited**, but never added to the value or to net worth, so nothing can be counted twice. Accounts without holdings behave exactly as before.
+
+| Event | Recorded as | Net deposited | Value |
+|---|---|---|---|
+| Deposit / withdrawal | Transfer (existing) | ± amount | unchanged until the cash holding is edited |
+| Buy / sell | Edit holdings (cash −, asset +) | unchanged | ≈ unchanged |
+| External income into the account | Income | + amount | after editing the cash holding |
+
+Between a transfer and the matching holdings edit, net worth is temporarily lower (never double counted); the Holdings tab reminds the user to update the cash holding.
+
+**Valuation precedence** (`accounts/utils/holdingValuation.ts`, one function used by the holdings endpoint, `GET /accounts` and net worth): `fiat` at par → manual override (`manualUnitPrice`, in its own currency) → market quotation (Binance `{CODE}USDT` via the existing `getCryptoUsdtPrice`, quoted in `USDT`) → missing (`unsupported`, `price_unavailable`, `rate_unavailable`). Every value is converted into the account currency with the existing `getExchangeRate`. Missing values are `null`, never 0; the account aggregate is the known subtotal with `status: "partial"`. Holding values are summed exactly and rounded once to the account currency's minor units.
+
+**Freshness policy:** every known valuation carries `valuedAt`, the time of its last successful update (manual entry time, or the Binance price list's fetch time). Time never invalidates or flags a value: there are no stale thresholds, timers or badges. When a Binance refresh fails, the existing price cache keeps serving the last successfully fetched list with its original fetch time, for every crypto conversion; it throws only if nothing was ever fetched. The UI shows "Last updated: <date time>" unobtrusively (tooltip on hover, focus and tap; secondary label in stacked rows).
 
 ---
 
