@@ -50,7 +50,8 @@ describe("useAccountForm", () => {
       paymentDueRule: "",
       paymentDueValue: "",
       billingTimeZone: "",
-      annualInterestRate: ""
+      annualInterestRate: "",
+      holdings: []
     });
 
     act(() => result.current.setField("name", "Everyday"));
@@ -166,7 +167,8 @@ describe("useAccountForm", () => {
         paymentDueRule: "",
         paymentDueValue: "",
         billingTimeZone: "",
-        annualInterestRate: ""
+        annualInterestRate: "",
+        holdings: []
       });
       expect(result.current.isDirty).toBe(false);
     });

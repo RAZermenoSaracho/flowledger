@@ -4,6 +4,7 @@ import type {
 } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
+import { valueAccountHoldings } from "../../accounts/services/holdings.read.service.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
 import { valueInCurrency } from "../../currencies/utils/valuation.js";
 import { balanceDebt } from "../../debts/utils/debtCalculations.js";
@@ -82,7 +83,21 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   if (balances.some(({ account, balance }) => account.isArchived && !balance.isZero())) {
     disclosures.add("archived_balance_excluded");
   }
-  if (active.some(({ account }) => account.type === "investment")) {
+  const holdingsByAccount = await valueAccountHoldings(
+    userId,
+    active.map(({ account, balance }) => ({
+      id: account.id,
+      currency: account.currency,
+      currentBalance: balance
+    }))
+  );
+  if (
+    active.some(
+      ({ account }) =>
+        (account.type === "investment" || account.type === "crypto") &&
+        !holdingsByAccount.has(account.id)
+    )
+  ) {
     disclosures.add("investment_recorded_balance");
   }
   if (active.some(({ account }) => account.providerAccounts.length > 0)) {
@@ -90,12 +105,27 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   }
 
   const accountResults = await Promise.allSettled(
-    active.map(({ account, balance }) => convert(balance, account.currency, currency))
+    active.map(({ account, balance }) => {
+      const holdings = holdingsByAccount.get(account.id);
+      return convert(holdings ? new Prisma.Decimal(holdings.valuation.value) : balance, account.currency, currency);
+    })
   );
   let accountsTotal = new Prisma.Decimal(0);
   accountResults.forEach((result, index) => {
-    if (result.status === "fulfilled") accountsTotal = accountsTotal.plus(result.value);
-    else excluded.push(active[index]!.account.name);
+    const { account } = active[index]!;
+    if (result.status === "rejected") {
+      excluded.push(account.name);
+      return;
+    }
+    accountsTotal = accountsTotal.plus(result.value);
+    const holdings = holdingsByAccount.get(account.id);
+    if (!holdings) return;
+    if (holdings.holdings.some((holding) => holding.valuation.source === "market")) {
+      disclosures.add("crypto_usdt_as_usd");
+    }
+    for (const holding of holdings.holdings) {
+      if (holding.valuation.value === null) excluded.push(`${account.name} · ${holding.code}`);
+    }
   });
 
   const debts = participants

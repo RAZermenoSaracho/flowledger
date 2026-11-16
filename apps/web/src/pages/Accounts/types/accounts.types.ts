@@ -1,4 +1,9 @@
-import type { AccountType, PaymentDueRule } from "@flowledger/shared";
+import type {
+  AccountType,
+  HoldingKind,
+  HoldingValuation,
+  PaymentDueRule
+} from "@flowledger/shared";
 import type { ComponentType } from "react";
 import type { FormDraft } from "../../../types/common.types";
 
@@ -25,7 +30,7 @@ export type SyncfyWidgetResult =
   | { event: "success" | "updated" | "closed"; credential?: unknown }
   | { event: "error" | "socket-error" | "api-error"; credential?: unknown };
 
-/** Editable account fields as held by the account Form View draft; numeric inputs stay strings while typed and an empty string means "unset". The last six are credit-card-only. */
+/** Editable account fields as held by the account Form View draft; numeric inputs stay strings while typed and an empty string means "unset". The six credit-card fields are credit-card-only; `holdings` is empty for accounts without a Holdings tab. */
 export type AccountDraft = {
   name: string;
   type: AccountType;
@@ -38,6 +43,7 @@ export type AccountDraft = {
   paymentDueValue: string;
   billingTimeZone: string;
   annualInterestRate: string;
+  holdings: HoldingDraft[];
 };
 
 /** Props of a type-specific section rendered inside the account Form View. */
@@ -49,3 +55,16 @@ export type AccountTypeSectionProps = {
 export type AccountTypeSectionMap = Partial<
   Record<AccountType, ComponentType<AccountTypeSectionProps>>
 >;
+
+/** One holdings row inside the account draft. `id` is `null` until saved; `valuation` is the last saved API valuation (`null` for a new row). Numeric inputs stay strings; empty price means "no manual price"; `manualPricedAt` is a `datetime-local` value. */
+export type HoldingDraft = {
+  draftId: string;
+  id: string | null;
+  kind: HoldingKind;
+  code: string;
+  quantity: string;
+  manualUnitPrice: string;
+  manualPriceCurrency: string;
+  manualPricedAt: string;
+  valuation: HoldingValuation | null;
+};

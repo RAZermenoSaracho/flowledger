@@ -83,5 +83,18 @@ export const ACCOUNT_TYPES = [
   "savings",
   "credit_card",
   "investment",
+  "crypto",
   "other"
 ] as const;
+
+/** Holding instrument kinds: `fiat` is uninvested cash (an ISO 4217 code), `crypto` a crypto asset code. */
+export const HOLDING_KINDS = ["crypto", "fiat"] as const;
+
+/** Account types that may hold holdings; their value is the sum of their holdings once they have any. */
+export const HOLDING_ACCOUNT_TYPES = ["investment", "crypto"] as const;
+
+/** Where a holding's valuation came from: `cash` (fiat at par), `manual` (user override), or `market` (provider quotation). */
+export const HOLDING_VALUATION_SOURCES = ["cash", "manual", "market"] as const;
+
+/** Why a holding has no value: the provider doesn't quote the code, no price data is available, or the conversion into the account currency failed. */
+export const HOLDING_MISSING_REASONS = ["unsupported", "price_unavailable", "rate_unavailable"] as const;

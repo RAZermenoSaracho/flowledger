@@ -231,3 +231,116 @@ describe("GET /accounts/:id/credit-card", () => {
     expect((await auth(request(app).get(`/accounts/${card}/credit-card?page=0`))).status).toBe(400);
   });
 });
+
+describe("/accounts/:id/holdings", () => {
+  async function setupHoldings(type: "crypto" | "investment" | "checking" = "crypto") {
+    const { token } = await createAuthedUser(app);
+    const auth = (req: request.Test) => req.set("Authorization", `Bearer ${token}`);
+    const accountId = (await auth(request(app).post("/accounts")).send({ name: "Wallet", type, currency: "USD" })).body
+      .account.id as string;
+    return { auth, accountId };
+  }
+
+  const cash = { kind: "fiat", code: "USD", quantity: "250.50" };
+  const btc = {
+    kind: "crypto",
+    code: "BTC",
+    quantity: "0.010000000000000001",
+    manualUnitPrice: "60000",
+    manualPriceCurrency: "USD"
+  };
+
+  it("requires authentication", async () => {
+    expect((await request(app).get("/accounts/x/holdings")).status).toBe(401);
+    expect((await request(app).patch("/accounts/x/holdings").send({ remove: ["a"] })).status).toBe(401);
+  });
+
+  it("creates holdings and returns them with exact strings and the aggregate, matching GET and the account list", async () => {
+    const { auth, accountId } = await setupHoldings();
+    const patched = await auth(request(app).patch(`/accounts/${accountId}/holdings`)).send({ upsert: [cash, btc] });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.valuation).toMatchObject({ currency: "USD", value: "850.50", status: "complete", missingCount: 0 });
+    const hBtc = patched.body.holdings.find((h: { code: string }) => h.code === "BTC");
+    expect(hBtc).toMatchObject({ quantity: "0.010000000000000001", manualUnitPrice: "60000" });
+    expect(hBtc.valuation).toMatchObject({ source: "manual", priceCurrency: "USD" });
+
+    const got = await auth(request(app).get(`/accounts/${accountId}/holdings`));
+    expect(got.body).toEqual(patched.body);
+    const list = await auth(request(app).get("/accounts"));
+    expect(list.body.accounts[0].holdingsValuation).toEqual(patched.body.valuation);
+  });
+
+  it("updates one holding and removes another, leaving unmentioned holdings untouched", async () => {
+    const { auth, accountId } = await setupHoldings("investment");
+    const created = await auth(request(app).patch(`/accounts/${accountId}/holdings`)).send({ upsert: [cash, btc] });
+    const byCode = (code: string) => created.body.holdings.find((h: { code: string }) => h.code === code);
+
+    const next = await auth(request(app).patch(`/accounts/${accountId}/holdings`)).send({
+      upsert: [{ id: byCode("USD").id, quantity: "100" }],
+      remove: [byCode("BTC").id]
+    });
+    expect(next.status).toBe(200);
+    expect(next.body.holdings).toHaveLength(1);
+    expect(next.body.valuation.value).toBe("100.00");
+  });
+
+  it("returns 400 for an invalid body, an ineligible account type and a duplicate asset", async () => {
+    const { auth, accountId } = await setupHoldings();
+    const path = `/accounts/${accountId}/holdings`;
+    expect((await auth(request(app).patch(path)).send({ upsert: [{ kind: "fiat", code: "USD", quantity: "10.005" }] })).status).toBe(400);
+    expect((await auth(request(app).patch(path)).send({})).status).toBe(400);
+    expect((await auth(request(app).patch(path)).send({ upsert: [cash, cash] })).status).toBe(400);
+
+    const checking = await setupHoldings("checking");
+    expect(
+      (await checking.auth(request(app).patch(`/accounts/${checking.accountId}/holdings`)).send({ upsert: [cash] })).status
+    ).toBe(400);
+  });
+
+  it("returns 404 for another user's account and for a holding id from another account", async () => {
+    const owner = await setupHoldings();
+    const created = await owner.auth(request(app).patch(`/accounts/${owner.accountId}/holdings`)).send({ upsert: [cash] });
+    const holdingId = created.body.holdings[0].id as string;
+
+    const intruder = await setupHoldings();
+    expect((await intruder.auth(request(app).get(`/accounts/${owner.accountId}/holdings`))).status).toBe(404);
+    expect(
+      (await intruder.auth(request(app).patch(`/accounts/${owner.accountId}/holdings`)).send({ remove: [holdingId] })).status
+    ).toBe(404);
+    expect(
+      (await intruder.auth(request(app).patch(`/accounts/${intruder.accountId}/holdings`)).send({ remove: [holdingId] })).status
+    ).toBe(404);
+    expect((await owner.auth(request(app).get(`/accounts/${owner.accountId}/holdings`))).body.holdings).toHaveLength(1);
+  });
+
+  it("rolls back the whole change set when one item is invalid", async () => {
+    const { auth, accountId } = await setupHoldings();
+    const path = `/accounts/${accountId}/holdings`;
+    const created = await auth(request(app).patch(path)).send({ upsert: [cash] });
+    const cashId = created.body.holdings[0].id as string;
+
+    const failed = await auth(request(app).patch(path)).send({
+      upsert: [{ id: cashId, quantity: "1" }, { kind: "fiat", code: "USD", quantity: "5" }]
+    });
+    expect(failed.status).toBe(400);
+    expect((await auth(request(app).get(path))).body.holdings[0].quantity).toBe("250.5");
+  });
+
+  it("rejects a type change away from holdings while holdings exist", async () => {
+    const { auth, accountId } = await setupHoldings();
+    await auth(request(app).patch(`/accounts/${accountId}/holdings`)).send({ upsert: [cash] });
+    expect((await auth(request(app).put(`/accounts/${accountId}`)).send({ type: "savings" })).status).toBe(400);
+    expect((await auth(request(app).put(`/accounts/${accountId}`)).send({ type: "investment" })).status).toBe(200);
+  });
+
+  it("deletes holdings with their account", async () => {
+    const { auth, accountId } = await setupHoldings();
+    await auth(request(app).patch(`/accounts/${accountId}/holdings`)).send({ upsert: [cash] });
+    const { prisma } = await import("../../../db/prisma.js");
+    expect(await prisma.holding.count({ where: { accountId } })).toBe(1);
+
+    expect((await auth(request(app).delete(`/accounts/${accountId}`))).status).toBe(204);
+    expect(await prisma.holding.count({ where: { accountId } })).toBe(0);
+  });
+});

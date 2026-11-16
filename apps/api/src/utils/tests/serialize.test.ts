@@ -115,3 +115,20 @@ describe("publicUser", () => {
     });
   });
 });
+
+describe("serialize with holdings responses", () => {
+  it("keeps decimal-string quantities, prices and values exactly as the holdings services return them", () => {
+    const body = {
+      holdings: [
+        {
+          quantity: "1.234567890123456789",
+          manualUnitPrice: "0.000000000000000001",
+          valuation: { unitPrice: "60000", value: "850.00" }
+        }
+      ],
+      valuation: { value: "850.00", netDeposited: "1000" }
+    };
+    expect(serialize(body)).toEqual(body);
+  });
+});
+

@@ -4,6 +4,7 @@ import type { McpAuth } from "../../types/mcp.types.js";
 
 vi.mock("../../../accounts/services/create.service.js", () => ({ createAccount: vi.fn() }));
 vi.mock("../../../accounts/services/delete.service.js", () => ({ deleteAccount: vi.fn() }));
+vi.mock("../../../accounts/services/holdings.update.service.js", () => ({ applyHoldingChanges: vi.fn() }));
 vi.mock("../../../categories/services/delete.service.js", () => ({ deleteCategory: vi.fn() }));
 vi.mock("../../../accounts/services/update.service.js", () => ({
   updateAccount: vi.fn(),
@@ -23,6 +24,7 @@ const { createAccount } = await import("../../../accounts/services/create.servic
 const { updateAccount, archiveAccount, restoreAccount } = await import("../../../accounts/services/update.service.js");
 const { createCategory } = await import("../../../categories/services/create.service.js");
 const { updateCategory, archiveCategory, restoreCategory } = await import("../../../categories/services/update.service.js");
+const { applyHoldingChanges } = await import("../../../accounts/services/holdings.update.service.js");
 const { deleteAccount } = await import("../../../accounts/services/delete.service.js");
 const { deleteCategory } = await import("../../../categories/services/delete.service.js");
 const { deleteTransaction } = await import("../../../transactions/services/delete.service.js");
@@ -46,11 +48,12 @@ const run = (name: string, args: Record<string, unknown>) => write.get(name)!.ha
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerPersonalWriteTools", () => {
-  it("registers nine tools with the annotations from the spec", () => {
+  it("registers ten tools with the annotations from the spec", () => {
     expect([...write.keys()]).toEqual([
       "create_account",
       "update_account",
       "set_account_archived",
+      "update_holdings",
       "create_category",
       "update_category",
       "set_category_archived",
@@ -95,6 +98,39 @@ describe("registerPersonalWriteTools", () => {
 
     expect(used).toHaveBeenCalledWith("u1", "a1");
     expect(unused).not.toHaveBeenCalled();
+  });
+
+  it("update_holdings is destructive, applies a partial change set for the user and audits", async () => {
+    expect(write.get("update_holdings")!.config.annotations).toEqual({ destructiveHint: true, idempotentHint: false });
+    expect(write.get("update_holdings")!.config.description).toMatch(/not mentioned are untouched/);
+    expect(write.get("update_holdings")!.config.description).toMatch(/permanently delete/);
+    expect(write.get("update_holdings")!.config.description).toMatch(/decimal strings/);
+    vi.mocked(applyHoldingChanges).mockResolvedValue({ accountId: "a1", holdings: [] } as never);
+
+    const result = await run("update_holdings", {
+      id: "a1",
+      upsert: [{ kind: "fiat", code: "USD", quantity: "5" }]
+    });
+
+    expect(applyHoldingChanges).toHaveBeenCalledWith("u1", "a1", {
+      upsert: [{ kind: "fiat", code: "USD", quantity: "5" }],
+      remove: []
+    });
+    expect(result.structuredContent).toEqual({ accountId: "a1", holdings: [] });
+    expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ op: "mcp.update_holdings", resourceId: "a1", status: 200 }));
+  });
+
+  it("update_holdings rejects a JSON number quantity and an empty change set, changing nothing", async () => {
+    const number = await run("update_holdings", { id: "a1", upsert: [{ kind: "fiat", code: "USD", quantity: 5 }] });
+    const empty = await run("update_holdings", { id: "a1" });
+    expect(number.isError).toBe(true);
+    expect(empty.isError).toBe(true);
+    expect(applyHoldingChanges).not.toHaveBeenCalled();
+  });
+
+  it("update_holdings reports a foreign account as an error result", async () => {
+    vi.mocked(applyHoldingChanges).mockRejectedValue(new HttpError(404, "Account not found"));
+    expect((await run("update_holdings", { id: "other", remove: ["h1"] })).isError).toBe(true);
   });
 
   it("create_category rejects an invalid type, creates nothing and audits 400", async () => {
@@ -181,6 +217,7 @@ describe("registerPersonalWriteTools", () => {
     expect(deleteAccount).not.toHaveBeenCalled();
     expect(deleteCategory).not.toHaveBeenCalled();
     expect(createAccount).not.toHaveBeenCalled();
-    expect(auditLog).toHaveBeenCalledTimes(9);
+    expect(applyHoldingChanges).not.toHaveBeenCalled();
+    expect(auditLog).toHaveBeenCalledTimes(10);
   });
 });

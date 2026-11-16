@@ -13,7 +13,8 @@ const valid: AccountDraft = {
   paymentDueRule: "",
   paymentDueValue: "",
   billingTimeZone: "",
-  annualInterestRate: ""
+  annualInterestRate: "",
+  holdings: []
 };
 
 describe("validateAccountDraft", () => {

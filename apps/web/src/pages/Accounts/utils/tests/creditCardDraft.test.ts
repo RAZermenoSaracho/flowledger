@@ -14,7 +14,8 @@ const draft: AccountDraft = {
   paymentDueRule: "day_of_next_month",
   paymentDueValue: "10",
   billingTimeZone: "America/Mexico_City",
-  annualInterestRate: ""
+  annualInterestRate: "",
+  holdings: []
 };
 
 describe("credit card draft helpers", () => {

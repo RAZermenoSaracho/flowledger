@@ -42,6 +42,20 @@ export function AccountListItem({
           FlowLedger balance{" "}
           {formatMoney(account.currentBalance ?? 0, account.currency)}
         </p>
+        {account.holdingsValuation ? (
+          <p className="text-sm font-semibold">
+            Holdings value{" "}
+            {formatMoney(
+              account.holdingsValuation.value,
+              account.holdingsValuation.currency
+            )}
+            {account.holdingsValuation.status === "partial" ? (
+              <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">
+                Partial
+              </span>
+            ) : null}
+          </p>
+        ) : null}
         {preferredCurrency &&
         preferredCurrency !== account.currency &&
         account.currentBalanceInPreferredCurrency !== undefined ? (

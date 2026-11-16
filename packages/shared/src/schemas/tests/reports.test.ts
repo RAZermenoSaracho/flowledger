@@ -102,6 +102,16 @@ describe("financialOverviewResponseSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts the crypto_usdt_as_usd disclosure", () => {
+    const parsed = financialOverviewResponseSchema.safeParse({
+      currency: "USD",
+      netWorth,
+      savingsRate: { status: "no_data", month: "2026-10" },
+      disclosures: ["crypto_usdt_as_usd", "investment_recorded_balance"]
+    });
+    expect(parsed.success).toBe(true);
+  });
+
   it("accepts an errored metric and a status-only savings rate", () => {
     const parsed = financialOverviewResponseSchema.safeParse({
       currency: "USD",

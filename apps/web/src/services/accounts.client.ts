@@ -3,6 +3,8 @@ import type { SortDirection, WhereNode } from "../utils/searchDomain";
 import { apiRequest } from "./api.client";
 import type {
   Account,
+  AccountHoldings,
+  HoldingsChangeSet,
   Connector,
   Institution,
   ProviderImportedAccount,
@@ -165,4 +167,20 @@ export function confirmProviderAccounts(
     "/providers/accounts/confirm",
     { method: "POST", body: { accounts } }
   );
+}
+
+/** Fetches an account's holdings with their valuations and the aggregate. */
+export function getAccountHoldings(accountId: string) {
+  return apiRequest<AccountHoldings>(`/accounts/${accountId}/holdings`);
+}
+
+/** Applies one atomic holdings change set (upserts and removals by id); holdings not mentioned are untouched. */
+export function updateAccountHoldings(
+  accountId: string,
+  body: HoldingsChangeSet
+) {
+  return apiRequest<AccountHoldings>(`/accounts/${accountId}/holdings`, {
+    method: "PATCH",
+    body
+  });
 }
