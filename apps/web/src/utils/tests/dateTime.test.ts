@@ -3,6 +3,7 @@ import {
   filterBoundInstant,
   formatFilterValue,
   formatTransactionDate,
+  formatValuationTime,
   localDayStartInstant,
   transactionDateInputValue,
   transactionDateNowInputValue,
@@ -38,6 +39,19 @@ function dateIn(zone: string, iso: string) {
 afterEach(() => {
   vi.useRealTimers();
   process.env.TZ = originalTz;
+});
+
+describe.each(ZONES)("formatValuationTime in %s", (zone) => {
+  it("formats YYYY/MM/DD HH:mm (24-hour) in the device timezone", () => {
+    useZone(zone);
+    const iso = "2026-11-06T03:00:00.000Z";
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date(iso)).map((part) => [part.type, part.value])
+    );
+    expect(formatValuationTime(iso)).toBe(`${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`);
+  });
 });
 
 describe.each(ZONES)("formatTransactionDate in %s", (zone) => {

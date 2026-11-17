@@ -24,6 +24,7 @@ enum AccountType {
   savings
   credit_card
   investment
+  crypto
   other
 }
 
@@ -111,6 +112,7 @@ model User {
   updatedAt                    DateTime                      @updatedAt
   authAccounts                 UserAuthAccount[]
   accounts                     Account[]
+  holdings                     Holding[]
   categoryMemberships          CategoryUser[]
   transactions                 Transaction[]
   providerConnections          ProviderConnection[]
@@ -240,9 +242,40 @@ model Account {
   transactions                    Transaction[]     @relation("TransactionAccount")
   transferDestinationTransactions Transaction[]     @relation("TransactionTransferToAccount")
   providerAccounts                ProviderAccount[]
+  holdings                        Holding[]
 
   @@index([userId])
   @@index([userId, isArchived])
+}
+
+enum HoldingKind {
+  crypto
+  fiat
+  stock
+  etf
+  other
+}
+
+/// One position in an investment or crypto account. Other assets use a name; stock, ETF and other require manual pricing.
+model Holding {
+  id                  String      @id @default(cuid())
+  userId              String
+  accountId           String
+  kind                HoldingKind
+  code                String?
+  name                String?     @db.VarChar(80)
+  unit                String?     @db.VarChar(20)
+  quantity            Decimal     @db.Decimal(38, 18)
+  manualUnitPrice     Decimal?    @db.Decimal(38, 18)
+  manualPriceCurrency String?
+  manualPricedAt      DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account             Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, kind, code])
+  @@index([userId])
 }
 
 model Category {

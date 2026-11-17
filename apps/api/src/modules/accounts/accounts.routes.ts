@@ -2,6 +2,7 @@ import {
   accountsQueryParamSchema,
   accountSchema,
   confirmProviderAccountsSchema,
+  holdingsChangeSetSchema,
   createProviderConnectionSchema,
   institutionCatalogQuerySchema,
   providerConnectionParamsSchema,
@@ -15,6 +16,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getCreditCard } from "./controllers/creditCard.read.controller.js";
 import { postAccount } from "./controllers/create.controller.js";
 import { deleteAccountHandler } from "./controllers/delete.controller.js";
+import { getHoldings, patchHoldings } from "./controllers/holdings.controller.js";
 import { getAccounts } from "./controllers/read.controller.js";
 import {
   postArchiveAccount,
@@ -70,6 +72,14 @@ accountsRouter.get(
 );
 
 accountsRouter.get("/:id/credit-card", asyncHandler(getCreditCard));
+
+accountsRouter.get("/:id/holdings", asyncHandler(getHoldings));
+
+accountsRouter.patch(
+  "/:id/holdings",
+  validate(holdingsChangeSetSchema),
+  asyncHandler(patchHoldings)
+);
 
 accountsRouter.post("/", validate(accountSchema), asyncHandler(postAccount));
 

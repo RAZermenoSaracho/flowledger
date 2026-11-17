@@ -32,26 +32,48 @@ export function AccountListItem({
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {getAccountTypeLabel(account.type)} · {account.currency}
         </p>
-        <p
-          className={`text-sm font-semibold ${
-            !account.currentBalance?.startsWith("-")
-              ? "text-pine dark:text-emerald-300"
-              : "text-coral dark:text-orange-300"
-          }`}
-        >
-          FlowLedger balance{" "}
-          {formatMoney(account.currentBalance ?? 0, account.currency)}
-        </p>
-        {preferredCurrency &&
-        preferredCurrency !== account.currency &&
-        account.currentBalanceInPreferredCurrency !== undefined ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+        {account.holdingsValuation ? (
+          <p className="text-sm font-semibold">
+            Total value{" "}
             {formatMoney(
-              account.currentBalanceInPreferredCurrency,
-              preferredCurrency
+              account.holdingsValuation.value,
+              account.holdingsValuation.currency
             )}
+            {account.holdingsValuation.status === "partial" ? (
+              <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">
+                Partial
+              </span>
+            ) : null}
+            {account.holdingsValuation.status === "empty" ? (
+              <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                No holdings yet
+              </span>
+            ) : null}
           </p>
-        ) : null}
+        ) : (
+          <>
+            <p
+              className={`text-sm font-semibold ${
+                !account.currentBalance?.startsWith("-")
+                  ? "text-pine dark:text-emerald-300"
+                  : "text-coral dark:text-orange-300"
+              }`}
+            >
+              FlowLedger balance{" "}
+              {formatMoney(account.currentBalance ?? 0, account.currency)}
+            </p>
+            {preferredCurrency &&
+            preferredCurrency !== account.currency &&
+            account.currentBalanceInPreferredCurrency !== undefined ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {formatMoney(
+                  account.currentBalanceInPreferredCurrency,
+                  preferredCurrency
+                )}
+              </p>
+            ) : null}
+          </>
+        )}
         {account.identifier ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {account.identifier}

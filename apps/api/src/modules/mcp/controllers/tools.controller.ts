@@ -28,7 +28,7 @@ import { registerPersonalWriteTools } from "./tools.writes.controller.js";
 const READ_ONLY = { readOnlyHint: true } as const;
 
 /**
- * Registers the FlowLedger tools on `server`: twenty-four read tools always, and the thirty-five write tools only when
+ * Registers the FlowLedger tools on `server`: twenty-five read tools always, and the thirty-six write tools only when
  * `auth` holds the `write` scope (each write handler re-checks it). The acting user comes solely from `auth`.
  */
 export function registerTools(server: McpServer, auth: McpAuth) {
@@ -36,7 +36,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
 
   server.registerTool(
     "list_accounts",
-    { description: "List the user's accounts with balances. `initialBalance` and `currentBalance` are decimal strings.", annotations: READ_ONLY },
+    { description: "List the user's accounts with balances and informational transfer contributions for investment/crypto accounts (null for other types). `initialBalance` and `currentBalance` are decimal strings.", annotations: READ_ONLY },
     () => runRead(async () => ({ accounts: await listAccounts(userId, undefined) }))
   );
 

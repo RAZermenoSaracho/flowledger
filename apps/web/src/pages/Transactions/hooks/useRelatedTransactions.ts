@@ -12,8 +12,8 @@ const DEFAULT_SORT = [{ field: "date", direction: "desc" as const }];
 
 /**
  * Server-paginated transactions of one account or group. The scope condition is always AND-ed with the SearchBar's
- * `where`, so user filters can only narrow it; with a `scope.transfersInWith` condition in the domain, an account scope
- * also matches transfers into the account. The sort defaults to date desc. Previous window rows stay visible while
+ * `where`, so user filters can only narrow it; with `scope.includeTransfersIn`, or a `scope.transfersInWith` condition in
+ * the domain, an account scope also matches transfers into the account. The sort defaults to date desc. Previous window rows stay visible while
  * the next window loads.
  */
 export function useRelatedTransactions(scope: RelatedTransactionsScope) {
@@ -21,9 +21,10 @@ export function useRelatedTransactions(scope: RelatedTransactionsScope) {
   const { field, value, transfersInWith } = scope;
   const includeTransfersIn =
     field === "accountId" &&
-    !!transfersInWith &&
-    !!search.domain &&
-    hasConditionOn(search.domain, transfersInWith);
+    (!!scope.includeTransfersIn ||
+      (!!transfersInWith &&
+        !!search.domain &&
+        hasConditionOn(search.domain, transfersInWith)));
   const where = useMemo(() => {
     const scopeCondition: WhereNode = { field, op: "=", value };
     const base: WhereNode = includeTransfersIn

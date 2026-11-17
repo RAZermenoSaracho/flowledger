@@ -702,3 +702,74 @@ Still open:
 **Description:** Five near-identical "parse JSON, require an object, 400 otherwise" helpers exist.
 
 **Suggested fix:** Extract one shared helper in `apps/api/src/utils/` and use it everywhere, as a separate refactor.
+
+---
+
+## [OPEN] #054 — Holdings have no network or contract identity
+
+**Found in:** B-009 design (ST-015/ST-016).
+
+**Scope:** `Holding` (`kind` + `code`), market valuation through Binance `{CODE}USDT`.
+
+**Description:** A crypto holding is identified only by its code. A token that is not on Binance but reuses a Binance-listed symbol receives that symbol's market price. The visible "Market (Binance)" source and the manual override are the current mitigation.
+
+**Suggested fix:** Add contract/network identity with the instrument record in B-010, or when on-chain wallets need it in B-013.
+
+---
+
+## [OPEN] #055 — Last known crypto prices live only in process memory
+
+**Found in:** B-009 design (ST-016).
+
+**Scope:** `currencies/providers/binance/binance.client.ts`.
+
+**Description:** The Binance price list, including the last known list served during an outage, is kept in memory. If the process starts while Binance is unreachable, crypto holdings without a manual price are missing (never zero) and other crypto conversions fail as before, until Binance recovers.
+
+**Suggested fix:** Persist the last successful quotation only if this becomes a real problem; the API contract (`valuedAt`) already supports it.
+
+---
+
+## [OPEN] #056 — Buying or selling inside an investment account is a manual holdings edit
+
+**Found in:** B-009 design (ST-015).
+
+**Scope:** Holdings vs. transaction ledger.
+
+**Description:** There is no buy/sell transaction. Trades are recorded by editing holdings, and deposits/withdrawals affect only the ledger until the user edits the holdings, so net worth dips temporarily after a transfer into a holdings account. Cost basis and returns are therefore not available.
+
+**Suggested fix:** A future investment-transactions intent (buy/sell with cost basis) if returns tracking is approved.
+
+---
+
+## [OPEN] #057 — Crypto valuations treat USDT as USD
+
+**Found in:** B-009 design (ST-016).
+
+**Scope:** `getCryptoUsdtPrice` and every crypto conversion through `getExchangeRate`.
+
+**Description:** Binance quotes crypto in USDT, and the existing conversion layer treats 1 USDT as 1 USD. A USDT depeg would distort crypto values. It is disclosed (`crypto_usdt_as_usd`, "Market (Binance, USDT = USD)").
+
+**Suggested fix:** A USD-quoted crypto source if accuracy requirements tighten.
+
+
+---
+
+## [OPEN] #058 — Stock and ETF holdings require manual pricing
+
+**Scope:** Holding valuation.
+
+**Description:** Stock and ETF holdings have manual pricing only; no market provider exists yet. Users must update their unit price and currency themselves. Other assets also require manual pricing.
+
+**Suggested fix:** Add a stock/ETF market provider in a future feature if automatic pricing is approved.
+
+---
+
+## [OPEN] #059 — Account type change and holdings edits are not serialized
+
+**Found in:** B-009 revision review.
+
+**Scope:** `accounts/services/update.service.ts` (type-change guards) and `accounts/services/holdings.update.service.ts`.
+
+**Description:** The guard that blocks changing an account to `crypto` while it holds non-crypto holdings counts holdings before updating the account, outside a transaction with any concurrent holdings change set. A cash holding created at the same instant could therefore end up in a crypto account. Such a holding is still kept, valued and removable (the incompatible-holding rules), so no data is lost or miscounted.
+
+**Suggested fix:** Run the guard and the account update in one transaction that locks the account row, and have `applyHoldingChanges` lock the same row.

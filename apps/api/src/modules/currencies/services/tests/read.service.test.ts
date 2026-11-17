@@ -111,4 +111,22 @@ describe("getExchangeRate", () => {
       "Exchange rate is unavailable for UNKNOWN"
     );
   });
+
+  it("keeps converting crypto at the last known price while Binance is down (the price lookup serves it)", async () => {
+    isCryptoCurrencyCodeMock.mockImplementation(async (code) => code === "BTC");
+    isFiatCurrencyCodeMock.mockResolvedValue(true);
+    getCryptoUsdtPriceMock.mockResolvedValue(59000);
+    getFiatExchangeRateMock.mockResolvedValue(17);
+
+    expect(await getExchangeRate("BTC", "USD")).toBe(59000);
+    expect(await getExchangeRate("BTC", "MXN")).toBe(59000 / 17);
+  });
+
+  it("still fails a fiat pair when Frankfurter is down (fiat behavior unchanged)", async () => {
+    isFiatCurrencyCodeMock.mockResolvedValue(true);
+    getFiatExchangeRateMock.mockRejectedValue(new Error("Frankfurter down"));
+
+    await expect(getExchangeRate("USD", "MXN")).rejects.toThrow("Frankfurter down");
+    expect(getCryptoUsdtPriceMock).not.toHaveBeenCalled();
+  });
 });

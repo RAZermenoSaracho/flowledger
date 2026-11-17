@@ -13,7 +13,8 @@ const valid: AccountDraft = {
   paymentDueRule: "",
   paymentDueValue: "",
   billingTimeZone: "",
-  annualInterestRate: ""
+  annualInterestRate: "",
+  holdings: []
 };
 
 describe("validateAccountDraft", () => {
@@ -38,5 +39,11 @@ describe("validateAccountDraft", () => {
   it("rejects more decimals than the currency allows instead of rounding", () => {
     expect(validateAccountDraft({ ...valid, initialBalance: "10.005" }).initialBalance).toMatch(/at most 2/);
     expect(validateAccountDraft({ ...valid, currency: "BTC", initialBalance: "0.000000000000000001" })).toEqual({});
+  });
+
+  it("ignores an invalid initial balance hidden for an investment account", () => {
+    expect(
+      validateAccountDraft({ ...valid, type: "investment", initialBalance: "abc" })
+    ).toEqual({});
   });
 });

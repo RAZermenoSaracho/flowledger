@@ -1,5 +1,8 @@
 import type {
   ACCOUNT_TYPES,
+  HOLDING_KINDS,
+  HOLDING_MISSING_REASONS,
+  HOLDING_VALUATION_SOURCES,
   CATEGORY_TYPES,
   CREDIT_CARD_KINDS,
   PAYMENT_DUE_RULES,
@@ -17,6 +20,9 @@ export type PaymentDueRule = (typeof PAYMENT_DUE_RULES)[number];
 export type CreditCardKind = (typeof CREDIT_CARD_KINDS)[number];
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
+export type HoldingKind = (typeof HOLDING_KINDS)[number];
+export type HoldingValuationSource = (typeof HOLDING_VALUATION_SOURCES)[number];
+export type HoldingMissingReason = (typeof HOLDING_MISSING_REASONS)[number];
 export type SharedExpenseStatus = (typeof SHARED_EXPENSE_STATUSES)[number];
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
@@ -200,4 +206,73 @@ export interface PossibleDuplicate {
   name: string;
   date: string;
   amount: string;
+}
+
+/**
+ * A holding's resolved valuation. Known valuations have a decimal-string `value` in the account currency and a null
+ * `missingReason`; missing ones have `value: null` and a reason, never `"0"`. `unitPrice`/`priceCurrency` keep the
+ * original quotation or manual entry currency. `valuedAt` is the last successful update (null for `cash` and missing).
+ */
+export interface HoldingValuation {
+  source: HoldingValuationSource | null;
+  unitPrice: string | null;
+  priceCurrency: string | null;
+  valuedAt: string | null;
+  value: string | null;
+  missingReason: HoldingMissingReason | null;
+}
+
+/**
+ * A stored holding with its valuation. `quantity` and `manualUnitPrice` are exact decimal strings. `code` is null only for
+ * `other` holdings, which are identified by `name`; `unit` is an optional descriptive unit of an `other` quantity (e.g. "m²").
+ */
+export interface Holding {
+  id: string;
+  accountId: string;
+  kind: HoldingKind;
+  code: string | null;
+  name: string | null;
+  unit: string | null;
+  quantity: string;
+  manualUnitPrice: string | null;
+  manualPriceCurrency: string | null;
+  manualPricedAt: string | null;
+  valuation: HoldingValuation;
+}
+
+/**
+ * Value of an investment or crypto account, in the account currency: the sum of its holdings and the account's only value
+ * (the transaction-derived balance never counts). `value` is the known subtotal (missing holdings excluded, rounded once);
+ * `status` is `partial` when any holding is missing and `empty` (value zero) when the account has no holdings.
+ */
+export interface HoldingsValuation {
+  currency: string;
+  value: string;
+  status: "complete" | "partial" | "empty";
+  missingCount: number;
+  holdingCount: number;
+}
+
+/**
+ * Money transferred into and out of an investment or crypto account, in the account currency, from its transfer
+ * transactions only (income, expenses and the initial balance are excluded, as are transfers from the account to itself).
+ * `incoming` sums the recorded `destinationAmount` of transfers into the account and `outgoing` the recorded `accountAmount`
+ * of transfers out, at the amounts stored when each transfer was made (no revaluation at current rates). `net` is
+ * `incoming − outgoing`. `excludedCount` counts transfers with no recorded amount for this account, which are left out.
+ * Informational only: never part of the account's value or net worth.
+ */
+export interface AccountContributions {
+  currency: string;
+  incoming: string;
+  outgoing: string;
+  net: string;
+  transferCount: number;
+  excludedCount: number;
+}
+
+/** Response of `GET`/`PATCH /accounts/:id/holdings`. */
+export interface AccountHoldings {
+  accountId: string;
+  holdings: Holding[];
+  valuation: HoldingsValuation;
 }

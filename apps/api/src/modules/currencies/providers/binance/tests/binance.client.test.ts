@@ -56,16 +56,53 @@ describe("fetchBinanceTickerPrices", () => {
     expect(prices.has("BROKEN")).toBe(false);
   });
 
-  it("throws when the response is not ok", async () => {
+  it("returns the last known list with its original fetch time when a refresh fails, retries once per TTL, and replaces it on recovery", async () => {
+    vi.resetModules();
+    const { fetchBinanceTickerPrices, getBinanceTickerFetchedAt } = await import("../binance.client.js");
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ symbol: "BTCUSDT", price: "60000" }]
+    }) as never;
+    const first = await fetchBinanceTickerPrices();
+    const fetchedAt = getBinanceTickerFetchedAt();
+    expect(fetchedAt?.getTime()).toBe(simulatedNow);
+
+    vi.setSystemTime(simulatedNow + 3 * 60 * 60 * 1000);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => [] }) as never;
+    expect(await fetchBinanceTickerPrices()).toBe(first);
+    expect(getBinanceTickerFetchedAt()?.getTime()).toBe(simulatedNow);
+
+    global.fetch = vi.fn().mockRejectedValue(new Error("network down")) as never;
+    expect(await fetchBinanceTickerPrices()).toBe(first);
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    vi.setSystemTime(simulatedNow + 3 * 60 * 60 * 1000 + TTL_MS);
+    expect(await fetchBinanceTickerPrices()).toBe(first);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(getBinanceTickerFetchedAt()?.getTime()).toBe(simulatedNow);
+
+    vi.setSystemTime(simulatedNow + 3 * 60 * 60 * 1000 + 2 * TTL_MS);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ symbol: "BTCUSDT", price: "61000" }]
+    }) as never;
+    expect((await fetchBinanceTickerPrices()).get("BTCUSDT")).toBe(61000);
+    expect(getBinanceTickerFetchedAt()?.getTime()).toBe(simulatedNow + 3 * 60 * 60 * 1000 + 2 * TTL_MS);
+  });
+
+  it("throws when the response is not ok and nothing was ever fetched", async () => {
+    vi.resetModules();
+    const fresh = await import("../binance.client.js");
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
       json: async () => []
     }) as never;
 
-    await expect(fetchBinanceTickerPrices()).rejects.toThrow(
-      "Binance responded with 503"
-    );
+    expect(fresh.getBinanceTickerFetchedAt()).toBeNull();
+    await expect(fresh.fetchBinanceTickerPrices()).rejects.toThrow("Binance responded with 503");
   });
 
   it("serves cached prices on a second call within the TTL, without calling fetch again", async () => {

@@ -69,4 +69,20 @@ describe("FinancialOverviewSection", () => {
     renderWithProviders(<FinancialOverviewSection />);
     expect(await screen.findByText("Financial overview could not be loaded.")).toBeInTheDocument();
   });
+
+  it("explains the crypto price and holdings-less investment disclosures", async () => {
+    respond({
+      currency: "USD",
+      netWorth,
+      savingsRate: { status: "no_data", month: "2026-10" },
+      disclosures: ["crypto_usdt_as_usd", "investment_without_holdings"]
+    });
+    renderWithProviders(<FinancialOverviewSection />);
+    expect(
+      await screen.findByText("Crypto prices are Binance USDT quotes, converted as USDT = USD.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Investment and crypto accounts without holdings count as zero until you add holdings.")
+    ).toBeInTheDocument();
+  });
 });

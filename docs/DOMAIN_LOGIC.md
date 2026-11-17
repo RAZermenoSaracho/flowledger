@@ -316,9 +316,25 @@ The route layer then adds `reportIncome`/`reportExpenses` per row, selected by `
 
 `GET /reports/financial-overview?timeZone=` (`reports/services/financialOverview.service.ts`), shown in the Profile General tab. Both metrics are in the user's `preferredCurrency` (USD fallback) and are computed independently: a failure in one returns `{ status: "error" }` for it while the other is still returned.
 
-- **Net worth (estimate)** = balances of non-archived accounts + outstanding amounts owed to me − outstanding amounts I owe. Only **accepted** shares count (`isCountedShare()`); proposed shares are reported as `awaitingAcceptance` (a count) and are never added. Items whose exchange rate is unavailable are left out and listed in `excluded`, with `partial: true`.
+- **Net worth (estimate)** = values of non-archived accounts + outstanding amounts owed to me − outstanding amounts I owe. Investment and crypto accounts always use their holdings aggregate, including zero when empty (see [Holdings and valuations](#holdings-and-valuations)); other accounts use their transaction-derived balance. A holding without a value is listed in `excluded` as `<account> · <code or name>` and makes the result partial; the account's known subtotal still counts. Only **accepted** shares count (`isCountedShare()`); proposed shares are reported as `awaitingAcceptance` (a count) and are never added. Items whose exchange rate is unavailable are left out and listed in `excluded`, with `partial: true`.
 - **Savings rate** = (net income − net expenses) / net income × 100 for the previous complete calendar month in `timeZone`, using the monthly-cashflow net figures. Statuses: `ok`, `no_data` (no income/expense rows that month), `unavailable_income` (net income ≤ 0) and `unavailable_rate` (a conversion failed).
-- `disclosures` explain the estimate: `archived_balance_excluded`, `rates_missing`, `past_month_current_rates` (past months converted at current rates), `cross_currency_effects`, `investment_recorded_balance` (investments use recorded, not market, value) and `synced_balances`.
+- `disclosures` explain the estimate: `archived_balance_excluded`, `rates_missing`, `past_month_current_rates` (past months converted at current rates), `cross_currency_effects`, `investment_without_holdings` (`investment`/`crypto` accounts without holdings count as zero), `synced_balances` and `crypto_usdt_as_usd` (a counted holding uses a Binance USDT quotation, converted as USDT = USD).
+
+---
+
+## Holdings and valuations
+
+`investment` and `crypto` accounts can hold positions (`Holding`: `kind` `fiat` | `crypto` | `stock` | `etf` | `other`, nullable `code`, optional `name`/`unit`, exact `quantity`). Uninvested cash is a `fiat` holding. **Their value always equals the sum of known holding values**. An empty account has value zero, `status: "empty"` and `holdingCount: 0`. Transaction-derived balances retain their API compatibility meaning but never contribute to these account types' presented value or net worth. Bank, cash and credit-card valuation is unchanged.
+
+Investment accounts accept all five holding kinds. Crypto accounts accept only crypto; incompatible stored holdings remain visible, valued and counted, but updates are rejected and removal is allowed. Investment → crypto is rejected while any non-crypto holding exists; crypto → investment is allowed. Changing to a non-holding type requires removing all holdings.
+
+Transfers and income preserve the ledger; they do not edit holdings. Purchases and sales are manual holdings edits, including any cash position. Between a transfer and a corresponding holdings edit, net worth can temporarily decrease.
+
+**Valuation precedence** (`accounts/utils/holdingValuation.ts`, one function used by the holdings endpoint, `GET /accounts` and net worth): `fiat` at par → manual override (`manualUnitPrice`, in its own currency) → market quotation (Binance `{CODE}USDT` via the existing `getCryptoUsdtPrice`, quoted in `USDT`) → missing (`unsupported`, `price_unavailable`, `rate_unavailable`). Every value is converted into the account currency with the existing `getExchangeRate`. Missing values are `null`, never 0; the account aggregate is the known subtotal with `status: "partial"`. Holding values are summed exactly and rounded once to the account currency's minor units.
+
+Stock, ETF and other assets use manual pricing only; no Binance lookup is attempted, and an absent manual price yields `unsupported`. Their manual price cannot be cleared. Only `other` accepts a unit and requires a non-null name; it has no code. Crypto manual pricing can be cleared to resume Binance pricing. Fiat is always at par.
+
+**Freshness policy:** cash and the identity USDT market quote carry `valuedAt: null`; other known valuations carry `valuedAt`, the time of its last successful update (manual entry time, or the Binance price list's fetch time). Time never invalidates or flags a value: there are no stale thresholds, timers or badges. When a Binance refresh fails, the existing price cache keeps serving the last successfully fetched list with its original fetch time, for every crypto conversion; it throws only if nothing was ever fetched. The UI shows "Last updated: <date time>" unobtrusively (tooltip on hover, focus and tap; secondary label in stacked rows).
 
 ---
 
@@ -346,3 +362,9 @@ Navigation targets for notifications are computed in `apps/web/src/layout/utils/
 ### Credit card reminders
 
 `notifications/services/creditCardReminders.service.ts` runs in the notification worker's maintenance (every minute) over every active, fully configured card, reusing `loadCardEntries` and `buildCardBilling`. For the latest closed period it creates `credit_card_period_closed` (closing debt > 0), `credit_card_payment_due_soon` (due in 0-3 days, remaining > 0), `credit_card_period_partially_paid` (credits > 0, remaining > 0) and `credit_card_period_paid` (closing debt > 0, remaining 0). For the most recent period whose due day has ended it creates `credit_card_payment_overdue` when remaining and the current card debt are both > 0. Each carries the dedupe key `cc:<type>:<accountId>:<closingDate>` (no amounts), unique per user in the database, so reruns, concurrent workers and later history edits never resend an event. Only the card owner is notified; archived cards are skipped.
+
+### Account net contributions
+
+Account lists expose informational `contributions` for investment and crypto accounts, and `null` for other types. Only transfers count: incoming transfers use the recorded `destinationAmount`; outgoing transfers use the recorded `accountAmount`, including its fee effect. Self-transfers, income, expenses and initial balances never count. A deleted counterpart account does not disqualify a transfer. A missing relevant amount is excluded without estimation and increments `excludedCount`; `transferCount` counts included transfers.
+
+`incoming`, `outgoing` and `net` (incoming minus outgoing) use exact decimal arithmetic and are each rounded once to the account currency's minor units. These are historical native amounts recorded when each transfer was saved; current exchange rates never revalue them. Contributions are computed from current transaction rows, so edits replace amounts, deletions remove contributions and reverse transfers reduce net. Contributions never enter holdings valuation, totals or net worth.

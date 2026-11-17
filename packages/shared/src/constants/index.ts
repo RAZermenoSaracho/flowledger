@@ -83,5 +83,30 @@ export const ACCOUNT_TYPES = [
   "savings",
   "credit_card",
   "investment",
+  "crypto",
   "other"
 ] as const;
+
+/**
+ * Holding instrument kinds: `crypto` (a crypto asset or stablecoin code), `fiat` (uninvested cash, an ISO 4217 code),
+ * `stock` and `etf` (a ticker), and `other` (a named non-exchange-traded asset with no code, such as land or a vehicle).
+ */
+export const HOLDING_KINDS = ["crypto", "fiat", "stock", "etf", "other"] as const;
+
+/** Account types that hold holdings; their value is always the sum of their holdings, zero when they have none. */
+export const HOLDING_ACCOUNT_TYPES = ["investment", "crypto"] as const;
+
+/** The holding kinds each holding account type may contain: crypto accounts hold crypto only. */
+export const HOLDING_KINDS_BY_ACCOUNT_TYPE = {
+  crypto: ["crypto"],
+  investment: HOLDING_KINDS
+} as const satisfies Record<(typeof HOLDING_ACCOUNT_TYPES)[number], readonly (typeof HOLDING_KINDS)[number][]>;
+
+/** Holding kinds that have no automatic price source and therefore always carry a manual unit price. */
+export const MANUALLY_PRICED_HOLDING_KINDS = ["stock", "etf", "other"] as const;
+
+/** Where a holding's valuation came from: `cash` (fiat at par), `manual` (user override), or `market` (provider quotation). */
+export const HOLDING_VALUATION_SOURCES = ["cash", "manual", "market"] as const;
+
+/** Why a holding has no value: the provider doesn't quote the code, no price data is available, or the conversion into the account currency failed. */
+export const HOLDING_MISSING_REASONS = ["unsupported", "price_unavailable", "rate_unavailable"] as const;

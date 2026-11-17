@@ -168,3 +168,42 @@ describe("updateAccount credit-card rules", () => {
     ).rejects.toMatchObject({ statusCode: 400 });
   });
 });
+
+describe("updateAccount type-change guard", () => {
+  it("rejects moving an account with holdings to a type that cannot hold them, naming type", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.count.mockResolvedValue(2);
+
+    await expect(updateAccount("user-1", "acc-1", { type: "savings" })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining("Remove the account's holdings"),
+      details: { issues: { fieldErrors: { type: [expect.any(String)] } } }
+    });
+    expect(prismaMock.holding.count).toHaveBeenCalledWith({ where: { accountId: "acc-1", userId: "user-1" } });
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+  });
+
+  it("allows the change without holdings, and between eligible types with holdings", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+    prismaMock.holding.count.mockResolvedValue(0);
+    await updateAccount("user-1", "acc-1", { type: "savings" });
+
+    prismaMock.holding.count.mockResolvedValue(0);
+    await updateAccount("user-1", "acc-1", { type: "crypto" });
+    expect(prismaMock.account.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+ describe("holding account type transitions", () => {
+  it("rejects investment to crypto with cash, and allows crypto to investment", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.count.mockResolvedValue(1);
+    await expect(updateAccount("user-1", "acc-1", { type: "crypto" })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.holding.count).toHaveBeenCalledWith({ where: { accountId: "acc-1", userId: "user-1", kind: { not: "crypto" } } });
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "crypto" } as never);
+    await updateAccount("user-1", "acc-1", { type: "investment" });
+    expect(prismaMock.account.update).toHaveBeenCalledTimes(1);
+  });
+});

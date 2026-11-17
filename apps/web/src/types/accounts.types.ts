@@ -1,5 +1,9 @@
 import type {
+  AccountContributions,
+  AccountHoldings,
   AccountType,
+  HoldingKind,
+  HoldingsValuation,
   PaymentDueRule,
   ProviderConnector,
   ProviderInstitution
@@ -21,6 +25,10 @@ export type Account = {
   annualInterestRate?: string | null;
   currentBalance?: string;
   currentBalanceInPreferredCurrency?: number;
+  /** Aggregate holdings value (account currency, exact string); `null` or absent for account types without holdings; `empty` status when it has none. */
+  holdingsValuation?: HoldingsValuation | null;
+  /** Net transfers in and out for investment and crypto accounts (account currency, exact strings); `null` or absent for other types. Not a balance, profit or return. */
+  contributions?: AccountContributions | null;
   source?: "manual" | "synced";
   sync?: AccountSync[];
   isArchived: boolean;
@@ -90,3 +98,21 @@ export type ProviderImportedAccount = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type { AccountHoldings };
+
+/** One item of a holdings change set as sent on the wire (decimal strings, ISO date); without `id` it creates a holding. */
+export type HoldingUpsert = {
+  id?: string;
+  kind?: HoldingKind;
+  code?: string;
+  name?: string;
+  unit?: string;
+  quantity?: string;
+  manualUnitPrice?: string | null;
+  manualPriceCurrency?: string;
+  manualPricedAt?: string;
+};
+
+/** Body of `PATCH /accounts/:id/holdings`. */
+export type HoldingsChangeSet = { upsert: HoldingUpsert[]; remove: string[] };

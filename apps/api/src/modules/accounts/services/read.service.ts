@@ -6,8 +6,9 @@ import type { RawWhereNode } from "../../../db/sieve.types.js";
 import { parseQueryParam } from "../../../utils/parseQueryParam.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
 import { valueInCurrency } from "../../currencies/utils/valuation.js";
-import { withAccountBalances } from "../../transactions/utils/transactionCalculations.js";
+import { calculateAccountContributions, withAccountBalances } from "../../transactions/utils/transactionCalculations.js";
 import { accountListItemWithSyncSummary } from "../utils/accountSyncSummary.js";
+import { valueHoldingsForAccounts } from "./holdings.read.service.js";
 import type { AccountListRecord, AccountsQueryInput } from "../types/accounts.types.js";
 
 const accountsSieve = createSieve(prisma.account);
@@ -123,7 +124,7 @@ function expandVirtualConditions(
   return node as WhereInput<AccountListRecord>;
 }
 
-/** Lists a user's accounts per a DSQL query, enriched with computed balances (in both native and preferred currency) and provider sync summaries. */
+/** Lists a user's accounts per a DSQL query, enriched with computed balances (in both native and preferred currency), provider sync summaries, native transfer `contributions` (null for non-holding types), and `holdingsValuation` (the holdings aggregate, `empty` for holding accounts without positions, `null` for other account types). */
 export async function listAccounts(userId: string, rawQuery: string | undefined) {
   const input = parseQueryParam<AccountsQueryInput>(rawQuery, "accounts");
   const expandedWhere = expandVirtualConditions(input.where);
@@ -163,5 +164,13 @@ export async function listAccounts(userId: string, rawQuery: string | undefined)
     user.preferredCurrency
   );
 
-  return accountsWithBalances.map(accountListItemWithSyncSummary);
+  const holdingsValuations = await valueHoldingsForAccounts(userId, accountsWithBalances);
+
+  return accountsWithBalances.map((account) => ({
+    ...accountListItemWithSyncSummary(account),
+    holdingsValuation: holdingsValuations.get(account.id) ?? null,
+    contributions: account.type === "investment" || account.type === "crypto"
+      ? calculateAccountContributions(account.id, account.currency, transactions)
+      : null
+  }));
 }

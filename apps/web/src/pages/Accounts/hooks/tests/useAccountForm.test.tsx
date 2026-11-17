@@ -50,7 +50,8 @@ describe("useAccountForm", () => {
       paymentDueRule: "",
       paymentDueValue: "",
       billingTimeZone: "",
-      annualInterestRate: ""
+      annualInterestRate: "",
+      holdings: []
     });
 
     act(() => result.current.setField("name", "Everyday"));
@@ -142,6 +143,26 @@ describe("useAccountForm", () => {
     expect(body).toEqual({ name: "Card" });
   });
 
+  it("never sends initialBalance for an investment account, even when the field is dirty", async () => {
+    let body: unknown;
+    server.use(
+      http.put(`${API_URL}/accounts/acc-1`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ account });
+      })
+    );
+    const investment: Account = { ...account, type: "investment", initialBalance: "999" };
+    const { result } = renderHook(() => useAccountForm(investment), { wrapper });
+
+    act(() => {
+      result.current.setField("name", "Brokerage");
+      result.current.setField("initialBalance", "1");
+    });
+    await act(() => result.current.save());
+
+    expect(body).toEqual({ name: "Brokerage" });
+  });
+
   describe("new account", () => {
     const created = { ...account, id: "acc-new", name: "Wallet" };
 
@@ -166,7 +187,8 @@ describe("useAccountForm", () => {
         paymentDueRule: "",
         paymentDueValue: "",
         billingTimeZone: "",
-        annualInterestRate: ""
+        annualInterestRate: "",
+        holdings: []
       });
       expect(result.current.isDirty).toBe(false);
     });
@@ -197,6 +219,26 @@ describe("useAccountForm", () => {
         }
       ]);
       expect(onCreated).toHaveBeenCalledWith(created);
+    });
+
+    it("posts initialBalance 0 for a crypto account whatever the hidden field holds", async () => {
+      const bodies: Record<string, unknown>[] = [];
+      server.use(
+        http.post(`${API_URL}/accounts`, async ({ request }) => {
+          bodies.push((await request.json()) as Record<string, unknown>);
+          return HttpResponse.json({ account: created }, { status: 201 });
+        })
+      );
+      const { result } = renderNew();
+
+      act(() => {
+        result.current.setField("name", "Wallet");
+        result.current.setField("type", "crypto");
+        result.current.setField("initialBalance", "250");
+      });
+      await act(() => result.current.save());
+
+      expect(bodies[0]).toMatchObject({ type: "crypto", initialBalance: "0" });
     });
 
     it("posts the card settings for a credit card", async () => {

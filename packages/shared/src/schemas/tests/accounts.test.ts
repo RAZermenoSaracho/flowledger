@@ -5,6 +5,8 @@ import {
   creditCardBillingQuerySchema,
   accountBaseSchema,
   accountsQueryParamSchema,
+  holdingsChangeSetSchema,
+  holdingUpsertSchema,
   refineCreditCardAccount,
   updateAccountSchema
 } from "../accounts.js";
@@ -208,5 +210,99 @@ describe("creditCardBillingQuerySchema", () => {
     expect(creditCardBillingQuerySchema.safeParse({ page: "0" }).success).toBe(
       false
     );
+  });
+});
+
+describe("holdingUpsertSchema", () => {
+  const create = { kind: "crypto", code: "btc", quantity: "0.5" };
+
+  it("accepts a valid create (upper-casing the code) and a valid update", () => {
+    const created = holdingUpsertSchema.safeParse(create);
+    expect(created.success && created.data.code).toBe("BTC");
+    expect(holdingUpsertSchema.safeParse({ id: "h1", quantity: "2" }).success).toBe(true);
+    expect(
+      holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: "55000", manualPriceCurrency: "USD" }).success
+    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success).toBe(true);
+  });
+
+  it("requires kind, code and quantity on a create", () => {
+    expect(holdingUpsertSchema.safeParse({ code: "BTC", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "BTC" }).success).toBe(false);
+  });
+
+  it("rejects kind or code on an update", () => {
+    expect(holdingUpsertSchema.safeParse({ id: "h1", kind: "crypto" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", code: "ETH" }).success).toBe(false);
+  });
+
+  it("requires an ISO 4217 code for fiat", () => {
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "5" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "BTC", quantity: "5" }).success).toBe(false);
+  });
+
+  it("limits fiat to the currency's minor units and crypto to 18 decimals", () => {
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "10.005" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "10.01" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "JPY", quantity: "10.5" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...create, quantity: "1.123456789012345678" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...create, quantity: "1.1234567890123456789" }).success).toBe(false);
+  });
+
+  it("rejects zero, negative and numeric quantities", () => {
+    for (const quantity of ["0", "-1", 1]) {
+      expect(holdingUpsertSchema.safeParse({ ...create, quantity }).success).toBe(false);
+    }
+  });
+
+  it("rejects a manual price on fiat and a price without its currency", () => {
+    expect(
+      holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "1", manualUnitPrice: "2", manualPriceCurrency: "USD" }).success
+    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...create, manualUnitPrice: "2" }).success).toBe(false);
+  });
+
+  it("rejects a future manualPricedAt but accepts a past one", () => {
+    const price = { ...create, manualUnitPrice: "2", manualPriceCurrency: "USD" };
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    expect(holdingUpsertSchema.safeParse({ ...price, manualPricedAt: future }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, manualPricedAt: "2020-01-01T00:00:00Z" }).success).toBe(true);
+  });
+});
+
+describe("holdingsChangeSetSchema", () => {
+  it("defaults the missing side to an empty list and rejects an empty change set", () => {
+    const parsed = holdingsChangeSetSchema.safeParse({ remove: ["h1"] });
+    expect(parsed.success && parsed.data).toEqual({ upsert: [], remove: ["h1"] });
+    expect(holdingsChangeSetSchema.safeParse({}).success).toBe(false);
+    expect(holdingsChangeSetSchema.safeParse({ upsert: [], remove: [] }).success).toBe(false);
+  });
+
+  it("rejects the whole change set when one item is invalid", () => {
+    expect(
+      holdingsChangeSetSchema.safeParse({
+        upsert: [{ id: "h1", quantity: "1" }, { kind: "fiat", code: "USD", quantity: "1.001" }]
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("revised holding instruments", () => {
+  const price = { quantity: "1", manualUnitPrice: "10", manualPriceCurrency: "USD" };
+  it("requires an other name and forbids its code", () => {
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", code: "XAU" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", unit: "oz" }).success).toBe(true);
+  });
+  it("rejects fiat codes as crypto and accepts USDT", () => {
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USD", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USDT", quantity: "1" }).success).toBe(true);
+  });
+  it.each(["stock", "etf"])("validates %s tickers and requires a manual price", (kind) => {
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BRK.B" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BAD/TICKER" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ quantity: "1", kind, code: "AAPL" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "AAPL", unit: "shares" }).success).toBe(false);
   });
 });

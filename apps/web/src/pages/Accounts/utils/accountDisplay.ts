@@ -24,6 +24,7 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   savings: "Savings",
   credit_card: "Credit",
   investment: "Investment",
+  crypto: "Crypto",
   other: "Other"
 };
 

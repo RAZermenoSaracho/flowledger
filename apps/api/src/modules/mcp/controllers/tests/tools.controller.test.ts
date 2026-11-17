@@ -3,6 +3,8 @@ import { HttpError } from "../../../../utils/httpError.js";
 import type { McpAuth } from "../../types/mcp.types.js";
 
 vi.mock("../../../accounts/services/read.service.js", () => ({ listAccounts: vi.fn() }));
+vi.mock("../../../accounts/services/holdings.read.service.js", () => ({ getAccountHoldings: vi.fn() }));
+vi.mock("../../../accounts/services/holdings.update.service.js", () => ({ applyHoldingChanges: vi.fn() }));
 vi.mock("../../../categories/services/read.service.js", () => ({ listCategories: vi.fn() }));
 vi.mock("../../../transactions/services/read.service.js", () => ({
   listTransactions: vi.fn(),
@@ -51,6 +53,7 @@ const READ_TOOLS = [
   "list_currencies",
   "list_debts",
   "list_groups",
+  "list_holdings",
   "list_imported_transactions",
   "list_notification_library",
   "list_notification_model_logs",
@@ -96,6 +99,7 @@ const WRITE_TOOLS = [
   "list_currencies",
   "list_debts",
   "list_groups",
+  "list_holdings",
   "list_imported_transactions",
   "list_notification_library",
   "list_notification_model_logs",
@@ -120,6 +124,7 @@ const WRITE_TOOLS = [
   "update_account",
   "update_category",
   "update_group",
+  "update_holdings",
   "update_imported_transaction",
   "update_notification_model",
   "update_notification_model_from_source",
@@ -133,11 +138,11 @@ const validBody = { name: "Coffee", amount: "3", type: "expense", date: "2024-01
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerTools", () => {
-  it("registers exactly the twenty-four read tools for a read credential", () => {
+  it("registers exactly the twenty-five read tools for a read credential", () => {
     expect([...register(["read"]).keys()].sort()).toEqual(READ_TOOLS);
   });
 
-  it("registers exactly the fifty-nine tools for a write credential, with the annotations from the spec", () => {
+  it("registers exactly the sixty-one tools for a write credential, with the annotations from the spec", () => {
     const tools = register(["read", "write"]);
     expect([...tools.keys()].sort()).toEqual(WRITE_TOOLS);
     expect(tools.get("list_accounts")!.config.annotations).toEqual({ readOnlyHint: true });
@@ -205,6 +210,7 @@ describe("write tools", () => {
     expect(tools.get("create_transaction")!.config.description).toContain("decimal strings");
     expect(tools.get("update_transaction")!.config.description).toContain("decimal strings");
     expect(tools.get("list_accounts")!.config.description).toContain("decimal strings");
+    expect(tools.get("list_accounts")!.config.description).toContain("contributions");
   });
 
   it("create rejects a transfer without accounts (refinement) and audits the failure", async () => {

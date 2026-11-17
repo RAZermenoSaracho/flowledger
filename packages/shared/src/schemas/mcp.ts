@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { PROVIDER_IMPORTED_TRANSACTION_STATUSES, TRANSACTION_TYPES } from "../constants/index.js";
-import { creditCardBillingQuerySchema, updateAccountSchema } from "./accounts.js";
+import {
+  creditCardBillingQuerySchema,
+  holdingUpsertSchema,
+  updateAccountSchema
+} from "./accounts.js";
 import { categorySchema } from "./categories.js";
 import { optionalDateStringSchema } from "./common.js";
 import { currencyRateQuerySchema } from "./currencies.js";
@@ -59,6 +63,15 @@ export const setArchivedToolSchema = z.object({ id: z.string().min(1), archived:
 /** Input of the MCP `get_credit_card` tool: the card account `id` and an optional 1-based billing-periods `page`. */
 export const getCreditCardToolSchema = z
   .object({ id: z.string().min(1), page: creditCardBillingQuerySchema.shape.page })
+  .strict();
+
+/** Input of the MCP `update_holdings` tool: the account `id` plus the holdings change set (`upsert`, `remove`), both optional here and validated together by `holdingsChangeSetSchema`. */
+export const updateHoldingsToolSchema = z
+  .object({
+    id: z.string().min(1),
+    upsert: z.array(holdingUpsertSchema).max(200).optional(),
+    remove: z.array(z.string().min(1)).max(200).optional()
+  })
   .strict();
 
 /** Input of the MCP `delete_transaction` tool: the target transaction `id` only. */

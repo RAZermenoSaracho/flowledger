@@ -75,3 +75,48 @@ describe("AccountListItem", () => {
     expect(screen.queryByText("$450.00")).not.toBeInTheDocument();
   });
 });
+
+describe("AccountListItem holdings value", () => {
+  const valuation = {
+    currency: "USD",
+    value: "1600",
+    status: "complete" as const,
+    missingCount: 0,
+    holdingCount: 2
+  };
+
+  it("shows only the total value, not the ledger balance, for a holdings account", () => {
+    renderItem(
+      makeAccount({
+        type: "investment",
+        holdingsValuation: valuation,
+        currentBalanceInPreferredCurrency: 450
+      }),
+      "EUR"
+    );
+    expect(screen.getByText(/Total value/)).toHaveTextContent("Total value $1,600.00");
+    expect(screen.queryByText(/FlowLedger balance/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/450/)).not.toBeInTheDocument();
+  });
+
+  it("labels a partial value and an empty account", () => {
+    const { unmount } = renderItem(
+      makeAccount({ holdingsValuation: { ...valuation, status: "partial", missingCount: 1 } })
+    );
+    expect(screen.getByText("Partial")).toBeInTheDocument();
+    unmount();
+    renderItem(
+      makeAccount({
+        holdingsValuation: { ...valuation, value: "0", status: "empty", holdingCount: 0 }
+      })
+    );
+    expect(screen.getByText(/Total value/)).toHaveTextContent("$0.00");
+    expect(screen.getByText("No holdings yet")).toBeInTheDocument();
+  });
+
+  it("renders the ledger balance without holdings", () => {
+    renderItem(makeAccount({ holdingsValuation: null }));
+    expect(screen.getByText(/FlowLedger balance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Total value/)).not.toBeInTheDocument();
+  });
+});

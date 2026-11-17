@@ -4,6 +4,7 @@ import {
   categoriesQueryParamSchema,
   categorySchema,
   currencyRateQuerySchema,
+  holdingsChangeSetSchema,
   importedTransactionsQueryParamSchema,
   notificationIngestSchema,
   reportFiltersSchema,
@@ -22,6 +23,7 @@ import { createRateLimiter } from "../../utils/rateLimit.js";
 import { postIngest } from "../notificationModels/controllers/ingest.controller.js";
 import { postAccount } from "../accounts/controllers/create.controller.js";
 import { getCreditCard } from "../accounts/controllers/creditCard.read.controller.js";
+import { getHoldings, patchHoldings } from "../accounts/controllers/holdings.controller.js";
 import { getAccounts } from "../accounts/controllers/read.controller.js";
 import { deleteAccountHandler } from "../accounts/controllers/delete.controller.js";
 import {
@@ -75,6 +77,14 @@ v1Router.get(
   asyncHandler(getAccounts)
 );
 v1Router.get("/accounts/:id/credit-card", requireScope("read"), asyncHandler(getCreditCard));
+v1Router.get("/accounts/:id/holdings", requireScope("read"), asyncHandler(getHoldings));
+v1Router.patch(
+  "/accounts/:id/holdings",
+  auditV1Write("account.holdings.update"),
+  requireScope("write"),
+  validate(holdingsChangeSetSchema),
+  asyncHandler(patchHoldings)
+);
 v1Router.get(
   "/categories",
   requireScope("read"),

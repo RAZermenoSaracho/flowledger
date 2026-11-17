@@ -38,7 +38,9 @@ export const financialOverviewDisclosureSchema = z.enum([
   "rates_missing",
   "past_month_current_rates",
   "investment_recorded_balance",
-  "synced_balances"
+  "investment_without_holdings",
+  "synced_balances",
+  "crypto_usdt_as_usd"
 ]);
 
 export type FinancialOverviewDisclosure = z.infer<typeof financialOverviewDisclosureSchema>;

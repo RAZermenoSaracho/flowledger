@@ -1,12 +1,16 @@
 import { z } from "zod";
 import {
   ACCOUNT_TYPES,
+  HOLDING_KINDS,
+  MANUALLY_PRICED_HOLDING_KINDS,
   MAX_DAYS_AFTER_CLOSING,
   PAYMENT_DUE_RULES
 } from "../constants/index.js";
 import {
   currencyCodeSchema,
+  currencyFractionDigits,
   decimalAmountSchema,
+  exceedsCurrencyPrecision,
   positiveDecimalAmountSchema,
   timeZoneSchema
 } from "./common.js";
@@ -145,3 +149,90 @@ export type CreditCardBillingQuery = z.infer<
 export type AccountInput = z.infer<typeof accountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type AccountsQueryParam = z.infer<typeof accountsQueryParamSchema>;
+
+export const holdingKindSchema = z.enum(HOLDING_KINDS);
+
+const isoCurrencyCodes = new Set<string>(Intl.supportedValuesOf("currency"));
+const cryptoCodePattern = /^[A-Z0-9]{2,10}$/;
+const tickerPattern = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
+
+/**
+ * One item of a holdings change set. Without `id` it creates a holding and needs `kind` and `quantity`, plus `code` for every
+ * kind except `other`, which needs `name` instead and has no code. With `id` it updates only `quantity`, `name`, `unit`
+ * and/or the manual valuation (`kind`/`code` are immutable). Per kind:
+ * - `crypto`: a 2–10 character code that is not an ISO 4217 fiat code (stablecoins such as USDT are crypto); priced
+ *   automatically unless a manual price is set; `manualUnitPrice: null` returns it to automatic pricing.
+ * - `fiat`: an ISO 4217 code, valued at par, never a manual price; quantity limited to the currency's minor units.
+ * - `stock`/`etf`: a ticker; `other`: a name and an optional `unit`. These are manually priced only, so a create needs a
+ *   manual price and an update cannot clear it (the service re-checks updates against the stored kind).
+ * Quantities allow at most 18 decimals. `manualPricedAt` may not be in the future. Which kinds an account may hold is
+ * enforced by the service against the account type.
+ */
+export const holdingUpsertSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    kind: holdingKindSchema.optional(),
+    code: z.string().trim().toUpperCase().min(1).max(15).optional(),
+    name: z.string().trim().min(1).max(80).nullable().optional(),
+    unit: z.string().trim().min(1).max(20).nullable().optional(),
+    quantity: positiveDecimalAmountSchema.optional(),
+    manualUnitPrice: positiveDecimalAmountSchema.nullable().optional(),
+    manualPriceCurrency: currencyCodeSchema.optional(),
+    manualPricedAt: z.coerce.date().optional()
+  })
+  .superRefine((item, ctx) => {
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+
+    if (item.id) {
+      if (item.kind !== undefined) issue("kind", "The kind of an existing holding cannot change");
+      if (item.code !== undefined) issue("code", "The code of an existing holding cannot change");
+    } else {
+      if (!item.kind) issue("kind", "Kind is required for a new holding");
+      if (!item.quantity) issue("quantity", "Quantity is required for a new holding");
+      if (item.kind === "other") {
+        if (item.code !== undefined) issue("code", "Other assets have no code; use a name");
+        if (!item.name) issue("name", "Name is required for an other asset");
+      } else if (item.kind && !item.code) {
+        issue("code", "Code is required for a new holding");
+      }
+      if (item.kind && (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(item.kind) && !item.manualUnitPrice) {
+        issue("manualUnitPrice", "This asset type has no automatic price; set a manual unit price");
+      }
+    }
+
+    if (item.kind === "crypto" && item.code) {
+      if (!cryptoCodePattern.test(item.code)) issue("code", "A crypto code has 2–10 letters or digits");
+      else if (isoCurrencyCodes.has(item.code)) issue("code", `${item.code} is a fiat currency; add it as Cash`);
+    }
+    if ((item.kind === "stock" || item.kind === "etf") && item.code && !tickerPattern.test(item.code)) {
+      issue("code", "A ticker has up to 15 letters, digits, dots or dashes");
+    }
+    if (item.kind === "fiat") {
+      if (item.code && !isoCurrencyCodes.has(item.code)) issue("code", "Cash must use an ISO 4217 currency code");
+      if (item.manualUnitPrice != null) issue("manualUnitPrice", "Cash holdings are valued at par and take no manual price");
+    }
+    if (item.unit != null && item.kind !== undefined && item.kind !== "other") {
+      issue("unit", "Only other assets take a unit");
+    }
+    if (item.quantity && item.code && item.kind === "fiat" && exceedsCurrencyPrecision(item.quantity, item.code)) {
+      issue("quantity", `${item.code} allows at most ${currencyFractionDigits(item.code)} decimals`);
+    }
+    if (item.manualUnitPrice != null && !item.manualPriceCurrency) {
+      issue("manualPriceCurrency", "Set the currency of the manual price");
+    }
+    if (item.manualPricedAt && item.manualPricedAt.getTime() > Date.now()) {
+      issue("manualPricedAt", "The valuation date cannot be in the future");
+    }
+  });
+
+/** Body of `PATCH /accounts/:id/holdings`: an atomic change set. Holdings not mentioned are untouched; `remove` deletes by id. */
+export const holdingsChangeSetSchema = z
+  .object({
+    upsert: z.array(holdingUpsertSchema).max(200).default([]),
+    remove: z.array(z.string().min(1)).max(200).default([])
+  })
+  .refine((body) => body.upsert.length + body.remove.length > 0, "The change set is empty");
+
+export type HoldingUpsertInput = z.infer<typeof holdingUpsertSchema>;
+export type HoldingsChangeSetInput = z.infer<typeof holdingsChangeSetSchema>;

@@ -191,6 +191,21 @@ describe("AccountDetailPage", () => {
       return wheres;
     }
 
+    it.each(["investment", "crypto"] as const)(
+      "lists transfers into a %s account without any filter",
+      async (type) => {
+        const wheres = setup("/accounts/acc-1?tab=transactions", type);
+        await screen.findByLabelText("Search transactions");
+        await waitFor(() => expect(wheres.at(-1)).toEqual(withTransfers));
+      }
+    );
+
+    it("keeps a checking account scoped to its own rows without a period", async () => {
+      const wheres = setup("/accounts/acc-1?tab=transactions", "checking");
+      await screen.findByLabelText("Search transactions");
+      await waitFor(() => expect(wheres.at(-1)).toEqual(scope));
+    });
+
     it("offers the full transaction fields, without Billing period in the picker", async () => {
       setup(PERIOD_ROUTE.split("&period")[0]!);
       const user = userEvent.setup();
@@ -430,6 +445,109 @@ describe("AccountDetailPage", () => {
     expect(
       screen.getByRole("tab", { name: "Credit card" })
     ).toBeInTheDocument();
+  });
+
+  describe("Initial balance by type", () => {
+    it.each(["investment", "crypto"] as const)("is hidden for a %s account", async (type) => {
+      mockAccounts([makeAccount({ type })]);
+      renderPage();
+      await screen.findByLabelText("Name");
+      expect(screen.queryByLabelText("Initial balance")).not.toBeInTheDocument();
+    });
+
+    it.each(["checking", "credit_card"] as const)("is shown for a %s account", async (type) => {
+      mockAccounts([makeAccount({ type })]);
+      renderPage();
+      expect(await screen.findByLabelText("Initial balance")).toHaveValue(500);
+    });
+
+    it("hides when the type switches to investment and reappears with the stored value", async () => {
+      mockAccounts([makeAccount()]);
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByLabelText("Initial balance");
+      await user.selectOptions(screen.getByLabelText("Type"), "investment");
+      expect(screen.queryByLabelText("Initial balance")).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText("Type"), "checking");
+      expect(screen.getByLabelText("Initial balance")).toHaveValue(500);
+    });
+
+    it("is hidden on create for a holding type and the request sends 0", async () => {
+      mockAccounts([]);
+      const bodies: unknown[] = [];
+      server.use(
+        http.post(`${API_URL}/accounts`, async ({ request }) => {
+          bodies.push(await request.json());
+          return HttpResponse.json({ account: makeAccount({ id: "new-1" }) }, { status: 201 });
+        })
+      );
+      const user = userEvent.setup();
+      renderWithProviders(
+        <Routes>
+          <Route path="/accounts/new" element={<AccountDetailPage />} />
+          <Route path="/accounts/:id" element={<p>Opened</p>} />
+        </Routes>,
+        { route: "/accounts/new", withAuth: true }
+      );
+      await user.type(await screen.findByLabelText("Name"), "Broker");
+      expect(screen.getByLabelText("Initial balance")).toBeInTheDocument();
+      await user.selectOptions(screen.getByLabelText("Type"), "investment");
+      expect(screen.queryByLabelText("Initial balance")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toMatchObject({ type: "investment", initialBalance: "0" });
+    });
+  });
+
+  describe("Net contributions", () => {
+    const contributions = {
+      currency: "USD",
+      incoming: "1500",
+      outgoing: "300",
+      net: "1200",
+      transferCount: 3,
+      excludedCount: 0
+    };
+
+    async function openTransactions(account: Account) {
+      mockAccounts([account]);
+      server.use(
+        http.get(`${API_URL}/transactions`, () =>
+          HttpResponse.json({
+            data: [],
+            meta: { total: 0, page: 1, pageSize: 20, pageCount: 0, hasNext: false, hasPrevious: false, executionTime: 1 }
+          })
+        ),
+        http.get(`${API_URL}/groups`, () => HttpResponse.json({ groups: [] })),
+        http.get(`${API_URL}/categories`, () => HttpResponse.json({ categories: [] })),
+        http.get(`${API_URL}/accounts/acc-1/holdings`, () =>
+          HttpResponse.json({ accountId: "acc-1", holdings: [], valuation: {} })
+        )
+      );
+      const user = userEvent.setup();
+      renderPage();
+      await user.click(await screen.findByRole("tab", { name: "Transactions" }));
+      await screen.findByText("No transactions for this account yet.");
+    }
+
+    it.each(["investment", "crypto"] as const)("shows the formatted net for a %s account", async (type) => {
+      await openTransactions(makeAccount({ type, contributions }));
+      expect(screen.getByText(/Net contributions:/).closest("p")).toHaveTextContent("Net contributions: $1,200.00");
+      expect(screen.getByText("Transfers in $1,500.00 · out $300.00")).toBeInTheDocument();
+      expect(screen.queryByText(/without a recorded amount/)).not.toBeInTheDocument();
+    });
+
+    it("notes transfers without a recorded amount", async () => {
+      await openTransactions(
+        makeAccount({ type: "investment", contributions: { ...contributions, excludedCount: 2 } })
+      );
+      expect(screen.getByText("2 transfers without a recorded amount are not included")).toBeInTheDocument();
+    });
+
+    it("is hidden for a checking account", async () => {
+      await openTransactions(makeAccount({ contributions: null }));
+      expect(screen.queryByText(/Net contributions/)).not.toBeInTheDocument();
+    });
   });
 
   describe("new account (/accounts/new)", () => {
