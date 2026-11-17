@@ -51,6 +51,7 @@ The account view SHALL pass `tabs` to the shared Form View:
 - "General": all editable fields, type sections and the sync panel.
 - "Transactions".
 - For `credit_card` accounts only, a third tab, "Credit card".
+- For `investment` and `crypto` accounts only, a "Holdings" tab, defined in "Holdings tab".
 
 **Transactions tab:**
 - It SHALL list the account's transactions newest first (date descending, then id descending).
@@ -91,7 +92,7 @@ All figures in the Credit card tab SHALL come from the API. The web app SHALL NO
 
 #### Scenario: Tabs shown
 - **WHEN** an account view is opened
-- **THEN** the General and Transactions tabs are shown, plus Credit card for a `credit_card` account, and General is active
+- **THEN** the General and Transactions tabs are shown, plus Credit card for a `credit_card` account and Holdings for an `investment` or `crypto` account, and General is active
 
 #### Scenario: Paging
 - **WHEN** the user opens Transactions and presses Next
@@ -209,3 +210,149 @@ The accounts page SHALL offer an "Add account" chooser with "Manual account" and
 #### Scenario: Discarded draft
 - **WHEN** the user leaves `/accounts/new` without saving
 - **THEN** no account is created
+
+### Requirement: Holdings tab
+
+**Header and totals:**
+- For `investment` and `crypto` accounts the Form View header SHALL show the name, the type and "Total value", taken from `holdingsValuation`.
+- When the status is `partial` it SHALL add a subtle "Partial - N holdings without a value" indication, and when `empty` a "No holdings yet" indication. There SHALL be no second total.
+- The UI SHALL NOT show a "Net deposited" figure or the ledger balance for these account types, and SHALL NOT show a reminder to update a cash holding.
+- The accounts list and any totals widget SHALL use `holdingsValuation.value` only for these account types. Other account types SHALL look exactly as before.
+
+**Holdings table (shared RelatedList):**
+- Columns: Asset (code or name, with a type badge only in `investment` accounts and none in `crypto` accounts), Quantity (with its unit), Unit price (with its last-updated time as defined by `valuation-timestamps`), Source, Value in the account currency or "Value missing" with its reason, and a remove action.
+- The table SHALL be compact. At mobile width rows SHALL stack, and a subtle secondary "Last updated" label MAY replace the tooltip.
+- There SHALL be no stale badges, warning colors or age-based states.
+- Cash rows SHALL be visibly distinct and show "Cash - at par" instead of a price source.
+
+**Add holding:**
+- In a `crypto` account there SHALL be no asset-type selector, and the kind is `crypto`.
+- In an `investment` account there SHALL be an asset-type selector with Crypto, Cash, Stock, ETF and Other.
+- The instrument field depends on the type: a code for crypto, stock and ETF (for example BTC, USDT, AAPL, VOO); a currency chosen with the existing currency picker for cash; a name and an optional unit for Other.
+- The price source selector depends on the type: for crypto, "Binance (automatic)" or "Manual"; for stock, ETF and Other, Manual only, shown as fixed text without a selector; for cash, none.
+- With the automatic source the row SHALL show the quoted unit price and "Binance", with no editable price controls.
+- A manual price SHALL be one compact integrated monetary input, for example `[ 1,000.00   USD v ]`: the amount is the primary field, and the currency is inline text with a subtle chevron inside the same box.
+  - Activating the currency by click or keyboard SHALL open the existing currency picker.
+  - The default currency of a new manual price SHALL be the account currency.
+  - It SHALL be labeled, show a visible focus state, be keyboard operable and stay usable at mobile width.
+
+**Editing:**
+- Adding, editing and removing holdings SHALL happen inline in the account Form View draft, saved and discarded by the existing Save and Discard, with unsaved-change protection. No separate form, modal or route SHALL be used.
+- Precision errors SHALL be shown inline, using the existing amount-precision messages.
+
+**Incompatible stored holdings:** a non-crypto holding stored in a `crypto` account SHALL be shown with a subtle note and only a remove action.
+
+All values SHALL come from the API, and the web app SHALL NOT compute valuations.
+
+#### Scenario: Tab visibility
+- **WHEN** a `checking` or `credit_card` account is opened
+- **THEN** no Holdings tab is shown
+
+#### Scenario: Header total
+- **WHEN** an `investment` account with a ledger balance of 1000 and holdings valued at 850 is opened
+- **THEN** the header shows "Total value" 850, and neither 1000 nor "Net deposited" appears
+
+#### Scenario: Empty and partial indications
+- **WHEN** an account has no holdings, or one of its holdings has no value
+- **THEN** the header shows "No holdings yet", or the known total with a subtle "Partial" indication, and never a second total
+
+#### Scenario: Add to a crypto account
+- **WHEN** the user adds a holding in a `crypto` account
+- **THEN** no asset-type selector is shown, and the holding is saved with kind `crypto`
+
+#### Scenario: Add to an investment account
+- **WHEN** the user adds a holding in an `investment` account and picks Stock
+- **THEN** a code field is shown, the price source is fixed as Manual, and a manual price is required
+
+#### Scenario: Integrated price input
+- **WHEN** the user opens the currency part of a manual price input by keyboard
+- **THEN** the existing currency picker opens, and a new price defaults to the account currency
+
+#### Scenario: Save and discard
+- **WHEN** the user adds 0.5 BTC and presses Save, or edits a quantity and presses Discard
+- **THEN** Save sends one holdings change set and shows the API valuations, and Discard shows the original quantity and sends nothing
+
+#### Scenario: Missing value displayed
+- **WHEN** a holding has no available value
+- **THEN** its value cell reads "Value missing" with no last-updated time, and the header shows the known total with the partial indication
+
+#### Scenario: Incompatible holding
+- **WHEN** a `crypto` account stores a cash holding
+- **THEN** the row shows a subtle note and only a remove action
+
+#### Scenario: Timestamp on touch
+- **WHEN** the user taps a market price on a phone
+- **THEN** "Last updated:" followed by the formatted date and time is shown
+
+#### Scenario: Mobile
+- **WHEN** the Holdings tab is opened at mobile width
+- **THEN** holdings render as stacked records with every field readable
+
+### Requirement: Manual price read-only at rest
+
+In the Holdings tab a manual unit price SHALL render as formatted text (for example `1.00 USD`), like automatic prices, and SHALL be an activatable control named like "Edit unit price of BTC".
+
+- Activating it (click, Enter, Space or tap) SHALL show the compact money input, amount with the inline currency on one line, for that row only.
+- Blur outside the price cell, Escape or Enter SHALL return it to text showing the draft value.
+- A new row that needs a price SHALL start in edit mode.
+- Draft, Save, Discard and unsaved-change protection SHALL be unchanged.
+- Automatic prices SHALL stay read-only text with their source. No input box SHALL be shown at rest.
+
+#### Scenario: Price at rest
+- **WHEN** a holding has a manual price of 1 USD
+- **THEN** the row shows "1.00 USD" as text and no input
+
+#### Scenario: Inline edit
+- **WHEN** the user activates the price by click or keyboard
+- **THEN** one amount-plus-currency input appears on one line in that row
+
+#### Scenario: Leaving edit mode
+- **WHEN** the user presses Escape, Enter or clicks outside the price cell
+- **THEN** the input is replaced by text showing the draft value, and the draft remains unsaved until Save
+
+#### Scenario: Automatic price
+- **WHEN** a holding is market-priced
+- **THEN** its price is read-only text with its source and is not activatable
+
+### Requirement: Initial balance hidden for holding accounts
+
+Account creation and the General tab SHALL NOT show the Initial balance field when the type is `investment` or `crypto`, including when the type is switched to one of them in the form. Every other type SHALL keep the field. Creating a holding-type account SHALL NOT send a non-zero initial balance. The stored field is not deleted.
+
+#### Scenario: Create investment account
+- **WHEN** the user chooses type Investment or Crypto in the create form
+- **THEN** no Initial balance field is shown
+
+#### Scenario: Type switch
+- **WHEN** the user switches the type between a holding type and another type
+- **THEN** the field is hidden for the holding type and shown again with its stored value for the other type
+
+#### Scenario: Other types
+- **WHEN** the type is checking, savings, cash or credit card
+- **THEN** the Initial balance field is shown as before
+
+### Requirement: Net contributions line
+
+The Transactions tab of an `investment` or `crypto` account SHALL show a subtle line `Net contributions: <amount>` in the account currency, using `contributions.net`, above or below the list.
+
+The Transactions list of an `investment` or `crypto` account SHALL always include transfers into the account as well as its own rows, so every transfer counted in Net contributions is visible. Other account types keep their existing list scope (transfers in are added only with a billing-period filter).
+
+- Secondary text or a tooltip SHALL read "Transfers in <incoming> · out <outgoing>".
+- When `excludedCount > 0` it SHALL also say "N transfers without a recorded amount are not included".
+- The line SHALL NOT appear in the header and SHALL NOT be labelled Balance, Available cash, Profit or Return.
+- Other account types SHALL NOT show it. Transfers in the list display as before.
+
+#### Scenario: Line shown
+- **WHEN** an investment account has contributions with net 800, incoming 1000 and outgoing 200
+- **THEN** the Transactions tab shows "Net contributions: 800.00" with "Transfers in 1,000.00 · out 200.00"
+
+#### Scenario: Incoming transfers are listed
+- **WHEN** an investment account's only transaction is a transfer into it from checking
+- **THEN** its Transactions list shows that transfer, and a checking account's list without a billing-period filter still shows only its own rows
+
+#### Scenario: Excluded transfers
+- **WHEN** `excludedCount` is 2
+- **THEN** the line adds "2 transfers without a recorded amount are not included"
+
+#### Scenario: Other account types
+- **WHEN** the account is a checking account
+- **THEN** no net contributions line is shown
