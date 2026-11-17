@@ -126,7 +126,7 @@
 ## 7. Docs and completion
 
 - [x] 7.1 Update `docs/DOMAIN_LOGIC.md` with D1's account-value rule and its event table, the valuation precedence, boundary rounding and the freshness policy. Update `docs/DATA_MODEL.md` and the MCP and `/v1` docs. Log the deferred items in `docs/KNOWN_ISSUES.md`: contract identity, a persisted last quotation, buy/sell transactions, and the USDT peg. Verify that the docs are in English and that none states the old `investment_recorded_balance` meaning.
-- [ ] 7.2 Run `npm run typecheck`, `npm run lint` and `npm run test`, plus the integration and e2e suites with the Docker VM, and verify that everything passes. Then run a manual acceptance on dev:
+- [x] 7.2 Run `npm run typecheck`, `npm run lint` and `npm run test`, plus the integration and e2e suites with the Docker VM, and verify that everything passes. Then run a manual acceptance on dev:
   - create a `crypto` account with BTC, ETH and USD holdings;
   - set and then clear an override;
   - make an unsupported token show "Value missing" and the known subtotal show as partial;
@@ -146,7 +146,7 @@ Group 8 supersedes the "Net deposited", ledger-balance and two-kind behavior in 
 - [x] 8.6 MCP: `update_holdings` description and schema list the five kinds, `name`/`unit` and the manual price rule, and the kind rule applies. Update `docs/PUBLIC_API.md` and the MCP docs. Verify with MCP and `/v1` tests.
 - [x] 8.7 Web: header Total value with partial/empty indication (no Net deposited, no ledger balance, no cash reminder); account list and totals use `holdingsValuation.value`; Holdings tab with the Add Holding flow, Price source selector, integrated money input using the existing currency picker, new table columns, stacked mobile rows and incompatible rows with remove only; `DISCLOSURE_TEXT` for `investment_without_holdings`. Verify with component tests for each scenario in `account-form-view`.
 - [x] 8.8 Docs: update `docs/DOMAIN_LOGIC.md` (holdings-only valuation, kinds, price sources, no invented timestamps) and `docs/KNOWN_ISSUES.md`; verify that no doc still describes "Net deposited" or `investment_recorded_balance` emission.
-- [ ] 8.9 Staging: verify the migration applies on `flowledger_staging`, that the two stored `fiat` holdings in crypto accounts are untouched, still valued and counted, can be removed but not updated, and that net worth matches the account totals.
+- [x] 8.9 Staging: verify the migration applies on `flowledger_staging`, that the two stored `fiat` holdings in crypto accounts are untouched, still valued and counted, can be removed but not updated, and that net worth matches the account totals.
 
 ## 9. Acceptance round 2
 
@@ -155,4 +155,4 @@ Group 8 supersedes the "Net deposited", ledger-balance and two-kind behavior in 
 - [x] 9.3 Web price display: manual price as text with inline edit on activation in `HoldingsTab`. Verify with component tests for the four scenarios.
 - [x] 9.4 Web initial balance: hide the field for investment/crypto in create and the General tab. Verify with component tests, including the type switch.
 - [x] 9.5 Web contributions line in the Transactions tab, plus `contributions` in `accounts.types.ts`. Verify with component tests for shown, excluded note and hidden.
-- [ ] 9.6 Docs and staging: update `docs/DOMAIN_LOGIC.md` and `docs/PUBLIC_API.md`, then smoke-test contributions on `flowledger_staging`.
+- [x] 9.6 Docs and staging: update `docs/DOMAIN_LOGIC.md` and `docs/PUBLIC_API.md`, then smoke-test contributions on `flowledger_staging`.
