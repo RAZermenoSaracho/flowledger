@@ -52,7 +52,7 @@ A known valuation with no genuine update time, such as cash at par or the identi
 ### Requirement: Unobtrusive, accessible timestamp presentation
 
 The UI SHALL present a valuation's time as "Last updated: <date and time>", with these rules:
-- **Formatting:** the app's one existing date-time convention: the device's time zone and locale, with date, hours and minutes.
+- **Formatting:** `YYYY/MM/DD HH:mm` (24-hour, for example "Last updated: 2026/11/16 19:14") in the device's time zone, the same for every user and locale.
 - **Default presentation:** a subtle tooltip on the price. Where the layout has room, a small secondary label MAY be used instead, for example in stacked mobile rows.
 - **Accessibility:** the tooltip SHALL also open on keyboard focus and on tap, so it is reachable on touch devices and by keyboard, not only by mouse hover. It SHALL be announced to assistive technology.
 - **Reuse:** the same presentation SHALL be used for every asset class and pricing provider.

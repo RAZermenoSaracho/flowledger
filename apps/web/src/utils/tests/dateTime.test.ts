@@ -42,11 +42,15 @@ afterEach(() => {
 });
 
 describe.each(ZONES)("formatValuationTime in %s", (zone) => {
-  it("uses the transaction date and time format in the device timezone", () => {
+  it("formats YYYY/MM/DD HH:mm (24-hour) in the device timezone", () => {
     useZone(zone);
     const iso = "2026-11-06T03:00:00.000Z";
-    expect(formatValuationTime(iso)).toBe(dateTimeIn(zone, iso));
-    expect(formatValuationTime(iso)).toBe(formatTransactionDate({ date: iso }));
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+      }).formatToParts(new Date(iso)).map((part) => [part.type, part.value])
+    );
+    expect(formatValuationTime(iso)).toBe(`${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`);
   });
 });
 
