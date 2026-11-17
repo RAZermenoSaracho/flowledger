@@ -2,7 +2,7 @@
 
 ### Requirement: Security search through the provider
 
-The API SHALL expose `GET /currencies/securities?q=` for authenticated users. It SHALL search stocks and ETFs through the configured securities provider (Twelve Data) from the server, and return `{ available, results }`.
+The API SHALL expose `GET /currencies/securities?q=` for authenticated users. It SHALL search stocks and ETFs through the configured securities provider from the server, and return `{ available, results }`.
 
 **Results:** each result SHALL carry `symbol`, `name`, `exchange` (display name), `micCode`, `country`, `currency` and `type`.
 
@@ -26,7 +26,7 @@ The API SHALL expose `GET /currencies/securities?q=` for authenticated users. It
 - **THEN** the results include Apple Inc. on NASDAQ (`XNGS`, USD) and on BMV (`XMEX`, MXN) as distinct entries
 
 #### Scenario: No provider key
-- **WHEN** `TWELVE_DATA_API_KEY` is not configured and a user searches
+- **WHEN** no securities provider API key is configured and a user searches
 - **THEN** the response is `{ available: false, results: [] }` and stock/ETF holdings can still be added manually
 
 #### Scenario: Key never exposed
@@ -43,7 +43,7 @@ A provider-linked `stock` or `etf` holding without a manual price SHALL be value
 - The holding value SHALL be `quantity × marketPrice`, converted to the account currency, and the account's Total value remains derived only from holdings.
 
 **Refresh:**
-- A background refresh SHALL quote each distinct `(code, exchange)` of provider-linked holdings that have no manual price. It runs at a configurable interval (default 60 minutes) and within a configurable per-minute request budget (default 8).
+- A background refresh SHALL quote each distinct `(code, exchange)` of provider-linked holdings that have no manual price. It runs on a configurable schedule (default: once per weekday after the market close), within the provider's rate limit.
 - It SHALL update every holding of that listing with the quoted price and the provider's own quote time.
 - It SHALL NOT start when no provider key is configured.
 - A newly created provider-linked holding without a manual price SHALL be quoted once on save, on a best-effort basis. A failed quote SHALL NOT fail the save.
@@ -52,7 +52,7 @@ A provider-linked `stock` or `etf` holding without a manual price SHALL be value
 
 #### Scenario: Linked US stock
 - **WHEN** a USD investment account holds 10 AAPL on `XNGS`, and the stored quote is 352.78 USD at 2026-11-16 20:59 UTC
-- **THEN** the holding shows a unit price of 352.78 USD, source "Market (Twelve Data)", that quote time as its last update, and a value of 3527.80 USD
+- **THEN** the holding shows a unit price of 352.78 USD, a market source label that names the provider, that quote time as its last update, and a value of 3527.80 USD
 
 #### Scenario: Quote in another currency
 - **WHEN** the same account holds 100 `NAFTRACISHRS` on `XMEX` with a stored quote in MXN
@@ -102,7 +102,7 @@ For provider-linked `stock` and `etf` holdings, a manual price SHALL take preced
 
 #### Scenario: Never labeled real-time
 - **WHEN** a market-priced stock holding is shown
-- **THEN** its source label is "Market (Twelve Data)", and its description says the price may be delayed or end-of-day
+- **THEN** its source label is "Market (<provider name>)", and its description says the price may be delayed or end-of-day
 
 ### Requirement: Stock and ETF search-and-select in the Holdings tab
 

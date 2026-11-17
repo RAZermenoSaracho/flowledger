@@ -2,7 +2,7 @@
 
 ## 0. Gate (before /opsx:apply)
 
-- [ ] 0.1 The product owner approves the Twelve Data plan (display rights, BMV coverage) and the open questions in `design.md`.
+- [ ] 0.1 The product owner approves the provider, the licensing posture, the BMV approach and the stale-label option (`design.md` Open Questions 1-4). If the provider or stale option changes, revise D1 and the specs before /opsx:apply.
 
 ## 1. Data model and shared contracts
 
@@ -16,7 +16,7 @@
 
 ## 2. Provider client and search
 
-- [ ] 2.1 `config/env.ts` and `.env.example`: add optional `TWELVE_DATA_API_KEY`, `SECURITIES_PRICE_REFRESH_INTERVAL_MINUTES` (default 60) and `TWELVE_DATA_CREDITS_PER_MINUTE` (default 8).
+- [ ] 2.1 `config/env.ts` and `.env.example`: add the optional provider API key and `SECURITIES_PRICE_REFRESH_UTC_TIME` (default `22:30`, weekdays). The provider's per-minute limit is a client constant.
 - [ ] 2.2 `currencies/providers/twelveData/twelveData.client.ts`:
   - `searchSecurities(q)` and `fetchQuote(symbol, mic)`, with the key sent as a header and a timeout;
   - parse prices as decimal strings;
@@ -40,7 +40,7 @@
 
 - [ ] 4.1 `currencies/providers/twelveData/securitiesPriceScheduler.ts`, in the Syncfy scheduler shape:
   - distinct linked pairs without a manual price;
-  - the per-minute budget;
+  - the provider's rate limit;
   - `updateMany` by `(code, exchange)`;
   - discard a currency mismatch;
   - stop or skip on 429 or errors, and skip overlapping runs;
@@ -63,7 +63,7 @@
   - the search on new stock/ETF rows;
   - the Price source select for linked rows;
   - the saved-row display of symbol, exchange and name;
-  - "Market (Twelve Data)" with a delayed/end-of-day description;
+  - "Market (<provider>)" with a delayed/end-of-day description;
   - the `price_unavailable` copy.
   Update the existing tests.
 

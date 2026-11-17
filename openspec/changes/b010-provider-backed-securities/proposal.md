@@ -10,7 +10,7 @@ This change makes stock and ETF holdings work like crypto holdings. The user sea
 
 ## What Changes
 
-- **Instrument search (new):** `GET /currencies/securities?q=` searches stocks and ETFs through Twelve Data on the server and returns symbol, name, exchange, MIC, country, currency and instrument type. It is mirrored as `GET /v1/currencies/securities` and the MCP read tool `search_securities`. The provider API key never reaches the browser.
+- **Instrument search (new):** `GET /currencies/securities?q=` searches stocks and ETFs through the selected securities provider on the server (recommended: Twelve Data Basic, **pending approval**; see `design.md` D1) and returns symbol, name, exchange, MIC, country, currency and instrument type. It is mirrored as `GET /v1/currencies/securities` and the MCP read tool `search_securities`. The provider API key never reaches the browser.
 - **Holding fields (small additive migration):** `Holding` gains:
   - `exchange` (ISO 10383 MIC, for example `XNGS`, nullable);
   - `quoteCurrency` (the listing's ISO currency);
@@ -21,11 +21,11 @@ This change makes stock and ETF holdings work like crypto holdings. The user sea
   - With no manual price, its source is `market`, valued from its stored last quote.
   - A manual price still overrides the quote, exactly as for crypto.
   - Holdings without an exchange, including every existing B-009 row, stay manual-only with no behavior change.
-- **Price refresh:** an in-process scheduler, following the existing Syncfy scheduler pattern, refreshes the distinct linked listings at a configurable interval, within a configurable per-minute credit budget. A new linked holding is also quoted once when saved (best effort). On failure the stored quote is never cleared or overwritten, and a manual price is never touched.
+- **Price refresh:** an in-process scheduler, following the existing Syncfy scheduler pattern, refreshes the distinct linked listings once per weekday after the market close (configurable), deduplicated across holdings and users and within the provider's rate limit. A new linked holding is also quoted once when saved (best effort). On failure the stored quote is never cleared or overwritten, and a manual price is never touched.
 - **Valuation:** the existing `valueHoldings` precedence (manual, then market, then missing) is reused. Stock and ETF market quotes are read from the holding row, so reads never call the provider. The existing FX conversion turns the quote currency into the account currency. The partial-valuation and no-zero rules are unchanged.
-- **Freshness:** the valuation time is the provider's own quote time (`last_quote_at`), not the fetch time. The source label is "Market (Twelve Data)" and never claims real-time. Following `valuation-timestamps`, no stale flags or thresholds are added: the market timestamp shows a delayed, end-of-day or old quote for what it is.
+- **Freshness:** the valuation time is the provider's own quote time (`last_quote_at`), not the fetch time. The source label names the provider ("Market (<provider>)") and never claims real-time. Following `valuation-timestamps`, no stale flags or thresholds are added: the market timestamp shows a delayed, end-of-day or old quote for what it is.
 - **Web:** in the Holdings tab, choosing Stock or ETF shows a debounced, keyboard-accessible security search instead of the free-text ticker input. Results show the symbol, name, exchange and currency. A "Price source" selector (automatic/manual) works as it does for crypto, and a manual-ticker fallback covers unavailable search or unlisted securities. Save and Discard are unchanged.
-- **Feature off without a key:** if `TWELVE_DATA_API_KEY` is absent, search reports that it is unavailable and stock/ETF holdings stay manual exactly as today.
+- **Feature off without a key:** if the provider API key is absent, search reports that it is unavailable and stock/ETF holdings stay manual exactly as today.
 
 **Not changing:** no securities catalog table, no instrument master, no second valuation engine, no new account or holding kind, no change to crypto, cash, `other`, Net contributions, ledger or net-worth semantics, and no streaming.
 
@@ -61,4 +61,4 @@ This change makes stock and ETF holdings work like crypto holdings. The user sea
 - **Shared:** search query and result schemas, and the holding upsert fields.
 - **Web:** `HoldingsTab`, a new `SecuritySearch` component, a `useSecuritySearch` hook, the client call and draft utils.
 - **Docs:** `DATA_MODEL.md`, `DOMAIN_LOGIC.md`, `PUBLIC_API.md`, MCP docs, `.env.example`.
-- **Cost and licensing:** see the provider section in `design.md`. The production plan choice needs product-owner approval before release.
+- **Cost and licensing:** the target is $0 a month. The provider evaluation (Google Sheets, Marketstack, Twelve Data and others), its usage estimates and the open decisions are in `design.md` D1, D3 and D9. Nothing is approved yet.

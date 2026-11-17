@@ -633,7 +633,7 @@ Billing periods, payments, interest and reminders are ST-014.
 
 **Objective:** Holdings of eligible securities can update their prices automatically from a suitable provider.
 
-**Revision (2026-11-16):** ST-017 now absorbs ST-021's search-and-select. Stock and ETF holdings work like crypto holdings. They are discovered and priced through one external provider (Twelve Data), with no local securities catalog. A holding stores only its listing identity (ticker, exchange MIC, display name, quote currency) and its last automatic quote. The design is in the [OpenSpec change](openspec/changes/b010-provider-backed-securities/design.md).
+**Revision (2026-11-16):** ST-017 now absorbs ST-021's search-and-select. Stock and ETF holdings work like crypto holdings. They are discovered and priced through one external provider, with no local securities catalog. The provider is pending approval; Twelve Data Basic (free) is recommended after Google Sheets and Marketstack were evaluated on 2026-11-17. A holding stores only its listing identity (ticker, exchange MIC, display name, quote currency) and its last automatic quote. The design is in the [OpenSpec change](openspec/changes/b010-provider-backed-securities/design.md).
 
 **Scope:**
 - Provider-backed search and selection of a stock or ETF listing, with exchange disambiguation.
@@ -989,7 +989,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 |---|---|
 | B-007 | None beyond the sandbox runner's own Node 24 runtime checks. |
 | B-009 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
-| B-010 | Twelve Data plan: display rights for showing prices to users, and BMV quotes, which need Pro or higher (verified 2026-11-16). Credit budget for the refresh interval |
+| B-010 | Provider approval: zero-cost target, recommended Twelve Data Basic. Free-plan licensing is personal and non-commercial for every candidate. BMV quotes need a paid plan on Twelve Data (verified 2026-11-16), and no free source with verified BMV quotes was found. Google Sheets `GOOGLEFINANCE` was rejected on its terms and as an unsupported mechanism. Marketstack free was rejected because its 100 requests a month are below a daily refresh of 10 symbols |
 | B-012 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it. Security review of encryption and key management. |
 | B-013 | RPC or indexer provider, and whether a fixed token list is enough |
 | B-014 | Whether the need remains after B-009 to B-013 (go/no-go); this is the first user-controlled outbound request |
