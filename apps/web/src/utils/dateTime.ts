@@ -29,15 +29,11 @@ export function formatTransactionDate(
   });
 }
 
-/** Formats a valuation's last-updated instant (an ISO string) in the device's timezone and locale, with the same date and time options as {@link formatTransactionDate}. */
+/** Formats a valuation's last-updated instant (an ISO string) as `YYYY/MM/DD HH:mm` (24-hour) in the device's timezone. */
 export function formatValuationTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
+  const date = new Date(iso);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** A transaction's execution time in the device's timezone, as a `datetime-local` value (`YYYY-MM-DDTHH:mm`). Its first 7 characters are the displayed month. */

@@ -207,7 +207,7 @@ USDT normally trades within about ±0.5% of USD. It can depeg, as in May 2022, w
 
 ### D6a. Timestamp presentation (`valuation-timestamps`)
 
-- **Formatting:** a `formatValuationTime(iso)` helper sits in `apps/web/src/utils/dateTime.ts`. It uses the same `toLocaleString` options as `formatTransactionDate`: device time zone and locale, date, hours and 2-digit minutes. The UI renders the result as "Last updated: <formatted>".
+- **Formatting:** a `formatValuationTime(iso)` helper sits in `apps/web/src/utils/dateTime.ts`. It formats the instant as `YYYY/MM/DD HH:mm` (24-hour) in the device time zone, and the UI renders "Last updated: <formatted>".
 - **Tooltip component:** a small `ValuationTime` component wraps the price.
   - The trigger is a `<button type="button">` showing the price, with `aria-describedby`.
   - The tooltip opens on hover, focus and tap, and closes on blur, on outside tap and on Escape, through the existing `useDismiss` hook.
