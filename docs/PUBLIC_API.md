@@ -27,7 +27,7 @@ Base URL: `${PUBLIC_API_URL}/v1`
 |---|---|---|---|
 | GET | `/accounts` | read | |
 | GET | `/accounts/:id/credit-card` | read | billing data of a credit card account; `404` for a non-card or foreign account |
-| GET | `/accounts/:id/holdings` | read | holdings of an `investment` or `crypto` account with valuations and the aggregate (`value`, `status`, `netDeposited`); quantities and prices are exact decimal strings; `404` if not yours |
+| GET | `/accounts/:id/holdings` | read | holdings of an `investment` or `crypto` account with valuations and the aggregate (`currency`, `value`, `status` complete/partial/empty, `missingCount`, `holdingCount`); quantities and prices are exact decimal strings; `404` if not yours |
 | PATCH | `/accounts/:id/holdings` | write | atomic change set `{ "upsert": [...], "remove": [ids] }`; an `upsert` item without `id` creates a holding (`kind` `crypto`/`fiat`, `code`, `quantity`), with `id` it updates `quantity` or the manual price (`manualUnitPrice: null` clears it); unmentioned holdings are untouched; `remove` deletes permanently; responds with the same body as `GET` |
 | GET | `/categories` | read | |
 | GET | `/transactions` | read | paginated, see below |
@@ -154,3 +154,13 @@ curl https://api.x.ai/v1/responses \
 
 Revoking the key in Profile › Developer stops access immediately. A read key gets the read tools only.
 
+
+### Holding instruments and valuation
+
+Investment accounts accept `crypto`, `fiat`, `stock`, `etf`, and `other`; crypto accounts accept only `crypto` (400 with a `kind` field error otherwise). Every holding returns nullable `code`, `name` and `unit`, exact decimal strings for quantity and prices, and a `valuation` with source, price currency, timestamp, value and missing reason. `other` requires a name (80 characters maximum), forbids code, and permits a unit (20 characters maximum). Stock/ETF codes are tickers of up to 15 letters, digits, dots or dashes. Crypto codes have 2–10 letters/digits and cannot be fiat ISO codes; USDT is crypto.
+
+Fiat uses cash at par. Crypto uses Binance automatically unless manually priced. Stock, ETF and other require a manual price with its currency on create; it cannot be cleared. Only crypto accepts `manualUnitPrice: null` to resume automatic pricing. Manual prices convert through the existing exchange rates. Cash and the USDT identity quote have no valuation timestamp.
+
+`GET /accounts` returns non-null `holdingsValuation` for investment/crypto, including value zero and status `empty` without holdings; other types return null. Known values are summed exactly and rounded once. Missing prices make the known subtotal `partial`. These account types never use ledger balance in totals or net worth. The holdings aggregate has no `netDeposited` field.
+
+Incompatible stored holdings in crypto accounts remain readable and valued; updates return 400, removal is allowed. Changing investment to crypto requires removing all non-crypto holdings; crypto to investment is allowed. Removing holdings is required before changing to a non-holding account type. `/v1` and MCP reuse these rules.

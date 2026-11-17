@@ -51,6 +51,12 @@ export async function updateAccount(userId: string, id: string, body: UpdateAcco
     throw badRequest(message, { issues: { formErrors: [], fieldErrors: { type: [message] } } });
   }
 
+  if (body.type === "crypto" && existing.type !== "crypto" &&
+    await prisma.holding.count({ where: { accountId: existing.id, userId, kind: { not: "crypto" } } }) > 0) {
+    const message = "Remove non-crypto holdings before changing the account type to Crypto";
+    throw badRequest(message, { issues: { formErrors: [], fieldErrors: { type: [message] } } });
+  }
+
   const leavesCard =
     body.type !== undefined && body.type !== "credit_card" && existing.type === "credit_card";
   const cleared = leavesCard ? Object.fromEntries(CARD_FIELDS.map((field) => [field, null])) : {};

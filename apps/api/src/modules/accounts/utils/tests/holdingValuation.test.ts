@@ -181,3 +181,19 @@ describe("valueHoldings", () => {
     expect(d.rate).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("manual-only instruments", () => {
+  it.each(["stock", "etf", "other"] as const)("never requests a quote for %s without a manual price", async (kind) => {
+    const d = deps();
+    const result = await valueHoldings([holding({ kind, code: "AAPL" })], "USD", d);
+    expect(result.valuations[0]).toMatchObject({ value: null, missingReason: "unsupported" });
+    expect(d.quote).not.toHaveBeenCalled();
+  });
+});
+
+describe("identity market quotation", () => {
+  it("does not attach a Binance list timestamp to USDT", async () => {
+    const result = await valueHoldings([holding({ code: "USDT" })], "USD", deps({ USDT: { price: 1, currency: "USDT", fetchedAt: new Date("2026-01-01T00:00:00Z") } }, { "USDT>USD": 1 }));
+    expect(result.valuations[0]).toMatchObject({ source: "market", value: "1.00", valuedAt: null });
+  });
+});

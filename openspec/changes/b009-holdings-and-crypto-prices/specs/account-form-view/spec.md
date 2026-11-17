@@ -83,30 +83,34 @@ All figures in the Credit card tab SHALL come from the API. The web app SHALL NO
 
 ### Requirement: Holdings tab
 
-**Holdings list:**
-- The Holdings tab SHALL list the account's holdings on the shared RelatedList.
-- Fiat cash rows SHALL be visibly distinct from instrument rows.
-- Each holding SHALL show:
-  - instrument code and kind;
-  - quantity, with every stored digit;
-  - unit price in its original currency;
-  - value in the account currency;
-  - source ("Cash", "Manual" or "Market (Binance, USDT = USD)").
-- Each price SHALL carry its last-updated time as defined by `valuation-timestamps`: a tooltip that opens on hover, focus and tap, or a small secondary label in stacked mobile rows.
-- A missing value SHALL read "Value missing" with its reason, and SHALL never be displayed as 0.
-- There SHALL be no stale badges, warning colors, or age-based states.
+**Header and totals:**
+- For `investment` and `crypto` accounts the Form View header SHALL show the name, the type and "Total value", taken from `holdingsValuation`.
+- When the status is `partial` it SHALL add a subtle "Partial - N holdings without a value" indication, and when `empty` a "No holdings yet" indication. There SHALL be no second total.
+- The UI SHALL NOT show a "Net deposited" figure or the ledger balance for these account types, and SHALL NOT show a reminder to update a cash holding.
+- The accounts list and any totals widget SHALL use `holdingsValuation.value` only for these account types. Other account types SHALL look exactly as before.
+
+**Holdings table (shared RelatedList):**
+- Columns: Asset (code or name, with a type badge only in `investment` accounts and none in `crypto` accounts), Quantity (with its unit), Unit price (with its last-updated time as defined by `valuation-timestamps`), Source, Value in the account currency or "Value missing" with its reason, and a remove action.
+- The table SHALL be compact. At mobile width rows SHALL stack, and a subtle secondary "Last updated" label MAY replace the tooltip.
+- There SHALL be no stale badges, warning colors or age-based states.
+- Cash rows SHALL be visibly distinct and show "Cash - at par" instead of a price source.
+
+**Add holding:**
+- In a `crypto` account there SHALL be no asset-type selector, and the kind is `crypto`.
+- In an `investment` account there SHALL be an asset-type selector with Crypto, Cash, Stock, ETF and Other.
+- The instrument field depends on the type: a code for crypto, stock and ETF (for example BTC, USDT, AAPL, VOO); a currency chosen with the existing currency picker for cash; a name and an optional unit for Other.
+- The price source selector depends on the type: for crypto, "Binance (automatic)" or "Manual"; for stock, ETF and Other, Manual only, shown as fixed text without a selector; for cash, none.
+- With the automatic source the row SHALL show the quoted unit price and "Binance", with no editable price controls.
+- A manual price SHALL be one compact integrated monetary input, for example `[ 1,000.00   USD v ]`: the amount is the primary field, and the currency is inline text with a subtle chevron inside the same box.
+  - Activating the currency by click or keyboard SHALL open the existing currency picker.
+  - The default currency of a new manual price SHALL be the account currency.
+  - It SHALL be labeled, show a visible focus state, be keyboard operable and stay usable at mobile width.
 
 **Editing:**
-- Adding, editing (quantity, manual price, price currency, valuation date) and removing holdings SHALL happen inline in the account Form View draft.
-- The account Form View's Save and Discard SHALL save or discard these changes. No separate form, modal or route SHALL be used.
-- A manual price SHALL be clearable, which switches the holding back to the market quotation.
+- Adding, editing and removing holdings SHALL happen inline in the account Form View draft, saved and discarded by the existing Save and Discard, with unsaved-change protection. No separate form, modal or route SHALL be used.
 - Precision errors SHALL be shown inline, using the existing amount-precision messages.
 
-**Aggregate value:**
-- The account header SHALL show the aggregate value, labeled partial when it is, next to "Net deposited" (the transaction-derived balance).
-- The accounts list SHALL show the aggregate value for accounts with holdings, labeled as holdings value.
-- An account with no holdings SHALL look exactly as before.
-- When an account has holdings, the tab SHALL explain that deposits and withdrawals change "Net deposited", and that the cash holding is updated by editing it.
+**Incompatible stored holdings:** a non-crypto holding stored in a `crypto` account SHALL be shown with a subtle note and only a remove action.
 
 All values SHALL come from the API, and the web app SHALL NOT compute valuations.
 
@@ -114,17 +118,37 @@ All values SHALL come from the API, and the web app SHALL NOT compute valuations
 - **WHEN** a `checking` or `credit_card` account is opened
 - **THEN** no Holdings tab is shown
 
-#### Scenario: Add and save
-- **WHEN** the user adds 0.5 BTC and 200 USD on the Holdings tab and presses Save
-- **THEN** one holdings change set is sent, the rows show their API valuations, and the draft is clean
+#### Scenario: Header total
+- **WHEN** an `investment` account with a ledger balance of 1000 and holdings valued at 850 is opened
+- **THEN** the header shows "Total value" 850, and neither 1000 nor "Net deposited" appears
 
-#### Scenario: Discard
-- **WHEN** the user edits a quantity and presses Discard
-- **THEN** the original quantity is shown and nothing is sent
+#### Scenario: Empty and partial indications
+- **WHEN** an account has no holdings, or one of its holdings has no value
+- **THEN** the header shows "No holdings yet", or the known total with a subtle "Partial" indication, and never a second total
+
+#### Scenario: Add to a crypto account
+- **WHEN** the user adds a holding in a `crypto` account
+- **THEN** no asset-type selector is shown, and the holding is saved with kind `crypto`
+
+#### Scenario: Add to an investment account
+- **WHEN** the user adds a holding in an `investment` account and picks Stock
+- **THEN** a code field is shown, the price source is fixed as Manual, and a manual price is required
+
+#### Scenario: Integrated price input
+- **WHEN** the user opens the currency part of a manual price input by keyboard
+- **THEN** the existing currency picker opens, and a new price defaults to the account currency
+
+#### Scenario: Save and discard
+- **WHEN** the user adds 0.5 BTC and presses Save, or edits a quantity and presses Discard
+- **THEN** Save sends one holdings change set and shows the API valuations, and Discard shows the original quantity and sends nothing
 
 #### Scenario: Missing value displayed
 - **WHEN** a holding has no available value
-- **THEN** its value cell reads "Value missing" with no last-updated time, and the header shows the known subtotal labeled partial
+- **THEN** its value cell reads "Value missing" with no last-updated time, and the header shows the known total with the partial indication
+
+#### Scenario: Incompatible holding
+- **WHEN** a `crypto` account stores a cash holding
+- **THEN** the row shows a subtle note and only a remove action
 
 #### Scenario: Timestamp on touch
 - **WHEN** the user taps a market price on a phone

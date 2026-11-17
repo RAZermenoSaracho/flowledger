@@ -6,10 +6,10 @@
 Net worth SHALL equal the values of active accounts, plus what people owe the user, minus what the user owes people, converted to the preferred currency, and SHALL be returned with its three components.
 
 **Account values:**
-- An account's value SHALL be its holdings aggregate value, as defined by `account-holdings`, when it has holdings.
-- Otherwise it SHALL be its transaction-derived balance.
+- The value of an `investment` or `crypto` account SHALL be its holdings aggregate value, as defined by `account-holdings`, which is 0 when it has no holdings.
+- Every other account type SHALL contribute its transaction-derived balance, unchanged.
 - Net worth SHALL use the same holdings valuation the account endpoints return. There SHALL be one net-worth calculation.
-- An account with holdings SHALL never also contribute its transaction-derived balance.
+- An `investment` or `crypto` account SHALL never contribute its transaction-derived balance.
 - A missing holding SHALL be excluded and named as "<account name> · <code>", and the net worth SHALL then be partial. It SHALL never be counted as zero.
 
 **Debts:**
@@ -54,19 +54,23 @@ Net worth SHALL equal the values of active accounts, plus what people owe the us
 - **THEN** it is excluded and named, the net worth is shown as partial, and the request does not fail
 
 #### Scenario: Holdings replace the recorded balance
-- **WHEN** the user's checking account has 4000 and their `crypto` account has a recorded balance of 1000 and holdings valued at 850
+- **WHEN** the user's checking account has 4000 and their `crypto` account has a ledger balance of 1000 and holdings valued at 850
 - **THEN** the accounts component is 4850, not 5850 or 5000
 
 #### Scenario: Transfer into a holdings account
 - **WHEN** the user transfers 500 from checking into an account with holdings and has not updated the holdings
-- **THEN** net worth falls by 500 until the user records the new cash holding, and it never counts the 500 twice
+- **THEN** net worth falls by 500 until the user records the holdings, and the 500 is never counted from the ledger
+
+#### Scenario: Account without holdings counts zero
+- **WHEN** an `investment` account has no holdings and a ledger balance of 1000
+- **THEN** it contributes 0 to net worth
 
 #### Scenario: Missing holding is not zero
 - **WHEN** one holding of an account has no available value
 - **THEN** that holding is named in the excluded list, net worth is partial, and the known subtotal of the account's other holdings still counts
 
-#### Scenario: Unaffected users
-- **WHEN** a user has no holdings
+#### Scenario: Unaffected account types
+- **WHEN** a user has only bank, cash and credit-card accounts
 - **THEN** net worth, its components and its disclosures are identical to the previous behavior
 
 #### Scenario: Matches the account endpoint
@@ -76,7 +80,7 @@ Net worth SHALL equal the values of active accounts, plus what people owe the us
 ### Requirement: Disclosures
 The overview SHALL disclose the following, only when they apply, and grouped in one place:
 - past-month amounts in other currencies are converted at current rates;
-- `investment` or `crypto` accounts without holdings count at recorded balance, not market value;
+- active `investment` or `crypto` accounts without holdings count as zero until holdings are added (`investment_without_holdings`, which replaces `investment_recorded_balance`; the old code stays in the shared enum but SHALL no longer be emitted);
 - one or more counted crypto holdings use Binance USDT quotations converted as USDT = USD (`crypto_usdt_as_usd`);
 - synced accounts' balances come from recorded transactions and may differ from the bank;
 - the savings rate depends on how transactions were recorded, for example a card payment recorded as an expense counts twice.
@@ -88,12 +92,12 @@ Cross-currency transfers and transactions in a currency other than their account
 - **THEN** no disclosure list is shown
 
 #### Scenario: Investment account
-- **WHEN** the user has an `investment` or `crypto` account without holdings
-- **THEN** net worth discloses that it counts at recorded balance
+- **WHEN** the user has an active `investment` or `crypto` account without holdings
+- **THEN** net worth discloses `investment_without_holdings` ("Investment and crypto accounts without holdings count as zero until you add holdings."), and never `investment_recorded_balance`
 
-#### Scenario: Investment account with holdings
+#### Scenario: Every holding account has holdings
 - **WHEN** every active `investment` and `crypto` account has holdings
-- **THEN** the recorded-balance disclosure is not shown
+- **THEN** the without-holdings disclosure is not shown
 
 #### Scenario: Old valuation
 - **WHEN** a counted holding was last valued a year ago

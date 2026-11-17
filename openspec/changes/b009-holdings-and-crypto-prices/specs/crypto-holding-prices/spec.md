@@ -8,7 +8,7 @@ Values supported crypto holdings automatically, using the crypto price feed Flow
 
 ### Requirement: Market quotation for crypto holdings
 
-A `crypto` holding without a manual override SHALL be valued from the existing Binance price feed. The feed is looked up as `{CODE}USDT`, and if that is missing, as the inverse `USDT{CODE}`.
+A `crypto` holding without a manual price SHALL be valued from the existing Binance price feed. The feed is looked up as `{CODE}USDT`, and if that is missing, as the inverse `USDT{CODE}`.
 
 **Quotation:**
 - The quotation SHALL keep its original currency, `USDT`.
@@ -23,6 +23,10 @@ A `crypto` holding without a manual override SHALL be valued from the existing B
 - a second cache or quote API;
 - any stored price.
 
+**Scope:** only `crypto` holdings SHALL use this feed. `fiat`, `stock`, `etf` and `other` holdings SHALL never trigger a Binance lookup, and stock/ETF/other prices are manual only.
+
+**USDT identity:** for the code `USDT` the quotation is the identity (1 USDT per USDT), not a fetched price. Its valuation time SHALL be `null`, because no timestamp is invented.
+
 Prices SHALL be resolved when holdings are read, through the existing crypto price lookup and its existing short-lived cache.
 
 #### Scenario: Supported asset
@@ -33,13 +37,21 @@ Prices SHALL be resolved when holdings are read, through the existing crypto pri
 - **WHEN** the same holding is in an MXN account
 - **THEN** its unit price stays 60000 USDT, and its value is converted into MXN through the existing conversion
 
+#### Scenario: USDT has no timestamp
+- **WHEN** a user holds 100 USDT in a USD account
+- **THEN** the holding is valued at 100 USD with source `market`, and its valuation time is `null`, so no "Last updated" is shown
+
+#### Scenario: Non-crypto never calls Binance
+- **WHEN** an account holds a `stock`, an `etf`, an `other` asset and USD cash
+- **THEN** no Binance price lookup is made for any of them
+
 #### Scenario: Quantity stays manual
 - **WHEN** the market price changes
 - **THEN** the holding's quantity is unchanged, and only its value changes
 
 ### Requirement: Manual override precedence
 
-A manual price SHALL always take precedence over the market quotation until the user clears it. After it is cleared, the holding SHALL use the market quotation on the next read.
+For `crypto` holdings, a manual price SHALL always take precedence over the market quotation until the user clears it. After it is cleared, the holding SHALL use the market quotation on the next read.
 
 #### Scenario: Override wins
 - **WHEN** a BTC holding has a manual price of 55000 USD and the market quotes 60000 USDT

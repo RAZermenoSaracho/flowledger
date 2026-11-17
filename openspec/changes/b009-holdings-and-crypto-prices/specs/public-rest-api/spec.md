@@ -30,4 +30,4 @@ Every other method/path under `/v1` SHALL return 404 with a JSON body `{ "messag
 
 #### Scenario: Holdings routes
 - **WHEN** a read key calls `GET /v1/accounts/:id/holdings` for its own account, and a write key calls `PATCH /v1/accounts/:id/holdings`
-- **THEN** both return the same body as the internal routes, and a read key's PATCH is rejected by scope enforcement
+- **THEN** both return the same body as the internal routes, a read key's PATCH is rejected by scope enforcement, and the per-account-type kind rules apply exactly as on the internal routes

@@ -107,7 +107,7 @@ describe("financialOverviewResponseSchema", () => {
       currency: "USD",
       netWorth,
       savingsRate: { status: "no_data", month: "2026-10" },
-      disclosures: ["crypto_usdt_as_usd", "investment_recorded_balance"]
+      disclosures: ["crypto_usdt_as_usd", "investment_recorded_balance", "investment_without_holdings"]
     });
     expect(parsed.success).toBe(true);
   });

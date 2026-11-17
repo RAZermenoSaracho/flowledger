@@ -267,7 +267,7 @@ describe("net worth with holdings", () => {
     expect(result.disclosures).toContain("rates_missing");
   });
 
-  it("discloses USDT-as-USD for market prices only, and recorded balance only for accounts without holdings", async () => {
+  it("discloses USDT-as-USD for market prices only, and zero value for accounts without holdings", async () => {
     rateMock.mockResolvedValue(1);
     vi.mocked(getCryptoUsdtPrice).mockResolvedValue(10);
     seed({
@@ -276,14 +276,14 @@ describe("net worth with holdings", () => {
     });
     const withMarket = await overview();
     expect(withMarket.disclosures).toContain("crypto_usdt_as_usd");
-    expect(withMarket.disclosures).not.toContain("investment_recorded_balance");
+    expect(withMarket.disclosures).not.toContain("investment_without_holdings");
 
     seed({
       accounts: [account("cry", { type: "crypto" }), account("inv", { type: "investment" })],
       holdings: [cash("cry", 5)]
     });
     const cashOnly = await overview();
-    expect(cashOnly.disclosures).toContain("investment_recorded_balance");
+    expect(cashOnly.disclosures).toContain("investment_without_holdings");
     expect(cashOnly.disclosures).not.toContain("crypto_usdt_as_usd");
   });
 
@@ -313,15 +313,15 @@ describe("net worth with holdings", () => {
     expect((await overview()).netWorth.accounts).toBe(50);
   });
 
-  it("keeps a balance-only user's totals and an investment account's recorded-balance disclosure unchanged", async () => {
+  it("counts an empty investment as zero while preserving credit-card balance", async () => {
     rateMock.mockResolvedValue(1);
     seed({
       accounts: [account("inv", { type: "investment", initialBalance: dec(70) }), account("card", { type: "credit_card" })],
       transactions: [tx({ accountId: "card", type: "expense", amount: dec(20) })]
     });
     const result = await overview();
-    expect(result.netWorth.accounts).toBe(50);
-    expect(result.disclosures).toEqual(["investment_recorded_balance"]);
+    expect(result.netWorth.accounts).toBe(-20);
+    expect(result.disclosures).toEqual(["investment_without_holdings"]);
   });
 });
 
@@ -417,7 +417,7 @@ describe("disclosures", () => {
       ]
     });
     expect((await overview()).disclosures).toEqual(
-      expect.arrayContaining(["investment_recorded_balance", "synced_balances"])
+      expect.arrayContaining(["investment_without_holdings", "synced_balances"])
     );
   });
 
@@ -455,5 +455,21 @@ describe("disclosures", () => {
     });
     const { netWorth } = await overview();
     expect(netWorth).toMatchObject({ excluded: ["@friend: Dinner"] });
+  });
+});
+
+describe("holdings-only net worth", () => {
+  it.each(["investment", "crypto"])("counts empty %s as zero despite ledger funds", async (type) => {
+    seed({ accounts: [account("inv", { type, initialBalance: dec(700) }), account("bank", { initialBalance: dec(100) }), account("card", { type: "credit_card" })], transactions: [tx({ accountId: "inv", type: "income", amount: dec(300) }), tx({ accountId: "card", type: "expense", amount: dec(20) })] });
+    const result = await overview();
+    expect(result.netWorth).toMatchObject({ total: 80, accounts: 80, partial: false });
+    expect(result.disclosures).toContain("investment_without_holdings");
+    expect(result.disclosures).not.toContain("investment_recorded_balance");
+  });
+
+  it("uses a named asset when disclosing a missing valuation", async () => {
+    seed({ accounts: [account("inv", { type: "investment", name: "Investments" })], holdings: [holdingRow("inv", "", { kind: "other", code: null, name: "Art" })] });
+    const result = await overview();
+    expect(result.netWorth).toMatchObject({ accounts: 0, partial: true, excluded: ["Investments · Art"] });
   });
 });

@@ -25,6 +25,7 @@ const apply = (changeSet: Record<string, unknown>) =>
 
 describe("applyHoldingChanges", () => {
   it("creates, updates and removes inside one transaction and returns the GET body", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
     prismaMock.holding.findMany.mockResolvedValue([stored("h1"), stored("h2")] as never);
 
     const result = await apply({
@@ -43,7 +44,7 @@ describe("applyHoldingChanges", () => {
       where: { id: { in: ["h2"] }, accountId: "acc-1", userId: "user-1" }
     });
     expect(prismaMock.holding.create).toHaveBeenCalledWith({
-      data: { userId: "user-1", accountId: "acc-1", kind: "fiat", code: "USD", quantity: dec("250.50") }
+      data: { userId: "user-1", accountId: "acc-1", kind: "fiat", code: "USD", name: null, unit: null, quantity: dec("250.50") }
     });
     expect(prismaMock.holding.update).toHaveBeenCalledWith({
       where: { id: "h1", accountId: "acc-1", userId: "user-1" },
@@ -102,6 +103,7 @@ describe("applyHoldingChanges", () => {
   });
 
   it("propagates a mid-change failure out of the transaction so nothing is committed", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
     prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind: "fiat", code: "USD" })] as never);
     await expect(
       apply({
@@ -112,6 +114,7 @@ describe("applyHoldingChanges", () => {
   });
 
   it("re-checks fiat precision and manual price against the stored kind and code", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
     prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind: "fiat", code: "USD" })] as never);
     await expect(apply({ upsert: [{ id: "h1", quantity: "10.005" }] })).rejects.toMatchObject({ statusCode: 400 });
     await expect(
@@ -148,5 +151,43 @@ describe("applyHoldingChanges", () => {
     const data = prismaMock.holding.create.mock.calls[0]![0].data;
     expect(data).toMatchObject({ manualUnitPrice: dec("9"), manualPriceCurrency: "EUR" });
     expect(data.manualPricedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("holding kind rules", () => {
+  it.each(["fiat", "stock"])("rejects %s creates in crypto accounts before writing", async (kind) => {
+    await expect(apply({ upsert: [{ kind, code: "USD", quantity: "1" }] })).rejects.toMatchObject({ statusCode: 400, details: { issues: { fieldErrors: { kind: [expect.any(String)] } } } });
+    expect(prismaMock.holding.create).not.toHaveBeenCalled();
+    expect(prismaMock.holding.update).not.toHaveBeenCalled();
+    expect(prismaMock.holding.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it.each(["crypto", "fiat", "stock", "etf", "other"])("creates investment kind %s", async (kind) => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    await apply({ upsert: [{ kind, ...(kind === "other" ? { name: "Gold", unit: "oz" } : { code: kind === "fiat" ? "USD" : "BTC" }), quantity: "1", ...(kind !== "fiat" ? { manualUnitPrice: "2", manualPriceCurrency: "EUR" } : {}) }] });
+    expect(prismaMock.holding.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ kind, ...(kind === "other" ? { code: null, name: "Gold", unit: "oz" } : {}) }) }));
+  });
+
+  it("rejects incompatible stored updates but allows removal", async () => {
+    prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind: "fiat", code: "USD" })] as never);
+    await expect(apply({ upsert: [{ id: "h1", quantity: "2" }] })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.holding.update).not.toHaveBeenCalled();
+    await apply({ remove: ["h1"] });
+    expect(prismaMock.holding.deleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["stock", "etf", "other"])("rejects clearing the manual price on %s", async (kind) => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind, manualUnitPrice: dec("1") })] as never);
+    await expect(apply({ upsert: [{ id: "h1", manualUnitPrice: null }] })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.holding.update).not.toHaveBeenCalled();
+  });
+
+  it("checks name and unit against stored kind", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind: "other" })] as never);
+    await expect(apply({ upsert: [{ id: "h1", name: null }] })).rejects.toMatchObject({ statusCode: 400 });
+    prismaMock.holding.findMany.mockResolvedValue([stored("h1")] as never);
+    await expect(apply({ upsert: [{ id: "h1", unit: "oz" }] })).rejects.toMatchObject({ statusCode: 400 });
   });
 });

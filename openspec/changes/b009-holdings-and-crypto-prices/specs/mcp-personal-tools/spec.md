@@ -16,6 +16,8 @@ The MCP server SHALL register two tools:
   - quantities and prices are exact decimal strings.
 - It SHALL carry `destructiveHint: true`, because `remove` deletes.
 
+`update_holdings` SHALL enforce the same holding-kind rules as REST (a `crypto` account accepts `crypto` holdings only), and its description and input schema SHALL list the five kinds, the `name` and `unit` fields for `other`, and that `stock`, `etf` and `other` require a manual unit price.
+
 `create_account` and `update_account` SHALL accept the `crypto` account type. No other holdings tool SHALL be added.
 
 #### Scenario: Read via MCP
@@ -25,6 +27,10 @@ The MCP server SHALL register two tools:
 #### Scenario: Partial update via MCP
 - **WHEN** `update_holdings` upserts one holding on an account with three holdings
 - **THEN** only that holding changes, and the other two are untouched
+
+#### Scenario: Kind rule via MCP
+- **WHEN** `update_holdings` creates a `stock` holding in a `crypto` account
+- **THEN** the result is a validation error and nothing changes
 
 #### Scenario: Read credential cannot write
 - **WHEN** a read-only credential lists tools

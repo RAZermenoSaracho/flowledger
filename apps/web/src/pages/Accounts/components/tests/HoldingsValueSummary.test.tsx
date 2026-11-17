@@ -8,24 +8,39 @@ function valuation(overrides: Partial<HoldingsValuation> = {}): HoldingsValuatio
     status: "complete",
     currency: "USD",
     value: "1500",
-    netDeposited: "1000",
+    missingCount: 0,
+    holdingCount: 2,
     ...overrides
-  } as HoldingsValuation;
+  };
 }
 
 describe("HoldingsValueSummary", () => {
-  it("renders the holdings value and net deposited", () => {
+  it("renders only the total value", () => {
     render(<HoldingsValueSummary valuation={valuation()} />);
-    expect(screen.getByText("Holdings value")).toBeInTheDocument();
-    expect(screen.getByText("Net deposited")).toBeInTheDocument();
-    expect(screen.getByText(/1,500/)).toBeInTheDocument();
-    expect(screen.getByText(/1,000/)).toBeInTheDocument();
+    expect(screen.getByText("Total value")).toBeInTheDocument();
+    expect(screen.getByText("$1,500.00")).toBeInTheDocument();
+    expect(screen.queryByText("Net deposited")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Partial|No holdings/)).not.toBeInTheDocument();
   });
 
-  it("shows Partial only for a partial valuation", () => {
-    const { rerender } = render(<HoldingsValueSummary valuation={valuation()} />);
-    expect(screen.queryByText("Partial")).not.toBeInTheDocument();
-    rerender(<HoldingsValueSummary valuation={valuation({ status: "partial" })} />);
-    expect(screen.getByText("Partial")).toBeInTheDocument();
+  it("notes the holdings without a value when partial", () => {
+    const { rerender } = render(
+      <HoldingsValueSummary valuation={valuation({ status: "partial", missingCount: 2 })} />
+    );
+    expect(screen.getByText(/Partial.*2 holdings without a value/)).toBeInTheDocument();
+    rerender(
+      <HoldingsValueSummary valuation={valuation({ status: "partial", missingCount: 1 })} />
+    );
+    expect(screen.getByText(/1 holding without a value/)).toBeInTheDocument();
+  });
+
+  it("notes an empty account", () => {
+    render(
+      <HoldingsValueSummary
+        valuation={valuation({ status: "empty", value: "0", holdingCount: 0 })}
+      />
+    );
+    expect(screen.getByText("$0.00")).toBeInTheDocument();
+    expect(screen.getByText("No holdings yet")).toBeInTheDocument();
   });
 });

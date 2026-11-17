@@ -56,12 +56,20 @@ export type AccountTypeSectionMap = Partial<
   Record<AccountType, ComponentType<AccountTypeSectionProps>>
 >;
 
+/** Price source choice of a holdings row. */
+export type HoldingPriceSource = "automatic" | "manual";
+
 /** One holdings row inside the account draft. `id` is `null` until saved; `valuation` is the last saved API valuation (`null` for a new row). Numeric inputs stay strings; empty price means "no manual price"; `manualPricedAt` is a `datetime-local` value. */
 export type HoldingDraft = {
   draftId: string;
   id: string | null;
   kind: HoldingKind;
+  /** Ticker, crypto code or fiat currency; empty for `other`, which is identified by `name`. */
   code: string;
+  name: string;
+  unit: string;
+  /** Where the unit price comes from: `automatic` is the Binance quote (crypto only); everything else is priced by the manual price. Ignored for cash, which is valued at par. */
+  priceSource: HoldingPriceSource;
   quantity: string;
   manualUnitPrice: string;
   manualPriceCurrency: string;

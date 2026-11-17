@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AccountDraft } from "../../types/accounts.types";
 import {
   addHoldingRow,
+  allowedHoldingKinds,
   buildHoldingsChangeSet,
   holdingsToDrafts,
   isHoldingRowEdited,
@@ -27,6 +28,8 @@ function holding(overrides: Partial<Holding> = {}): Holding {
     accountId: "a1",
     kind: "crypto",
     code: "BTC",
+    name: null,
+    unit: null,
     quantity: "0.01",
     manualUnitPrice: null,
     manualPriceCurrency: null,
@@ -78,6 +81,7 @@ describe("buildHoldingsChangeSet", () => {
   it("sends a new manual price with its currency", () => {
     const saved = [holding()];
     const rows = holdingsToDrafts(saved);
+    rows[0]!.priceSource = "manual";
     rows[0]!.manualUnitPrice = "123.45";
     rows[0]!.manualPriceCurrency = "EUR";
     expect(buildHoldingsChangeSet(rows, saved).upsert).toEqual([
@@ -141,7 +145,7 @@ describe("validateHoldingRows", () => {
     const errors = validateHoldingRows(rows);
     expect(errors["holdings.0.quantity"]).toBe("USD allows at most 2 decimal places");
     expect(errors["holdings.1.code"]).toBe("USD is already listed");
-    expect(errors["holdings.2.code"]).toBe("Cash must use an ISO 4217 currency code");
+    expect(errors["holdings.2.code"]).toBe("Choose a cash currency");
     expect(errors["holdings.2.quantity"]).toBe("Enter a number greater than 0");
   });
 
@@ -149,6 +153,7 @@ describe("validateHoldingRows", () => {
     const row = {
       ...newHoldingDraft("crypto", "USD"),
       code: "BTC",
+      priceSource: "manual" as const,
       quantity: "0.123456789012345678",
       manualUnitPrice: "60000"
     };
@@ -160,7 +165,7 @@ describe("validateHoldingRows", () => {
 });
 
 describe("row reducers", () => {
-  const draft = { currency: "USD", holdings: [] } as unknown as AccountDraft;
+  const draft = { type: "investment", currency: "USD", holdings: [] } as unknown as AccountDraft;
 
   it("adds, patches and removes a row", () => {
     const added = addHoldingRow(draft);
@@ -168,5 +173,122 @@ describe("row reducers", () => {
     const patched = patchHoldingRow(added, id, { code: "BTC" });
     expect(patched.holdings[0]!.code).toBe("BTC");
     expect(removeHoldingRow(patched, id).holdings).toEqual([]);
+  });
+
+  it("adds crypto rows to a crypto account and stock rows to an investment account", () => {
+    expect(addHoldingRow({ ...draft, type: "crypto" }).holdings[0]!.kind).toBe("crypto");
+    expect(addHoldingRow(draft).holdings[0]!.kind).toBe("stock");
+  });
+});
+
+describe("kinds and price sources", () => {
+  it("limits kinds by account type", () => {
+    expect(allowedHoldingKinds("crypto")).toEqual(["crypto"]);
+    expect(allowedHoldingKinds("investment")).toEqual(["crypto", "fiat", "stock", "etf", "other"]);
+    expect(allowedHoldingKinds("checking")).toEqual([]);
+  });
+
+  it("starts crypto on the automatic source and everything else manual", () => {
+    expect(newHoldingDraft("crypto", "MXN").priceSource).toBe("automatic");
+    expect(newHoldingDraft("stock", "MXN").priceSource).toBe("manual");
+    expect(newHoldingDraft("stock", "MXN").manualPriceCurrency).toBe("MXN");
+  });
+
+  it("derives the saved price source", () => {
+    const [auto, manual] = holdingsToDrafts([
+      holding(),
+      holding({ id: "h2", manualUnitPrice: "5", manualPriceCurrency: "USD" })
+    ]);
+    expect(auto!.priceSource).toBe("automatic");
+    expect(manual!.priceSource).toBe("manual");
+  });
+
+  it("builds a new automatic crypto row without a price", () => {
+    const row = { ...newHoldingDraft("crypto", "USD"), code: "eth", quantity: "2" };
+    expect(buildHoldingsChangeSet([row], []).upsert).toEqual([
+      { kind: "crypto", code: "ETH", quantity: "2" }
+    ]);
+  });
+
+  it("builds a new stock row with a manual price in the account currency", () => {
+    const row = {
+      ...newHoldingDraft("stock", "MXN"),
+      code: "aapl",
+      quantity: "3",
+      manualUnitPrice: "190.5"
+    };
+    expect(buildHoldingsChangeSet([row], []).upsert).toEqual([
+      { kind: "stock", code: "AAPL", quantity: "3", manualUnitPrice: "190.5", manualPriceCurrency: "MXN" }
+    ]);
+  });
+
+  it("builds an other row with name and optional unit, and no code", () => {
+    const row = {
+      ...newHoldingDraft("other", "USD"),
+      name: " Land ",
+      unit: "m²",
+      quantity: "120",
+      manualUnitPrice: "300"
+    };
+    expect(buildHoldingsChangeSet([row], []).upsert).toEqual([
+      {
+        kind: "other",
+        name: "Land",
+        unit: "m²",
+        quantity: "120",
+        manualUnitPrice: "300",
+        manualPriceCurrency: "USD"
+      }
+    ]);
+    const noUnit = buildHoldingsChangeSet([{ ...row, unit: "" }], []).upsert[0]!;
+    expect(noUnit).not.toHaveProperty("unit");
+  });
+
+  it("sends manualUnitPrice null when a manual crypto row switches to automatic", () => {
+    const saved = [holding({ manualUnitPrice: "5", manualPriceCurrency: "USD" })];
+    const rows = holdingsToDrafts(saved);
+    rows[0]!.priceSource = "automatic";
+    rows[0]!.manualUnitPrice = "";
+    expect(buildHoldingsChangeSet(rows, saved).upsert).toEqual([
+      { id: "h1", manualUnitPrice: null }
+    ]);
+  });
+
+  it("sends the manual price when an automatic crypto row switches to manual", () => {
+    const saved = [holding()];
+    const rows = holdingsToDrafts(saved);
+    rows[0]!.priceSource = "manual";
+    rows[0]!.manualUnitPrice = "70000";
+    rows[0]!.manualPriceCurrency = "USD";
+    expect(buildHoldingsChangeSet(rows, saved).upsert).toEqual([
+      { id: "h1", manualUnitPrice: "70000", manualPriceCurrency: "USD" }
+    ]);
+  });
+});
+
+describe("validateHoldingRows per kind", () => {
+  it("requires a name for other and caps name and unit", () => {
+    const row = { ...newHoldingDraft("other", "USD"), quantity: "1", manualUnitPrice: "5" };
+    expect(validateHoldingRows([row])["holdings.0.name"]).toBe("Enter a name");
+    expect(validateHoldingRows([{ ...row, name: "Land" }])).toEqual({});
+    expect(validateHoldingRows([{ ...row, name: "Land", unit: "x".repeat(21) }])["holdings.0.unit"]).toBe(
+      "At most 20 characters"
+    );
+  });
+
+  it("requires a price for manual rows and validates tickers and crypto codes", () => {
+    const stock = { ...newHoldingDraft("stock", "USD"), code: "BRK.B", quantity: "1" };
+    expect(validateHoldingRows([stock])["holdings.0.manualUnitPrice"]).toBe("Enter a price");
+    expect(validateHoldingRows([{ ...stock, manualUnitPrice: "1" }])).toEqual({});
+    expect(validateHoldingRows([{ ...stock, code: "-X", manualUnitPrice: "1" }])["holdings.0.code"]).toBe(
+      "Enter a ticker such as AAPL"
+    );
+    const crypto = { ...newHoldingDraft("crypto", "USD"), code: "USD", quantity: "1" };
+    expect(validateHoldingRows([crypto])["holdings.0.code"]).toBe("Use Cash for fiat currencies");
+  });
+
+  it("allows several other rows with the same empty code", () => {
+    const row = { ...newHoldingDraft("other", "USD"), name: "A", quantity: "1", manualUnitPrice: "1" };
+    expect(validateHoldingRows([row, { ...row, name: "B" }])).toEqual({});
   });
 });

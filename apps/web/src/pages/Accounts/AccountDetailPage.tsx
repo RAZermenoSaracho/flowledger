@@ -311,6 +311,7 @@ export function AccountDetailPage() {
                   content: (
                     <HoldingsTab
                       draft={draft}
+                      accountType={account.type}
                       accountCurrency={account.currency}
                       saved={savedHoldings ?? []}
                       isLoading={holdings.query.isLoading}

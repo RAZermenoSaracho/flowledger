@@ -24,7 +24,7 @@ export type Account = {
   annualInterestRate?: string | null;
   currentBalance?: string;
   currentBalanceInPreferredCurrency?: number;
-  /** Aggregate holdings value (account currency, exact string); `null` or absent when the account has no holdings. */
+  /** Aggregate holdings value (account currency, exact string); `null` or absent for account types without holdings; `empty` status when it has none. */
   holdingsValuation?: HoldingsValuation | null;
   source?: "manual" | "synced";
   sync?: AccountSync[];
@@ -103,6 +103,8 @@ export type HoldingUpsert = {
   id?: string;
   kind?: HoldingKind;
   code?: string;
+  name?: string;
+  unit?: string;
   quantity?: string;
   manualUnitPrice?: string | null;
   manualPriceCurrency?: string;

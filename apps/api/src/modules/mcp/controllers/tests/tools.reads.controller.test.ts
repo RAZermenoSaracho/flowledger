@@ -159,7 +159,7 @@ describe("registerPersonalReadTools", () => {
   });
 
   it("list_holdings returns the same body as the REST service for the credential's user only", async () => {
-    const body = { accountId: "a1", holdings: [{ quantity: "0.1" }], valuation: { value: "5.00" } };
+    const body = { accountId: "a1", holdings: [], valuation: { currency: "USD", value: "0.00", status: "empty", missingCount: 0, holdingCount: 0 } };
     vi.mocked(getAccountHoldings).mockResolvedValue(body as never);
     const result = await run("list_holdings", { id: "a1" });
 

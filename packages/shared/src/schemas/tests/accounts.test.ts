@@ -287,3 +287,22 @@ describe("holdingsChangeSetSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("revised holding instruments", () => {
+  const price = { quantity: "1", manualUnitPrice: "10", manualPriceCurrency: "USD" };
+  it("requires an other name and forbids its code", () => {
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", code: "XAU" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", unit: "oz" }).success).toBe(true);
+  });
+  it("rejects fiat codes as crypto and accepts USDT", () => {
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USD", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USDT", quantity: "1" }).success).toBe(true);
+  });
+  it.each(["stock", "etf"])("validates %s tickers and requires a manual price", (kind) => {
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BRK.B" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BAD/TICKER" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ quantity: "1", kind, code: "AAPL" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "AAPL", unit: "shares" }).success).toBe(false);
+  });
+});

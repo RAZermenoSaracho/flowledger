@@ -38,6 +38,7 @@ export const financialOverviewDisclosureSchema = z.enum([
   "rates_missing",
   "past_month_current_rates",
   "investment_recorded_balance",
+  "investment_without_holdings",
   "synced_balances",
   "crypto_usdt_as_usd"
 ]);
