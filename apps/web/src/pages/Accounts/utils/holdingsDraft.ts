@@ -32,6 +32,11 @@ export function allowedHoldingKinds(type: AccountType): readonly HoldingKind[] {
   );
 }
 
+/** Whether `type` is an investment or crypto account, whose value comes from holdings rather than an initial balance. */
+export function isHoldingType(type: AccountType): boolean {
+  return allowedHoldingKinds(type).length > 0;
+}
+
 /** The price source a saved holding is shown with: Binance for crypto without a manual price, otherwise manual. */
 function savedPriceSource(holding: Holding): HoldingPriceSource {
   return holding.kind === "crypto" && !holding.manualUnitPrice ? "automatic" : "manual";

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   calculateAccountBalance,
+  calculateAccountContributions,
   calculateMonthlyCashflow,
   transactionBalanceDelta,
   withAccountBalances
@@ -369,5 +370,55 @@ describe("calculateMonthlyCashflow month bucketing by timeZone", () => {
   it("splits at the exact instant of a month start across a DST change", () => {
     expect(monthsFor("2026-04-01T06:59:59.999Z", "America/Los_Angeles")).toEqual(["2026-03"]);
     expect(monthsFor("2026-04-01T07:00:00.000Z", "America/Los_Angeles")).toEqual(["2026-04"]);
+  });
+});
+
+
+describe("calculateAccountContributions", () => {
+  const incoming = { type: "transfer" as const, accountId: "checking", transferToAccountId: "a", accountAmount: "100", destinationAmount: "1700" };
+  const outgoing = { type: "transfer" as const, accountId: "a", transferToAccountId: "checking", accountAmount: "102", destinationAmount: "100" };
+
+  it("uses destinationAmount for cross-currency incoming and fee-inclusive accountAmount for outgoing", () => {
+    expect(calculateAccountContributions("a", "MXN", [incoming, outgoing])).toEqual({
+      currency: "MXN", incoming: "1700.00", outgoing: "102.00", net: "1598.00", transferCount: 2, excludedCount: 0
+    });
+  });
+
+  it("excludes self-transfers, unrelated transfers, income and expense", () => {
+    expect(calculateAccountContributions("a", "USD", [
+      { ...incoming, accountId: "a" },
+      { ...incoming, transferToAccountId: "other" },
+      { ...outgoing, type: "income" },
+      { ...outgoing, type: "expense" }
+    ])).toEqual({ currency: "USD", incoming: "0.00", outgoing: "0.00", net: "0.00", transferCount: 0, excludedCount: 0 });
+  });
+
+  it("counts missing relevant amounts without guessing from the counterpart", () => {
+    expect(calculateAccountContributions("a", "USD", [
+      { ...incoming, destinationAmount: null },
+      { ...outgoing, accountAmount: null }
+    ])).toMatchObject({ net: "0.00", transferCount: 0, excludedCount: 2 });
+  });
+
+  it("includes deleted counterparts and zero amounts", () => {
+    expect(calculateAccountContributions("a", "USD", [
+      { ...incoming, accountId: null, destinationAmount: "5" },
+      { ...outgoing, transferToAccountId: null, accountAmount: "7" },
+      { ...incoming, destinationAmount: "0" }
+    ])).toMatchObject({ incoming: "5.00", outgoing: "7.00", net: "-2.00", transferCount: 3, excludedCount: 0 });
+  });
+
+  it.each([["USD", "0.01"], ["JPY", "0"], ["BTC", "0.012000000000000000"]])("rounds only the aggregate to %s minor units", (currency, expected) => {
+    expect(calculateAccountContributions("a", currency, [
+      { ...incoming, destinationAmount: "0.006" },
+      { ...incoming, destinationAmount: "0.006" }
+    ]).incoming).toBe(expected);
+  });
+
+  it("rounds net from exact totals independently", () => {
+    expect(calculateAccountContributions("a", "USD", [
+      { ...incoming, destinationAmount: "1.004" },
+      { ...outgoing, accountAmount: "0.005" }
+    ])).toMatchObject({ incoming: "1.00", outgoing: "0.01", net: "1.00" });
   });
 });

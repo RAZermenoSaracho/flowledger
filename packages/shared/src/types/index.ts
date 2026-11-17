@@ -253,6 +253,23 @@ export interface HoldingsValuation {
   holdingCount: number;
 }
 
+/**
+ * Money transferred into and out of an investment or crypto account, in the account currency, from its transfer
+ * transactions only (income, expenses and the initial balance are excluded, as are transfers from the account to itself).
+ * `incoming` sums the recorded `destinationAmount` of transfers into the account and `outgoing` the recorded `accountAmount`
+ * of transfers out, at the amounts stored when each transfer was made (no revaluation at current rates). `net` is
+ * `incoming − outgoing`. `excludedCount` counts transfers with no recorded amount for this account, which are left out.
+ * Informational only: never part of the account's value or net worth.
+ */
+export interface AccountContributions {
+  currency: string;
+  incoming: string;
+  outgoing: string;
+  net: string;
+  transferCount: number;
+  excludedCount: number;
+}
+
 /** Response of `GET`/`PATCH /accounts/:id/holdings`. */
 export interface AccountHoldings {
   accountId: string;

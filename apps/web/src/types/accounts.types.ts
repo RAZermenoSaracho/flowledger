@@ -1,4 +1,5 @@
 import type {
+  AccountContributions,
   AccountHoldings,
   AccountType,
   HoldingKind,
@@ -26,6 +27,8 @@ export type Account = {
   currentBalanceInPreferredCurrency?: number;
   /** Aggregate holdings value (account currency, exact string); `null` or absent for account types without holdings; `empty` status when it has none. */
   holdingsValuation?: HoldingsValuation | null;
+  /** Net transfers in and out for investment and crypto accounts (account currency, exact strings); `null` or absent for other types. Not a balance, profit or return. */
+  contributions?: AccountContributions | null;
   source?: "manual" | "synced";
   sync?: AccountSync[];
   isArchived: boolean;

@@ -9,7 +9,6 @@ import {
   EditableField,
   editableControlClassName
 } from "../../../components/EditableField";
-import { MoneyInput } from "../../../components/MoneyInput";
 import { RelatedList } from "../../../components/RelatedList";
 import type { FormDraft } from "../../../types/common.types";
 import { formatMoney } from "../../../utils/currency";
@@ -27,6 +26,7 @@ import {
   removeHoldingRow,
   validateHoldingRows
 } from "../utils/holdingsDraft";
+import { ManualPriceCell } from "./ManualPriceCell";
 import { ValuationTime } from "./ValuationTime";
 
 const mutedClassName = "text-sm text-slate-500 dark:text-slate-400";
@@ -252,27 +252,20 @@ export function HoldingsTab({
   function priceCell(row: HoldingDraft, index: number) {
     if (row.kind === "fiat") return <span className={mutedClassName}>1</span>;
     if (row.priceSource === "manual" && !isIncompatible(row)) {
-      const label = `${rowName(row, index)} manual price`;
       return (
-        <EditableField
-          label={label}
-          hideLabel
+        <ManualPriceCell
+          name={rowName(row, index)}
+          amount={row.manualUnitPrice}
+          currency={row.manualPriceCurrency || accountCurrency}
           error={
             rowError(index, "manualUnitPrice", row.manualUnitPrice) ??
             rowError(index, "manualPriceCurrency", row.manualPriceCurrency)
           }
-        >
-          <MoneyInput
-            label={label}
-            amount={row.manualUnitPrice}
-            currency={row.manualPriceCurrency || accountCurrency}
-            placeholder="0.00"
-            onAmountChange={(value) => patch(row, { manualUnitPrice: value })}
-            onCurrencyChange={(value) =>
-              patch(row, { manualPriceCurrency: value })
-            }
-          />
-        </EditableField>
+          onAmountChange={(value) => patch(row, { manualUnitPrice: value })}
+          onCurrencyChange={(value) =>
+            patch(row, { manualPriceCurrency: value })
+          }
+        />
       );
     }
     const valuation = row.valuation;

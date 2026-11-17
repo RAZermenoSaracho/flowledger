@@ -36,7 +36,7 @@ export function registerTools(server: McpServer, auth: McpAuth) {
 
   server.registerTool(
     "list_accounts",
-    { description: "List the user's accounts with balances. `initialBalance` and `currentBalance` are decimal strings.", annotations: READ_ONLY },
+    { description: "List the user's accounts with balances and informational transfer contributions for investment/crypto accounts (null for other types). `initialBalance` and `currentBalance` are decimal strings.", annotations: READ_ONLY },
     () => runRead(async () => ({ accounts: await listAccounts(userId, undefined) }))
   );
 

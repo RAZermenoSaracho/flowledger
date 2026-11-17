@@ -77,6 +77,10 @@ Net worth SHALL equal the values of active accounts, plus what people owe the us
 - **WHEN** an account with holdings is in the preferred currency
 - **THEN** its contribution to net worth equals the `value` returned by `GET /accounts/:id/holdings`
 
+#### Scenario: Contributions never affect net worth
+- **WHEN** an investment or crypto account has transfers in or out that produce net contributions
+- **THEN** net worth counts only the account's `holdingsValuation.value`, and the net contributions do not change it
+
 ### Requirement: Disclosures
 The overview SHALL disclose the following, only when they apply, and grouped in one place:
 - past-month amounts in other currencies are converted at current rates;

@@ -3,18 +3,21 @@ import { amountPrecisionError } from "../../../utils/currency";
 import type { FormErrors } from "../../../types/common.types";
 import type { AccountDraft } from "../types/accounts.types";
 import { creditCardFields } from "./creditCardDraft";
-import { validateHoldingRows } from "./holdingsDraft";
+import { isHoldingType, validateHoldingRows } from "./holdingsDraft";
 
 /** Validates the account draft with the shared update schema plus the card rules, returning the first message per field. */
 export function validateAccountDraft(values: AccountDraft): FormErrors {
   const { name, type, identifier, currency } = values;
+  const hidesBalance = isHoldingType(type);
   const result = updateAccountSchema.superRefine(refineCreditCardAccount).safeParse({
     name,
     type,
     identifier,
     currency,
     initialBalance:
-      values.initialBalance.trim() === "" ? undefined : values.initialBalance,
+      hidesBalance || values.initialBalance.trim() === ""
+        ? undefined
+        : values.initialBalance,
     ...(values.type === "credit_card" ? creditCardFields(values) : {})
   });
   const errors: FormErrors = {};
@@ -24,7 +27,7 @@ export function validateAccountDraft(values: AccountDraft): FormErrors {
       if (key) errors[key] ??= issue.message;
     }
   }
-  if (!errors.initialBalance && values.initialBalance.trim() !== "") {
+  if (!errors.initialBalance && !hidesBalance && values.initialBalance.trim() !== "") {
     const precision = amountPrecisionError(values.initialBalance, values.currency);
     if (precision) errors.initialBalance = precision;
   }

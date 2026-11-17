@@ -7,6 +7,7 @@ import {
   buildHoldingsChangeSet,
   holdingsToDrafts,
   isHoldingRowEdited,
+  isHoldingType,
   newHoldingDraft,
   patchHoldingRow,
   removeHoldingRow,
@@ -290,5 +291,14 @@ describe("validateHoldingRows per kind", () => {
   it("allows several other rows with the same empty code", () => {
     const row = { ...newHoldingDraft("other", "USD"), name: "A", quantity: "1", manualUnitPrice: "1" };
     expect(validateHoldingRows([row, { ...row, name: "B" }])).toEqual({});
+  });
+});
+
+describe("isHoldingType", () => {
+  it("is true only for investment and crypto", () => {
+    expect(isHoldingType("investment")).toBe(true);
+    expect(isHoldingType("crypto")).toBe(true);
+    expect(isHoldingType("checking")).toBe(false);
+    expect(isHoldingType("credit_card")).toBe(false);
   });
 });

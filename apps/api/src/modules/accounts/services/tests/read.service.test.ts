@@ -248,3 +248,22 @@ describe("empty holding accounts", () => {
     expect(result[0]!.holdingsValuation).toEqual({ currency: "USD", value: "0.00", status: "empty", missingCount: 0, holdingCount: 0 });
   });
 });
+
+
+describe("listAccounts — contributions", () => {
+  it("returns contributions only for investment/crypto without changing holdings valuations", async () => {
+    prismaMock.account.findMany.mockResolvedValue(["checking", "credit_card", "investment", "crypto"].map((type) => ({
+      id: type, type, currency: "USD", initialBalance: new Prisma.Decimal(99), providerAccounts: []
+    })) as never);
+    prismaMock.transaction.findMany.mockResolvedValue([
+      { type: "transfer", accountId: "checking", transferToAccountId: "investment", accountAmount: new Prisma.Decimal(20), destinationAmount: new Prisma.Decimal(20) },
+      { type: "transfer", accountId: "crypto", transferToAccountId: null, accountAmount: new Prisma.Decimal(3), destinationAmount: null }
+    ] as never);
+    const result = serialize(await listAccounts("user-1", undefined));
+    expect(result[0]!.contributions).toBeNull();
+    expect(result[1]!.contributions).toBeNull();
+    expect(result[2]!).toMatchObject({ contributions: { incoming: "20.00", outgoing: "0.00", net: "20.00", transferCount: 1, excludedCount: 0 }, holdingsValuation: { value: "0.00", status: "empty" } });
+    expect(result[3]!).toMatchObject({ contributions: { incoming: "0.00", outgoing: "3.00", net: "-3.00" }, holdingsValuation: { value: "0.00", status: "empty" } });
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledTimes(1);
+  });
+});

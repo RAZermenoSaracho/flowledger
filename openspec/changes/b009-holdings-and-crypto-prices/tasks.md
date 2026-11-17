@@ -147,3 +147,12 @@ Group 8 supersedes the "Net deposited", ledger-balance and two-kind behavior in 
 - [x] 8.7 Web: header Total value with partial/empty indication (no Net deposited, no ledger balance, no cash reminder); account list and totals use `holdingsValuation.value`; Holdings tab with the Add Holding flow, Price source selector, integrated money input using the existing currency picker, new table columns, stacked mobile rows and incompatible rows with remove only; `DISCLOSURE_TEXT` for `investment_without_holdings`. Verify with component tests for each scenario in `account-form-view`.
 - [x] 8.8 Docs: update `docs/DOMAIN_LOGIC.md` (holdings-only valuation, kinds, price sources, no invented timestamps) and `docs/KNOWN_ISSUES.md`; verify that no doc still describes "Net deposited" or `investment_recorded_balance` emission.
 - [ ] 8.9 Staging: verify the migration applies on `flowledger_staging`, that the two stored `fiat` holdings in crypto accounts are untouched, still valued and counted, can be removed but not updated, and that net worth matches the account totals.
+
+## 9. Acceptance round 2
+
+- [x] 9.1 Shared: `AccountContributions` type and the `contributions` field on the account type. Verify with typecheck.
+- [x] 9.2 API: `calculateAccountContributions` in `transactionCalculations.ts` plus the `contributions` field in `listAccounts`. Verify with util tests (incoming, outgoing, self-transfer, income/expense excluded, null amount excluded and counted, deleted counterpart, fee, rounding, cross-currency), a `read.service` test (null for other types, `holdingsValuation` unaffected), a net worth test, and an integration test that transfers in, out, edits and deletes. Update the MCP `list_accounts` description.
+- [x] 9.3 Web price display: manual price as text with inline edit on activation in `HoldingsTab`. Verify with component tests for the four scenarios.
+- [x] 9.4 Web initial balance: hide the field for investment/crypto in create and the General tab. Verify with component tests, including the type switch.
+- [x] 9.5 Web contributions line in the Transactions tab, plus `contributions` in `accounts.types.ts`. Verify with component tests for shown, excluded note and hidden.
+- [ ] 9.6 Docs and staging: update `docs/DOMAIN_LOGIC.md` and `docs/PUBLIC_API.md`, then smoke-test contributions on `flowledger_staging`.
