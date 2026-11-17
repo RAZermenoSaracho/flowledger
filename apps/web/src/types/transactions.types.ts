@@ -155,4 +155,6 @@ export type RelatedTransactionsScope = {
    * the domain, widens the scope to also match transfers into the account.
    */
   transfersInWith?: string;
+  /** Account scopes only: always also match transfers into the account, whatever the domain. */
+  includeTransfersIn?: boolean;
 };

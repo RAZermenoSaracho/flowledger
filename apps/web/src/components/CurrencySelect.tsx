@@ -239,7 +239,7 @@ export function CurrencySelect({
               </li>
             ) : (
               options.map((option, index) => (
-                <li key={option.code || "__no_preference__"}>
+                <li key={`${option.group}:${option.code}`}>
                   {index === 0 || options[index - 1]!.group !== option.group ? (
                     <p
                       aria-hidden="true"
