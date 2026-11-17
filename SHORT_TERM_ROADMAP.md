@@ -47,8 +47,8 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-032 | Community notification model library and versioning | Medium | ST-010 | Completed (PR #52) | None |
 | ST-013 | Credit-card limit and available credit | Medium | ST-006 | Completed (PR #56) | None |
 | ST-014 | Credit-card billing periods, payments, interest, and reminders | Medium | ST-013, ST-007, ST-023 | Completed (PR #56) | None |
-| ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Planned | None |
-| ST-016 | Automatic crypto holding prices | Medium | ST-015 | Planned | None |
+| ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Completed (PRs #64 to #68) | None |
+| ST-016 | Automatic crypto holding prices | Medium | ST-015 | Completed (PR #64) | None |
 | ST-017 | Stock and ETF market data | Low | ST-021 | Planned | None |
 | ST-018 | Binance read-only account sync | Low | ST-015 | Planned | None |
 | ST-019 | Read-only on-chain wallet sync | Low | ST-015 | Planned | None |
@@ -593,7 +593,7 @@ Billing periods, payments, interest and reminders are ST-014.
 
 **Dependencies:** ST-006, ST-008 for net-worth integration, and ST-023 so crypto quantities use its exact precision.
 
-**Delivery:** Batch B-009, together with ST-016, in one PR. Holdings and manual valuations come first, then aggregate value and net-worth integration.
+**Delivery:** Batch B-009, together with ST-016, in one PR. Holdings and manual valuations come first, then aggregate value and net-worth integration. Completed and deployed on 2026-11-16 (PRs #64 to #69); the design is in the [OpenSpec change](openspec/changes/archive/2026-11-16-b009-holdings-and-crypto-prices/design.md). Investment and crypto accounts also show Net contributions (transfers in minus transfers out), which is informational and never part of value or net worth.
 
 **Future metric:** Investment returns (ST-008) become possible only with holdings plus contributions, withdrawals, cost basis, and valuation history. This intent doesn't add those, and an account's current balance compared with its initial balance is not a return.
 
@@ -617,9 +617,11 @@ Billing periods, payments, interest and reminders are ST-014.
 **Acceptance criteria:**
 - A supported crypto holding shows a market value and the time of its price.
 - A manual override takes priority and is labeled as manual.
-- An unsupported asset or unavailable price falls back to a manual or last-known value with a visible stale indicator, and never to zero.
+- An unsupported asset or unavailable price falls back to a manual or last-known value, and never to zero. As approved during B-009 design, there is no stale indicator: every known value shows its last-updated time, and an unavailable value is shown as missing.
 
 **Dependencies:** ST-015.
+
+**Delivery:** Completed in batch B-009 (PR #64), reusing the existing Binance pricing with a shared last-known-price fallback (`docs/KNOWN_ISSUES.md` #055, #057).
 
 **Relevant existing architecture:** `currencies/providers/binance/binance.client.ts` uses `api.binance.com` REST with a 60-second cache and bridges to fiat through USDT treated as USD. Pricing on read fits this, so no scheduler or new provider should be needed.
 
@@ -887,7 +889,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-006 | ST-023 | Correct native balances with auditable FX history and crypto precision | B-001, B-004 | L | Completed (PR #44, deployed 2026-11-12. Also shipped: a unified `Decimal(38,18)` money model with exact decimal-string API/MCP contracts; crypto Sharing and settlements with exact largest-remainder splits; per-currency group summaries; the account currency lock (#013); and the `TransactionCorrection` audit. Production kept its 24 transactions via the idempotent fill.) |
 | B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Completed (PR #52, deployed 2026-11-13; also shipped: MCP notification model tools for CRUD, scripts and Form rules, dry-run tests, queue and logs, and the library, PR #54) |
 | B-008 | ST-013, ST-014 | Credit-card limit, available credit, dynamic billing periods, automatic payment recognition, interest, and reminders | B-004, B-006 | XL | Completed (PR #56, deployed 2026-11-15; acceptance fixes PRs #57 to #60: the dedicated `/accounts/new` manual creation view and Add account chooser, the "Credit" type label, clearer payment-due settings, and the standard transactions search bar on account and group Transactions tabs with the billing period as a first-class condition; released in PR #61) |
-| B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Planned |
+| B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Completed (PR #64, deployed 2026-11-16; acceptance fixes PRs #65 to #68: holdings-only valuation with crypto, cash, stock, ETF and other assets, crypto-only crypto accounts, price sources, the compact money input, `YYYY/MM/DD HH:mm` valuation times, read-only manual prices, Initial balance hidden for holding accounts, and Net contributions with incoming transfers listed; released in PR #69, merge `6cbb489`, both migrations applied after the deploy-script backup) |
 | B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
 | B-011 | ST-017 | Stock and ETF market data | B-010 | M | Planned |
 | B-012 | ST-018 | Binance read-only account sync, with secure credential storage | B-009 | L | Planned |
@@ -896,7 +898,7 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 
 Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004, B-007 and B-008 are the three XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003 and B-005 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
-**Where to start:** B-009 is next. B-001, B-002, B-004, B-006, B-007, B-008, and S-001 to S-005 are complete.
+**Where to start:** B-010 is next. B-001, B-002, B-004, B-006, B-007, B-008, B-009, and S-001 to S-005 are complete.
 
 **Milestone: notification ingestion before advanced financial features.** The goal is a stable, production-usable FlowLedger after B-006, then mobile-notification ingestion. Completing B-007 should provide an end-to-end usable workflow for automatically submitting supported mobile notification content to FlowLedger and reviewing the resulting transactions. Only after B-007 do the advanced financial features begin: credit cards, holdings, valuations, and external integrations (B-008 onward). Merging into `razs_ai` does not release anything, so after B-007 the product owner has an explicit opportunity to evaluate a production release (merging `razs_ai` into `main` and deploying) before B-008 starts.
 
