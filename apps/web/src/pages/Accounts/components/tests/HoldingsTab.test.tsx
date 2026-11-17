@@ -286,11 +286,110 @@ describe("HoldingsTab", () => {
     const bodies = captureHoldingsPatches();
     const user = userEvent.setup();
     await openHoldings(user);
-    expect(await screen.findByLabelText("BTC manual price")).toHaveValue("55000");
+    expect(await screen.findByRole("button", { name: "Edit unit price of BTC" })).toHaveTextContent("$55,000.00");
+    expect(screen.queryByLabelText("BTC manual price")).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("BTC price source"), "automatic");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({ upsert: [{ id: "h-btc", manualUnitPrice: null }], remove: [] });
+  });
+
+  describe("manual price editing", () => {
+    const manualBtc = () =>
+      makeHolding({
+        manualUnitPrice: "55000",
+        manualPriceCurrency: "USD",
+        manualPricedAt: OLD_PRICED_AT,
+        valuation: {
+          source: "manual",
+          unitPrice: "55000",
+          priceCurrency: "USD",
+          valuedAt: OLD_PRICED_AT,
+          value: "1400",
+          missingReason: null
+        }
+      });
+
+    it("shows a saved manual price as text with no input, and opens the input by click or keyboard", async () => {
+      mockApi(makeAccount({ type: "crypto" }), [manualBtc()]);
+      const user = userEvent.setup();
+      await openHoldings(user);
+      const button = await screen.findByRole("button", { name: "Edit unit price of BTC" });
+      expect(screen.queryByLabelText("BTC manual price")).not.toBeInTheDocument();
+
+      await user.click(button);
+      const input = await screen.findByLabelText("BTC manual price");
+      expect(input).toHaveValue("55000");
+      expect(screen.getByRole("combobox", { name: "BTC manual price currency" })).toHaveValue("USD");
+
+      await user.keyboard("{Escape}");
+      expect(screen.queryByLabelText("BTC manual price")).not.toBeInTheDocument();
+
+      screen.getByRole("button", { name: "Edit unit price of BTC" }).focus();
+      await user.keyboard("{Enter}");
+      expect(await screen.findByLabelText("BTC manual price")).toBeInTheDocument();
+    });
+
+    it("returns to text with the draft value on Escape and on blur", async () => {
+      mockApi(makeAccount({ type: "crypto" }), [manualBtc()]);
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await user.click(await screen.findByRole("button", { name: "Edit unit price of BTC" }));
+      let input = await screen.findByLabelText("BTC manual price");
+      await user.clear(input);
+      await user.type(input, "70000");
+      await user.keyboard("{Escape}");
+      expect(screen.getByRole("button", { name: "Edit unit price of BTC" })).toHaveTextContent("$70,000.00");
+
+      await user.click(screen.getByRole("button", { name: "Edit unit price of BTC" }));
+      input = await screen.findByLabelText("BTC manual price");
+      await user.clear(input);
+      await user.type(input, "71000");
+      await user.click(screen.getByLabelText("BTC quantity"));
+      expect(screen.queryByLabelText("BTC manual price")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit unit price of BTC" })).toHaveTextContent("$71,000.00");
+    });
+
+    it("sends the changed currency on Save and restores the saved price on Discard", async () => {
+      mockApi(makeAccount({ type: "crypto" }), [manualBtc()]);
+      const bodies = captureHoldingsPatches();
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await user.click(await screen.findByRole("button", { name: "Edit unit price of BTC" }));
+      await user.click(await screen.findByRole("combobox", { name: "BTC manual price currency" }));
+      await user.click(await screen.findByRole("option", { name: /EUR/ }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toEqual({
+        upsert: [{ id: "h-btc", manualUnitPrice: "55000", manualPriceCurrency: "EUR" }],
+        remove: []
+      });
+    });
+
+    it("restores the saved price text on Discard", async () => {
+      mockApi(makeAccount({ type: "crypto" }), [manualBtc()]);
+      const bodies = captureHoldingsPatches();
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await user.click(await screen.findByRole("button", { name: "Edit unit price of BTC" }));
+      const input = await screen.findByLabelText("BTC manual price");
+      await user.clear(input);
+      await user.type(input, "1");
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.getByRole("button", { name: "Edit unit price of BTC" })).toHaveTextContent("$55,000.00");
+      expect(bodies).toHaveLength(0);
+    });
+
+    it("keeps an automatic price as read-only text with no edit control", async () => {
+      mockApi(makeAccount({ type: "crypto" }), [makeHolding()]);
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await screen.findByLabelText("BTC quantity");
+      expect(screen.getAllByText(`Last updated: ${formatValuationTime(OLD_PRICED_AT)}`).length).toBeGreaterThan(0);
+      expect(screen.queryByRole("button", { name: /Edit unit price/ })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("BTC manual price")).not.toBeInTheDocument();
+    });
   });
 
   it("opens the manual price currency picker by click and changes the currency", async () => {

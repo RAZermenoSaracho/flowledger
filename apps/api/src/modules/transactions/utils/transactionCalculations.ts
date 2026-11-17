@@ -1,3 +1,4 @@
+import { currencyFractionDigits, type AccountContributions } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 
 type TransactionType = "income" | "expense" | "transfer";
@@ -54,6 +55,44 @@ export function transactionBalanceDelta(
   }
 
   return new Prisma.Decimal(0);
+}
+
+/**
+ * Sums recorded native transfer amounts, excluding self-transfers and counting missing amounts separately.
+ * Totals and net are rounded independently once to the account currency's minor units; no rates are applied.
+ */
+export function calculateAccountContributions(
+  accountId: string,
+  currency: string,
+  transactions: AccountBalanceTransaction[]
+): AccountContributions {
+  let incoming = new Prisma.Decimal(0);
+  let outgoing = new Prisma.Decimal(0);
+  let transferCount = 0;
+  let excludedCount = 0;
+  for (const transaction of transactions) {
+    if (transaction.type !== "transfer") continue;
+    const isIncoming = transaction.transferToAccountId === accountId && transaction.accountId !== accountId;
+    const isOutgoing = transaction.accountId === accountId && transaction.transferToAccountId !== accountId;
+    if (!isIncoming && !isOutgoing) continue;
+    const amount = isIncoming ? transaction.destinationAmount : transaction.accountAmount;
+    if (amount == null) {
+      excludedCount++;
+      continue;
+    }
+    if (isIncoming) incoming = incoming.plus(amount);
+    else outgoing = outgoing.plus(amount);
+    transferCount++;
+  }
+  const digits = currencyFractionDigits(currency);
+  return {
+    currency,
+    incoming: incoming.toFixed(digits),
+    outgoing: outgoing.toFixed(digits),
+    net: incoming.minus(outgoing).toFixed(digits),
+    transferCount,
+    excludedCount
+  };
 }
 
 /**

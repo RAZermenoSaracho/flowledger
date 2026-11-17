@@ -25,6 +25,7 @@ import * as accountsClient from "../../services/accounts.client";
 import { AccountSyncPanel } from "./components/AccountSyncPanel";
 import { AddAccountCard } from "./components/AddAccountCard";
 import { CreditCardTab } from "./components/CreditCardTab";
+import { NetContributions } from "./components/NetContributions";
 import { HoldingsTab } from "./components/HoldingsTab";
 import { HoldingsValueSummary } from "./components/HoldingsValueSummary";
 import { AccountTypeSections } from "./components/AccountTypeSections";
@@ -34,6 +35,7 @@ import { useAccountHoldings } from "./hooks/useAccountHoldings";
 import { useAccountProviderSync } from "./hooks/useAccountProviderSync";
 import type { AccountDraft } from "./types/accounts.types";
 import { getAccountTypeLabel } from "./utils/accountDisplay";
+import { isHoldingType } from "./utils/holdingsDraft";
 import {
   BILLING_PERIOD_FIELD,
   billingPeriodCondition,
@@ -64,12 +66,14 @@ export function AccountDetailPage() {
   const account = accountsQuery.data?.find((item) => item.id === id) ?? null;
 
   const hasHoldingsTab = Boolean(
-    account && (HOLDING_ACCOUNT_TYPES as readonly string[]).includes(account.type)
+    account &&
+    (HOLDING_ACCOUNT_TYPES as readonly string[]).includes(account.type)
   );
   const holdings = useAccountHoldings(id, hasHoldingsTab);
   const savedHoldings = holdings.query.data?.holdings;
   const holdingsBinding = useMemo(
-    () => (savedHoldings ? { saved: savedHoldings, save: holdings.save } : undefined),
+    () =>
+      savedHoldings ? { saved: savedHoldings, save: holdings.save } : undefined,
     [savedHoldings, holdings.save]
   );
 
@@ -226,17 +230,22 @@ export function AccountDetailPage() {
                 disabled={draft.isSaving}
               />
             </EditableField>
-            <EditableField label="Initial balance" {...field("initialBalance")}>
-              <input
-                className={editableControlClassName}
-                type="number"
-                step="any"
-                value={values.initialBalance}
-                onChange={(event) =>
-                  draft.setField("initialBalance", event.target.value)
-                }
-              />
-            </EditableField>
+            {isHoldingType(values.type) ? null : (
+              <EditableField
+                label="Initial balance"
+                {...field("initialBalance")}
+              >
+                <input
+                  className={editableControlClassName}
+                  type="number"
+                  step="any"
+                  value={values.initialBalance}
+                  onChange={(event) =>
+                    draft.setField("initialBalance", event.target.value)
+                  }
+                />
+              </EditableField>
+            )}
           </div>
 
           <AccountTypeSections type={values.type} draft={draft} />
@@ -280,18 +289,23 @@ export function AccountDetailPage() {
             id: "transactions",
             label: "Transactions",
             content: (
-              <RelatedTransactionsList
-                key={`${account.id}:${periodListKey}`}
-                scope={{
-                  field: "accountId",
-                  value: account.id,
-                  transfersInWith: BILLING_PERIOD_FIELD
-                }}
-                extraFields={periodFields}
-                initialDomain={periodDomain}
-                onQueryChange={syncPeriodToUrl}
-                emptyText="No transactions for this account yet."
-              />
+              <>
+                {account.contributions ? (
+                  <NetContributions contributions={account.contributions} />
+                ) : null}
+                <RelatedTransactionsList
+                  key={`${account.id}:${periodListKey}`}
+                  scope={{
+                    field: "accountId",
+                    value: account.id,
+                    transfersInWith: BILLING_PERIOD_FIELD
+                  }}
+                  extraFields={periodFields}
+                  initialDomain={periodDomain}
+                  onQueryChange={syncPeriodToUrl}
+                  emptyText="No transactions for this account yet."
+                />
+              </>
             )
           },
           ...(account.type === "credit_card"

@@ -7,7 +7,11 @@ import type { Account, HoldingsChangeSet } from "../../../types/accounts.types";
 import type { AccountDraft } from "../types/accounts.types";
 import { creditCardBody, creditCardFields } from "../utils/creditCardDraft";
 import { validateAccountDraft } from "../utils/accountValidation";
-import { buildHoldingsChangeSet, holdingsToDrafts } from "../utils/holdingsDraft";
+import {
+  buildHoldingsChangeSet,
+  holdingsToDrafts,
+  isHoldingType
+} from "../utils/holdingsDraft";
 
 function text(value: string | number | null | undefined) {
   return value == null ? "" : String(value);
@@ -86,7 +90,9 @@ export function useAccountForm(
           type: values.type,
           identifier: values.identifier.trim() || null,
           currency: values.currency,
-          initialBalance: values.initialBalance.trim() || "0",
+          initialBalance: isHoldingType(values.type)
+            ? "0"
+            : values.initialBalance.trim() || "0",
           ...(values.type === "credit_card" ? creditCardFields(values) : {})
         });
         await queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -101,7 +107,7 @@ export function useAccountForm(
         for (const key of accountKeys) {
           if (key === "identifier")
             body.identifier = values.identifier.trim() || null;
-          else if (key === "initialBalance")
+          else if (key === "initialBalance" && !isHoldingType(values.type))
             body.initialBalance = values.initialBalance;
           else if (key === "name") body.name = values.name.trim();
           else if (key === "type") body.type = values.type;

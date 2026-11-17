@@ -157,3 +157,66 @@ All values SHALL come from the API, and the web app SHALL NOT compute valuations
 #### Scenario: Mobile
 - **WHEN** the Holdings tab is opened at mobile width
 - **THEN** holdings render as stacked records with every field readable
+
+### Requirement: Manual price read-only at rest
+
+In the Holdings tab a manual unit price SHALL render as formatted text (for example `1.00 USD`), like automatic prices, and SHALL be an activatable control named like "Edit unit price of BTC".
+
+- Activating it (click, Enter, Space or tap) SHALL show the compact money input, amount with the inline currency on one line, for that row only.
+- Blur outside the price cell, Escape or Enter SHALL return it to text showing the draft value.
+- A new row that needs a price SHALL start in edit mode.
+- Draft, Save, Discard and unsaved-change protection SHALL be unchanged.
+- Automatic prices SHALL stay read-only text with their source. No input box SHALL be shown at rest.
+
+#### Scenario: Price at rest
+- **WHEN** a holding has a manual price of 1 USD
+- **THEN** the row shows "1.00 USD" as text and no input
+
+#### Scenario: Inline edit
+- **WHEN** the user activates the price by click or keyboard
+- **THEN** one amount-plus-currency input appears on one line in that row
+
+#### Scenario: Leaving edit mode
+- **WHEN** the user presses Escape, Enter or clicks outside the price cell
+- **THEN** the input is replaced by text showing the draft value, and the draft remains unsaved until Save
+
+#### Scenario: Automatic price
+- **WHEN** a holding is market-priced
+- **THEN** its price is read-only text with its source and is not activatable
+
+### Requirement: Initial balance hidden for holding accounts
+
+Account creation and the General tab SHALL NOT show the Initial balance field when the type is `investment` or `crypto`, including when the type is switched to one of them in the form. Every other type SHALL keep the field. Creating a holding-type account SHALL NOT send a non-zero initial balance. The stored field is not deleted.
+
+#### Scenario: Create investment account
+- **WHEN** the user chooses type Investment or Crypto in the create form
+- **THEN** no Initial balance field is shown
+
+#### Scenario: Type switch
+- **WHEN** the user switches the type between a holding type and another type
+- **THEN** the field is hidden for the holding type and shown again with its stored value for the other type
+
+#### Scenario: Other types
+- **WHEN** the type is checking, savings, cash or credit card
+- **THEN** the Initial balance field is shown as before
+
+### Requirement: Net contributions line
+
+The Transactions tab of an `investment` or `crypto` account SHALL show a subtle line `Net contributions: <amount>` in the account currency, using `contributions.net`, above or below the list.
+
+- Secondary text or a tooltip SHALL read "Transfers in <incoming> · out <outgoing>".
+- When `excludedCount > 0` it SHALL also say "N transfers without a recorded amount are not included".
+- The line SHALL NOT appear in the header and SHALL NOT be labelled Balance, Available cash, Profit or Return.
+- Other account types SHALL NOT show it. Transfers in the list display as before.
+
+#### Scenario: Line shown
+- **WHEN** an investment account has contributions with net 800, incoming 1000 and outgoing 200
+- **THEN** the Transactions tab shows "Net contributions: 800.00" with "Transfers in 1,000.00 · out 200.00"
+
+#### Scenario: Excluded transfers
+- **WHEN** `excludedCount` is 2
+- **THEN** the line adds "2 transfers without a recorded amount are not included"
+
+#### Scenario: Other account types
+- **WHEN** the account is a checking account
+- **THEN** no net contributions line is shown

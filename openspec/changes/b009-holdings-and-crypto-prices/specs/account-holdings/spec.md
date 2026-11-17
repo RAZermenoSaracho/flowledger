@@ -251,3 +251,48 @@ An investment or crypto account SHALL always be valued from its holdings, and th
 #### Scenario: Holding id from another account
 - **WHEN** a change set for account A removes a holding id that belongs to the same user's account B
 - **THEN** the response is 404 and both accounts are unchanged
+
+### Requirement: Net contributions on accounts
+
+`GET /accounts` SHALL return `contributions` on every account item: an `AccountContributions` object (`currency`, `incoming`, `outgoing`, `net`, `transferCount`, `excludedCount`) for `investment` and `crypto` accounts, and `null` for every other type. It SHALL be computed on read from the transactions already loaded, with no new table, ledger or duplicate rows, and the same field SHALL appear through `/v1` and MCP `list_accounts`.
+
+- A qualifying incoming transfer has `type` transfer, `transferToAccountId` equal to the account and a different source account, which may be deleted; its amount is `destinationAmount`.
+- A qualifying outgoing transfer has `type` transfer and `accountId` equal to the account and a different destination, which may be deleted; its amount is `accountAmount`, which already includes any fee effect.
+- Self-transfers, income, expense, the initial balance and anything else SHALL NOT count.
+- A qualifying transfer whose relevant amount is null SHALL be excluded and counted in `excludedCount`, never estimated. `transferCount` counts included transfers.
+- Amounts are the native amounts recorded in the account currency when the transfer was saved. There SHALL be no revaluation at current rates.
+- Sums use exact decimal math and are rounded once to the account currency's minor units; `net` is incoming minus outgoing.
+- Edits, deletions and reverse transfers SHALL be reflected on the next read.
+- `contributions` SHALL NOT be part of `holdingsValuation`, account totals or net worth.
+
+#### Scenario: Transfer in and out
+- **WHEN** a checking account transfers 1000 into an investment account and 200 comes back
+- **THEN** its contributions are incoming 1000, outgoing 200, net 800 and transferCount 2
+
+#### Scenario: Non-transfers and self-transfers excluded
+- **WHEN** the account has income, expense and a self-transfer
+- **THEN** none of them changes `contributions`
+
+#### Scenario: Missing amount
+- **WHEN** a qualifying transfer has no recorded amount
+- **THEN** it is excluded from the sums, `excludedCount` is 1 and no amount is estimated
+
+#### Scenario: Deleted counterpart
+- **WHEN** the source account of an incoming transfer was deleted
+- **THEN** the transfer still counts
+
+#### Scenario: Cross-currency transfer
+- **WHEN** a transfer into a USD account was saved with destinationAmount 50 USD
+- **THEN** 50 counts, regardless of current exchange rates
+
+#### Scenario: Edit, delete and reverse
+- **WHEN** a transfer is edited, another is deleted and a reverse transfer is added
+- **THEN** the next `GET /accounts` reflects the new amounts, the deletion and the reduced net
+
+#### Scenario: Other account types
+- **WHEN** an account is checking or a credit card
+- **THEN** its `contributions` is null
+
+#### Scenario: Independent of value
+- **WHEN** contributions change
+- **THEN** `holdingsValuation.value` stays the holdings-based sum

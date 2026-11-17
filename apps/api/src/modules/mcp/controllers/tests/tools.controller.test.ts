@@ -210,6 +210,7 @@ describe("write tools", () => {
     expect(tools.get("create_transaction")!.config.description).toContain("decimal strings");
     expect(tools.get("update_transaction")!.config.description).toContain("decimal strings");
     expect(tools.get("list_accounts")!.config.description).toContain("decimal strings");
+    expect(tools.get("list_accounts")!.config.description).toContain("contributions");
   });
 
   it("create rejects a transfer without accounts (refinement) and audits the failure", async () => {

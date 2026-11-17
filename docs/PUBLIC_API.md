@@ -164,3 +164,13 @@ Fiat uses cash at par. Crypto uses Binance automatically unless manually priced.
 `GET /accounts` returns non-null `holdingsValuation` for investment/crypto, including value zero and status `empty` without holdings; other types return null. Known values are summed exactly and rounded once. Missing prices make the known subtotal `partial`. These account types never use ledger balance in totals or net worth. The holdings aggregate has no `netDeposited` field.
 
 Incompatible stored holdings in crypto accounts remain readable and valued; updates return 400, removal is allowed. Changing investment to crypto requires removing all non-crypto holdings; crypto to investment is allowed. Removing holdings is required before changing to a non-holding account type. `/v1` and MCP reuse these rules.
+
+### Account contributions
+
+Every account in `GET /accounts`, `GET /v1/accounts` and MCP `list_accounts` includes `contributions`. It is `null` except for investment and crypto accounts, where it has this shape:
+
+```json
+{"currency":"USD","incoming":"250.00","outgoing":"30.00","net":"220.00","transferCount":2,"excludedCount":0}
+```
+
+Amounts are decimal strings in the account currency, rounded to its minor units from recorded native transfer amounts without current-rate revaluation. Incoming uses `destinationAmount`; outgoing uses fee-inclusive `accountAmount`. Self-transfers, income, expenses and initial balances are excluded. Missing recorded amounts increment `excludedCount` and are omitted; `transferCount` counts included transfers, including those whose counterpart account was deleted. Edits and deletions are reflected on read. This field is informational and does not affect `holdingsValuation`, totals or net worth.
