@@ -128,6 +128,18 @@ describe("useRelatedTransactions", () => {
     );
   });
 
+  it("always includes transfers into the account with includeTransfersIn", async () => {
+    const queries = mockTransactions();
+    const { result } = render({ ...accountScope, includeTransfersIn: true });
+    await waitFor(() => expect(result.current.pager.total).toBe(40));
+    expect(queries[0]?.where).toEqual({
+      or: [
+        { field: "accountId", op: "=", value: "a1" },
+        { field: "transferToAccountId", op: "=", value: "a1" }
+      ]
+    });
+  });
+
   it("never widens a group scope", async () => {
     const queries = mockTransactions();
     const { result } = render({

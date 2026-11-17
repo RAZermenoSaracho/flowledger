@@ -191,6 +191,21 @@ describe("AccountDetailPage", () => {
       return wheres;
     }
 
+    it.each(["investment", "crypto"] as const)(
+      "lists transfers into a %s account without any filter",
+      async (type) => {
+        const wheres = setup("/accounts/acc-1?tab=transactions", type);
+        await screen.findByLabelText("Search transactions");
+        await waitFor(() => expect(wheres.at(-1)).toEqual(withTransfers));
+      }
+    );
+
+    it("keeps a checking account scoped to its own rows without a period", async () => {
+      const wheres = setup("/accounts/acc-1?tab=transactions", "checking");
+      await screen.findByLabelText("Search transactions");
+      await waitFor(() => expect(wheres.at(-1)).toEqual(scope));
+    });
+
     it("offers the full transaction fields, without Billing period in the picker", async () => {
       setup(PERIOD_ROUTE.split("&period")[0]!);
       const user = userEvent.setup();

@@ -204,6 +204,8 @@ Account creation and the General tab SHALL NOT show the Initial balance field wh
 
 The Transactions tab of an `investment` or `crypto` account SHALL show a subtle line `Net contributions: <amount>` in the account currency, using `contributions.net`, above or below the list.
 
+The Transactions list of an `investment` or `crypto` account SHALL always include transfers into the account as well as its own rows, so every transfer counted in Net contributions is visible. Other account types keep their existing list scope (transfers in are added only with a billing-period filter).
+
 - Secondary text or a tooltip SHALL read "Transfers in <incoming> · out <outgoing>".
 - When `excludedCount > 0` it SHALL also say "N transfers without a recorded amount are not included".
 - The line SHALL NOT appear in the header and SHALL NOT be labelled Balance, Available cash, Profit or Return.
@@ -212,6 +214,10 @@ The Transactions tab of an `investment` or `crypto` account SHALL show a subtle 
 #### Scenario: Line shown
 - **WHEN** an investment account has contributions with net 800, incoming 1000 and outgoing 200
 - **THEN** the Transactions tab shows "Net contributions: 800.00" with "Transfers in 1,000.00 · out 200.00"
+
+#### Scenario: Incoming transfers are listed
+- **WHEN** an investment account's only transaction is a transfer into it from checking
+- **THEN** its Transactions list shows that transfer, and a checking account's list without a billing-period filter still shows only its own rows
 
 #### Scenario: Excluded transfers
 - **WHEN** `excludedCount` is 2

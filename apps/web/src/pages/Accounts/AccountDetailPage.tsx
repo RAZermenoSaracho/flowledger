@@ -298,7 +298,8 @@ export function AccountDetailPage() {
                   scope={{
                     field: "accountId",
                     value: account.id,
-                    transfersInWith: BILLING_PERIOD_FIELD
+                    transfersInWith: BILLING_PERIOD_FIELD,
+                    includeTransfersIn: isHoldingType(account.type)
                   }}
                   extraFields={periodFields}
                   initialDomain={periodDomain}
