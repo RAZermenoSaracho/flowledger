@@ -762,6 +762,8 @@ Still open:
 
 **Suggested fix:** Add a stock/ETF market provider in a future feature if automatic pricing is approved.
 
+**Planned:** Addressed by B-010 (OpenSpec change `b010-provider-backed-securities`), which awaits approval. It stays open until that change ships.
+
 ---
 
 ## [OPEN] #059 — Account type change and holdings edits are not serialized
@@ -773,3 +775,23 @@ Still open:
 **Description:** The guard that blocks changing an account to `crypto` while it holds non-crypto holdings counts holdings before updating the account, outside a transaction with any concurrent holdings change set. A cash holding created at the same instant could therefore end up in a crypto account. Such a holding is still kept, valued and removable (the incompatible-holding rules), so no data is lost or miscounted.
 
 **Suggested fix:** Run the guard and the account update in one transaction that locks the account row, and have `applyHoldingChanges` lock the same row.
+
+---
+
+## [OPEN] #060 — Custom assets (`other` holdings) lack notes, history and cost basis
+
+**Found in:** B-010 planning, while ST-022 was superseded by the existing B-009 `other` holdings.
+
+**Scope:** `Holding` (`kind = other`) and `apps/web/src/pages/Accounts/components/HoldingsTab.tsx`.
+
+**Description:** `other` holdings cover real estate, land, business stakes, vehicles and private investments as a name, an optional unit, a quantity and a dated manual unit price. They do not provide:
+- a description or notes;
+- a category or subtype;
+- valuation history (each update overwrites the last);
+- cost basis or a purchase date;
+- a link to a liability such as a mortgage;
+- a record or form view separate from the holding.
+
+ST-022's original scope assumed these. They were deliberately not built, because no current requirement needs them.
+
+**Suggested fix:** If a concrete need appears, add the smallest field first (for example nullable `notes` on `Holding`) rather than a separate asset model. Valuation history and cost basis belong with a future investment-returns intent.
