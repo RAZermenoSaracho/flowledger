@@ -1,5 +1,13 @@
 # Proposal
 
+## Revision after manual review
+
+Manual review of the first implementation changed the valuation model. This revision supersedes the earlier text wherever they conflict:
+- Investment and crypto accounts are **always** valued from holdings. An account with no holdings is worth 0 (status `empty`). The transaction-derived balance, and the "Net deposited" concept, no longer appear in valuation, net worth or the UI for these types.
+- Holdings gain three kinds beyond `crypto` and `fiat` (Cash): `stock`, `etf` and `other` (name plus optional unit). Stock, ETF and other assets are priced manually only. Crypto accounts accept crypto holdings only, enforced server-side.
+- The Holdings UX is reworked: a Total value header, an Add Holding flow, a price source selector and a compact integrated money input.
+- Stored data that no longer fits (for example cash in a crypto account) is kept and valued, never deleted.
+
 ## Why
 
 Today `investment` is only a label. An investment or crypto account's value is its transaction-derived balance, so net worth counts these accounts "at recorded balance, not market value". Users can't record what they actually hold: 0.5 BTC, 3 ETH, or 250 USD of uninvested cash. B-009 (ST-015 + ST-016) adds manually maintained holdings with honest valuations. It counts them in the **one existing** net-worth calculation, and it prices supported crypto from the Binance feed FlowLedger already uses, with no new provider, scheduler, or cache.
@@ -7,13 +15,12 @@ Today `investment` is only a label. An investment or crypto account's value is i
 ## What Changes
 
 **ST-015: holdings and manual valuations**
-- A new `Holding` table. Each row is one position in one account: `kind` (`crypto` | `fiat`), `code` (for example `BTC` or `USD`), an exact `quantity` (`Decimal(38,18)`), and an optional manual valuation (unit price, its currency, and its timestamp). Each instrument appears at most once per account. The same instrument can be held in other accounts with separate quantities.
-- A new account type, `crypto`, is added (additive enum value). Holdings are allowed only on `investment` and `crypto` accounts.
+- A new `Holding` table. Each row is one position in one account: `kind` (`crypto` | `fiat` | `stock` | `etf` | `other`), `code` (for example `BTC` or `USD`), an exact `quantity` (`Decimal(38,18)`), and an optional manual valuation (unit price, its currency, and its timestamp). Each instrument appears at most once per account. The same instrument can be held in other accounts with separate quantities.
+- A new account type, `crypto`, is added (additive enum value). Holdings are allowed only on `investment` and `crypto` accounts; `crypto` accounts accept crypto holdings only.
 - **Valuation rule for accounts with holdings:**
-  - The account's value is the sum of its holdings' values, in the account currency.
+  - The account's value is always the sum of its holdings' values, in the account currency, and 0 with status `empty` when there are none.
   - Uninvested cash is a `fiat` holding.
-  - The transaction-derived balance is still calculated and is shown as "Net deposited". It no longer counts toward net worth for that account.
-  - Accounts without holdings keep their current behavior unchanged.
+  - The transaction-derived balance never counts as the value of an investment or crypto account. Other account types are unchanged.
 - **Valuation source precedence:** a manual override wins, then an available market quotation (ST-016), then "missing".
   - `fiat` holdings are valued at par.
   - Each price keeps its original currency, and values are converted into the account currency through the existing `getExchangeRate`.
@@ -23,11 +30,11 @@ Today `investment` is only a label. An investment or crypto account's value is i
   - `GET /accounts/:id/holdings` returns the holdings with their valuations and the account aggregate.
   - `PATCH /accounts/:id/holdings` applies an atomic `{ upsert, remove }` change set.
   - Both are mirrored on `/v1`, and as the MCP tools `list_holdings` and `update_holdings`.
-- `GET /accounts` adds a `holdingsValuation` summary for accounts with holdings.
-- **Net worth:** `GET /reports/financial-overview` uses the same holdings valuation for those accounts. The `investment_recorded_balance` disclosure now applies only to `investment`/`crypto` accounts without holdings. One new disclosure is added: `crypto_usdt_as_usd`.
+- `GET /accounts` adds a `holdingsValuation` summary, non-null for every investment and crypto account and `null` for other types.
+- **Net worth:** `GET /reports/financial-overview` uses the same holdings valuation for those accounts. Investment and crypto accounts contribute their holdings value (0 when empty). The new `investment_without_holdings` disclosure replaces `investment_recorded_balance`, which is no longer emitted. `crypto_usdt_as_usd` is also added.
 - **UI:**
   - A "Holdings" tab on `investment` and `crypto` accounts. It is an editable RelatedList inside the account Form View draft, saved with the same Save button. It shows each holding's quantity, unit price in its original currency, value, source, and a "Value missing" state. The last-updated time appears as an accessible tooltip, or as a small secondary label where there's room.
-  - The account header and the accounts list show the aggregate value next to "Net deposited".
+  - The account header and the accounts list show the aggregate as "Total value", with no second total.
 - Changing an account with holdings to a non-eligible type is rejected. Deleting an account cascades to its holdings.
 
 **ST-016: automatic crypto prices**
@@ -50,14 +57,14 @@ Today `investment` is only a label. An investment or crypto account's value is i
 - `valuation-timestamps`: the general, reusable freshness policy, covering the preserved last-update time, no time-based rules, known versus missing, and accessible presentation.
 
 ### Modified Capabilities
-- `financial-overview`: net worth counts holdings value for accounts with holdings, and the disclosures change (`investment_recorded_balance` is narrowed, and `crypto_usdt_as_usd` is added).
+- `financial-overview`: net worth counts holdings value for investment and crypto accounts, and the disclosures change (`investment_without_holdings` replaces `investment_recorded_balance`, and `crypto_usdt_as_usd` is added).
 - `account-form-view`: a Holdings tab for `investment` and `crypto` accounts, and the aggregate value in the header.
 - `public-rest-api`: the allowlist gains `GET` and `PATCH /v1/accounts/:id/holdings`.
 - `mcp-personal-tools`: the `list_holdings` and `update_holdings` tools are added.
 
 ## Impact
 
-- **Database:** one additive migration, `b009_holdings`. It adds the `AccountType.crypto` value, the `HoldingKind` enum, and the `Holding` model (cascade on account and user). No reset or backfill is needed: local staging has no `investment` accounts, and existing accounts are unaffected until holdings are added.
+- **Database:** one additive migration, `b009_holdings`, plus a second additive revision migration. Together they add `AccountType.crypto`, the `HoldingKind` enum (`crypto`, `fiat`, `stock`, `etf`, `other`), and the `Holding` model (cascade on account and user) with nullable `code` and optional `name` and `unit`. No reset or backfill is needed: local staging has no `investment` accounts, and existing accounts are unaffected until holdings are added.
 - **API:**
   - `accounts`: a new holdings util, services, controller and routes, a type-change guard, and `listAccounts` enrichment.
   - `currencies`: `binance.client.ts` only, which gains `getBinanceTickerFetchedAt()` and serves the last known list on a failed refresh.

@@ -337,7 +337,7 @@ None of the deferred metrics gets its own intent yet. Each one needs new data an
 - The last complete month follows the user's local calendar, not the server's.
 - Past-month amounts in other currencies are disclosed as converted at current rates.
 - Net worth discloses when it is affected by cross-currency transfers, or by transactions in a currency other than their account's.
-- If the user has `investment` accounts, net worth discloses that they count at recorded balance, not market value.
+- If the user has `investment` or `crypto` accounts without holdings, net worth discloses that they count as zero until holdings are added (B-009 replaces the earlier recorded-balance disclosure).
 - If the user has synced accounts, net worth discloses that their balances come from recorded transactions and may differ from the bank.
 - Disclosures appear only when they apply, grouped in one place so the section stays compact.
 - Users without a preferred currency get the same USD fallback as reports, and the currency is shown.
@@ -586,8 +586,9 @@ Billing periods, payments, interest and reminders are ST-014.
 - Each holding shows quantity, unit value, total value, currency, valuation time, and source.
 - Quantity and valuation can be updated manually, and a manual override is labeled as such.
 - The account shows an aggregate value, and the ST-008 net-worth calculation includes it without double counting.
-- Holdings with stale or missing valuations are clearly marked.
-- Existing investment accounts keep their current balance behavior until the user adds holdings, or follow an agreed migration.
+- Holdings with missing valuations are clearly marked, and the last-updated time is shown without stale flags.
+- Investment and crypto accounts are always valued from their holdings (0 when there are none); their transaction-derived balance never counts as their value.
+- Holdings can be crypto, cash, stock, ETF or other assets. Crypto accounts accept crypto only, and stock, ETF and other assets are priced manually.
 - Holdings editing uses the shared Form View conventions, with no separate form lifecycle.
 
 **Dependencies:** ST-006, ST-008 for net-worth integration, and ST-023 so crypto quantities use its exact precision.

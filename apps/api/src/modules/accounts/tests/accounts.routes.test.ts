@@ -233,7 +233,7 @@ describe("GET /accounts/:id/credit-card", () => {
 });
 
 describe("/accounts/:id/holdings", () => {
-  async function setupHoldings(type: "crypto" | "investment" | "checking" = "crypto") {
+  async function setupHoldings(type: "crypto" | "investment" | "checking" = "investment") {
     const { token } = await createAuthedUser(app);
     const auth = (req: request.Test) => req.set("Authorization", `Bearer ${token}`);
     const accountId = (await auth(request(app).post("/accounts")).send({ name: "Wallet", type, currency: "USD" })).body
@@ -343,4 +343,41 @@ describe("/accounts/:id/holdings", () => {
     expect((await auth(request(app).delete(`/accounts/${accountId}`))).status).toBe(204);
     expect(await prisma.holding.count({ where: { accountId } })).toBe(0);
   });
+  it.each(["fiat", "stock"])("rejects %s in a crypto account without persisting it", async (kind) => {
+    const { auth, accountId } = await setupHoldings("crypto");
+    const path = `/accounts/${accountId}/holdings`;
+    const response = await auth(request(app).patch(path)).send({ upsert: [{ kind, code: kind === "fiat" ? "USD" : "AAPL", quantity: "1", ...(kind === "stock" ? { manualUnitPrice: "10", manualPriceCurrency: "USD" } : {}) }] });
+    expect(response.status).toBe(400);
+    expect((await auth(request(app).get(path))).body).toMatchObject({ holdings: [], valuation: { value: "0.00", status: "empty", holdingCount: 0 } });
+  });
+
+  it("persists stock, ETF and multiple named assets and blocks investment to crypto", async () => {
+    const { auth, accountId } = await setupHoldings("investment");
+    const path = `/accounts/${accountId}/holdings`;
+    const price = { quantity: "2", manualUnitPrice: "10", manualPriceCurrency: "USD" };
+    const response = await auth(request(app).patch(path)).send({ upsert: [
+      { ...price, kind: "stock", code: "AAPL" },
+      { ...price, kind: "etf", code: "VOO" },
+      { ...price, kind: "other", name: "Gold", unit: "oz" },
+      { ...price, kind: "other", name: "Art" }
+    ] });
+    expect(response.status).toBe(200);
+    expect(response.body.valuation).toMatchObject({ value: "80.00", holdingCount: 4 });
+    expect(response.body.holdings.find((h: { name: string | null }) => h.name === "Gold")).toMatchObject({ code: null, unit: "oz" });
+    expect((await auth(request(app).put(`/accounts/${accountId}`)).send({ type: "crypto" })).status).toBe(400);
+  });
+
+  it("keeps incompatible stored cash readable, rejects updates and allows removal", async () => {
+    const { auth, accountId } = await setupHoldings("crypto");
+    const { prisma } = await import("../../../db/prisma.js");
+    const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } });
+    const holding = await prisma.holding.create({ data: { accountId, userId: account.userId, kind: "fiat", code: "USD", quantity: "10" } });
+    const path = `/accounts/${accountId}/holdings`;
+    expect((await auth(request(app).get(path))).body.valuation).toMatchObject({ value: "10.00", holdingCount: 1 });
+    expect((await auth(request(app).patch(path)).send({ upsert: [{ id: holding.id, quantity: "20" }] })).status).toBe(400);
+    const removed = await auth(request(app).patch(path)).send({ remove: [holding.id] });
+    expect(removed.status).toBe(200);
+    expect(removed.body.valuation).toMatchObject({ value: "0.00", status: "empty", holdingCount: 0 });
+  });
+
 });

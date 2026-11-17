@@ -221,3 +221,12 @@ describe("registerPersonalWriteTools", () => {
     expect(auditLog).toHaveBeenCalledTimes(10);
   });
 });
+
+describe("holdings tool contract", () => {
+  it("describes all kinds and manual-only pricing", () => {
+    const description = register(["read", "write"]).get("update_holdings")!.config.description as string;
+    for (const kind of ["crypto", "fiat", "stock", "etf", "other"]) expect(description).toContain(kind);
+    expect(description).toContain("Crypto accounts accept crypto only");
+    expect(description).toContain("require a manual price");
+  });
+});

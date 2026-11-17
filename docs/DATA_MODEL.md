@@ -13,7 +13,7 @@ Source of truth: `database/prisma/schema.prisma`
 | `CategoryType` | `income`, `expense` |
 | `TransactionType` | `income`, `expense`, `transfer` |
 | `AccountType` | `cash`, `checking`, `savings`, `credit_card`, `investment`, `crypto`, `other` |
-| `HoldingKind` | `crypto`, `fiat` |
+| `HoldingKind` | `crypto`, `fiat`, `stock`, `etf`, `other` |
 | `SharedExpenseStatus` | `open`, `settled`, `cancelled` |
 | `ParticipantStatus` | `pending`, `partial`, `paid` |
 | `SettlementStatus` | `pending`, `approved`, `rejected` |
@@ -149,7 +149,7 @@ The cycle fields (`statementClosingDay`, `paymentDueRule`, `paymentDueValue`, `b
 
 Relations: `transactions` (from account), `transferDestinationTransactions` (to account in transfers), `providerAccounts`, `holdings`
 
-Only `investment` and `crypto` accounts may have holdings. Once an account has at least one holding, its value is the sum of its holdings; its transaction-derived balance is reported separately as "Net deposited" and never counts toward net worth (see `docs/DOMAIN_LOGIC.md`).
+Only `investment` and `crypto` accounts may have holdings. Their value always equals the sum of known holding values, or zero when empty; their transaction-derived balance never counts toward net worth (see `docs/DOMAIN_LOGIC.md`). Crypto accounts accept only crypto holdings; investment accounts accept all five kinds.
 
 ---
 
@@ -162,10 +162,12 @@ One position in an `investment` or `crypto` account. Quantities are manual; valu
 | `id` | String (cuid) | PK |
 | `userId` | String | FK → User (cascade); every query scopes by it |
 | `accountId` | String | FK → Account (cascade) |
-| `kind` | HoldingKind | `fiat` = uninvested cash (ISO 4217 `code`), `crypto` = crypto asset |
-| `code` | String | Upper-case instrument code; `(accountId, kind, code)` is unique |
+| `kind` | HoldingKind | `fiat` = uninvested cash (ISO 4217 `code`), `crypto` = crypto asset; `stock`, `etf`, `other` = manually priced assets |
+| `code` | String? | Upper-case instrument code; null for `other`; `(accountId, kind, code)` is unique (multiple null codes allowed) |
+| `name` | VarChar(80)? | Required for `other`, optional otherwise |
+| `unit` | VarChar(20)? | Optional quantity unit for `other` only |
 | `quantity` | Decimal(38,18) | Exact positive quantity; fiat limited to the currency's minor units |
-| `manualUnitPrice` | Decimal(38,18)? | Manual valuation override (crypto only); wins over market quotations until cleared |
+| `manualUnitPrice` | Decimal(38,18)? | Optional override for crypto; required for stock, ETF and other; never used for fiat |
 | `manualPriceCurrency` | String? | Currency of the manual price, stored as entered |
 | `manualPricedAt` | DateTime? | When the manual valuation was set (or the date the user entered); unchanged by quantity-only edits |
 | `createdAt` / `updatedAt` | DateTime | |

@@ -89,7 +89,7 @@ export function registerPersonalWriteTools(server: McpServer, auth: McpAuth) {
     "update_holdings",
     {
       description:
-        "Change the holdings of one of the user's investment or crypto accounts atomically: `upsert` items without `id` create a holding (needs `kind` crypto or fiat, `code` and `quantity`), items with `id` update its quantity or manual price (`manualUnitPrice: null` clears the override); `remove` ids permanently delete holdings. Holdings not mentioned are untouched. Quantities and prices are exact decimal strings, never numbers; fiat quantities are limited to the currency's minor units and crypto to 18 decimals. Returns the same body as list_holdings. Confirm removals with the user.",
+        "Change the holdings of one of the user's investment or crypto accounts atomically: `upsert` items without `id` create a holding (needs `kind` crypto, fiat, stock, etf or other and `quantity`; other needs `name` and optional `unit`, all other kinds need `code`), items with `id` update its quantity or manual price (`manualUnitPrice: null` clears a crypto override only); `remove` ids permanently delete holdings. Crypto accounts accept crypto only; incompatible stored holdings can only be removed. Cash is valued at par; crypto uses Binance unless manually priced; stock, etf and other require a manual price and currency. Holdings not mentioned are untouched. Quantities and prices are exact decimal strings, never numbers; fiat quantities are limited to the currency's minor units and crypto to 18 decimals. Returns the same body as list_holdings. Confirm removals with the user.",
       inputSchema: updateHoldingsToolSchema.shape,
       annotations: { destructiveHint: true, idempotentHint: false }
     },

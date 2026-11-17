@@ -37,7 +37,8 @@ export function CurrencySelect({
   onChange,
   disabled,
   allowNoPreference,
-  hideLabel = false
+  hideLabel = false,
+  compact = false
 }: {
   label: string;
   /** Keeps the label for assistive tech but hides it visually, for use under another visible label. */
@@ -46,6 +47,8 @@ export function CurrencySelect({
   onChange: (value: string) => void;
   disabled?: boolean;
   allowNoPreference?: boolean;
+  /** Borderless code-only trigger (text plus chevron) for embedding inside another field, such as `MoneyInput`; the option list opens wider than the trigger. */
+  compact?: boolean;
 }) {
   const currenciesQuery = useCurrenciesQuery();
   const fiatCurrencies = currenciesQuery.data?.fiat ?? [];
@@ -64,6 +67,7 @@ export function CurrencySelect({
 
   function labelForCode(code: string) {
     if (!code) return "";
+    if (compact) return code;
     const fiat = fiatCurrencies.find((currency) => currency.code === code);
     if (fiat) return `${fiat.code} — ${fiat.name}`;
     const crypto = cryptoCurrencies.find((currency) => currency.code === code);
@@ -173,7 +177,7 @@ export function CurrencySelect({
         : labelForCode(value);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={compact ? "relative w-24 shrink-0" : "relative"} ref={containerRef}>
       <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700 dark:text-slate-300">
         <span id={labelId} className={hideLabel ? "sr-only" : undefined}>
           {label}
@@ -193,7 +197,11 @@ export function CurrencySelect({
             }
             aria-autocomplete="list"
             autoComplete="off"
-            className="min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
+            className={
+              compact
+                ? "min-h-10 w-full min-w-0 cursor-pointer rounded-md bg-transparent py-2 pl-2 pr-7 text-base font-medium text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-pine disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:text-slate-300"
+                : "min-h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-sm text-ink outline-none focus:border-pine focus:ring-2 focus:ring-mint disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-emerald-900"
+            }
             value={inputValue}
             disabled={isDisabled}
             placeholder="Search currency..."
@@ -210,14 +218,14 @@ export function CurrencySelect({
             onBlur={handleInputBlur}
           />
           <ChevronDown
-            className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 ${isOpen ? "rotate-180" : ""}`}
+            className={`pointer-events-none absolute ${compact ? "right-2" : "right-3"} top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 ${isOpen ? "rotate-180" : ""}`}
             aria-hidden="true"
           />
         </span>
       </label>
       {isOpen && !isDisabled ? (
         <DropdownMenu
-          className="max-h-64 w-full overflow-y-auto py-1"
+          className={`max-h-64 overflow-y-auto py-1 ${compact ? "left-auto min-w-64" : "w-full"}`}
           onMouseDown={(event) => event.preventDefault()}
         >
           <ul id={listboxId} role="listbox" aria-labelledby={labelId}>

@@ -85,20 +85,20 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
   }
   const holdingsByAccount = await valueAccountHoldings(
     userId,
-    active.map(({ account, balance }) => ({
+    active.map(({ account }) => ({
       id: account.id,
       currency: account.currency,
-      currentBalance: balance
+      type: account.type
     }))
   );
   if (
     active.some(
       ({ account }) =>
         (account.type === "investment" || account.type === "crypto") &&
-        !holdingsByAccount.has(account.id)
+        holdingsByAccount.get(account.id)?.valuation.status === "empty"
     )
   ) {
-    disclosures.add("investment_recorded_balance");
+    disclosures.add("investment_without_holdings");
   }
   if (active.some(({ account }) => account.providerAccounts.length > 0)) {
     disclosures.add("synced_balances");
@@ -124,7 +124,7 @@ async function computeNetWorth(userId: string, currency: string): Promise<Metric
       disclosures.add("crypto_usdt_as_usd");
     }
     for (const holding of holdings.holdings) {
-      if (holding.valuation.value === null) excluded.push(`${account.name} · ${holding.code}`);
+      if (holding.valuation.value === null) excluded.push(`${account.name} · ${holding.code ?? holding.name}`);
     }
   });
 

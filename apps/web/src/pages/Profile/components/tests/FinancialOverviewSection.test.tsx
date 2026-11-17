@@ -75,14 +75,14 @@ describe("FinancialOverviewSection", () => {
       currency: "USD",
       netWorth,
       savingsRate: { status: "no_data", month: "2026-10" },
-      disclosures: ["crypto_usdt_as_usd", "investment_recorded_balance"]
+      disclosures: ["crypto_usdt_as_usd", "investment_without_holdings"]
     });
     renderWithProviders(<FinancialOverviewSection />);
     expect(
       await screen.findByText("Crypto prices are Binance USDT quotes, converted as USDT = USD.")
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Investment and crypto accounts without holdings count at recorded balance, not market value.")
+      screen.getByText("Investment and crypto accounts without holdings count as zero until you add holdings.")
     ).toBeInTheDocument();
   });
 });

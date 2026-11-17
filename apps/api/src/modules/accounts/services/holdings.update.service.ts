@@ -1,6 +1,7 @@
 import {
   exceedsCurrencyPrecision,
   HOLDING_ACCOUNT_TYPES,
+  MANUALLY_PRICED_HOLDING_KINDS,
   type AccountHoldings,
   type HoldingsChangeSetInput,
   type HoldingUpsertInput
@@ -8,11 +9,10 @@ import {
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
+import type { ExistingHolding } from "../types/holdings.types.js";
 import { getAccountHoldings } from "./holdings.read.service.js";
 
 const MAX_HOLDINGS_PER_ACCOUNT = 200;
-
-type ExistingHolding = { id: string; kind: "crypto" | "fiat"; code: string; manualUnitPrice: Prisma.Decimal | null };
 
 function fieldError(field: string, message: string) {
   return badRequest(message, { issues: { formErrors: [], fieldErrors: { [field]: [message] } } });
@@ -21,9 +21,16 @@ function fieldError(field: string, message: string) {
 /** Builds the Prisma `update` data for one upsert item against the stored holding, enforcing the rules that depend on stored kind/code. */
 function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date): Prisma.HoldingUpdateInput {
   const data: Prisma.HoldingUpdateInput = {};
+  if (item.unit !== undefined && stored.kind !== "other") throw fieldError("unit", "Only other holdings accept a unit");
+  if (stored.kind === "other" && item.name === null) throw fieldError("name", "Other holdings require a name");
+  if (item.name !== undefined) data.name = item.name;
+  if (item.unit !== undefined) data.unit = item.unit;
+  if (item.manualUnitPrice === null && (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(stored.kind)) {
+    throw fieldError("manualUnitPrice", "This asset requires a manual price");
+  }
 
   if (item.quantity !== undefined) {
-    if (stored.kind === "fiat" && exceedsCurrencyPrecision(item.quantity, stored.code)) {
+    if (stored.kind === "fiat" && exceedsCurrencyPrecision(item.quantity, stored.code!)) {
       throw fieldError("quantity", `${stored.code} allows fewer decimals than ${item.quantity} has`);
     }
     data.quantity = new Prisma.Decimal(item.quantity);
@@ -53,7 +60,9 @@ function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date
  * Applies an atomic holdings change set to an account in one transaction: creates items without `id`, updates those with `id`
  * (quantity and/or manual valuation; a quantity-only edit keeps `manualPricedAt`), and deletes `remove` ids. Unmentioned holdings are untouched.
  * 404 for a foreign account or an id not belonging to this account and user; 400 when the account type cannot hold holdings,
- * on a fiat precision or manual-price violation, or a duplicate `(kind, code)`. Returns the same body as `getAccountHoldings`.
+ * on a fiat precision or manual-price violation, or a duplicate `(kind, code)`. Crypto accounts accept crypto only;
+ * incompatible stored holdings may be removed but not updated. Stock, ETF and other require manual prices.
+ * Returns the same body as `getAccountHoldings`.
  */
 export async function applyHoldingChanges(
   userId: string,
@@ -85,6 +94,13 @@ export async function applyHoldingChanges(
       const storedById = new Map(stored.map((holding) => [holding.id, holding]));
       if (new Set(ids).size !== storedById.size) throw notFound("Holding");
 
+      for (const item of changeSet.upsert) {
+        const kind = item.id ? storedById.get(item.id)!.kind : item.kind;
+        if (account.type === "crypto" && kind !== "crypto") {
+          throw fieldError("kind", "This asset type is not allowed in a crypto account; remove it or change the account type to Investment");
+        }
+      }
+
       const creates = changeSet.upsert.filter((item) => !item.id).length;
       if (creates > 0) {
         const existing = await tx.holding.count({ where: { accountId, userId } });
@@ -109,7 +125,9 @@ export async function applyHoldingChanges(
               userId,
               accountId,
               kind: item.kind!,
-              code: item.code!,
+              code: item.code ?? null,
+              name: item.name ?? null,
+              unit: item.unit ?? null,
               quantity: new Prisma.Decimal(item.quantity!),
               ...(item.manualUnitPrice
                 ? {

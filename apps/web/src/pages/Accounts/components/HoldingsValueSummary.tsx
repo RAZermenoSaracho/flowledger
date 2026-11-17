@@ -2,9 +2,8 @@ import type { HoldingsValuation } from "@flowledger/shared";
 import { formatMoney } from "../../../utils/currency";
 
 /**
- * Account header figures for an account with holdings: the API's aggregate holdings value (labeled "Partial" when a
- * holding has no value, so the figure is a known subtotal) next to "Net deposited", the transaction-derived balance
- * that never enters the value.
+ * Account header figure for an investment or crypto account: the one "Total value" (the sum of its holdings in the
+ * account currency) with a subtle note when it is partial (some holdings have no value yet) or empty (no holdings).
  */
 export function HoldingsValueSummary({
   valuation
@@ -12,26 +11,23 @@ export function HoldingsValueSummary({
   valuation: HoldingsValuation;
 }) {
   return (
-    <dl className="grid gap-x-6 gap-y-1 text-sm sm:flex">
-      <div>
-        <dt className="text-slate-500 dark:text-slate-400">
-          Holdings value
-          {valuation.status === "partial" ? (
-            <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold dark:bg-slate-800">
-              Partial
-            </span>
-          ) : null}
-        </dt>
-        <dd className="font-semibold">
-          {formatMoney(valuation.value, valuation.currency)}
+    <dl className="text-sm">
+      <dt className="text-slate-500 dark:text-slate-400">Total value</dt>
+      <dd className="font-semibold">
+        {formatMoney(valuation.value, valuation.currency)}
+      </dd>
+      {valuation.status === "partial" ? (
+        <dd className="text-xs text-slate-500 dark:text-slate-400">
+          Partial &mdash; {valuation.missingCount}{" "}
+          {valuation.missingCount === 1 ? "holding" : "holdings"} without a
+          value
         </dd>
-      </div>
-      <div>
-        <dt className="text-slate-500 dark:text-slate-400">Net deposited</dt>
-        <dd className="font-semibold">
-          {formatMoney(valuation.netDeposited, valuation.currency)}
+      ) : null}
+      {valuation.status === "empty" ? (
+        <dd className="text-xs text-slate-500 dark:text-slate-400">
+          No holdings yet
         </dd>
-      </div>
+      ) : null}
     </dl>
   );
 }

@@ -7,6 +7,7 @@ const DISCLOSURE_TEXT: Record<FinancialOverviewDisclosure, string> = {
   rates_missing: "Some items have no exchange rate and are excluded.",
   past_month_current_rates: "Last month's amounts in other currencies are converted at current rates.",
   investment_recorded_balance: "Investment and crypto accounts without holdings count at recorded balance, not market value.",
+  investment_without_holdings: "Investment and crypto accounts without holdings count as zero until you add holdings.",
   crypto_usdt_as_usd: "Crypto prices are Binance USDT quotes, converted as USDT = USD.",
   synced_balances: "Synced account balances come from recorded transactions and may differ from the bank."
 };

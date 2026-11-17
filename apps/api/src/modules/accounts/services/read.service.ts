@@ -124,7 +124,7 @@ function expandVirtualConditions(
   return node as WhereInput<AccountListRecord>;
 }
 
-/** Lists a user's accounts per a DSQL query, enriched with computed balances (in both native and preferred currency), provider sync summaries, and `holdingsValuation` (the holdings aggregate, `null` for accounts without holdings). */
+/** Lists a user's accounts per a DSQL query, enriched with computed balances (in both native and preferred currency), provider sync summaries, and `holdingsValuation` (the holdings aggregate, `empty` for holding accounts without positions, `null` for other account types). */
 export async function listAccounts(userId: string, rawQuery: string | undefined) {
   const input = parseQueryParam<AccountsQueryInput>(rawQuery, "accounts");
   const expandedWhere = expandVirtualConditions(input.where);

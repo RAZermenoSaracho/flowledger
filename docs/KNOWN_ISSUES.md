@@ -735,7 +735,7 @@ Still open:
 
 **Scope:** Holdings vs. transaction ledger.
 
-**Description:** There is no buy/sell transaction. Trades are recorded by editing holdings, and deposits/withdrawals change "Net deposited" until the user edits the cash holding, so net worth dips temporarily after a transfer into a holdings account. Cost basis and returns are therefore not available.
+**Description:** There is no buy/sell transaction. Trades are recorded by editing holdings, and deposits/withdrawals affect only the ledger until the user edits the holdings, so net worth dips temporarily after a transfer into a holdings account. Cost basis and returns are therefore not available.
 
 **Suggested fix:** A future investment-transactions intent (buy/sell with cost basis) if returns tracking is approved.
 
@@ -750,3 +750,26 @@ Still open:
 **Description:** Binance quotes crypto in USDT, and the existing conversion layer treats 1 USDT as 1 USD. A USDT depeg would distort crypto values. It is disclosed (`crypto_usdt_as_usd`, "Market (Binance, USDT = USD)").
 
 **Suggested fix:** A USD-quoted crypto source if accuracy requirements tighten.
+
+
+---
+
+## [OPEN] #058 — Stock and ETF holdings require manual pricing
+
+**Scope:** Holding valuation.
+
+**Description:** Stock and ETF holdings have manual pricing only; no market provider exists yet. Users must update their unit price and currency themselves. Other assets also require manual pricing.
+
+**Suggested fix:** Add a stock/ETF market provider in a future feature if automatic pricing is approved.
+
+---
+
+## [OPEN] #059 — Account type change and holdings edits are not serialized
+
+**Found in:** B-009 revision review.
+
+**Scope:** `accounts/services/update.service.ts` (type-change guards) and `accounts/services/holdings.update.service.ts`.
+
+**Description:** The guard that blocks changing an account to `crypto` while it holds non-crypto holdings counts holdings before updating the account, outside a transaction with any concurrent holdings change set. A cash holding created at the same instant could therefore end up in a crypto account. Such a holding is still kept, valued and removable (the incompatible-holding rules), so no data is lost or miscounted.
+
+**Suggested fix:** Run the guard and the account update in one transaction that locks the account row, and have `applyHoldingChanges` lock the same row.

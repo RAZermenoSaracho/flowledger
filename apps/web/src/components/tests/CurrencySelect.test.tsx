@@ -57,6 +57,17 @@ describe("CurrencySelect", () => {
     expect(screen.getByRole("combobox", { name: "Currency" })).toBeInTheDocument();
   });
 
+  it("shows only the code in compact mode and still opens the full list", async () => {
+    mockCurrencies();
+    renderWithProviders(
+      <CurrencySelect label="Price currency" value="USD" onChange={vi.fn()} hideLabel compact />
+    );
+    const input = screen.getByRole("combobox", { name: "Price currency" });
+    await waitFor(() => expect(input).toHaveValue("USD"));
+    await userEvent.click(input);
+    expect(await screen.findByRole("option", { name: /Euro/ })).toBeInTheDocument();
+  });
+
   it("shows the selected currency's formatted label when closed", async () => {
     mockCurrencies();
     renderWithProviders(

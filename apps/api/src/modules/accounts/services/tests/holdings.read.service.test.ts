@@ -41,6 +41,7 @@ function seed(holdings: unknown[], account: Record<string, unknown> = {}) {
   prismaMock.account.findFirst.mockResolvedValue({
     id: "acc-1",
     currency: "USD",
+    type: "investment",
     initialBalance: dec("0"),
     ...account
   } as never);
@@ -64,7 +65,7 @@ describe("getAccountHoldings", () => {
     expect(prismaMock.holding.findMany).not.toHaveBeenCalled();
   });
 
-  it("scopes holdings and transactions by user and account and returns exact strings with the aggregate", async () => {
+  it("scopes holdings by user and account without reading transactions and returns exact strings with the aggregate", async () => {
     seed(
       [
         row("USD", { kind: "fiat", quantity: dec("250") }),
@@ -78,11 +79,7 @@ describe("getAccountHoldings", () => {
     expect(prismaMock.holding.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: "user-1", accountId: { in: ["acc-1"] } } })
     );
-    expect(prismaMock.transaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: "user-1", OR: [{ accountId: "acc-1" }, { transferToAccountId: "acc-1" }] }
-      })
-    );
+    expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
     expect(body.holdings[1]).toMatchObject({
       code: "BTC",
       quantity: "0.010000000000000001",
@@ -94,7 +91,7 @@ describe("getAccountHoldings", () => {
       value: "850.00",
       status: "complete",
       missingCount: 0,
-      netDeposited: "1000"
+      holdingCount: 2
     });
   });
 
@@ -102,7 +99,7 @@ describe("getAccountHoldings", () => {
     seed([]);
     const body = await getAccountHoldings("user-1", "acc-1");
     expect(body.holdings).toEqual([]);
-    expect(body.valuation).toMatchObject({ value: "0.00", status: "complete", missingCount: 0 });
+    expect(body.valuation).toMatchObject({ value: "0.00", status: "empty", missingCount: 0 });
   });
 
   it("values a market holding in an MXN account through the existing rate", async () => {
@@ -156,23 +153,53 @@ describe("getAccountHoldings", () => {
 });
 
 describe("valueHoldingsForAccounts", () => {
-  it("issues one scoped holding query for many accounts and returns null for accounts without holdings", async () => {
+  it("issues one scoped holding query for many accounts and values empty holding accounts", async () => {
     prismaMock.holding.findMany.mockResolvedValue([row("BTC")] as never);
     const result = await valueHoldingsForAccounts("user-1", [
-      { id: "acc-1", currency: "USD", currentBalance: dec("5") },
-      { id: "acc-2", currency: "USD", currentBalance: dec("7") }
+      { id: "acc-1", currency: "USD", type: "crypto" },
+      { id: "acc-2", currency: "USD", type: "investment" }
     ]);
 
     expect(prismaMock.holding.findMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.holding.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: "user-1", accountId: { in: ["acc-1", "acc-2"] } } })
     );
-    expect(result.get("acc-1")).toMatchObject({ value: "60000.00", netDeposited: "5" });
-    expect(result.get("acc-2")).toBeNull();
+    expect(result.get("acc-1")).toMatchObject({ value: "60000.00", holdingCount: 1 });
+    expect(result.get("acc-2")).toMatchObject({ value: "0.00", status: "empty", holdingCount: 0 });
   });
 
   it("does not query when there are no accounts", async () => {
     expect((await valueHoldingsForAccounts("user-1", [])).size).toBe(0);
     expect(prismaMock.holding.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("stablecoin and cash", () => {
+  it("counts USDT and fiat cash once each and invents no timestamp", async () => {
+    seed([row("USDT", { quantity: dec("10") }), row("USD", { kind: "fiat", quantity: dec("20") })]);
+    priceMock.mockResolvedValue(1);
+    const result = await getAccountHoldings("user-1", "acc-1");
+    expect(result.valuation).toMatchObject({ value: "30.00", holdingCount: 2 });
+    expect(result.holdings[0]!.valuation).toMatchObject({ source: "market", valuedAt: null });
+    expect(result.holdings[1]!.valuation).toMatchObject({ source: "cash", valuedAt: null });
+    expect(priceMock).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
+  });
+
+  it("returns null for bank accounts even if a stored holding exists", async () => {
+    prismaMock.holding.findMany.mockResolvedValue([row("BTC")] as never);
+    const result = await valueHoldingsForAccounts("user-1", [{ id: "acc-1", currency: "USD", type: "checking" }]);
+    expect(result.get("acc-1")).toBeNull();
+    expect(prismaMock.holding.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("holding metadata", () => {
+  it("returns name, unit and nullable code", async () => {
+    seed([row("", { code: null, kind: "other", name: "Gold", unit: "oz", manualUnitPrice: dec("2"), manualPriceCurrency: "EUR" })]);
+    rateMock.mockResolvedValue(1.5);
+    const result = await getAccountHoldings("user-1", "acc-1");
+    expect(result.holdings[0]).toMatchObject({ code: null, name: "Gold", unit: "oz", valuation: { source: "manual", priceCurrency: "EUR", value: "3.00" } });
+    expect(priceMock).not.toHaveBeenCalled();
   });
 });

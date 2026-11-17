@@ -251,15 +251,20 @@ model Account {
 enum HoldingKind {
   crypto
   fiat
+  stock
+  etf
+  other
 }
 
-/// One position in an `investment` or `crypto` account. `(kind, code)` is the instrument identity; a manual unit price overrides market quotations until cleared.
+/// One position in an investment or crypto account. Other assets use a name; stock, ETF and other require manual pricing.
 model Holding {
   id                  String      @id @default(cuid())
   userId              String
   accountId           String
   kind                HoldingKind
-  code                String
+  code                String?
+  name                String?     @db.VarChar(80)
+  unit                String?     @db.VarChar(20)
   quantity            Decimal     @db.Decimal(38, 18)
   manualUnitPrice     Decimal?    @db.Decimal(38, 18)
   manualPriceCurrency String?

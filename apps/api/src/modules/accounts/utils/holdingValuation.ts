@@ -47,7 +47,7 @@ export async function valueHoldings(
       let valuedAt: Date | null;
 
       if (holding.kind === "fiat") {
-        [unitPrice, priceCurrency, source, valuedAt] = [new Prisma.Decimal(1), holding.code, "cash", null];
+        [unitPrice, priceCurrency, source, valuedAt] = [new Prisma.Decimal(1), holding.code!, "cash", null];
       } else if (holding.manualUnitPrice) {
         [unitPrice, priceCurrency, source, valuedAt] = [
           holding.manualUnitPrice,
@@ -56,6 +56,7 @@ export async function valueHoldings(
           holding.manualPricedAt
         ];
       } else {
+        if (holding.kind !== "crypto" || !holding.code) return { valuation: missing("unsupported"), exact: null };
         const found = await quote(holding.code);
         if ("unsupported" in found) return { valuation: missing("unsupported"), exact: null };
         if ("unavailable" in found) return { valuation: missing("price_unavailable"), exact: null };
@@ -63,7 +64,7 @@ export async function valueHoldings(
           new Prisma.Decimal(found.price),
           found.currency,
           "market",
-          found.fetchedAt
+          holding.code === "USDT" ? null : found.fetchedAt
         ];
       }
 

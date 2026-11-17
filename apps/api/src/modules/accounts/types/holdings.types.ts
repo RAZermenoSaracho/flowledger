@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 export interface HoldingValuationInput {
   id: string;
   kind: HoldingKind;
-  code: string;
+  code: string | null;
   quantity: Prisma.Decimal;
   manualUnitPrice: Prisma.Decimal | null;
   manualPriceCurrency: string | null;
@@ -31,3 +31,13 @@ export interface ValuedHoldings {
   value: Prisma.Decimal;
   missingCount: number;
 }
+
+/** Account identity and type used to select holdings-based valuation. */
+export interface AccountForHoldings {
+  id: string;
+  currency: string;
+  type: string;
+}
+
+/** Stored holding fields required to validate an update. */
+export type ExistingHolding = Pick<Prisma.HoldingGetPayload<object>, "id" | "kind" | "code" | "manualUnitPrice">;

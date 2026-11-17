@@ -13,6 +13,10 @@ import { AccountDetailPage } from "../../AccountDetailPage";
 vi.mock("../../utils/syncfyWidget", () => ({ openSyncfyWidget: vi.fn() }));
 
 const API = "http://localhost:4000";
+const FIAT = [
+  { code: "USD", name: "US Dollar" },
+  { code: "EUR", name: "Euro" }
+];
 const OLD_PRICED_AT = "2020-01-01T00:00:00.000Z";
 
 const holdingsValuation = {
@@ -20,7 +24,7 @@ const holdingsValuation = {
   value: "1600",
   status: "complete" as const,
   missingCount: 0,
-  netDeposited: "1000"
+  holdingCount: 2
 };
 
 function makeAccount(overrides: Partial<Account> = {}): Account {
@@ -46,6 +50,8 @@ function makeHolding(overrides: Partial<Holding> = {}): Holding {
     accountId: "acc-1",
     kind: "crypto",
     code: "BTC",
+    name: null,
+    unit: null,
     quantity: "0.123456789012345678",
     manualUnitPrice: null,
     manualPriceCurrency: null,
@@ -89,7 +95,11 @@ function mockApi(account: Account, holdings: Holding[]) {
       HttpResponse.json(holdingsPayload(holdings))
     ),
     http.get(`${API}/currencies`, () =>
-      HttpResponse.json({ currencies: [], fiat: [], crypto: [] })
+      HttpResponse.json({
+        currencies: [...FIAT],
+        fiat: FIAT,
+        crypto: []
+      })
     ),
     http.get(`${API}/providers/connectors`, () => HttpResponse.json({ connectors: [] })),
     http.get(`${API}/providers/accounts`, () => HttpResponse.json({ accounts: [] }))
@@ -106,43 +116,51 @@ async function openHoldings(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("tab", { name: "Holdings" }));
 }
 
+function renderPage() {
+  renderWithProviders(
+    <Routes>
+      <Route path="/accounts/:id" element={<AccountDetailPage />} />
+    </Routes>,
+    { route: "/accounts/acc-1", withAuth: true }
+  );
+}
+
+function captureHoldingsPatches() {
+  const bodies: unknown[] = [];
+  server.use(
+    http.patch(`${API}/accounts/acc-1/holdings`, async ({ request }) => {
+      bodies.push(await request.json());
+      return HttpResponse.json(holdingsPayload([]));
+    })
+  );
+  return bodies;
+}
+
 describe("HoldingsTab", () => {
   it.each(["checking", "credit_card"] as const)("is not offered for a %s account", async (type) => {
     mockApi(makeAccount({ type, holdingsValuation: null }), []);
-    renderWithProviders(
-      <Routes>
-        <Route path="/accounts/:id" element={<AccountDetailPage />} />
-      </Routes>,
-      { route: "/accounts/acc-1", withAuth: true }
-    );
+    renderPage();
     await screen.findByLabelText("Name");
     expect(screen.queryByRole("tab", { name: "Holdings" })).not.toBeInTheDocument();
   });
 
   it.each(["investment", "crypto"] as const)("is offered for a %s account", async (type) => {
     mockApi(makeAccount({ type }), [makeHolding()]);
-    renderWithProviders(
-      <Routes>
-        <Route path="/accounts/:id" element={<AccountDetailPage />} />
-      </Routes>,
-      { route: "/accounts/acc-1", withAuth: true }
-    );
+    renderPage();
     expect(await screen.findByRole("tab", { name: "Holdings" })).toBeInTheDocument();
   });
 
-  it("shows exact quantity, price, value, sources and no stale cue for an old price", async () => {
+  it("shows exact quantity, quoted price with Binance source and the value, with no stale cue", async () => {
     mockApi(makeAccount(), [makeHolding(), cashHolding]);
     await openHoldings(userEvent.setup());
 
     expect(await screen.findByLabelText("BTC quantity")).toHaveValue("0.123456789012345678");
     expect(screen.getByText("$1,500.00")).toBeInTheDocument();
-    expect(screen.getByText("Market (Binance, USDT = USD)")).toBeInTheDocument();
-    expect(screen.getByText("Cash", { selector: "span" })).toBeInTheDocument();
-    expect(screen.getByText("Net deposited")).toBeInTheDocument();
-    expect(screen.getByText("$1,600.00")).toBeInTheDocument();
+    expect(screen.getByLabelText("BTC price source")).toHaveDisplayValue("Binance (automatic)");
+    expect(screen.getByText("Cash · at par")).toBeInTheDocument();
     expect(screen.queryByText(/stale|outdated/i)).not.toBeInTheDocument();
     expect(screen.getAllByText(`Last updated: ${formatValuationTime(OLD_PRICED_AT)}`).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Deposits and withdrawals change/)).toBeInTheDocument();
+    expect(screen.queryByText(/Net deposited|Deposits and withdrawals/)).not.toBeInTheDocument();
   });
 
   it("stacks the timestamp as a secondary line for mobile rows", async () => {
@@ -152,6 +170,153 @@ describe("HoldingsTab", () => {
       node.parentElement?.className.includes("sm:hidden")
     );
     expect(label).toBeDefined();
+  });
+
+  it("shows type badges only for investment accounts", async () => {
+    mockApi(makeAccount(), [makeHolding(), cashHolding]);
+    const user = userEvent.setup();
+    await openHoldings(user);
+    const row = (await screen.findByLabelText("BTC quantity")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Crypto")).toBeInTheDocument();
+  });
+
+  it("shows no type badge or selector in a crypto account", async () => {
+    mockApi(makeAccount({ type: "crypto" }), [makeHolding()]);
+    const user = userEvent.setup();
+    await openHoldings(user);
+    const row = (await screen.findByLabelText("BTC quantity")).closest("tr") as HTMLElement;
+    expect(within(row).queryByText("Crypto")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add holding" }));
+    expect(screen.queryByLabelText(/type$/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("New holding 2 code")).toBeInTheDocument();
+  });
+
+  it("offers the five asset types in an investment account", async () => {
+    mockApi(makeAccount(), []);
+    const user = userEvent.setup();
+    await openHoldings(user);
+    await user.click(await screen.findByRole("button", { name: "Add holding" }));
+    const select = screen.getByLabelText("New holding 1 type");
+    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Crypto",
+      "Cash",
+      "Stock",
+      "ETF",
+      "Other"
+    ]);
+  });
+
+  it("requires a name for Other, accepts a unit and sends them without a code", async () => {
+    mockApi(makeAccount(), []);
+    const bodies = captureHoldingsPatches();
+    const user = userEvent.setup();
+    await openHoldings(user);
+    await user.click(await screen.findByRole("button", { name: "Add holding" }));
+    await user.selectOptions(screen.getByLabelText("New holding 1 type"), "other");
+    await user.type(screen.getByLabelText("New holding 1 unit"), "m2");
+    await user.type(screen.getByLabelText("New holding 1 quantity"), "120");
+    await user.type(screen.getByLabelText("New holding 1 manual price"), "300");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Enter a name")).toBeInTheDocument();
+    expect(bodies).toHaveLength(0);
+
+    await user.type(screen.getByLabelText("New holding 1 name"), "Land");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({
+      upsert: [
+        {
+          kind: "other",
+          name: "Land",
+          unit: "m2",
+          quantity: "120",
+          manualUnitPrice: "300",
+          manualPriceCurrency: "USD"
+        }
+      ],
+      remove: []
+    });
+  });
+
+  it("shows a fixed Manual source for a stock and defaults the price currency to the account currency", async () => {
+    mockApi(makeAccount({ currency: "EUR" }), []);
+    const user = userEvent.setup();
+    await openHoldings(user);
+    await user.click(await screen.findByRole("button", { name: "Add holding" }));
+    expect(screen.queryByLabelText(/price source/)).not.toBeInTheDocument();
+    const row = screen.getByLabelText("New holding 1 code").closest("tr") as HTMLElement;
+    expect(within(row).getByText("Manual")).toBeInTheDocument();
+    expect(
+      await within(row).findByRole("combobox", { name: "New holding 1 manual price currency" })
+    ).toHaveValue("EUR");
+  });
+
+  it("switches a saved crypto row between Binance and a manual price", async () => {
+    mockApi(makeAccount({ type: "crypto" }), [makeHolding()]);
+    const bodies = captureHoldingsPatches();
+    const user = userEvent.setup();
+    await openHoldings(user);
+    await user.selectOptions(await screen.findByLabelText("BTC price source"), "manual");
+    const price = screen.getByLabelText("BTC manual price");
+    await user.type(price, "70000");
+    expect(screen.getByRole("combobox", { name: "BTC manual price currency" })).toHaveValue("USD");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({
+      upsert: [{ id: "h-btc", manualUnitPrice: "70000", manualPriceCurrency: "USD" }],
+      remove: []
+    });
+  });
+
+  it("sends manualUnitPrice null when a manual crypto row switches to Binance", async () => {
+    const manual = makeHolding({
+      manualUnitPrice: "55000",
+      manualPriceCurrency: "USD",
+      manualPricedAt: OLD_PRICED_AT,
+      valuation: {
+        source: "manual",
+        unitPrice: "55000",
+        priceCurrency: "USD",
+        valuedAt: OLD_PRICED_AT,
+        value: "1400",
+        missingReason: null
+      }
+    });
+    mockApi(makeAccount({ type: "crypto" }), [manual]);
+    const bodies = captureHoldingsPatches();
+    const user = userEvent.setup();
+    await openHoldings(user);
+    expect(await screen.findByLabelText("BTC manual price")).toHaveValue("55000");
+    await user.selectOptions(screen.getByLabelText("BTC price source"), "automatic");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({ upsert: [{ id: "h-btc", manualUnitPrice: null }], remove: [] });
+  });
+
+  it("opens the manual price currency picker by click and changes the currency", async () => {
+    mockApi(makeAccount(), []);
+    const user = userEvent.setup();
+    await openHoldings(user);
+    await user.click(await screen.findByRole("button", { name: "Add holding" }));
+    const currency = await screen.findByRole("combobox", {
+      name: "New holding 1 manual price currency"
+    });
+    await user.click(currency);
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: /EUR/ }));
+    expect(currency).toHaveValue("EUR");
+  });
+
+  it("keeps an incompatible holding in a crypto account removable only", async () => {
+    mockApi(makeAccount({ type: "crypto" }), [cashHolding]);
+    const bodies = captureHoldingsPatches();
+    const user = userEvent.setup();
+    await openHoldings(user);
+    expect(await screen.findByText(/Not allowed in a crypto account/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("USD quantity")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toEqual([{ upsert: [], remove: ["h-usd"] }]));
   });
 
   it("reads Value missing with its reason, never 0", async () => {
@@ -181,16 +346,12 @@ describe("HoldingsTab", () => {
 
   it("sends one change set on Save for an added row and an edited quantity", async () => {
     mockApi(makeAccount(), [makeHolding()]);
-    const bodies: unknown[] = [];
+    const bodies = captureHoldingsPatches();
     let accountPuts = 0;
     server.use(
       http.put(`${API}/accounts/acc-1`, () => {
         accountPuts += 1;
         return HttpResponse.json({ account: makeAccount() });
-      }),
-      http.patch(`${API}/accounts/acc-1/holdings`, async ({ request }) => {
-        bodies.push(await request.json());
-        return HttpResponse.json(holdingsPayload([makeHolding({ quantity: "0.5" })]));
       })
     );
     const user = userEvent.setup();
@@ -200,16 +361,17 @@ describe("HoldingsTab", () => {
     await user.clear(quantity);
     await user.type(quantity, "0.5");
     await user.click(screen.getByRole("button", { name: "Add holding" }));
-    await user.selectOptions(screen.getByLabelText("New holding 2 kind"), "fiat");
-    await user.type(screen.getByLabelText("New holding 2 code"), "usd");
-    await user.type(screen.getByLabelText("USD quantity"), "200");
+    await user.selectOptions(screen.getByLabelText("New holding 2 type"), "etf");
+    await user.type(screen.getByLabelText("New holding 2 code"), "voo");
+    await user.type(screen.getByLabelText("VOO quantity"), "3");
+    await user.type(screen.getByLabelText("VOO manual price"), "450");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({
       upsert: [
         { id: "h-btc", quantity: "0.5" },
-        { kind: "fiat", code: "USD", quantity: "200" }
+        { kind: "etf", code: "VOO", quantity: "3", manualUnitPrice: "450", manualPriceCurrency: "USD" }
       ],
       remove: []
     });
@@ -236,13 +398,7 @@ describe("HoldingsTab", () => {
 
   it("restores the original quantity on Discard and sends nothing", async () => {
     mockApi(makeAccount(), [makeHolding()]);
-    let patched = false;
-    server.use(
-      http.patch(`${API}/accounts/acc-1/holdings`, () => {
-        patched = true;
-        return HttpResponse.json(holdingsPayload([]));
-      })
-    );
+    const bodies = captureHoldingsPatches();
     const user = userEvent.setup();
     await openHoldings(user);
     const quantity = await screen.findByLabelText("BTC quantity");
@@ -252,7 +408,7 @@ describe("HoldingsTab", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.getByLabelText("BTC quantity")).toHaveValue("0.123456789012345678");
-    expect(patched).toBe(false);
+    expect(bodies).toHaveLength(0);
   });
 
   it("shows inline precision errors", async () => {
@@ -265,47 +421,9 @@ describe("HoldingsTab", () => {
     expect(await screen.findByText("USD allows at most 2 decimal places")).toBeInTheDocument();
   });
 
-  it("clears a manual price by sending null", async () => {
-    const manual = makeHolding({
-      manualUnitPrice: "55000",
-      manualPriceCurrency: "USD",
-      manualPricedAt: OLD_PRICED_AT,
-      valuation: {
-        source: "manual",
-        unitPrice: "55000",
-        priceCurrency: "USD",
-        valuedAt: OLD_PRICED_AT,
-        value: "1400",
-        missingReason: null
-      }
-    });
-    mockApi(makeAccount(), [manual]);
-    const bodies: unknown[] = [];
-    server.use(
-      http.patch(`${API}/accounts/acc-1/holdings`, async ({ request }) => {
-        bodies.push(await request.json());
-        return HttpResponse.json(holdingsPayload([makeHolding()]));
-      })
-    );
-    const user = userEvent.setup();
-    await openHoldings(user);
-    expect(await screen.findByText("Manual")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Clear manual price for BTC" }));
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]).toEqual({ upsert: [{ id: "h-btc", manualUnitPrice: null }], remove: [] });
-  });
-
   it("removes a saved row by id on Save", async () => {
     mockApi(makeAccount(), [makeHolding(), cashHolding]);
-    const bodies: unknown[] = [];
-    server.use(
-      http.patch(`${API}/accounts/acc-1/holdings`, async ({ request }) => {
-        bodies.push(await request.json());
-        return HttpResponse.json(holdingsPayload([cashHolding]));
-      })
-    );
+    const bodies = captureHoldingsPatches();
     const user = userEvent.setup();
     await openHoldings(user);
     const row = (await screen.findByLabelText("BTC quantity")).closest("tr") as HTMLElement;
@@ -317,32 +435,40 @@ describe("HoldingsTab", () => {
 });
 
 describe("account header", () => {
-  it("shows the aggregate labeled Partial next to Net deposited", async () => {
+  it("shows Total value and no Net deposited or ledger balance", async () => {
+    mockApi(makeAccount(), [makeHolding()]);
+    renderPage();
+    expect(await screen.findByText("Total value")).toBeInTheDocument();
+    expect(screen.getByText("$1,600.00")).toBeInTheDocument();
+    expect(screen.queryByText("Net deposited")).not.toBeInTheDocument();
+    expect(screen.queryByText("$1,000.00")).not.toBeInTheDocument();
+  });
+
+  it("notes a partial value", async () => {
     mockApi(
       makeAccount({ holdingsValuation: { ...holdingsValuation, status: "partial", missingCount: 1 } }),
       [makeHolding()]
     );
-    renderWithProviders(
-      <Routes>
-        <Route path="/accounts/:id" element={<AccountDetailPage />} />
-      </Routes>,
-      { route: "/accounts/acc-1", withAuth: true }
+    renderPage();
+    expect(await screen.findByText(/Partial.*1 holding without a value/)).toBeInTheDocument();
+  });
+
+  it("notes an empty account", async () => {
+    mockApi(
+      makeAccount({
+        holdingsValuation: { ...holdingsValuation, value: "0", status: "empty", holdingCount: 0 }
+      }),
+      []
     );
-    expect(await screen.findByText("Partial")).toBeInTheDocument();
-    expect(screen.getByText("Holdings value", { exact: false })).toBeInTheDocument();
-    expect(screen.getByText("Net deposited")).toBeInTheDocument();
-    expect(screen.getByText("$1,000.00")).toBeInTheDocument();
+    renderPage();
+    expect(await screen.findByText("No holdings yet")).toBeInTheDocument();
+    expect(screen.getByText("$0.00")).toBeInTheDocument();
   });
 
   it("shows no holdings figures for an account without holdings", async () => {
     mockApi(makeAccount({ type: "checking", holdingsValuation: null }), []);
-    renderWithProviders(
-      <Routes>
-        <Route path="/accounts/:id" element={<AccountDetailPage />} />
-      </Routes>,
-      { route: "/accounts/acc-1", withAuth: true }
-    );
+    renderPage();
     await screen.findByLabelText("Name");
-    expect(screen.queryByText("Net deposited")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total value")).not.toBeInTheDocument();
   });
 });

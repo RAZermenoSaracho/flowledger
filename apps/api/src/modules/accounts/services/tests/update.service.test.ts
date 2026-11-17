@@ -189,8 +189,21 @@ describe("updateAccount type-change guard", () => {
     prismaMock.holding.count.mockResolvedValue(0);
     await updateAccount("user-1", "acc-1", { type: "savings" });
 
-    prismaMock.holding.count.mockResolvedValue(3);
+    prismaMock.holding.count.mockResolvedValue(0);
     await updateAccount("user-1", "acc-1", { type: "crypto" });
     expect(prismaMock.account.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+ describe("holding account type transitions", () => {
+  it("rejects investment to crypto with cash, and allows crypto to investment", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.count.mockResolvedValue(1);
+    await expect(updateAccount("user-1", "acc-1", { type: "crypto" })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.holding.count).toHaveBeenCalledWith({ where: { accountId: "acc-1", userId: "user-1", kind: { not: "crypto" } } });
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "crypto" } as never);
+    await updateAccount("user-1", "acc-1", { type: "investment" });
+    expect(prismaMock.account.update).toHaveBeenCalledTimes(1);
   });
 });

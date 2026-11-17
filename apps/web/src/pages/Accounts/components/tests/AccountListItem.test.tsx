@@ -77,25 +77,46 @@ describe("AccountListItem", () => {
 });
 
 describe("AccountListItem holdings value", () => {
-  it("shows the holdings value, labeled Partial when partial", () => {
+  const valuation = {
+    currency: "USD",
+    value: "1600",
+    status: "complete" as const,
+    missingCount: 0,
+    holdingCount: 2
+  };
+
+  it("shows only the total value, not the ledger balance, for a holdings account", () => {
     renderItem(
       makeAccount({
-        holdingsValuation: {
-          currency: "USD",
-          value: "1600",
-          status: "partial",
-          missingCount: 1,
-          netDeposited: "1000"
-        }
-      })
+        type: "investment",
+        holdingsValuation: valuation,
+        currentBalanceInPreferredCurrency: 450
+      }),
+      "EUR"
     );
-    expect(screen.getByText(/Holdings value/)).toHaveTextContent("Holdings value $1,600.00Partial");
-    expect(screen.getByText(/FlowLedger balance/)).toBeInTheDocument();
+    expect(screen.getByText(/Total value/)).toHaveTextContent("Total value $1,600.00");
+    expect(screen.queryByText(/FlowLedger balance/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/450/)).not.toBeInTheDocument();
   });
 
-  it("renders exactly as before without holdings", () => {
+  it("labels a partial value and an empty account", () => {
+    const { unmount } = renderItem(
+      makeAccount({ holdingsValuation: { ...valuation, status: "partial", missingCount: 1 } })
+    );
+    expect(screen.getByText("Partial")).toBeInTheDocument();
+    unmount();
+    renderItem(
+      makeAccount({
+        holdingsValuation: { ...valuation, value: "0", status: "empty", holdingCount: 0 }
+      })
+    );
+    expect(screen.getByText(/Total value/)).toHaveTextContent("$0.00");
+    expect(screen.getByText("No holdings yet")).toBeInTheDocument();
+  });
+
+  it("renders the ledger balance without holdings", () => {
     renderItem(makeAccount({ holdingsValuation: null }));
-    expect(screen.queryByText(/Holdings value/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Partial")).not.toBeInTheDocument();
+    expect(screen.getByText(/FlowLedger balance/)).toBeInTheDocument();
+    expect(screen.queryByText(/Total value/)).not.toBeInTheDocument();
   });
 });

@@ -201,7 +201,7 @@ describe("listAccounts — native balances", () => {
 });
 
 describe("listAccounts — holdings valuation", () => {
-  it("attaches null to accounts without holdings and the aggregate with netDeposited to those with holdings", async () => {
+  it("attaches null to accounts without holdings and the aggregate with holdingCount to those with holdings", async () => {
     prismaMock.account.findMany.mockResolvedValue([
       { id: "plain", currency: "USD", initialBalance: new Prisma.Decimal("10"), providerAccounts: [] },
       { id: "inv", type: "investment", currency: "USD", initialBalance: new Prisma.Decimal("1000"), providerAccounts: [] }
@@ -224,7 +224,7 @@ describe("listAccounts — holdings valuation", () => {
 
     expect(prismaMock.holding.findMany).toHaveBeenCalledTimes(1);
     expect(prismaMock.holding.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: "user-1", accountId: { in: ["plain", "inv"] } } })
+      expect.objectContaining({ where: { userId: "user-1", accountId: { in: ["inv"] } } })
     );
     const byId = Object.fromEntries(result.map((account) => [account.id, account]));
     expect(byId.plain!.holdingsValuation).toBeNull();
@@ -234,8 +234,17 @@ describe("listAccounts — holdings valuation", () => {
       value: "850.00",
       status: "complete",
       missingCount: 0,
-      netDeposited: "1000"
+      holdingCount: 1
     });
     expect(byId.inv!.currentBalance).toBe("1000");
+  });
+});
+
+describe("empty holding accounts", () => {
+  it.each(["investment", "crypto"])("returns an empty valuation for %s despite ledger funds", async (type) => {
+    prismaMock.account.findMany.mockResolvedValue([{ id: "inv", type, currency: "USD", initialBalance: new Prisma.Decimal("1000"), providerAccounts: [] }] as never);
+    prismaMock.holding.findMany.mockResolvedValue([]);
+    const result = await listAccounts("user-1", undefined);
+    expect(result[0]!.holdingsValuation).toEqual({ currency: "USD", value: "0.00", status: "empty", missingCount: 0, holdingCount: 0 });
   });
 });

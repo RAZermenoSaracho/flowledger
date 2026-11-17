@@ -39,6 +39,12 @@ A missing valuation SHALL stay distinguishable from a known one in API responses
 
 A missing valuation has no last-updated time.
 
+A known valuation with no genuine update time, such as cash at par or the identity USDT quotation, SHALL have a `null` timestamp. The system SHALL NEVER invent a timestamp, and the UI SHALL show no "Last updated" for it.
+
+#### Scenario: Identity quotation has no timestamp
+- **WHEN** a USDT holding is valued by the identity quotation
+- **THEN** its valuation time is `null` and no "Last updated" is shown
+
 #### Scenario: Missing has no timestamp
 - **WHEN** a holding is missing a valuation
 - **THEN** it shows "Value missing" and no last-updated time

@@ -222,12 +222,17 @@ export interface HoldingValuation {
   missingReason: HoldingMissingReason | null;
 }
 
-/** A stored holding with its valuation. `quantity` and `manualUnitPrice` are exact decimal strings. */
+/**
+ * A stored holding with its valuation. `quantity` and `manualUnitPrice` are exact decimal strings. `code` is null only for
+ * `other` holdings, which are identified by `name`; `unit` is an optional descriptive unit of an `other` quantity (e.g. "m²").
+ */
 export interface Holding {
   id: string;
   accountId: string;
   kind: HoldingKind;
-  code: string;
+  code: string | null;
+  name: string | null;
+  unit: string | null;
   quantity: string;
   manualUnitPrice: string | null;
   manualPriceCurrency: string | null;
@@ -236,16 +241,16 @@ export interface Holding {
 }
 
 /**
- * Aggregate of an account with holdings, in the account currency. `value` is the known subtotal (missing holdings
- * excluded, rounded once); `status` is `partial` when any holding is missing. `netDeposited` is the transaction-derived
- * balance, informational only and never part of the value or net worth.
+ * Value of an investment or crypto account, in the account currency: the sum of its holdings and the account's only value
+ * (the transaction-derived balance never counts). `value` is the known subtotal (missing holdings excluded, rounded once);
+ * `status` is `partial` when any holding is missing and `empty` (value zero) when the account has no holdings.
  */
 export interface HoldingsValuation {
   currency: string;
   value: string;
-  status: "complete" | "partial";
+  status: "complete" | "partial" | "empty";
   missingCount: number;
-  netDeposited: string;
+  holdingCount: number;
 }
 
 /** Response of `GET`/`PATCH /accounts/:id/holdings`. */

@@ -309,7 +309,7 @@ describe("/v1 routes", () => {
 
   describe("holdings", () => {
     const path = (id: string) => `/v1/accounts/${id}/holdings`;
-    const change = { upsert: [{ kind: "fiat", code: "USD", quantity: "12.50" }] };
+    const change = { upsert: [{ kind: "crypto", code: "BTC", quantity: "0.125", manualUnitPrice: "60000", manualPriceCurrency: "USD" }] };
 
     async function createCrypto(actor: Actor) {
       const res = await request(app)
