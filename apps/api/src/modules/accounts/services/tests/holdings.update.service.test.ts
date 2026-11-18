@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../holdings.read.service.js", () => ({ getAccountHoldings: vi.fn() }));
+vi.mock("../../../currencies/providers/twelveData/services/quotes.service.js", () => ({ refreshSecurityQuotes: vi.fn() }));
 
 const { getAccountHoldings } = await import("../holdings.read.service.js");
-const { applyHoldingChanges } = await import("../holdings.update.service.js");
+const { refreshSecurityQuotes } = await import("../../../currencies/providers/twelveData/services/quotes.service.js");
+const { applyHoldingChanges, refreshAccountHoldings } = await import("../holdings.update.service.js");
 
 const body = { accountId: "acc-1", holdings: [], valuation: {} } as never;
 const dec = (value: string) => new Prisma.Decimal(value);
@@ -44,7 +46,7 @@ describe("applyHoldingChanges", () => {
       where: { id: { in: ["h2"] }, accountId: "acc-1", userId: "user-1" }
     });
     expect(prismaMock.holding.create).toHaveBeenCalledWith({
-      data: { userId: "user-1", accountId: "acc-1", kind: "fiat", code: "USD", name: null, unit: null, quantity: dec("250.50") }
+      data: { userId: "user-1", accountId: "acc-1", kind: "fiat", code: "USD", name: null, unit: null, exchange: null, quoteCurrency: null, quantity: dec("250.50") }
     });
     expect(prismaMock.holding.update).toHaveBeenCalledWith({
       where: { id: "h1", accountId: "acc-1", userId: "user-1" },
@@ -189,5 +191,100 @@ describe("holding kind rules", () => {
     await expect(apply({ upsert: [{ id: "h1", name: null }] })).rejects.toMatchObject({ statusCode: 400 });
     prismaMock.holding.findMany.mockResolvedValue([stored("h1")] as never);
     await expect(apply({ upsert: [{ id: "h1", unit: "oz" }] })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe("provider-linked securities", () => {
+  const linkedStored = (id: string, extra: Record<string, unknown> = {}) =>
+    stored(id, { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", ...extra });
+  const newLinked = { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", name: "Apple Inc.", quantity: "10" };
+
+  beforeEach(() => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    vi.mocked(refreshSecurityQuotes).mockResolvedValue(undefined);
+  });
+
+  it("creates a linked holding without a manual price and refreshes its listing after the commit", async () => {
+    await apply({ upsert: [newLinked] });
+
+    expect(prismaMock.holding.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ code: "AAPL", name: "Apple Inc.", exchange: "XNGS", quoteCurrency: "USD" })
+    });
+    expect(refreshSecurityQuotes).toHaveBeenCalledWith([{ symbol: "AAPL", exchange: "XNGS", quoteCurrency: "USD" }]);
+  });
+
+  it("does not refresh a linked create that carries a manual price", async () => {
+    await apply({ upsert: [{ ...newLinked, manualUnitPrice: "340", manualPriceCurrency: "USD" }] });
+    expect(refreshSecurityQuotes).not.toHaveBeenCalled();
+  });
+
+  it("refreshes when the manual price of a linked holding is cleared and allows the clear", async () => {
+    prismaMock.holding.findMany.mockResolvedValue([linkedStored("h1", { manualUnitPrice: dec("340") })] as never);
+    await apply({ upsert: [{ id: "h1", manualUnitPrice: null }] });
+
+    expect(prismaMock.holding.update).toHaveBeenCalledWith({
+      where: { id: "h1", accountId: "acc-1", userId: "user-1" },
+      data: { manualUnitPrice: null, manualPriceCurrency: null, manualPricedAt: null }
+    });
+    expect(refreshSecurityQuotes).toHaveBeenCalledWith([{ symbol: "AAPL", exchange: "XNGS", quoteCurrency: "USD" }]);
+  });
+
+  it("makes no provider call for a quantity-only edit", async () => {
+    prismaMock.holding.findMany.mockResolvedValue([linkedStored("h1")] as never);
+    await apply({ upsert: [{ id: "h1", quantity: "11" }] });
+    expect(refreshSecurityQuotes).not.toHaveBeenCalled();
+  });
+
+  it("still rejects clearing the price of an unlinked stock", async () => {
+    prismaMock.holding.findMany.mockResolvedValue([stored("h1", { kind: "stock", code: "AAPL", manualUnitPrice: dec("1") })] as never);
+    await expect(apply({ upsert: [{ id: "h1", manualUnitPrice: null }] })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("rejects a second unlinked (kind, code) in the account", async () => {
+    prismaMock.holding.findFirst.mockResolvedValue({ id: "h9" } as never);
+    await expect(
+      apply({ upsert: [{ kind: "stock", code: "AAPL", quantity: "1", manualUnitPrice: "1", manualPriceCurrency: "USD" }] })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.holding.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { accountId: "acc-1", userId: "user-1", kind: "stock", code: "AAPL", exchange: null } })
+    );
+    expect(prismaMock.holding.create).not.toHaveBeenCalled();
+  });
+
+  it("never fails the save when the refresh rejects", async () => {
+    vi.mocked(refreshSecurityQuotes).mockRejectedValue(new Error("boom"));
+    await expect(apply({ upsert: [newLinked] })).resolves.toBe(body);
+  });
+});
+
+describe("refreshAccountHoldings", () => {
+  beforeEach(() => {
+    vi.mocked(refreshSecurityQuotes).mockResolvedValue(undefined);
+  });
+
+  it("404s for an account the user does not own without refreshing", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(null);
+    await expect(refreshAccountHoldings("user-1", "other")).rejects.toMatchObject({ statusCode: 404 });
+    expect(prismaMock.account.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "other", userId: "user-1" } }));
+    expect(refreshSecurityQuotes).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the account's linked holdings without a manual price and returns the GET body", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1" } as never);
+    prismaMock.holding.findMany.mockResolvedValue([{ code: "AAPL", exchange: "XNGS", quoteCurrency: "USD" }] as never);
+
+    expect(await refreshAccountHoldings("user-1", "acc-1")).toBe(body);
+
+    expect(prismaMock.holding.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ accountId: "acc-1", userId: "user-1", manualUnitPrice: null }) })
+    );
+    expect(refreshSecurityQuotes).toHaveBeenCalledWith([{ symbol: "AAPL", exchange: "XNGS", quoteCurrency: "USD" }]);
+  });
+
+  it("returns the stored body when the refresh fails", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1" } as never);
+    prismaMock.holding.findMany.mockResolvedValue([{ code: "AAPL", exchange: "XNGS", quoteCurrency: "USD" }] as never);
+    vi.mocked(refreshSecurityQuotes).mockRejectedValue(new Error("boom"));
+    expect(await refreshAccountHoldings("user-1", "acc-1")).toBe(body);
   });
 });

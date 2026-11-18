@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import request from "supertest";
+import { createAuthedUser } from "../../../tests/helpers/authTestUser.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   startTestDatabase,
@@ -41,5 +42,20 @@ describe("/currencies routes", () => {
       .query({ from: "U" });
 
     expect(response.status).toBe(400);
+  });
+
+  it("requires authentication for security search", async () => {
+    expect((await request(app).get("/currencies/securities").query({ q: "AAPL" })).status).toBe(401);
+  });
+
+  it("validates the query and reports search unavailable without a provider key", async () => {
+    const { token } = await createAuthedUser(app);
+    const auth = (req: request.Test) => req.set("Authorization", `Bearer ${token}`);
+
+    expect((await auth(request(app).get("/currencies/securities"))).status).toBe(400);
+    expect((await auth(request(app).get("/currencies/securities").query({ q: "x".repeat(21) }))).status).toBe(400);
+    const response = await auth(request(app).get("/currencies/securities").query({ q: "AAPL" }));
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ available: false, results: [] });
   });
 });

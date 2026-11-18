@@ -302,6 +302,12 @@ Syncfy auto-sync variables:
 - SYNCFY_AUTO_SYNC_CONCURRENCY
 - SYNCFY_TRANSACTION_LOOKBACK_DAYS
 
+Stock/ETF quote variables (Twelve Data; optional):
+
+- TWELVE_DATA_API_KEY (without it, security search is unavailable and quotes are never refreshed)
+- SECURITIES_QUOTE_REFRESH_MINUTES (default 60), SECURITIES_QUOTE_CLOSED_RECHECK_MINUTES (default 240)
+- TWELVE_DATA_CREDITS_PER_MINUTE (default 6), TWELVE_DATA_CREDITS_PER_DAY (default 600)
+
 When enabled, the API starts a Syncfy scheduler on boot. It queues active
 Syncfy provider connections with linked accounts, processes them with the
 configured concurrency and timeout, and avoids overlapping runs. FlowLedger

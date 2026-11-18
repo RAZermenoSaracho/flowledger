@@ -21,12 +21,16 @@ import {
   addHoldingRow,
   allowedHoldingKinds,
   isHoldingRowEdited,
+  listingPatch,
   newHoldingDraft,
   patchHoldingRow,
   removeHoldingRow,
   validateHoldingRows
 } from "../utils/holdingsDraft";
+import { useRefreshLinkedHoldings } from "../hooks/useRefreshLinkedHoldings";
+import { staleReasonText } from "../utils/securityQuote";
 import { ManualPriceCell } from "./ManualPriceCell";
+import { SecuritySearch } from "./SecuritySearch";
 import { ValuationTime } from "./ValuationTime";
 
 const mutedClassName = "text-sm text-slate-500 dark:text-slate-400";
@@ -58,8 +62,12 @@ const MISSING_TEXT: Record<HoldingMissingReason, string> = {
  * holding of a type the account does not allow stays visible with a note and can only be removed. Quantities and
  * prices are shown exactly as stored; every value and timestamp comes from the API. A row edited since the last save
  * shows "Updates on Save" instead of its now-outdated value. A missing value reads "Value missing", never 0.
+ * A new Stock/ETF row starts with a listing search (`SecuritySearch`); selecting a result links it to Twelve Data and its
+ * listing fields (symbol, exchange, name, currency) are fixed after save, while "Enter ticker manually" keeps the unlinked,
+ * manual-price row. On mount, linked holdings are refreshed once in the background (`useRefreshLinkedHoldings`).
  */
 export function HoldingsTab({
+  accountId,
   draft,
   accountType,
   accountCurrency,
@@ -67,6 +75,7 @@ export function HoldingsTab({
   isLoading,
   error
 }: {
+  accountId: string;
   draft: FormDraft<AccountDraft>;
   accountType: AccountType;
   accountCurrency: string;
@@ -74,6 +83,7 @@ export function HoldingsTab({
   isLoading: boolean;
   error: string | null;
 }) {
+  useRefreshLinkedHoldings(accountId, saved, isLoading);
   const rows = draft.values.holdings;
   const savedById = new Map(saved.map((holding) => [holding.id, holding]));
   const liveErrors = validateHoldingRows(rows);
@@ -106,6 +116,9 @@ export function HoldingsTab({
       code: "",
       name: "",
       unit: "",
+      exchange: "",
+      quoteCurrency: "",
+      manualTicker: false,
       priceSource: fresh.priceSource,
       manualUnitPrice: "",
       manualPriceCurrency: accountCurrency
@@ -119,7 +132,8 @@ export function HoldingsTab({
         ? { priceSource: source, manualUnitPrice: "", manualPricedAt: "" }
         : {
             priceSource: source,
-            manualPriceCurrency: row.manualPriceCurrency || accountCurrency
+            manualPriceCurrency:
+              row.manualPriceCurrency || row.quoteCurrency || accountCurrency
           }
     );
   }
@@ -134,8 +148,15 @@ export function HoldingsTab({
       return (
         <div>
           <p className="font-semibold">
-            {row.kind === "other" ? row.name : row.code}
+            {row.kind === "other"
+              ? row.name
+              : row.exchange
+                ? `${row.code} · ${row.exchange}`
+                : row.code}
           </p>
+          {row.exchange && row.name ? (
+            <p className={mutedClassName}>{row.name}</p>
+          ) : null}
           {badge}
           {isIncompatible(row) ? (
             <p className={mutedClassName}>
@@ -206,6 +227,32 @@ export function HoldingsTab({
               />
             </EditableField>
           </>
+        ) : row.exchange ? (
+          <div>
+            <p className="font-semibold">
+              {row.code} · {row.exchange}
+            </p>
+            <p className={mutedClassName}>{row.name}</p>
+            <button
+              type="button"
+              className="min-h-11 text-sm font-semibold text-pine underline-offset-4 hover:underline dark:text-emerald-300"
+              onClick={() =>
+                patch(row, {
+                  ...newHoldingDraft(row.kind, accountCurrency),
+                  draftId: row.draftId,
+                  quantity: row.quantity
+                })
+              }
+            >
+              Change listing
+            </button>
+          </div>
+        ) : row.kind !== "crypto" && !row.manualTicker ? (
+          <SecuritySearch
+            label={`${label} search`}
+            onSelect={(result) => patch(row, listingPatch(result))}
+            onManual={() => patch(row, { manualTicker: true })}
+          />
         ) : (
           <EditableField
             label={`${label} code`}
@@ -276,16 +323,23 @@ export function HoldingsTab({
         </span>
       );
     const price = formatMoney(valuation.unitPrice, valuation.priceCurrency);
+    const quote = row.exchange ? row.marketQuote : null;
+    const quoteProps = {
+      checkedAt: quote?.checkedAt,
+      note: quote?.stale ? `Stale: ${staleReasonText(quote)}` : undefined
+    };
     return (
       <span>
         <ValuationTime
           valuedAt={valuation.valuedAt}
+          {...quoteProps}
           className="hidden sm:inline-block"
         >
           {price}
         </ValuationTime>
         <ValuationTime
           valuedAt={valuation.valuedAt}
+          {...quoteProps}
           variant="label"
           className="sm:hidden"
         >
@@ -297,20 +351,39 @@ export function HoldingsTab({
 
   function sourceCell(row: HoldingDraft, index: number) {
     if (row.kind === "fiat") return "Cash · at par";
-    if (row.kind !== "crypto" || isIncompatible(row)) return "Manual";
+    const isLinked = row.exchange !== "";
+    if ((row.kind !== "crypto" && !isLinked) || isIncompatible(row))
+      return "Manual";
     return (
-      <EditableField label={`${rowName(row, index)} price source`} hideLabel>
-        <select
-          className={editableControlClassName}
-          value={row.priceSource}
-          onChange={(event) =>
-            changeSource(row, event.target.value as HoldingPriceSource)
-          }
-        >
-          <option value="automatic">Binance (automatic)</option>
-          <option value="manual">Manual</option>
-        </select>
-      </EditableField>
+      <div className="grid gap-1">
+        <EditableField label={`${rowName(row, index)} price source`} hideLabel>
+          <select
+            className={editableControlClassName}
+            value={row.priceSource}
+            onChange={(event) =>
+              changeSource(row, event.target.value as HoldingPriceSource)
+            }
+          >
+            <option value="automatic">
+              {isLinked ? "Twelve Data (automatic)" : "Binance (automatic)"}
+            </option>
+            <option value="manual">Manual</option>
+          </select>
+        </EditableField>
+        {isLinked && row.priceSource === "automatic" ? (
+          <p className={mutedClassName}>
+            Prices may be delayed or end-of-day.
+            {row.marketQuote?.stale ? (
+              <span
+                title={staleReasonText(row.marketQuote)}
+                className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-100"
+              >
+                Stale
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
@@ -365,7 +438,10 @@ export function HoldingsTab({
                   <p className="font-semibold">Value missing</p>
                   {valuation.missingReason ? (
                     <p className={mutedClassName}>
-                      {MISSING_TEXT[valuation.missingReason]}
+                      {row.exchange &&
+                      valuation.missingReason === "price_unavailable"
+                        ? "Market price unavailable; set a manual price"
+                        : MISSING_TEXT[valuation.missingReason]}
                     </p>
                   ) : null}
                 </div>

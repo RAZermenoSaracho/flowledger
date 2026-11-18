@@ -8,6 +8,7 @@ import {
   holdingsToDrafts,
   isHoldingRowEdited,
   isHoldingType,
+  listingPatch,
   newHoldingDraft,
   patchHoldingRow,
   removeHoldingRow,
@@ -35,6 +36,9 @@ function holding(overrides: Partial<Holding> = {}): Holding {
     manualUnitPrice: null,
     manualPriceCurrency: null,
     manualPricedAt: null,
+    exchange: null,
+    quoteCurrency: null,
+    marketQuote: null,
     valuation,
     ...overrides
   };
@@ -300,5 +304,32 @@ describe("isHoldingType", () => {
     expect(isHoldingType("crypto")).toBe(true);
     expect(isHoldingType("checking")).toBe(false);
     expect(isHoldingType("credit_card")).toBe(false);
+  });
+});
+
+describe("linked listings", () => {
+  const result = {
+    symbol: "VOO",
+    name: "Vanguard S&P 500",
+    exchange: "NYSE Arca",
+    micCode: "ARCX",
+    country: "US",
+    currency: "USD",
+    type: "etf" as const
+  };
+
+  it("sends listing fields and no price for an automatic new row", () => {
+    const row = { ...newHoldingDraft("stock", "MXN"), ...listingPatch(result), quantity: "2" };
+    expect(buildHoldingsChangeSet([row], []).upsert).toEqual([
+      { kind: "etf", code: "VOO", exchange: "ARCX", quoteCurrency: "USD", name: "Vanguard S&P 500", quantity: "2" }
+    ]);
+  });
+
+  it("shows a saved linked holding as automatic and clearing the override sends null", () => {
+    const saved = holding({ kind: "stock", code: "VOO", exchange: "ARCX", quoteCurrency: "USD", manualUnitPrice: "400", manualPriceCurrency: "USD" });
+    const [row] = holdingsToDrafts([saved]);
+    expect(row!.priceSource).toBe("manual");
+    const auto = { ...row!, priceSource: "automatic" as const };
+    expect(buildHoldingsChangeSet([auto], [saved]).upsert).toEqual([{ id: "h1", manualUnitPrice: null }]);
   });
 });

@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { mockRequest, mockResponse } from "../../../../tests/helpers/httpMocks.js";
 
 vi.mock("../../services/holdings.read.service.js", () => ({ getAccountHoldings: vi.fn() }));
-vi.mock("../../services/holdings.update.service.js", () => ({ applyHoldingChanges: vi.fn() }));
+vi.mock("../../services/holdings.update.service.js", () => ({ applyHoldingChanges: vi.fn(), refreshAccountHoldings: vi.fn() }));
 
 const { getAccountHoldings } = await import("../../services/holdings.read.service.js");
-const { applyHoldingChanges } = await import("../../services/holdings.update.service.js");
-const { getHoldings, patchHoldings } = await import("../holdings.controller.js");
+const { applyHoldingChanges, refreshAccountHoldings } = await import("../../services/holdings.update.service.js");
+const { getHoldings, patchHoldings, postRefreshHoldings } = await import("../holdings.controller.js");
 
 const result = { accountId: "acc-1", holdings: [{ id: "h1", quantity: "0.1" }], valuation: { value: "5.00" } };
 
@@ -31,6 +31,18 @@ describe("patchHoldings", () => {
     await patchHoldings(mockRequest({ params: { id: "acc-1" }, body }), res);
 
     expect(applyHoldingChanges).toHaveBeenCalledWith("user-1", "acc-1", body);
+    expect(res.json).toHaveBeenCalledWith(result);
+  });
+});
+
+describe("postRefreshHoldings", () => {
+  it("refreshes the user's account and returns the holdings body", async () => {
+    vi.mocked(refreshAccountHoldings).mockResolvedValue(result as never);
+    const res = mockResponse();
+
+    await postRefreshHoldings(mockRequest({ params: { id: "acc-1" } }), res);
+
+    expect(refreshAccountHoldings).toHaveBeenCalledWith("user-1", "acc-1");
     expect(res.json).toHaveBeenCalledWith(result);
   });
 });

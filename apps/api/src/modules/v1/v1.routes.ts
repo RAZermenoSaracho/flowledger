@@ -8,6 +8,7 @@ import {
   importedTransactionsQueryParamSchema,
   notificationIngestSchema,
   reportFiltersSchema,
+  securitySearchQuerySchema,
   transactionSchema,
   transactionsQueryParamSchema,
   updateAccountSchema,
@@ -39,7 +40,8 @@ import {
   postCategoryRestore,
   putCategory
 } from "../categories/controllers/update.controller.js";
-import { getCurrencies, getRate } from "../currencies/controllers/read.controller.js";
+import { getCurrencies, getRate, getSecurities } from "../currencies/controllers/read.controller.js";
+import { securitySearchLimiter } from "../currencies/utils/currencyRateLimits.js";
 import { getNotifications } from "../notifications/controllers/read.controller.js";
 import {
   getByCategory,
@@ -164,6 +166,13 @@ v1Router.get(
   requireScope("read"),
   validate(currencyRateQuerySchema, "query"),
   asyncHandler(getRate)
+);
+v1Router.get(
+  "/currencies/securities",
+  requireScope("read"),
+  securitySearchLimiter,
+  validate(securitySearchQuerySchema, "query"),
+  asyncHandler(getSecurities)
 );
 v1Router.get("/notifications", requireScope("read"), asyncHandler(getNotifications));
 v1Router.get(

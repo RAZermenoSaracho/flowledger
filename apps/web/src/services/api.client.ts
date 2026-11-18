@@ -47,6 +47,8 @@ type ApiOptions = {
   method?: string;
   body?: unknown;
   query?: Record<string, string | string[] | undefined>;
+  /** Aborts the request; the resulting `AbortError` is not retried or wrapped. */
+  signal?: AbortSignal;
 };
 
 /** Resolves a possibly-relative asset path against the API base URL; passes absolute URLs through unchanged. */
@@ -155,7 +157,8 @@ export async function apiRequest<T>(
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: requestBody
+    body: requestBody,
+    signal: options.signal
   });
 
   const isSessionEndpoint = path.startsWith("/auth/") && !ACCESS_TOKEN_AUTH_PATHS.has(path);

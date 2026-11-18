@@ -3,6 +3,7 @@ import {
   getCreditCardToolSchema,
   getReportToolSchema,
   listImportedToolSchema,
+  securitySearchQuerySchema,
   transactionIdToolSchema
 } from "@flowledger/shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -10,6 +11,7 @@ import { getAccountHoldings } from "../../accounts/services/holdings.read.servic
 import { getCreditCardBilling } from "../../accounts/services/creditCard.read.service.js";
 import { listDebts } from "../../debts/services/read.service.js";
 import { capDebtLists } from "../../debts/utils/capDebtLists.js";
+import { searchSecurities } from "../../currencies/providers/twelveData/services/search.service.js";
 import { getExchangeRate, listCurrencies } from "../../currencies/services/read.service.js";
 import { countUnreadNotifications, listNotifications } from "../../notifications/services/read.service.js";
 import {
@@ -152,10 +154,21 @@ export function registerPersonalReadTools(server: McpServer, auth: McpAuth) {
     "list_holdings",
     {
       description:
-        "List the holdings of one of the user's investment or crypto accounts by account id, with each holding's exact quantity, unit price in its original currency, source (cash, manual or market), last-updated time, value in the account currency (null when missing, with a reason) and the account aggregate (`value`, `status` complete, partial or empty, `holdingCount`, `missingCount`). Kinds are crypto, fiat (cash), stock, etf and other. Crypto accounts accept crypto only. Cash is at par, crypto uses Binance unless manually priced, and stock/etf/other require manual prices. Empty accounts have value zero. Quantities and prices are exact decimal strings. Same data as GET /accounts/:id/holdings.",
+        "List the holdings of one of the user's investment or crypto accounts by account id, with each holding's exact quantity, unit price in its original currency, source (cash, manual or market), last-updated time, value in the account currency (null when missing, with a reason) and the account aggregate (`value`, `status` complete, partial or empty, `holdingCount`, `missingCount`). Kinds are crypto, fiat (cash), stock, etf and other. Crypto accounts accept crypto only. Cash is at par, crypto uses Binance unless manually priced, provider-linked stock/etf (with `exchange`, `quoteCurrency`, and a `marketQuote` of price, quote time, last check and stale flag) use a stored Twelve Data quote unless manually priced, and unlinked stock/etf and other require manual prices. Empty accounts have value zero. Quantities and prices are exact decimal strings. Same data as GET /accounts/:id/holdings.",
       inputSchema: transactionIdToolSchema.shape,
       annotations: READ_ONLY
     },
     ({ id }) => runRead(async () => ({ ...(await getAccountHoldings(userId, id)) }))
+  );
+
+  server.registerTool(
+    "search_securities",
+    {
+      description:
+        "Search stocks and ETFs by ticker or name (1-20 characters). Returns `{ available, results }`; each result has `symbol`, `name`, `exchange`, `micCode`, `country`, `currency` and `type` (stock or etf). The same ticker can appear on several exchanges, so pick the right listing. To hold it with an automatic price, pass the chosen result's `symbol`, `micCode`, `currency` and `name` to update_holdings as `code`, `exchange`, `quoteCurrency` and `name`. `available: false` means search is not configured or out of credits; then use manual prices. Same data as GET /currencies/securities.",
+      inputSchema: securitySearchQuerySchema.shape,
+      annotations: READ_ONLY
+    },
+    ({ q }) => runRead(async () => ({ ...(await searchSecurities(q)) }))
   );
 }
