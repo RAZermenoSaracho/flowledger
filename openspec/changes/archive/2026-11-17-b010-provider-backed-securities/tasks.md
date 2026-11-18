@@ -94,13 +94,13 @@
 ## 6. Docs
 
 - [x] 6.1 Update `docs/DATA_MODEL.md`, `docs/DOMAIN_LOGIC.md` (linked securities, refresh, budget, stale, licensing), the MCP docs and the README/CLAUDE env tables.
-- [ ] 6.2 `SHORT_TERM_ROADMAP.md`: record the approved provider and refresh decision. Mark ST-017 and B-010 complete only after acceptance.
+- [x] 6.2 `SHORT_TERM_ROADMAP.md`: record the approved provider and refresh decision. Mark ST-017 and B-010 complete only after acceptance.
 
 ## 7. Verification
 
 - [x] 7.1 Run `npm run typecheck`, `npm run lint` and `npm run test`, plus the holdings integration suite with testcontainers.
 - [x] 7.2 Run one small, controlled live check with the staging key (at most about 10 credits): search AAPL, then quote AAPL on `XNGS` and check the response shape.
-- [ ] 7.3 Do a staging deployment, then a browser smoke test:
+- [x] 7.3 Do a staging deployment, then a browser smoke test:
   - search and select;
   - save and see a price with its times;
   - reopen the tab and see no new provider call;
@@ -109,4 +109,5 @@
   - check the manual fallback;
   - check keyboard and mobile use;
   - check that no key appears in network traffic.
-- [ ] 7.4 Regression: crypto, cash and `other` holdings, existing unlinked stock/ETF rows, Net contributions and net worth stay unchanged.
+  - Staging acceptance approved by the product owner on 2026-11-17. Mobile layout was verified by component tests; browser resize was unavailable.
+- [x] 7.4 Regression: crypto, cash and `other` holdings, existing unlinked stock/ETF rows, Net contributions and net worth stay unchanged.
