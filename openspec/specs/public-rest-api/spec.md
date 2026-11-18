@@ -8,7 +8,7 @@ Defines the key-authenticated `/v1` REST surface: an explicit allowlist of read 
 ### Requirement: Explicit route allowlist
 The system SHALL expose exactly these routes under `/v1`:
 - Existing: GET `/v1/accounts`, GET `/v1/categories`, GET `/v1/transactions`, GET `/v1/transactions/summary`, GET `/v1/transactions/:id`, POST `/v1/transactions`, PUT `/v1/transactions/:id`.
-- Reads: GET `/v1/debts`, GET `/v1/reports/summary`, GET `/v1/reports/by-category`, GET `/v1/reports/monthly-cashflow`, GET `/v1/currencies`, GET `/v1/currencies/rate`, GET `/v1/notifications`, GET `/v1/imported-transactions`, GET `/v1/notifications/unread-count`, GET `/v1/me`, GET `/v1/accounts/:id/credit-card`, GET `/v1/accounts/:id/holdings`.
+- Reads: GET `/v1/debts`, GET `/v1/reports/summary`, GET `/v1/reports/by-category`, GET `/v1/reports/monthly-cashflow`, GET `/v1/currencies`, GET `/v1/currencies/rate`, GET `/v1/currencies/securities`, GET `/v1/notifications`, GET `/v1/imported-transactions`, GET `/v1/notifications/unread-count`, GET `/v1/me`, GET `/v1/accounts/:id/credit-card`, GET `/v1/accounts/:id/holdings`.
 - Writes: POST `/v1/accounts`, PUT `/v1/accounts/:id`, PATCH `/v1/accounts/:id/holdings`, POST `/v1/accounts/:id/archive`, POST `/v1/accounts/:id/restore`, POST `/v1/categories`, PUT `/v1/categories/:id`, POST `/v1/categories/:id/archive`, POST `/v1/categories/:id/restore`, DELETE `/v1/transactions/:id`, DELETE `/v1/accounts/:id`, DELETE `/v1/categories/:id`, PATCH `/v1/notifications/:id/read`, PATCH `/v1/notifications/read-all`, PATCH `/v1/me`, PATCH `/v1/imported-transactions/:id`, POST `/v1/imported-transactions/:id/{ignore,unignore,import}`, POST `/v1/imported-transactions/batch-{ignore,unignore,import}`.
 
 - Consent, blocking and discovery: POST `/v1/shared-expenses/:id/accept`, POST `/v1/shared-expenses/:id/reject`, POST `/v1/users/blocks`, DELETE `/v1/users/blocks/:userId` (`write`); GET `/v1/users/blocks`, GET `/v1/users/search` (`read`). `GET /v1/users/username-availability` is web-only and stays unrouted.
@@ -34,6 +34,10 @@ Every other method/path under `/v1` SHALL return 404 with a JSON body `{ "messag
 #### Scenario: Holdings routes
 - **WHEN** a read key calls `GET /v1/accounts/:id/holdings` for its own account, and a write key calls `PATCH /v1/accounts/:id/holdings`
 - **THEN** both return the same body as the internal routes, a read key's PATCH is rejected by scope enforcement, and the per-account-type kind rules apply exactly as on the internal routes
+
+#### Scenario: Security search route
+- **WHEN** a read key calls `GET /v1/currencies/securities?q=AAPL`
+- **THEN** it returns the same `{ available, results }` body as the internal route, and the provider API key never appears in the response
 
 ### Requirement: Credential authentication
 Every `/v1` request SHALL carry `Authorization: Bearer <api key>` for an active, unexpired API key whose user exists. Missing, malformed, revoked, expired or unknown credentials, and web-session JWTs, SHALL return 401. The user identity SHALL come only from the verified credential.
