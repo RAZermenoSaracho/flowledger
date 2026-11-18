@@ -33,126 +33,102 @@ B-009 (archived `2026-11-16-b009-holdings-and-crypto-prices`, in production sinc
 
 ## Decisions
 
-### D1. Provider: pending approval; recommended Twelve Data Basic (free) for US, manual for BMV
+### D1. Provider: Twelve Data (approved 2026-11-17)
 
-**Status:** not approved. The design is provider-neutral (D2, D4): listing identity is `(symbol, MIC)`, and the provider sits behind two functions, `searchSecurities(q)` and `fetchQuote(symbol, mic)`, in `currencies/providers/<provider>/`. Choosing a provider changes only that folder and the env vars.
+The product owner approved Twelve Data over its official HTTPS REST API (no WebSockets), with the existing `TWELVE_DATA_API_KEY`, on the free Basic plan. The earlier comparison (Google Sheets `GOOGLEFINANCE`, rejected because its terms forbid storing and redistributing the data; Marketstack free, rejected because 100 requests/month is below a daily refresh of 10 symbols) is kept in the roadmap history and in commit `40b91cf`.
 
-**Evaluation (2026-11-16/17).** Each row is marked as verified (V), inferred (I) or unverified (U).
+**Verified facts (official docs, 2026-11-17):**
+- `GET /symbol_search?symbol=`: 1 credit per request. It returns `symbol`, `instrument_name`, `exchange`, `mic_code`, `exchange_timezone`, `instrument_type`, `country` and `currency` ([docs](https://twelvedata.com/docs/discovery/symbol-search)).
+- `GET /quote?symbol=&mic_code=`: 1 credit per symbol. It returns `close`, `currency`, `timestamp`, `last_quote_at` ("Unix timestamp of last minute candle") and `is_market_open` ([docs](https://twelvedata.com/docs/market-data/quote)).
+- Basic plan: 8 credits/min, 800/day ([pricing](https://twelvedata.com/pricing)). The minute quota is restored at the start of each minute, and the daily quota resets at 00:00 UTC ([credits](https://support.twelvedata.com/en/articles/5615854-credits)).
+- Authentication: the `Authorization: apikey <key>` header is the recommended method ([docs](https://twelvedata.com/docs/introduction)). The key is never put in a URL.
+- Errors: a JSON body `{ code, message, status: "error" }`, where 401 is an invalid key, 403 means the plan lacks access, 404 means not found, and 429 means the credit limit was reached ([docs](https://twelvedata.com/docs/introduction)).
+- Live calls: a BMV (`XMEX`) quote is refused on Basic ("available starting with Pro"). `NAFTRACISHRS` is typed "Common Stock".
 
-| | Google Sheets `GOOGLEFINANCE` | Marketstack free | Twelve Data Basic (free) |
-|---|---|---|---|
-| Cost | $0 (a GCP service account) | $0 | $0 |
-| Official API | **No.** It is a sheet function with no API contract or SLA (V) | Yes, REST (V) | Yes, REST (V) |
-| Quota | Sheets API: 300 reads/min per project. One batch read covers every symbol (V) | **100 requests/month, and each symbol in a batch counts as one** (V) | 8/min, 800/day (V) |
-| US stocks / ETFs | Yes, delayed up to 20 min (V) | Yes (I) | Yes. Live quote verified (V) |
-| BMV stocks / ETFs | Listed, 20-min delay (V). Ticker format untested (U) | Not documented (U) | Search yes. **Quotes need Pro or Venture** (V) |
-| Search | **None** (no name or exchange attributes) (V) | `/tickers?search=` with MIC (V). Currency undocumented (U) | `/symbol_search` with MIC, currency and type (V) |
-| Timestamp / currency | `tradetime`, `currency` (V). Readable via API only for current attributes, not historical ones (V, docs). Untested (U) | EOD date (V). Currency undocumented (U) | `last_quote_at`, `currency` (V) |
-| Automation reliability | Recalculation without an open viewer is undocumented (U) | EOD only (V). Key in a URL query parameter (V). v1 deprecated (V) | Documented API (V) |
-| Terms | **The Finance disclaimer forbids users to "copy, … store, reproduce, reprocess, transmit or redistribute any data" without consent**, and the data is informational only (V) | "Non-Commercial Use" on free. Display terms not found (U) | Individual plans are personal and non-commercial. Basic is "internal non-display" (V). Whether showing a price in one's own app counts as display is unclear (U) |
+**Licensing (unresolved for production).** The Basic plan is for personal, non-commercial, internal use. FlowLedger staging and the owner's own use fit that. Showing prices to other users, or any commercial use, needs a plan with display rights. This is recorded as a release gate for production and is not assumed to be permitted.
 
-**Conclusions:**
-- **Google Sheets** is rejected as a backend source. It works only through an unsupported mechanism, whose terms forbid exactly what FlowLedger does (storing the data and showing it to users), and its recalculation is undocumented. It remains fine for the owner's personal spreadsheet.
-- **Marketstack free** is rejected. 10 symbols refreshed once per trading day need about 220 requests a month, more than twice its 100-request quota.
-- **Others:**
-  - EODHD (20 calls/day) and Alpha Vantage (25/day) are tight, and their BMV coverage on free plans is unverified.
-  - Finnhub's terms are personal-only.
-  - FMP's free plan is US only.
-  - No free source with **verified BMV quotes** was found.
-- **Recommendation:**
-  - Use Twelve Data Basic, the only free option verified end-to-end for US search and quotes, through an official API.
-  - BMV listings can be linked through its search and priced manually.
-  - Upgrade paths, each only after approval: Twelve Data Pro (BMV quotes), or EODHD (about $20/mo) after verifying `.MX` coverage with a free key.
-- **Licensing caveat:** free plans are personal or non-commercial everywhere, and none clearly grants display rights to other users. That fits FlowLedger's current personal, trusted-user stage. Written confirmation from the chosen vendor, or a display-rights plan, is a release gate if FlowLedger becomes commercial.
+**Replaceability:** all provider code lives in `currencies/providers/twelveData/`. The rest of the system sees only `(symbol, exchange MIC)` listings, the `SecurityQuote` cache and the `provider: "twelve_data"` label. No generic multi-provider framework is built.
 
-**Sources:**
-- [GOOGLEFINANCE](https://support.google.com/docs/answer/3093281)
-- [Google Finance disclaimer](https://www.google.com/googlefinance/disclaimer)
-- [Sheets API limits](https://developers.google.com/sheets/api/limits)
-- [Marketstack pricing](https://marketstack.com/pricing)
-- [Marketstack documentation](https://marketstack.com/documentation)
-- [Twelve Data pricing](https://twelvedata.com/pricing)
-- [Twelve Data: commercial and personal usage](https://support.twelvedata.com/en/articles/5332349-commercial-and-personal-usage)
-- [EODHD pricing](https://eodhd.com/pricing)
+### D2. Minimum persistence: two fields on `Holding`, one shared quote cache, one credit ledger
 
-The key is server-side only. Without a key, search returns `{ available: false, results: [] }`, the scheduler does not start, and stock/ETF behave as in B-009. There is no adapter interface while only one provider exists.
+**`Holding`** gains `exchange String? @db.VarChar(10)` (ISO 10383 MIC) and `quoteCurrency String? @db.VarChar(10)`. The unique key becomes `@@unique([accountId, kind, code, exchange])`. Postgres treats `NULL` exchanges as distinct, so the update service also rejects a second unlinked `(kind, code)`. A `stock`/`etf` with an `exchange` is *provider-linked*. The listing fields are create-only and immutable.
 
-### D2. Minimum persistence on `Holding`, no catalog
+**`SecurityQuote`**: one row per listing, shared across all accounts and users. It is public market data, not user data, so it has no `userId`, and it is never returned except through an owned holding.
 
-```prisma
-model Holding {
-  // existing fields unchanged
-  exchange       String?   @db.VarChar(10)   // ISO 10383 MIC of the listing, e.g. XNGS, XMEX
-  quoteCurrency  String?   @db.VarChar(10)   // listing currency from the provider, e.g. USD, MXN
-  marketPrice    Decimal?  @db.Decimal(38, 18)
-  marketPricedAt DateTime?                   // provider's quote time (last_quote_at), not fetch time
-  @@unique([accountId, kind, code, exchange])
-}
-```
+| Column | Meaning |
+|---|---|
+| `symbol`, `exchange` (composite id) | The listing |
+| `currency` | Quote currency reported by the provider |
+| `price` `Decimal(38,18)?` | Last valid price, parsed from the decimal string |
+| `quotedAt` | When the price applies: the provider's `last_quote_at`, else `timestamp` |
+| `checkedAt` | Last successful provider response ("Last checked") |
+| `marketOpen` | `is_market_open` at `checkedAt` |
+| `failedAt`, `failureReason`, `failureCount` | Last failed attempt and its consecutive count |
+| `nextAttemptAt` | Earliest next provider call, which doubles as the claim lease (D3) |
 
-- **Identity** is `(code = provider symbol, exchange = MIC)`. The MIC is an open standard, so the identity survives a provider change, and no provider id column is needed. `name` stores the display name (for stock/ETF it is set from the search result). `quoteCurrency` is the listing's currency, fixed for a listing. It serves the picker display, the stored quote and the default manual price currency.
-- **Why store the last quote (`marketPrice`, `marketPricedAt`)?**
-  - Unlike Binance (one free call returns every price), stock quotes cost one credit per symbol under an 8/min budget.
-  - Quoting on read would make `listAccounts` and net worth slow and rate-limited.
-  - Without stored quotes, every deploy would leave holdings "missing" for minutes.
+This is a cache, not a catalog. It holds no names or types, it is filled only for listings someone holds, and deleting it loses only cached prices.
 
-  The quote is denormalized per holding row. Duplicates across accounts are refreshed together by `(code, exchange)`, which is cheaper than a new table.
-- **Uniqueness:** Postgres treats `NULL` exchanges as distinct. `holdings.update.service.ts` keeps rejecting a second unlinked `(kind, code)` in the same account, so B-009 behavior is unchanged.
-- **Linked** means `kind in (stock, etf)` and `exchange != null`. `exchange`, `code` and `kind` are immutable after creation, like `kind` and `code` today. To switch listing, remove the holding and add a new one.
+**`ProviderCreditWindow`** (`provider`, `kind` = `minute`|`day`, `windowStart`, `used`): the shared credit ledger, so restarts and several processes draw on one budget. Rows older than two days are deleted on the first reservation of each UTC day.
 
-**Rejected:**
-- a `Security` table, whether global or user-owned (the old ST-021);
-- a `pricingMode` column (the source stays derived, as in B-009 R6);
-- a separate quote cache table.
+### D3. Refresh: event-driven, cache-aware, shared budget, no background worker
 
-### D3. Refresh: one in-process scheduler, a credit budget, stored results
+**Triggers:**
+1. Opening an account's Holdings tab. The web app loads the holdings and shows the stored values immediately, then calls `POST /accounts/:id/holdings/refresh` once per tab mount. When anything was refreshed, the response replaces the cached holdings.
+2. Saving a change set that creates a linked holding without a manual price, or clears the manual price of one. After the commit, the update service refreshes those listings within a short deadline. A failure never fails the save.
 
-`currencies/providers/twelveData/securitiesPriceScheduler.ts` follows the `createSyncfyAutoSyncScheduler` shape and is started and stopped in `server.ts`. Each run works as follows:
+**What does not trigger a refresh:** quantity-only edits, renders, the accounts list, net worth, `/v1`, MCP reads and search. There is no scheduler and no refresh button.
 
-1. Load the distinct `(code, exchange)` pairs of linked holdings with **no manual price**, across all users. This is a system job, like Syncfy auto-sync. It reads and writes only quote columns and returns nothing to any user.
-2. Quote them one at a time, within the provider's per-minute limit (8 on Twelve Data Basic).
-3. On success, `updateMany({ where: { code, exchange, kind: { in: [stock, etf] } }, data: { marketPrice: close, marketPricedAt: last_quote_at } })`. A quote whose currency differs from the stored `quoteCurrency` is rejected and logged by symbol only.
-4. On a 429 or other error, the run stops for that minute or skips that symbol, and stored values stay as they are.
-5. Overlapping runs are skipped.
+**Eligibility.** A listing is due when it has no quote row, or when `nextAttemptAt <= now` and the holding has no manual price. After a successful check, `nextAttemptAt` is set to:
+- `checkedAt + SECURITIES_QUOTE_REFRESH_MINUTES` (default 60) when the market was open;
+- `checkedAt + SECURITIES_QUOTE_CLOSED_RECHECK_MINUTES` (default 240) when it was closed. No newer quote is expected then, and the provider's own `is_market_open` is used, so no exchange's trading hours are assumed.
 
-**Schedule (revised): once per weekday after the close.**
-- Delayed or end-of-day prices are acceptable, so the job runs at `SECURITIES_PRICE_REFRESH_UTC_TIME` (default `22:30`, after the NYSE/NASDAQ and BMV closes), Monday to Friday.
-- New holdings are quoted once on save.
-- There is no market-hours polling, and no on-demand refresh button: stored quotes make reads free, and a manual button would only spend quota.
-- Holidays cost one request per listing, and the quote time stays unchanged, so the result is harmless.
-- `ponytail:` the scheduler is single-instance like Syncfy's. Upgrade it to a DB lock if the API is scaled out.
+`ponytail:` this uses a fixed closed-market recheck. Use `/market_state` `time_to_open` if overnight or weekend credits matter.
 
-**Expected usage.** Each distinct listing costs one request per run, deduplicated across every holding and user. There are about 22 trading days a month.
+**Claim (deduplication across requests, accounts, users and processes).** The service upserts the row if it is missing, then claims it atomically with `updateMany({ where: { symbol, exchange, nextAttemptAt: { lte: now } }, data: { nextAttemptAt: now + 2 min } })`. Only the caller that updated one row calls the provider. Concurrent callers skip the listing and return the stored value. A crash leaves at most a 2-minute lease.
 
-| Distinct listings | Per day | Per month | Twelve Data Basic (800/day) | Marketstack free (100/mo) |
-|---|---|---|---|---|
-| 10 | 10 | ~220 | 1% of the daily quota | over the quota |
-| 25 | 25 | ~550 | 3% | over the quota |
-| 50 | 50 | ~1,100 | 6%, and about 7 minutes at 8/min | over the quota |
+**Credit reservation.** Before each provider call, one credit is reserved atomically in both the current minute window and the current UTC-day window. The reservation is a conditional `updateMany` with `used <= limit - cost`, so it cannot overshoot. The limits are `TWELVE_DATA_CREDITS_PER_MINUTE` (default 6 of 8) and `TWELVE_DATA_CREDITS_PER_DAY` (default 600 of 800). Search draws on the same ledger.
+- When the minute budget is full, the listing is released until the next minute. This is not a failure.
+- When the day budget is full, the attempt is recorded as failure `quota_exhausted`, with `nextAttemptAt` at the next 00:00 UTC.
 
-Adds on save cost one request each. Search costs one request per uncached query, after a 300 ms debounce and a 1 h cache.
+**Failures and backoff.** A failure never touches `price`, `currency`, `quotedAt` or `checkedAt`. It sets `failedAt`, `failureReason`, increments `failureCount`, and sets `nextAttemptAt` as follows:
 
-**On save:** when `PATCH /holdings` creates a linked holding without a manual price, the update service makes one best-effort `fetchQuote`. A success stores the quote. A failure still saves the holding, which shows `price_unavailable` until the next run.
+| Outcome | `failureReason` | Next attempt |
+|---|---|---|
+| HTTP 429, or a `code: 429` body | `rate_limited` | Start of next minute, and the minute window is marked full for every process. A daily-limit message moves it to the next 00:00 UTC (`quota_exhausted`) |
+| 403 (plan lacks access, for example `XMEX`) | `plan_restricted` | 24 h |
+| 404, or a missing or invalid `close` | `not_found` / `invalid_quote` | 24 h |
+| Currency differs from the holding's `quoteCurrency` | `currency_mismatch` | 24 h (price not stored) |
+| Timeout (5 s), network, 5xx, 401 | `unavailable` | min(15 min × 2^(failures−1), 6 h) |
 
-**Search caching:** an in-memory Map keyed by the normalized query, with a 1 h TTL and at most 500 entries. Requests go through a per-user rate limit (the existing rate-limit middleware from S-002) of 30/min. The query is 1-20 characters (shared Zod). Results are filtered to `type in (Common Stock, ETF, Depositary Receipt, Preferred Stock, REIT)` and to an ISO currency that FlowLedger supports.
+A success resets `failureCount` and clears `failedAt` and `failureReason`.
+
+**Request bound.** One refresh call handles at most the account's due listings, sequentially. Each call is bounded by the 5 s client timeout and stops early when the minute budget is spent. Listings it could not reach stay due for the next trigger.
+
+**Usage.** Each listing costs at most one credit per hour while its market is open and while someone opens it, and about every four hours while the market is closed. With 25 distinct listings opened all day, that is about 7 h × 25 + 4 × 25 ≈ 275 credits per day, well below 600. Search costs 1 credit per uncached query (in-memory cache: 1 h, 500 entries; per-user limit: 30/min).
 
 ### D4. Valuation: reuse `valueHoldings`, widen one gate
 
 - Precedence stays fiat, then manual, then market, then missing.
-- `holdingValuation.ts` currently allows `market` only for `kind === "crypto"`. It now also allows linked `stock`/`etf`.
-- `holdings.read.service.ts` `marketQuote` branches:
-  - crypto keeps Binance and `USDT`, unchanged;
-  - linked stock/ETF returns `{ price: marketPrice, currency: quoteCurrency, fetchedAt: marketPricedAt }` from the row, or `unavailable` when `marketPrice` is null.
-- Conversion still goes through `getExchangeRate(quoteCurrency, accountCurrency)`, and a failure gives `rate_unavailable`.
-- No provider call happens on read.
-- Unlinked stock/ETF are unchanged: a manual price is required, and the source is `manual`.
-- Clearing the manual price of a linked holding is now allowed and reverts it to `market`. For unlinked holdings it stays rejected.
+- `holdingValuation.ts` allows the `market` source for linked `stock`/`etf` as well as `crypto`.
+- In `holdings.read.service.ts`, `marketQuote` handles two cases:
+  - crypto stays on Binance, unchanged;
+  - for linked stock/ETF, one `securityQuote.findMany` per read loads the quotes, and the result is `{ price, currency, fetchedAt: quotedAt }`.
 
-### D5. Freshness and labeling
+  A missing price, or a currency different from the holding's `quoteCurrency`, makes the holding `price_unavailable`. No provider call happens on read.
+- Conversion still goes through `getExchangeRate`, and a failure gives `rate_unavailable`. Unlinked stock/ETF are unchanged.
+- Each holding is valued once, so Total value and net worth cannot double-count a listing held in several accounts.
 
-- `valuedAt` is `marketPricedAt`, the market's quote time. A Friday close viewed on Sunday shows Friday's time. That conveys real-time, delayed and end-of-day honestly, without knowing the plan's entitlement.
-- The source label is "Market (<provider name>)", and its tooltip says "Delayed or end-of-day market price". Nothing says real-time.
-- **No stale flag is added.** This keeps the approved `valuation-timestamps` rule ("no stale thresholds, timers, badges"). The timestamp is the staleness signal. The roadmap's "mark it stale" wording is satisfied by that time staying visible and unchanged after failures. See Open Questions if a visible badge is still wanted.
+### D5. Freshness and stale state
+
+- **Last updated** (`valuation.valuedAt`) is `quotedAt`, the market time of the price. **Last checked** is `checkedAt`. The two are never confused.
+- Linked holdings return `marketQuote: { provider: "twelve_data", price, currency, quotedAt, checkedAt, stale, failureReason } | null`, whatever the current source. A manual override therefore still shows the market reference.
+- **`stale` is true** when either condition holds:
+  - the most recent attempt failed (`failedAt > checkedAt`, or `failedAt` set with no `checkedAt`);
+  - at the last check the market was open and `checkedAt − quotedAt > 2 × SECURITIES_QUOTE_REFRESH_MINUTES`. That is an old quote returned by a successful request.
+
+  A closing price while the market is closed is not stale.
+- This amends `valuation-timestamps` for security market quotes only. It is an explicit product decision (Open Question 4, approved): a stale quote stays in totals, and only the label changes. Elapsed time since the last check alone still never marks anything stale.
+- UI: the source reads "Twelve Data", and "Last updated" and "Last checked" appear in the existing tooltip. When stale, a subtle "Stale" tag appears, with the reason in the tooltip. Nothing claims real-time data.
 
 ### D6. API, shared contracts and MCP
 
@@ -162,11 +138,12 @@ Adds on save cost one request each. Search costs one request per uncached query,
   - `holdingUpsertSchema` gains optional `exchange` (`^[A-Z0-9]{4}$`) and `quoteCurrency` (ISO) on stock/ETF create only. `name` is now allowed on stock/ETF, up to 80 characters.
   - `superRefine` requires a manual price for stock/ETF only when `exchange` is absent.
 - **Routes:**
+  - `POST /accounts/:id/holdings/refresh` (owned account only) refreshes the account's due listings (D3) and returns the same body as `GET /accounts/:id/holdings`. It is web-only, and not on `/v1` or MCP, so those stay read-only and free.
   - `GET /currencies/securities?q=` returns `{ available, results }`.
   - It is mirrored as `GET /v1/currencies/securities`, under read scope.
   - MCP `search_securities` (`readOnlyHint: true`) returns the same body.
   - The `update_holdings` description now explains linked stock/ETF.
-  - `list_holdings` is unchanged apart from the new fields in its body.
+  - `list_holdings` is unchanged apart from the new fields in its body (`exchange`, `quoteCurrency`, `marketQuote`).
 - **Trust:** the API does not re-verify an MCP- or API-supplied `(code, exchange, quoteCurrency)` against the provider at save time, beyond the best-effort quote. A wrong listing simply never quotes (`price_unavailable`), and a currency mismatch is rejected at refresh. `ponytail:` add verification at save if bad input appears in practice.
 
 ### D7. Web
@@ -179,7 +156,7 @@ Adds on save cost one request each. Search costs one request per uncached query,
 - **`HoldingsTab`:**
   - For stock/ETF rows, the search replaces the code input when the row is new. Selecting a result fills `code`, `exchange`, `name` and `quoteCurrency`.
   - Saved rows show `SYMBOL · Exchange` and the name.
-  - The existing Price source `<select>` is extended from crypto to linked stock/ETF ("Twelve Data (automatic)" / "Manual"). Manual opens the existing `ManualPriceCell`, defaulting to `quoteCurrency`.
+  - The existing Price source `<select>` is extended from crypto to linked stock/ETF ("Twelve Data (automatic)" / "Manual"). Selecting a result also sets the row kind from the result type (`ETF` is `etf`, other equity types are `stock`). Manual opens the existing `ManualPriceCell`, defaulting to `quoteCurrency`.
   - Draft, Save and Discard come from `holdingsDraft.ts` and are unchanged.
 - Multiple holdings of the same listing across accounts work naturally. Within one account the unique key prevents duplicates, as for crypto.
 
@@ -211,27 +188,23 @@ None is required by the current product direction. They are recorded in the road
 
 ## Risks / Trade-offs
 
-- **Licensing (highest):** the free plan is internal non-display and individual plans are personal. FlowLedger shows prices to a few trusted users, and the roadmap anticipates a SaaS model, which needs a Business plan with display rights.
-  - *Mitigation:* the feature is off without a key, so release is gated on the approved plan.
-- **BMV needs a paid plan.**
-  - Until then, Mexican listings can be searched and linked but stay `price_unavailable`, and the user can set a manual price.
-  - The UI copy for `price_unavailable` on linked holdings is "Market price unavailable; set a manual price".
-- **Credit budget versus growth:** the budget is distinct listings × one run per weekday. See the usage table in D3.
-- **Cold start:** stored quotes survive restarts, and new holdings are quoted on save.
-- **Single instance:** the same caveat as Syncfy.
-- **Float conversion:** the provider's price is parsed as a decimal string straight into `Decimal`. FX stays float, as in B-009.
-- **Symbol format drift** (for example class shares `BRK.B`): the existing ticker regex accepts `.` and `-`. Results that fail validation are filtered out of search.
+- **Licensing (production gate):** the Basic plan covers personal, internal use only. Production display to other users needs a display-rights plan (D1).
+- **BMV needs a paid plan:** Mexican listings can be searched and linked, but quotes return `plan_restricted`. They show as missing ("Market price unavailable; set a manual price") and are retried once a day.
+- **Shared Twelve Data account:** if the same key or account is also used elsewhere, the provider's 429 responses are handled (D3), and the defaults leave 25% headroom.
+- **Search spends credits:** debouncing, the cache and the per-user limit bound it, and a full budget returns `available: false`.
+- **Float conversion:** prices are parsed as decimal strings into `Decimal`. FX stays float, as in B-009.
 
 ## Migration Plan
 
-1. Run one additive migration, `b010_security_listing`, generated by `prisma migrate dev`. It adds four nullable columns and replaces the unique index with `(accountId, kind, code, exchange)`. The new index only relaxes the old constraint, so existing rows are valid. There is no backfill or reset, and no raw SQL.
-2. Existing stock/ETF rows have a `null` exchange and stay manual-only with identical values.
-3. Deploy with no key, which ships dark and makes no behavior change. Then set the approved provider's API key to enable search and refresh.
-4. **Rollback:** unset the key, which brings back B-009 behavior, or revert the code. The extra columns are ignored, and dropping them needs a separately approved migration.
+1. Run one additive migration, `b010_security_quotes`, generated by `prisma migrate dev`. It adds two nullable `Holding` columns, widens the unique index, and creates `SecurityQuote` and `ProviderCreditWindow`. There is no backfill and no raw SQL.
+2. Existing stock/ETF rows have a `null` exchange and stay manual-only.
+3. Without `TWELVE_DATA_API_KEY`, search returns `available: false` and refresh is a no-op, so B-009 behavior is unchanged.
+4. **Rollback:** unset the key or revert the code. The new tables and columns are ignored.
 
-## Open Questions (product-owner approval)
+## Decisions taken (2026-11-17)
 
-1. **Provider:** approve Twelve Data Basic (free, US quotes; BMV search with manual price), or choose another option from D1.
-2. **Licensing posture:** accept free personal and non-commercial terms for the current trusted-user stage, with a display-rights plan as the gate before any commercial use.
-3. **BMV automatic prices:** defer them (manual for now), or approve a paid source (Twelve Data Pro, or EODHD after a free-key coverage test).
-4. **Stale label:** the user asked for stale quotes to be labeled, but `valuation-timestamps` forbids time-based flags. The minimal compliant option is a derived `stale` flag on linked holdings, true when the most recent refresh attempt for that listing failed. It would need one nullable `marketQuoteFailedAt` column and an amendment to `valuation-timestamps`. The alternative is to keep time-only freshness.
+1. **Provider:** Twelve Data Basic, REST only.
+2. **Licensing:** personal and staging use now. A display-rights plan is required before production use by other users (an open release gate).
+3. **BMV:** searchable and linkable, priced manually until a paid plan is approved.
+4. **Stale label:** approved, as defined in D5, amending `valuation-timestamps`.
+5. **Refresh:** event-driven with a shared cache, replacing the scheduled worker.
