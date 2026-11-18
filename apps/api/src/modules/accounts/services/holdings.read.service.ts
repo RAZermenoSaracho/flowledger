@@ -1,9 +1,20 @@
-import { HOLDING_ACCOUNT_TYPES, currencyFractionDigits, type AccountHoldings, type Holding, type HoldingsValuation } from "@flowledger/shared";
+import {
+  HOLDING_ACCOUNT_TYPES,
+  currencyFractionDigits,
+  type AccountHoldings,
+  type Holding,
+  type HoldingsValuation,
+  type SecurityMarketQuote,
+  type SecurityQuoteFailureReason
+} from "@flowledger/shared";
+import type { SecurityQuote } from "@prisma/client";
+import { env } from "../../../config/env.js";
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
 import { getBinanceTickerFetchedAt } from "../../currencies/providers/binance/binance.client.js";
 import { getCryptoUsdtPrice } from "../../currencies/providers/binance/services/read.service.js";
 import { getExchangeRate } from "../../currencies/services/read.service.js";
+import { isQuoteStale } from "../../currencies/providers/twelveData/utils/isQuoteStale.js";
 import type { AccountForHoldings, HoldingQuote } from "../types/holdings.types.js";
 import { valueHoldings } from "../utils/holdingValuation.js";
 
@@ -16,6 +27,21 @@ async function marketQuote(code: string): Promise<HoldingQuote> {
   }
   if (price === null) return { unsupported: true };
   return { price, currency: "USDT", fetchedAt: code === "USDT" ? null : getBinanceTickerFetchedAt() };
+}
+
+const listingKey = (symbol: string, exchange: string) => `${symbol}:${exchange}`;
+
+/** The shared quote row of a listing as the holding's `marketQuote`; an empty quote when the listing has not been fetched yet. */
+function toMarketQuote(row: SecurityQuote | undefined): SecurityMarketQuote {
+  return {
+    provider: "twelve_data",
+    price: row?.price?.toFixed() ?? null,
+    currency: row?.currency ?? null,
+    quotedAt: row?.quotedAt?.toISOString() ?? null,
+    checkedAt: row?.checkedAt?.toISOString() ?? null,
+    stale: row ? isQuoteStale(row, env.SECURITIES_QUOTE_REFRESH_MINUTES) : false,
+    failureReason: (row?.failureReason as SecurityQuoteFailureReason | null | undefined) ?? null
+  };
 }
 
 /**
@@ -36,6 +62,19 @@ export async function valueAccountHoldings(
     orderBy: [{ createdAt: "asc" }, { id: "asc" }]
   });
 
+  const linked = rows.filter((row) => row.exchange && row.code);
+  const quoteRows = linked.length
+    ? await prisma.securityQuote.findMany({
+        where: { OR: linked.map((row) => ({ symbol: row.code!, exchange: row.exchange! })) }
+      })
+    : [];
+  const quotesByListing = new Map(quoteRows.map((row) => [listingKey(row.symbol, row.exchange), row]));
+  const securityQuote = async (holding: { code: string | null; exchange: string | null; quoteCurrency: string | null }): Promise<HoldingQuote> => {
+    const row = quotesByListing.get(listingKey(holding.code!, holding.exchange!));
+    if (!row?.price || !row.currency || row.currency !== holding.quoteCurrency) return { unavailable: true };
+    return { price: row.price.toFixed(), currency: row.currency, fetchedAt: row.quotedAt };
+  };
+
   const rates = new Map<string, Promise<number>>();
   const rate = (from: string, to: string) => {
     const key = `${from}>${to}`;
@@ -51,7 +90,7 @@ export async function valueAccountHoldings(
     accounts.map(async (account) => {
       const own = rows.filter((row) => row.accountId === account.id);
 
-      const valued = await valueHoldings(own, account.currency, { quote: marketQuote, rate });
+      const valued = await valueHoldings(own, account.currency, { quote: marketQuote, securityQuote, rate });
       const holdings: Holding[] = own.map((row, index) => ({
         id: row.id,
         accountId: row.accountId,
@@ -63,6 +102,9 @@ export async function valueAccountHoldings(
         manualUnitPrice: row.manualUnitPrice?.toFixed() ?? null,
         manualPriceCurrency: row.manualPriceCurrency,
         manualPricedAt: row.manualPricedAt?.toISOString() ?? null,
+        exchange: row.exchange,
+        quoteCurrency: row.quoteCurrency,
+        marketQuote: row.exchange && row.code ? toMarketQuote(quotesByListing.get(listingKey(row.code, row.exchange))) : null,
         valuation: valued.valuations[index]!
       }));
       result.set(account.id, {

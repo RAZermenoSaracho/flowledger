@@ -155,6 +155,14 @@ export const holdingKindSchema = z.enum(HOLDING_KINDS);
 const isoCurrencyCodes = new Set<string>(Intl.supportedValuesOf("currency"));
 const cryptoCodePattern = /^[A-Z0-9]{2,10}$/;
 const tickerPattern = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
+const micPattern = /^[A-Z0-9]{4}$/;
+
+/** Query of `GET /currencies/securities`: a ticker or name fragment. */
+export const securitySearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(20)
+});
+
+export type SecuritySearchQuery = z.infer<typeof securitySearchQuerySchema>;
 
 /**
  * One item of a holdings change set. Without `id` it creates a holding and needs `kind` and `quantity`, plus `code` for every
@@ -163,8 +171,11 @@ const tickerPattern = /^[A-Z0-9][A-Z0-9.-]{0,14}$/;
  * - `crypto`: a 2–10 character code that is not an ISO 4217 fiat code (stablecoins such as USDT are crypto); priced
  *   automatically unless a manual price is set; `manualUnitPrice: null` returns it to automatic pricing.
  * - `fiat`: an ISO 4217 code, valued at par, never a manual price; quantity limited to the currency's minor units.
- * - `stock`/`etf`: a ticker; `other`: a name and an optional `unit`. These are manually priced only, so a create needs a
- *   manual price and an update cannot clear it (the service re-checks updates against the stored kind).
+ * - `stock`/`etf`: a ticker and an optional `name`. With `exchange` (ISO 10383 MIC) and `quoteCurrency`, sent together and
+ *   only on create, the holding is provider-linked: priced automatically unless a manual price is set, which `null` clears.
+ *   Without them it is manually priced only, like `other`.
+ * - `other`: a name and an optional `unit`. Manually priced only, so a create needs a manual price and an update cannot clear
+ *   it (the service re-checks updates against the stored holding).
  * Quantities allow at most 18 decimals. `manualPricedAt` may not be in the future. Which kinds an account may hold is
  * enforced by the service against the account type.
  */
@@ -178,7 +189,9 @@ export const holdingUpsertSchema = z
     quantity: positiveDecimalAmountSchema.optional(),
     manualUnitPrice: positiveDecimalAmountSchema.nullable().optional(),
     manualPriceCurrency: currencyCodeSchema.optional(),
-    manualPricedAt: z.coerce.date().optional()
+    manualPricedAt: z.coerce.date().optional(),
+    exchange: z.string().trim().toUpperCase().regex(micPattern, "An exchange is a 4-character MIC").optional(),
+    quoteCurrency: currencyCodeSchema.optional()
   })
   .superRefine((item, ctx) => {
     const issue = (path: string, message: string) =>
@@ -187,6 +200,8 @@ export const holdingUpsertSchema = z
     if (item.id) {
       if (item.kind !== undefined) issue("kind", "The kind of an existing holding cannot change");
       if (item.code !== undefined) issue("code", "The code of an existing holding cannot change");
+      if (item.exchange !== undefined) issue("exchange", "The exchange of an existing holding cannot change");
+      if (item.quoteCurrency !== undefined) issue("quoteCurrency", "The quote currency of an existing holding cannot change");
     } else {
       if (!item.kind) issue("kind", "Kind is required for a new holding");
       if (!item.quantity) issue("quantity", "Quantity is required for a new holding");
@@ -196,7 +211,13 @@ export const holdingUpsertSchema = z
       } else if (item.kind && !item.code) {
         issue("code", "Code is required for a new holding");
       }
-      if (item.kind && (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(item.kind) && !item.manualUnitPrice) {
+      const linked = (item.kind === "stock" || item.kind === "etf") && item.exchange !== undefined;
+      if (
+        item.kind &&
+        (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(item.kind) &&
+        !linked &&
+        !item.manualUnitPrice
+      ) {
         issue("manualUnitPrice", "This asset type has no automatic price; set a manual unit price");
       }
     }
@@ -211,6 +232,12 @@ export const holdingUpsertSchema = z
     if (item.kind === "fiat") {
       if (item.code && !isoCurrencyCodes.has(item.code)) issue("code", "Cash must use an ISO 4217 currency code");
       if (item.manualUnitPrice != null) issue("manualUnitPrice", "Cash holdings are valued at par and take no manual price");
+    }
+    if ((item.exchange !== undefined || item.quoteCurrency !== undefined) && !item.id) {
+      if (item.kind !== "stock" && item.kind !== "etf") issue("exchange", "Only stocks and ETFs take an exchange");
+      else if (item.exchange === undefined || item.quoteCurrency === undefined) {
+        issue(item.exchange === undefined ? "exchange" : "quoteCurrency", "Exchange and quote currency go together");
+      } else if (!isoCurrencyCodes.has(item.quoteCurrency)) issue("quoteCurrency", "Quote currency must be an ISO 4217 code");
     }
     if (item.unit != null && item.kind !== undefined && item.kind !== "other") {
       issue("unit", "Only other assets take a unit");

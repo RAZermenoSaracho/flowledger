@@ -2,7 +2,8 @@ import {
   HOLDING_KINDS_BY_ACCOUNT_TYPE,
   type AccountType,
   type Holding,
-  type HoldingKind
+  type HoldingKind,
+  type SecuritySearchResult
 } from "@flowledger/shared";
 import type { FormErrors } from "../../../types/common.types";
 import type { HoldingUpsert, HoldingsChangeSet } from "../../../types/accounts.types";
@@ -37,9 +38,10 @@ export function isHoldingType(type: AccountType): boolean {
   return allowedHoldingKinds(type).length > 0;
 }
 
-/** The price source a saved holding is shown with: Binance for crypto without a manual price, otherwise manual. */
+/** The price source a saved holding is shown with: automatic for crypto or a provider-linked listing without a manual price, otherwise manual. */
 function savedPriceSource(holding: Holding): HoldingPriceSource {
-  return holding.kind === "crypto" && !holding.manualUnitPrice ? "automatic" : "manual";
+  const isAutomaticKind = holding.kind === "crypto" || holding.exchange !== null;
+  return isAutomaticKind && !holding.manualUnitPrice ? "automatic" : "manual";
 }
 
 /** Builds the draft rows for the saved holdings; a saved row's `draftId` is its id. */
@@ -58,11 +60,15 @@ export function holdingsToDrafts(holdings: Holding[]): HoldingDraft[] {
     manualPricedAt: holding.manualPricedAt
       ? transactionDateInputValue({ date: holding.manualPricedAt })
       : "",
-    valuation: holding.valuation
+    valuation: holding.valuation,
+    exchange: holding.exchange ?? "",
+    quoteCurrency: holding.quoteCurrency ?? "",
+    marketQuote: holding.marketQuote,
+    manualTicker: false
   }));
 }
 
-/** An empty unsaved row of `kind`: crypto starts on the automatic Binance price, stock/ETF/other are manual-only; its manual price currency defaults to the account currency. */
+/** An empty unsaved row of `kind`: crypto starts on the automatic Binance price, stock/ETF/other are manual until a stock/ETF listing is selected; its manual price currency defaults to the account currency. */
 export function newHoldingDraft(
   kind: HoldingKind,
   currency: string
@@ -79,7 +85,29 @@ export function newHoldingDraft(
     manualUnitPrice: "",
     manualPriceCurrency: currency,
     manualPricedAt: "",
-    valuation: null
+    valuation: null,
+    exchange: "",
+    quoteCurrency: "",
+    marketQuote: null,
+    manualTicker: false
+  };
+}
+
+/** Applies a selected search result to a new stock/ETF row: sets kind, code, name and listing, and switches it to the automatic Twelve Data price (a manual override defaults to the listing currency). */
+export function listingPatch(
+  result: SecuritySearchResult
+): Partial<HoldingDraft> {
+  return {
+    kind: result.type,
+    code: result.symbol.toUpperCase(),
+    name: result.name,
+    exchange: result.micCode,
+    quoteCurrency: result.currency,
+    priceSource: "automatic",
+    manualUnitPrice: "",
+    manualPriceCurrency: result.currency,
+    manualPricedAt: "",
+    manualTicker: false
   };
 }
 
@@ -133,6 +161,11 @@ function newHoldingUpsert(row: HoldingDraft): HoldingUpsert {
     if (row.unit.trim()) item.unit = row.unit.trim();
   } else {
     item.code = row.code.trim().toUpperCase();
+    if (row.exchange) {
+      item.exchange = row.exchange;
+      item.quoteCurrency = row.quoteCurrency;
+      if (row.name.trim()) item.name = row.name.trim();
+    }
   }
   return effectivePrice(row) ? { ...item, ...manualFields(row) } : item;
 }
@@ -208,7 +241,7 @@ export function validateHoldingRows(rows: HoldingDraft[]): FormErrors {
       }
     }
     if (row.kind !== "other") {
-      const identity = `${row.kind}:${code}`;
+      const identity = `${row.kind}:${code}:${row.exchange}`;
       if (code && seen.has(identity)) errors[key("code")] ??= `${code} is already listed`;
       seen.add(identity);
     }

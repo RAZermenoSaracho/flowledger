@@ -108,6 +108,9 @@ export type HoldingUpsert = {
   code?: string;
   name?: string;
   unit?: string;
+  /** MIC of the selected listing; sent with `quoteCurrency` when creating a provider-linked stock/ETF. */
+  exchange?: string;
+  quoteCurrency?: string;
   quantity?: string;
   manualUnitPrice?: string | null;
   manualPriceCurrency?: string;

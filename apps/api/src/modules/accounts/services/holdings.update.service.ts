@@ -9,10 +9,28 @@ import {
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { badRequest, notFound } from "../../../utils/httpError.js";
+import { refreshSecurityQuotes } from "../../currencies/providers/twelveData/services/quotes.service.js";
+import type { SecurityListing } from "../../currencies/providers/twelveData/types/twelveData.types.js";
 import type { ExistingHolding } from "../types/holdings.types.js";
 import { getAccountHoldings } from "./holdings.read.service.js";
 
 const MAX_HOLDINGS_PER_ACCOUNT = 200;
+const REFRESH_DEADLINE_MS = 8000;
+const DUPLICATE_MESSAGE = "An account can hold each asset only once; that kind and code already exists";
+
+/** Runs a best-effort quote refresh, waiting at most {@link REFRESH_DEADLINE_MS}; a failure or timeout never reaches the caller. */
+async function refreshWithinDeadline(listings: SecurityListing[]): Promise<void> {
+  if (listings.length === 0) return;
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, REFRESH_DEADLINE_MS);
+  });
+  try {
+    await Promise.race([refreshSecurityQuotes(listings).catch(() => undefined), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function fieldError(field: string, message: string) {
   return badRequest(message, { issues: { formErrors: [], fieldErrors: { [field]: [message] } } });
@@ -25,7 +43,11 @@ function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date
   if (stored.kind === "other" && item.name === null) throw fieldError("name", "Other holdings require a name");
   if (item.name !== undefined) data.name = item.name;
   if (item.unit !== undefined) data.unit = item.unit;
-  if (item.manualUnitPrice === null && (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(stored.kind)) {
+  if (
+    item.manualUnitPrice === null &&
+    (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(stored.kind) &&
+    !stored.exchange
+  ) {
     throw fieldError("manualUnitPrice", "This asset requires a manual price");
   }
 
@@ -61,7 +83,11 @@ function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date
  * (quantity and/or manual valuation; a quantity-only edit keeps `manualPricedAt`), and deletes `remove` ids. Unmentioned holdings are untouched.
  * 404 for a foreign account or an id not belonging to this account and user; 400 when the account type cannot hold holdings,
  * on a fiat precision or manual-price violation, or a duplicate `(kind, code)`. Crypto accounts accept crypto only;
- * incompatible stored holdings may be removed but not updated. Stock, ETF and other require manual prices.
+ * incompatible stored holdings may be removed but not updated. Unlinked stock/ETF and other require manual prices;
+ * provider-linked stock/ETF (created with `exchange` + `quoteCurrency`, immutable afterwards) may omit or clear them.
+ * A second unlinked holding of the same `(kind, code)` is rejected, because Postgres treats NULL exchanges as distinct.
+ * After the commit, listings that became auto-priced (created linked without a manual price, or manual price cleared) get a
+ * best-effort quote refresh bounded to a short deadline; quantity-only edits never refresh and a refresh failure never fails the save.
  * Returns the same body as `getAccountHoldings`.
  */
 export async function applyHoldingChanges(
@@ -70,6 +96,7 @@ export async function applyHoldingChanges(
   changeSet: HoldingsChangeSetInput
 ): Promise<AccountHoldings> {
   const now = new Date();
+  const toRefresh: SecurityListing[] = [];
   try {
     await prisma.$transaction(async (tx) => {
       const account = await tx.account.findFirst({
@@ -88,7 +115,7 @@ export async function applyHoldingChanges(
       const stored = ids.length
         ? await tx.holding.findMany({
             where: { id: { in: ids }, accountId, userId },
-            select: { id: true, kind: true, code: true, manualUnitPrice: true }
+            select: { id: true, kind: true, code: true, manualUnitPrice: true, exchange: true, quoteCurrency: true }
           })
         : [];
       const storedById = new Map(stored.map((holding) => [holding.id, holding]));
@@ -115,11 +142,25 @@ export async function applyHoldingChanges(
 
       for (const item of changeSet.upsert) {
         if (item.id) {
+          const current = storedById.get(item.id)!;
           await tx.holding.update({
             where: { id: item.id, accountId, userId },
-            data: updateData(item, storedById.get(item.id)!, now)
+            data: updateData(item, current, now)
           });
+          if (item.manualUnitPrice === null && current.exchange && current.code) {
+            toRefresh.push({ symbol: current.code, exchange: current.exchange, quoteCurrency: current.quoteCurrency });
+          }
         } else {
+          if (item.code && !item.exchange) {
+            const duplicate = await tx.holding.findFirst({
+              where: { accountId, userId, kind: item.kind!, code: item.code, exchange: null },
+              select: { id: true }
+            });
+            if (duplicate) throw badRequest(DUPLICATE_MESSAGE);
+          }
+          if (item.exchange && item.code && !item.manualUnitPrice) {
+            toRefresh.push({ symbol: item.code, exchange: item.exchange, quoteCurrency: item.quoteCurrency ?? null });
+          }
           await tx.holding.create({
             data: {
               userId,
@@ -128,6 +169,8 @@ export async function applyHoldingChanges(
               code: item.code ?? null,
               name: item.name ?? null,
               unit: item.unit ?? null,
+              exchange: item.exchange ?? null,
+              quoteCurrency: item.quoteCurrency ?? null,
               quantity: new Prisma.Decimal(item.quantity!),
               ...(item.manualUnitPrice
                 ? {
@@ -143,10 +186,29 @@ export async function applyHoldingChanges(
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw badRequest("An account can hold each asset only once; that kind and code already exists");
+      throw badRequest(DUPLICATE_MESSAGE);
     }
     throw error;
   }
 
+  await refreshWithinDeadline(toRefresh);
+  return getAccountHoldings(userId, accountId);
+}
+
+/**
+ * Refreshes the quotes of an account's provider-linked stock/ETF holdings that have no manual price (only those due are
+ * fetched, see `refreshSecurityQuotes`) and returns the same body as `getAccountHoldings`. 404 when the account is not the user's.
+ * Provider failures never fail the call: they only leave the stored quotes unchanged.
+ */
+export async function refreshAccountHoldings(userId: string, accountId: string): Promise<AccountHoldings> {
+  const account = await prisma.account.findFirst({ where: { id: accountId, userId }, select: { id: true } });
+  if (!account) throw notFound("Account");
+  const linked = await prisma.holding.findMany({
+    where: { accountId, userId, exchange: { not: null }, code: { not: null }, manualUnitPrice: null },
+    select: { code: true, exchange: true, quoteCurrency: true }
+  });
+  await refreshWithinDeadline(
+    linked.map((row) => ({ symbol: row.code!, exchange: row.exchange!, quoteCurrency: row.quoteCurrency }))
+  );
   return getAccountHoldings(userId, accountId);
 }

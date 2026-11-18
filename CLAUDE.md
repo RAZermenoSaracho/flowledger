@@ -66,6 +66,9 @@ Required env vars (see `.env.example` and `apps/api/src/config/env.ts` for full 
 | `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL` | Notification run concurrency across workers (default `4`, integer `1–64`) |
 | `NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER` | Per-user notification concurrency (default `2`, integer `1–64`, must be ≤ global); invalid limits prevent API/worker startup |
 | `SYNCFY_AUTO_SYNC_INTERVAL_MINUTES` | Scheduler interval (default `60`) |
+| `TWELVE_DATA_API_KEY` | Twelve Data key for stock/ETF search and quotes (optional; without it search is unavailable and quotes are not refreshed) |
+| `SECURITIES_QUOTE_REFRESH_MINUTES` / `SECURITIES_QUOTE_CLOSED_RECHECK_MINUTES` | Quote recheck interval while the market is open (default `60`) or closed (default `240`) |
+| `TWELVE_DATA_CREDITS_PER_MINUTE` / `TWELVE_DATA_CREDITS_PER_DAY` | Shared credit budget, kept below the plan limits (defaults `6` / `600`) |
 
 ---
 

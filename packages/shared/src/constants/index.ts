@@ -102,8 +102,26 @@ export const HOLDING_KINDS_BY_ACCOUNT_TYPE = {
   investment: HOLDING_KINDS
 } as const satisfies Record<(typeof HOLDING_ACCOUNT_TYPES)[number], readonly (typeof HOLDING_KINDS)[number][]>;
 
-/** Holding kinds that have no automatic price source and therefore always carry a manual unit price. */
+/** Holding kinds that need a manual unit price unless provider-linked: `stock`/`etf` with an `exchange` are priced automatically. */
 export const MANUALLY_PRICED_HOLDING_KINDS = ["stock", "etf", "other"] as const;
+
+/** Security types a search result can have; the holding kind of a selected result. */
+export const SECURITY_TYPES = ["stock", "etf"] as const;
+
+/**
+ * Why the latest provider attempt for a stock/ETF quote failed: credit limit hit (`rate_limited` per minute,
+ * `quota_exhausted` per day), the plan does not cover the exchange, the listing is unknown, the quote data was unusable,
+ * its currency differed from the listing's, or the provider was unreachable.
+ */
+export const SECURITY_QUOTE_FAILURE_REASONS = [
+  "rate_limited",
+  "quota_exhausted",
+  "plan_restricted",
+  "not_found",
+  "invalid_quote",
+  "currency_mismatch",
+  "unavailable"
+] as const;
 
 /** Where a holding's valuation came from: `cash` (fiat at par), `manual` (user override), or `market` (provider quotation). */
 export const HOLDING_VALUATION_SOURCES = ["cash", "manual", "market"] as const;

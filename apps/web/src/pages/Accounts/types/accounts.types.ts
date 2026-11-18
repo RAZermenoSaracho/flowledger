@@ -2,6 +2,8 @@ import type {
   AccountType,
   HoldingKind,
   HoldingValuation,
+  SecurityMarketQuote,
+  SecuritySearchResult,
   PaymentDueRule
 } from "@flowledger/shared";
 import type { ComponentType } from "react";
@@ -75,4 +77,21 @@ export type HoldingDraft = {
   manualPriceCurrency: string;
   manualPricedAt: string;
   valuation: HoldingValuation | null;
+  /** MIC of the linked listing, or "" for an unlinked row. Fixed once saved. */
+  exchange: string;
+  /** Currency of the linked listing, or "". Fixed once saved; the default currency of a manual override. */
+  quoteCurrency: string;
+  /** Shared market quote of a linked saved row, for the Last checked / Stale display. */
+  marketQuote: SecurityMarketQuote | null;
+  /** A new stock/ETF row that skipped the search and takes a free-text ticker (unlinked, manual price). */
+  manualTicker: boolean;
+};
+
+/** State of a securities search: `idle` for an empty query, `loading` while debouncing or awaiting, `unavailable` when search is off or failed. */
+export type SecuritySearchStatus = "idle" | "loading" | "ready" | "unavailable";
+
+/** What `useSecuritySearch` reports for the current query. */
+export type SecuritySearchState = {
+  status: SecuritySearchStatus;
+  results: SecuritySearchResult[];
 };

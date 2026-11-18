@@ -62,6 +62,7 @@ const READ_TOOLS = [
   "list_notifications",
   "list_shared_expenses",
   "parse_notification_rules",
+  "search_securities",
   "search_transactions",
   "search_users",
   "test_notification_model",
@@ -113,6 +114,7 @@ const WRITE_TOOLS = [
   "reject_shared_expense",
   "remove_group_member",
   "request_settlement",
+  "search_securities",
   "search_transactions",
   "search_users",
   "set_account_archived",
@@ -138,7 +140,7 @@ const validBody = { name: "Coffee", amount: "3", type: "expense", date: "2024-01
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerTools", () => {
-  it("registers exactly the twenty-five read tools for a read credential", () => {
+  it("registers exactly the twenty-six read tools for a read credential", () => {
     expect([...register(["read"]).keys()].sort()).toEqual(READ_TOOLS);
   });
 

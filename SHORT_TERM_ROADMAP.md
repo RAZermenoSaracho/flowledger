@@ -49,12 +49,12 @@ FlowLedger is in early testing with a small group of trusted users, so clean, co
 | ST-014 | Credit-card billing periods, payments, interest, and reminders | Medium | ST-013, ST-007, ST-023 | Completed (PR #56) | None |
 | ST-015 | Manual holdings and valuations | Medium | ST-006, ST-008, ST-023 | Completed (PRs #64 to #68) | None |
 | ST-016 | Automatic crypto holding prices | Medium | ST-015 | Completed (PR #64) | None |
-| ST-017 | Stock and ETF market data | Low | ST-021 | Planned | None |
+| ST-017 | Stock and ETF market data (provider-backed stock and ETF holdings) | Medium | ST-015 | Planned (B-010) | None |
 | ST-018 | Binance read-only account sync | Low | ST-015 | Planned | None |
 | ST-019 | Read-only on-chain wallet sync | Low | ST-015 | Planned | None |
 | ST-020 | User-configured external sync | Low | ST-015, ST-018 | Planned | None |
-| ST-021 | Public securities catalog (stocks and ETFs) | Medium | ST-015 | Planned | None |
-| ST-022 | Custom and non-public assets | Medium | ST-015 | Planned | None |
+| ST-021 | Public securities catalog (stocks and ETFs) | Medium | ST-015 | Superseded by ST-017 (provider search, no catalog) | None |
+| ST-022 | Custom and non-public assets | Medium | ST-015 | Superseded (covered by ST-015 `other` holdings) | None |
 | ST-023 | Multi-currency balance correctness | High | ST-001, ST-007 | Completed | None |
 | ST-024 | Group overview and Group Form View | Medium | ST-005 | Completed | None |
 | ST-025 | Access-token purpose validation | Critical | None | Complete | None |
@@ -633,7 +633,22 @@ Billing periods, payments, interest and reminders are ST-014.
 
 **Objective:** Holdings of eligible securities can update their prices automatically from a suitable provider.
 
-**Scope:** Market-data integration only: select one provider and add optional price updates for securities from the ST-021 catalog, with manual valuation remaining available. This intent adds no second stock model. Custom assets (ST-022) stay manual. Polling is the starting assumption; whether streaming is warranted is decided in discovery.
+**Revision (2026-11-16):** ST-017 now absorbs ST-021's search-and-select. Stock and ETF holdings work like crypto holdings. They are discovered and priced through one external provider, with no local securities catalog. Twelve Data Basic (free, REST) was approved on 2026-11-17, after Google Sheets and Marketstack were evaluated and rejected. A holding stores only its listing identity (ticker, exchange MIC, display name, quote currency). Quotes live in one shared cache per listing, refreshed on demand when Holdings is opened or a linked holding is saved, under a shared credit budget. There is no background polling. The design is in the [OpenSpec change](openspec/changes/b010-provider-backed-securities/design.md).
+
+**Scope:**
+- Provider-backed search and selection of a stock or ETF listing, with exchange disambiguation.
+- Automatic, scheduled prices, with manual valuation and overrides remaining available.
+- The existing holdings-based valuation and FX conversion, plus API and MCP coverage.
+- No second stock model and no catalog.
+- Custom assets stay as B-009 `other` holdings, valued manually.
+- Polling only, with no streaming.
+
+*Original scope, kept for traceability:* "Market-data integration only: select one provider and add optional price updates for securities from the ST-021 catalog, with manual valuation remaining available."
+
+**Additional acceptance criteria (from ST-021):**
+- A user can search the provider for a stock or ETF, see symbol, name, exchange and currency, and select it, or enter a ticker manually.
+- Holding 10 shares of a security in one account and 5 in another produces two independent positions.
+- The same ticker on different exchanges can be held and told apart.
 
 **Acceptance criteria:**
 - A holding of a security the provider supports shows a price with its timestamp and source.
@@ -643,7 +658,9 @@ Billing periods, payments, interest and reminders are ST-014.
 - Manual overrides take priority.
 - FlowLedger's calls stay within the provider's limits regardless of user count.
 
-**Dependencies:** ST-021, which builds on ST-015.
+**Dependencies:** ST-015. *Originally ST-021, now superseded.*
+
+**Delivery:** Batch B-010, in one PR (consolidated from the original B-010 and B-011).
 
 **Relevant existing architecture:** FlowLedger cannot price stocks today. Providers belong under the domain's `providers/` folder, as with `currencies/providers/`. A `setInterval` scheduler pattern exists, with the single-instance caveat from ST-014.
 
@@ -715,6 +732,12 @@ Billing periods, payments, interest and reminders are ST-014.
 
 ### ST-021: Public securities catalog (stocks and ETFs)
 
+**Status: Superseded by ST-017 (2026-11-16).**
+- A local catalog would duplicate the provider's data. Listing identity lives on the holding instead, and search comes from the provider.
+- **Moved to ST-017 (B-010):** search and select, two positions in one security, the same ticker on different exchanges, and user isolation.
+- **Dropped:** the global, user-owned or mixed catalog record, user-created security records, and the security form view.
+- The original text below is kept for traceability.
+
 **Objective:** Users can search for, select, or create a stock or ETF, hold it across investment accounts, and edit its record in a form view.
 
 **Scope:** One securities model for both stocks and ETFs, since they share the same behavior. A security describes the instrument itself (such as ticker, name, type, exchange, trading currency, and provider identifiers), not anyone's holding. Includes the add-holding search-and-select flow and an editable security form view on ST-005. Works fully without any market-data provider; automated prices are ST-017.
@@ -736,6 +759,33 @@ Billing periods, payments, interest and reminders are ST-014.
 - Which fields can users edit if a provider also supplies them?
 
 ### ST-022: Custom and non-public assets
+
+**Status: Superseded, covered by ST-015 `other` holdings (2026-11-16).**
+
+**Supported today:** B-009 already lets an investment account hold any named asset (real estate, land, a business stake, a vehicle, a private investment) with:
+- an optional unit;
+- an exact quantity, which can be a fraction for an ownership share;
+- a manual unit price, with its currency and valuation date.
+
+These assets count toward Total value and net worth and are user-isolated.
+
+**Criteria met:**
+- create, edit and remove;
+- user isolation;
+- direct editing in the account Form View;
+- holding as a fraction;
+- dated manual valuations counting toward value and net worth.
+
+**Not met and not built:**
+- a separate asset record with its own form view;
+- description or notes;
+- category;
+- valuation history;
+- cost basis;
+- a liability link;
+- a stale marker (this matches `valuation-timestamps`, where time is the signal).
+
+These gaps are logged in `docs/KNOWN_ISSUES.md` and can be revisited as a new intent if a real need appears. The original text below is kept for traceability.
 
 **Objective:** Users can create and manage assets that are not publicly traded, such as real estate, private-company shares, business stakes, and private investments.
 
@@ -890,13 +940,13 @@ This plan is the authoritative execution order. A batch is a set of closely rela
 | B-007 | ST-010, ST-011, ST-032 | Notification processing models: sandboxed Python, async per-model ingest endpoint, and community library | B-004 | XL | Completed (PR #52, deployed 2026-11-13; also shipped: MCP notification model tools for CRUD, scripts and Form rules, dry-run tests, queue and logs, and the library, PR #54) |
 | B-008 | ST-013, ST-014 | Credit-card limit, available credit, dynamic billing periods, automatic payment recognition, interest, and reminders | B-004, B-006 | XL | Completed (PR #56, deployed 2026-11-15; acceptance fixes PRs #57 to #60: the dedicated `/accounts/new` manual creation view and Add account chooser, the "Credit" type label, clearer payment-due settings, and the standard transactions search bar on account and group Transactions tabs with the billing period as a first-class condition; released in PR #61) |
 | B-009 | ST-015, ST-016 | Manual holdings and valuations with net-worth integration, then automatic crypto prices | B-004, B-006 | L | Completed (PR #64, deployed 2026-11-16; acceptance fixes PRs #65 to #68: holdings-only valuation with crypto, cash, stock, ETF and other assets, crypto-only crypto accounts, price sources, the compact money input, `YYYY/MM/DD HH:mm` valuation times, read-only manual prices, Initial balance hidden for holding accounts, and Net contributions with incoming transfers listed; released in PR #69, merge `6cbb489`, both migrations applied after the deploy-script backup) |
-| B-010 | ST-021, ST-022 | Instrument catalog: public securities and custom assets | B-009 | L | Planned |
-| B-011 | ST-017 | Stock and ETF market data | B-010 | M | Planned |
+| B-010 | ST-017 (absorbs ST-021; ST-022 covered by B-009) | Provider-backed stock and ETF holdings: search, listing identity, Twelve Data prices refreshed on demand through a shared cache, manual override, API and MCP. Originally "Instrument catalog: public securities and custom assets" | B-009 | M | In progress (OpenSpec `b010-provider-backed-securities`; Twelve Data approved 2026-11-17) |
+| B-011 | None | Retired; ST-017 moved into B-010, and the catalog it depended on is no longer built. Originally "Stock and ETF market data" (ST-017) | None | n/a | Retired |
 | B-012 | ST-018 | Binance read-only account sync, with secure credential storage | B-009 | L | Planned |
 | B-013 | ST-019 | On-chain wallet sync | B-009 | M | Planned |
 | B-014 | ST-020 | User-configured external sync | B-009, B-012 | L | Planned |
 
-Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004, B-007 and B-008 are the three XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003 and B-005 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
+Sizes are relative engineering estimates, not time commitments; XL is deliberately larger than L, and B-004, B-007 and B-008 are the three XL batches. **Execution order and technical dependencies are distinct:** the order above applies to every batch, while the Dependencies column lists only real technical prerequisites. B-003, B-005 and B-011 are retired and are not renumbered or reused. B-007 is sequenced after B-006 by product priority, not by dependency: its only technical prerequisite is B-004, and no later batch depends on it.
 
 **Where to start:** B-010 is next. B-001, B-002, B-004, B-006, B-007, B-008, B-009, and S-001 to S-005 are complete.
 
@@ -914,8 +964,8 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 | ST-013 + ST-014 | Merged (B-008) | One credit-card feature; the limit and the billing-periods view live on the same Credit card tab, and ST-014's calculator, interest, and reminders are one reviewable flow |
 | ST-015 + ST-016 | Merged (B-009) | Manual crypto portfolios are ST-015's first complete use, and ST-016 prices exactly those holdings with no new provider |
 | ST-008 with ST-015 | Kept separate (B-004, B-009) | ST-023 removes ST-008's temporary cross-currency disclosure, so ST-008 must ship before ST-023, while ST-015 needs ST-023 |
-| ST-021 + ST-022 | Merged (B-010) | Both create the instrument record that ST-015 left open and a form view over it, so one model decision covers both |
-| ST-017 | Kept separate (B-011) | A provider and licensing no-go must not block the catalog, which works without it |
+| ST-021 + ST-022 | Superseded (2026-11-16); originally merged (B-010) | No catalog is built. ST-021's search-and-select moved into ST-017, and ST-022 is covered by B-009 `other` holdings |
+| ST-017 | Merged into B-010 (2026-11-16); originally kept separate (B-011) | With no catalog, the provider is the search, so the two cannot ship apart. Without a provider key, stock/ETF holdings stay manual, so a licensing no-go blocks nothing that exists today |
 | ST-018 + ST-019 | Kept separate (B-012, B-013) | ST-018 stores secrets and has a host-reachability check; ST-019 has no secrets and is kept distinct from exchange integrations, so neither blocks the other |
 | ST-020 | Kept separate (B-014) | Conditional go/no-go and first user-controlled outbound request (SSRF) |
 | ST-023 | Kept separate (B-006) | Financial correctness with a destructive-reset approval; bundling it would hide it in a larger review |
@@ -939,7 +989,7 @@ Sizes are relative engineering estimates, not time commitments; XL is deliberate
 |---|---|
 | B-007 | None beyond the sandbox runner's own Node 24 runtime checks. |
 | B-009 | Whether the USDT-as-USD assumption is accurate enough for displayed crypto valuations |
-| B-011 | Provider choice, rate limits, and display and redistribution licensing |
+| B-010 | Provider approval: zero-cost target, recommended Twelve Data Basic. Free-plan licensing is personal and non-commercial for every candidate. BMV quotes need a paid plan on Twelve Data (verified 2026-11-16), and no free source with verified BMV quotes was found. Google Sheets `GOOGLEFINANCE` was rejected on its terms and as an unsupported mechanism. Marketstack free was rejected because its 100 requests a month are below a daily refresh of 10 symbols |
 | B-012 | Whether the production host can reach the Binance account API; regional and hosting restrictions may block it. Security review of encryption and key management. |
 | B-013 | RPC or indexer provider, and whether a fixed token list is enough |
 | B-014 | Whether the need remains after B-009 to B-013 (go/no-go); this is the first user-controlled outbound request |
@@ -1016,18 +1066,30 @@ Unless noted, a batch meets the full acceptance criteria of each of its intents.
 - **Testing:** Multiple holdings, the same instrument across accounts, stale values, ownership, no double counting in net worth, removal of the `investment` disclosure for accounts with holdings, override priority, unsupported assets, and unavailable prices never showing zero.
 - **Done when:** Users can maintain positions, there is one net-worth calculation and it includes holdings, and a supported crypto holding shows a timestamped market value.
 
-**B-010: ST-021, ST-022.**
-- **Deliverable:** One securities model, search-select-create when adding a holding, and a security form view (ST-021); custom asset records in a form view, holdable in eligible accounts (ST-022).
-- **Implementation order:** ST-021, then ST-022, reusing the instrument record decided in B-009.
-- **Prerequisites:** B-009. The ownership model for securities is decided first.
-- **Testing:** Two positions in one security, the same ticker on different exchanges, user isolation, manual valuation, stale marking, and net-worth inclusion.
-- **Done when:** Securities work fully without a market-data provider, and a custom asset counts toward account value and net worth.
+**B-010: ST-017 (consolidated 2026-11-16).**
+- **Deliverable:**
+  - provider search and selection of a stock or ETF listing;
+  - listing identity on the holding (ticker, exchange MIC, name, quote currency), with no catalog;
+  - automatic prices from a scheduled refresh within the provider's credit budget, and manual overrides;
+  - the existing holdings valuation and FX conversion;
+  - `GET /currencies/securities` on web, `/v1` and MCP (`search_securities`).
+- **Prerequisites:** B-009, plus product-owner approval of the provider plan (display rights, BMV coverage).
+- **Testing:**
+  - search ambiguity (AAPL on XNGS and XMEX);
+  - two positions in one listing;
+  - override precedence;
+  - provider failure and rate limits keeping the last quote;
+  - plan-restricted exchanges falling back to manual;
+  - no provider calls on read;
+  - the key never reaching the browser;
+  - keyboard and mobile acceptance;
+  - regression of crypto, cash, `other` and existing stock rows.
+- **Done when:** A linked stock or ETF holding shows a provider price with its quote time, and an unsupported one keeps working manually. All ST-017 criteria, including those absorbed from ST-021, are met.
+- *Original definition (traceability):* "B-010: ST-021, ST-022. One securities model, search-select-create when adding a holding, and a security form view (ST-021); custom asset records in a form view, holdable in eligible accounts (ST-022)."
 
-**B-011: ST-017.**
-- **Deliverable:** One provider's optional prices for catalog securities.
-- **Prerequisites:** B-010 and the provider and licensing check.
-- **Testing:** Provider failure, rate limits, delayed labels, and override priority.
-- **Done when:** Supported holdings show sourced prices, and failures leave the last value visible as stale.
+**B-011: Retired (2026-11-16).**
+- Its only intent, ST-017, moved into B-010.
+- *Original definition (traceability):* "B-011: ST-017. One provider's optional prices for catalog securities. Prerequisites: B-010 and the provider and licensing check."
 
 **B-012: ST-018.**
 - **Deliverable:** Encrypted per-user credentials, plus connect, read-only verification, and revoke; then quantity sync into holdings through `FinancialProviderAdapter`, with sync status.
@@ -1087,8 +1149,8 @@ ST-005 --+--> ST-007 --+--> ST-023 ---------+
          |             +--> ST-015 --+--> ST-016
          |                           +--> ST-018 --> ST-020
          |                           +--> ST-019
-         |                           +--> ST-021 --> ST-017
-         |                           +--> ST-022
+         |                           +--> ST-017   (ST-021 superseded into it)
+         |                           +--> ST-022   (superseded: B-009 `other` holdings)
          +--> ST-024
          |
          +--> ST-010 --+--> ST-011
@@ -1121,7 +1183,7 @@ These belong to the relevant intent's discovery and are deliberately not decided
 **Financial data model (ST-008, ST-013 to ST-015, ST-021, ST-022)**
 - Asset/liability classification, the holdings representation, its relationship to derived balances, and statement storage.
 - The single authoritative accounting representation for card payments, and how later transactions reconcile with declared payments (ST-014).
-- Which instrument concepts need independent persistence, and whether securities are global, user-owned, or mixed (ST-015, ST-021, ST-022).
+- Which instrument concepts need independent persistence, and whether securities are global, user-owned, or mixed (ST-015, ST-021, ST-022). *Decided 2026-11-16: none. Securities are identified on the holding by provider listing (B-010), and custom assets are `other` holdings.*
 - How cross-currency transfers should record a destination amount (ST-023).
 - How `ROADMAP.md` Milestones 11-15 should be reconciled once these are decided.
 

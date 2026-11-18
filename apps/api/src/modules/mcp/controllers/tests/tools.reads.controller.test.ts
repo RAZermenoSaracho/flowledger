@@ -4,6 +4,7 @@ import type { McpAuth } from "../../types/mcp.types.js";
 
 vi.mock("../../../accounts/services/creditCard.read.service.js", () => ({ getCreditCardBilling: vi.fn() }));
 vi.mock("../../../accounts/services/holdings.read.service.js", () => ({ getAccountHoldings: vi.fn() }));
+vi.mock("../../../currencies/providers/twelveData/services/search.service.js", () => ({ searchSecurities: vi.fn() }));
 vi.mock("../../../debts/services/read.service.js", () => ({ listDebts: vi.fn() }));
 vi.mock("../../../currencies/services/read.service.js", () => ({ getExchangeRate: vi.fn(), listCurrencies: vi.fn() }));
 vi.mock("../../../notifications/services/read.service.js", () => ({
@@ -23,6 +24,7 @@ vi.mock("../../../transactions/services/read.service.js", () => ({
 
 const { getCreditCardBilling } = await import("../../../accounts/services/creditCard.read.service.js");
 const { getAccountHoldings } = await import("../../../accounts/services/holdings.read.service.js");
+const { searchSecurities } = await import("../../../currencies/providers/twelveData/services/search.service.js");
 const { listDebts } = await import("../../../debts/services/read.service.js");
 const { getExchangeRate, listCurrencies } = await import("../../../currencies/services/read.service.js");
 const { listNotifications, countUnreadNotifications } = await import("../../../notifications/services/read.service.js");
@@ -50,7 +52,7 @@ const run = (name: string, args: Record<string, unknown> = {}) => tools.get(name
 beforeEach(() => vi.clearAllMocks());
 
 describe("registerPersonalReadTools", () => {
-  it("registers ten read-only tools", () => {
+  it("registers the read-only tools", () => {
     expect([...tools.keys()]).toEqual([
       "list_debts",
       "get_report",
@@ -61,7 +63,8 @@ describe("registerPersonalReadTools", () => {
       "get_profile",
       "list_imported_transactions",
       "get_credit_card",
-      "list_holdings"
+      "list_holdings",
+      "search_securities"
     ]);
     for (const { config } of tools.values()) expect(config.annotations).toEqual({ readOnlyHint: true });
   });
@@ -164,6 +167,15 @@ describe("registerPersonalReadTools", () => {
     const result = await run("list_holdings", { id: "a1" });
 
     expect(getAccountHoldings).toHaveBeenCalledWith("u1", "a1");
+    expect(result.structuredContent).toEqual(body);
+  });
+
+  it("search_securities returns the search body for the query", async () => {
+    const body = { available: true, results: [{ symbol: "AAPL", micCode: "XNGS", currency: "USD", type: "stock" }] };
+    vi.mocked(searchSecurities).mockResolvedValue(body as never);
+    const result = await run("search_securities", { q: "AAPL" });
+
+    expect(searchSecurities).toHaveBeenCalledWith("AAPL");
     expect(result.structuredContent).toEqual(body);
   });
 

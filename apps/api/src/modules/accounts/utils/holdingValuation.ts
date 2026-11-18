@@ -16,7 +16,7 @@ const missing = (missingReason: NonNullable<HoldingValuation["missingReason"]>):
 });
 
 /**
- * Values holdings in `accountCurrency`. Precedence per holding: fiat at par, then the manual price, then the market quote,
+ * Values holdings in `accountCurrency`. Precedence per holding: fiat at par, then the manual price, then the market quote (crypto, or a provider-linked stock/ETF through `securityQuote`),
  * otherwise missing (`unsupported`, `price_unavailable`, or `rate_unavailable` when the conversion fails, even for cash).
  * Exact values are kept unrounded; the aggregate sums them and rounds once, and each holding's `value` string is its own exact
  * value rounded for display only. A missing value is `null`, never zero. Time never affects the result: there is no clock input.
@@ -25,7 +25,7 @@ const missing = (missingReason: NonNullable<HoldingValuation["missingReason"]>):
 export async function valueHoldings(
   holdings: HoldingValuationInput[],
   accountCurrency: string,
-  { quote, rate }: HoldingValuationDeps
+  { quote, securityQuote, rate }: HoldingValuationDeps
 ): Promise<ValuedHoldings> {
   const digits = currencyFractionDigits(accountCurrency);
   const rates = new Map<string, Promise<number>>();
@@ -56,15 +56,18 @@ export async function valueHoldings(
           holding.manualPricedAt
         ];
       } else {
-        if (holding.kind !== "crypto" || !holding.code) return { valuation: missing("unsupported"), exact: null };
-        const found = await quote(holding.code);
+        const linkedSecurity = (holding.kind === "stock" || holding.kind === "etf") && !!holding.exchange && !!holding.code;
+        if ((holding.kind !== "crypto" && !linkedSecurity) || !holding.code) {
+          return { valuation: missing("unsupported"), exact: null };
+        }
+        const found = linkedSecurity ? await securityQuote(holding) : await quote(holding.code);
         if ("unsupported" in found) return { valuation: missing("unsupported"), exact: null };
         if ("unavailable" in found) return { valuation: missing("price_unavailable"), exact: null };
         [unitPrice, priceCurrency, source, valuedAt] = [
           new Prisma.Decimal(found.price),
           found.currency,
           "market",
-          holding.code === "USDT" ? null : found.fetchedAt
+          holding.kind === "crypto" && holding.code === "USDT" ? null : found.fetchedAt
         ];
       }
 
