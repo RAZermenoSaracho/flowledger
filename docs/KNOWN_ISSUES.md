@@ -754,7 +754,7 @@ Still open:
 
 ---
 
-## [OPEN] #058 — Stock and ETF holdings require manual pricing
+## [RESOLVED] #058 — Stock and ETF holdings require manual pricing
 
 **Scope:** Holding valuation.
 
@@ -762,7 +762,7 @@ Still open:
 
 **Suggested fix:** Add a stock/ETF market provider in a future feature if automatic pricing is approved.
 
-**Planned:** Addressed by B-010 (OpenSpec change `b010-provider-backed-securities`), which awaits approval. It stays open until that change ships.
+**Resolved:** B-010 (`b010-provider-backed-securities`, PR #72, deployed 2026-11-17) adds Twelve Data search and pricing for stock and ETF holdings. Holdings the provider cannot price, such as BMV (`XMEX`) listings, and other assets stay manual.
 
 ---
 
@@ -813,5 +813,7 @@ ST-022's original scope assumed these. They were deliberately not built, because
 **Found in:** B-010 implementation.
 
 **Description:** the Basic plan covers personal, non-commercial, internal use. Staging and the owner's own use fit that. Showing Twelve Data prices to other users in production, or any commercial use, needs a plan with display rights. BMV (`XMEX`) quotes also need the Pro or Venture plan; on Basic, the provider answers 404 "available starting with the Pro or Venture plan", which FlowLedger records as `plan_restricted`.
+
+**Accepted risk (2026-11-17):** the product owner explicitly accepted running the Basic plan in production, which is licensed "internal non-display". A display-rights plan is still the remediation before wider use by other users.
 
 **Fix when needed:** approve a display-rights plan before production use by others.

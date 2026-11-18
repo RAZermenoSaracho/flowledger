@@ -20,9 +20,9 @@ A `crypto` holding without a manual price SHALL be valued from the existing Bina
 - a scheduler;
 - an additional provider;
 - a second cache or quote API;
-- any stored price.
+- any stored crypto price.
 
-**Scope:** only `crypto` holdings SHALL use this feed. `fiat`, `stock`, `etf` and `other` holdings SHALL never trigger a Binance lookup, and stock/ETF/other prices are manual only.
+**Scope:** only `crypto` holdings SHALL use this feed. `fiat`, `stock`, `etf` and `other` holdings SHALL never trigger a Binance lookup. Stock and ETF market prices are defined by `security-holding-prices`, and `other` prices are manual only.
 
 **USDT identity:** for the code `USDT` the quotation is the identity (1 USDT per USDT), not a fetched price. Its valuation time SHALL be `null`, because no timestamp is invented.
 
