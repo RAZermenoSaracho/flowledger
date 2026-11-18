@@ -33,6 +33,8 @@ function row(code: string, extra: Record<string, unknown> = {}) {
     manualUnitPrice: null,
     manualPriceCurrency: null,
     manualPricedAt: null,
+    exchange: null,
+    quoteCurrency: null,
     ...extra
   };
 }
@@ -201,5 +203,85 @@ describe("holding metadata", () => {
     const result = await getAccountHoldings("user-1", "acc-1");
     expect(result.holdings[0]).toMatchObject({ code: null, name: "Gold", unit: "oz", valuation: { source: "manual", priceCurrency: "EUR", value: "3.00" } });
     expect(priceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("provider-linked security holdings", () => {
+  const QUOTED_AT = new Date("2026-11-16T20:59:00Z");
+  const CHECKED_AT = new Date("2026-11-16T21:05:00Z");
+  const linked = (code: string, extra: Record<string, unknown> = {}) =>
+    row(code, { kind: "stock", exchange: "XNGS", quoteCurrency: "USD", quantity: dec("10"), ...extra });
+  const quoteRow = (extra: Record<string, unknown> = {}) => ({
+    symbol: "AAPL",
+    exchange: "XNGS",
+    currency: "USD",
+    price: dec("352.78"),
+    quotedAt: QUOTED_AT,
+    checkedAt: CHECKED_AT,
+    marketOpen: false,
+    failedAt: null,
+    failureReason: null,
+    failureCount: 0,
+    nextAttemptAt: CHECKED_AT,
+    ...extra
+  });
+
+  it("loads quotes with one query, values from the quote and attaches marketQuote", async () => {
+    seed([linked("AAPL"), linked("MSFT", { id: "h-2" }), row("BTC", { id: "h-3" })]);
+    prismaMock.securityQuote.findMany.mockResolvedValue([quoteRow()] as never);
+
+    const result = await getAccountHoldings("user-1", "acc-1");
+
+    expect(prismaMock.securityQuote.findMany).toHaveBeenCalledTimes(1);
+    expect(result.holdings[0]).toMatchObject({
+      exchange: "XNGS",
+      quoteCurrency: "USD",
+      valuation: { source: "market", unitPrice: "352.78", valuedAt: QUOTED_AT.toISOString(), value: "3527.80" },
+      marketQuote: {
+        provider: "twelve_data",
+        price: "352.78",
+        currency: "USD",
+        quotedAt: QUOTED_AT.toISOString(),
+        checkedAt: CHECKED_AT.toISOString(),
+        stale: false,
+        failureReason: null
+      }
+    });
+    expect(result.holdings[1]).toMatchObject({
+      marketQuote: { price: null, quotedAt: null, stale: false },
+      valuation: { value: null, missingReason: "price_unavailable" }
+    });
+    expect(result.holdings[2]!.marketQuote).toBeNull();
+    expect(result.valuation).toMatchObject({ status: "partial", missingCount: 1 });
+  });
+
+  it("treats a quote in another currency than the holding's quoteCurrency as unavailable", async () => {
+    seed([linked("AAPL", { quoteCurrency: "MXN" })]);
+    prismaMock.securityQuote.findMany.mockResolvedValue([quoteRow()] as never);
+    const result = await getAccountHoldings("user-1", "acc-1");
+    expect(result.holdings[0]!.valuation).toMatchObject({ value: null, missingReason: "price_unavailable" });
+  });
+
+  it("marks a failed attempt stale but keeps the stored price in the value", async () => {
+    seed([linked("AAPL")]);
+    prismaMock.securityQuote.findMany.mockResolvedValue(
+      [quoteRow({ failedAt: new Date("2026-11-17T09:00:00Z"), failureReason: "unavailable", failureCount: 1 })] as never
+    );
+    const result = await getAccountHoldings("user-1", "acc-1");
+    expect(result.holdings[0]!.marketQuote).toMatchObject({ stale: true, failureReason: "unavailable", price: "352.78" });
+    expect(result.holdings[0]!.valuation.value).toBe("3527.80");
+  });
+
+  it("shows the market reference while a manual price overrides it", async () => {
+    seed([linked("AAPL", { manualUnitPrice: dec("340"), manualPriceCurrency: "USD", manualPricedAt: CHECKED_AT })]);
+    prismaMock.securityQuote.findMany.mockResolvedValue([quoteRow()] as never);
+    const result = await getAccountHoldings("user-1", "acc-1");
+    expect(result.holdings[0]).toMatchObject({ valuation: { source: "manual", value: "3400.00" }, marketQuote: { price: "352.78" } });
+  });
+
+  it("never queries quotes when no holding is linked", async () => {
+    seed([row("BTC")]);
+    await getAccountHoldings("user-1", "acc-1");
+    expect(prismaMock.securityQuote.findMany).not.toHaveBeenCalled();
   });
 });

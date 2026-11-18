@@ -56,6 +56,9 @@ function makeHolding(overrides: Partial<Holding> = {}): Holding {
     manualUnitPrice: null,
     manualPriceCurrency: null,
     manualPricedAt: null,
+    exchange: null,
+    quoteCurrency: null,
+    marketQuote: null,
     valuation: {
       source: "market",
       unitPrice: "60000",
@@ -243,6 +246,7 @@ describe("HoldingsTab", () => {
     const user = userEvent.setup();
     await openHoldings(user);
     await user.click(await screen.findByRole("button", { name: "Add holding" }));
+    await user.click(screen.getByRole("button", { name: "Enter ticker manually" }));
     expect(screen.queryByLabelText(/price source/)).not.toBeInTheDocument();
     const row = screen.getByLabelText("New holding 1 code").closest("tr") as HTMLElement;
     expect(within(row).getByText("Manual")).toBeInTheDocument();
@@ -461,6 +465,7 @@ describe("HoldingsTab", () => {
     await user.type(quantity, "0.5");
     await user.click(screen.getByRole("button", { name: "Add holding" }));
     await user.selectOptions(screen.getByLabelText("New holding 2 type"), "etf");
+    await user.click(screen.getByRole("button", { name: "Enter ticker manually" }));
     await user.type(screen.getByLabelText("New holding 2 code"), "voo");
     await user.type(screen.getByLabelText("VOO quantity"), "3");
     await user.type(screen.getByLabelText("VOO manual price"), "450");
@@ -569,5 +574,161 @@ describe("account header", () => {
     renderPage();
     await screen.findByLabelText("Name");
     expect(screen.queryByText("Total value")).not.toBeInTheDocument();
+  });
+
+  describe("Twelve Data linked holdings", () => {
+    const aapl = {
+      symbol: "AAPL",
+      name: "Apple Inc",
+      exchange: "NASDAQ",
+      micCode: "XNGS",
+      country: "United States",
+      currency: "USD",
+      type: "stock" as const
+    };
+    const quote = {
+      provider: "twelve_data" as const,
+      price: "190",
+      currency: "USD",
+      quotedAt: "2026-11-01T15:00:00.000Z",
+      checkedAt: "2026-11-01T16:00:00.000Z",
+      stale: false,
+      failureReason: null
+    };
+    const linked = makeHolding({
+      id: "h-aapl",
+      kind: "stock",
+      code: "AAPL",
+      name: "Apple Inc",
+      quantity: "2",
+      exchange: "XNGS",
+      quoteCurrency: "USD",
+      marketQuote: quote,
+      valuation: {
+        source: "market",
+        unitPrice: "190",
+        priceCurrency: "USD",
+        valuedAt: quote.quotedAt,
+        value: "380",
+        missingReason: null
+      }
+    });
+
+    function mockRefresh(holdings: Holding[]) {
+      let calls = 0;
+      server.use(
+        http.post(`${API}/accounts/acc-1/holdings/refresh`, () => {
+          calls += 1;
+          return HttpResponse.json(holdingsPayload(holdings));
+        })
+      );
+      return () => calls;
+    }
+
+    it("searches, selects, and saves the listing without a manual price", async () => {
+      mockApi(makeAccount(), []);
+      server.use(
+        http.get(`${API}/currencies/securities`, () =>
+          HttpResponse.json({ available: true, results: [aapl] })
+        )
+      );
+      const bodies = captureHoldingsPatches();
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await user.click(await screen.findByRole("button", { name: "Add holding" }));
+      await user.type(screen.getByRole("combobox", { name: "New holding 1 search" }), "aapl");
+      await user.click(await screen.findByRole("option", { name: /AAPL · Apple Inc/ }));
+      expect(screen.getByText("AAPL · XNGS")).toBeInTheDocument();
+      expect(screen.getByLabelText("AAPL price source")).toHaveDisplayValue("Twelve Data (automatic)");
+      await user.type(screen.getByLabelText("AAPL quantity"), "2");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toEqual({
+        upsert: [
+          {
+            kind: "stock",
+            code: "AAPL",
+            exchange: "XNGS",
+            quoteCurrency: "USD",
+            name: "Apple Inc",
+            quantity: "2"
+          }
+        ],
+        remove: []
+      });
+    });
+
+    it("sets the kind from an ETF result", async () => {
+      mockApi(makeAccount(), []);
+      server.use(
+        http.get(`${API}/currencies/securities`, () =>
+          HttpResponse.json({ available: true, results: [{ ...aapl, symbol: "VOO", name: "Vanguard", type: "etf" }] })
+        )
+      );
+      const user = userEvent.setup();
+      await openHoldings(user);
+      await user.click(await screen.findByRole("button", { name: "Add holding" }));
+      await user.type(screen.getByRole("combobox", { name: "New holding 1 search" }), "voo");
+      await user.click(await screen.findByRole("option", { name: /VOO/ }));
+      expect(screen.getByLabelText("VOO type")).toHaveValue("etf");
+    });
+
+    it("refreshes linked holdings once on mount and shows the fresh quote", async () => {
+      mockApi(makeAccount(), [linked]);
+      const fresh = {
+        ...linked,
+        marketQuote: { ...quote, stale: true, failureReason: "unavailable" as const }
+      };
+      const calls = mockRefresh([fresh]);
+      const user = userEvent.setup();
+      await openHoldings(user);
+      expect(await screen.findByText("Stale")).toBeInTheDocument();
+      await user.type(screen.getByLabelText("AAPL quantity"), "5");
+      expect(calls()).toBe(1);
+      expect(screen.getAllByText(`Last checked: ${formatValuationTime(quote.checkedAt)}`).length).toBeGreaterThan(0);
+    });
+
+    it("labels Twelve Data without claiming real time and does not refresh unlinked holdings", async () => {
+      mockApi(makeAccount(), [linked, makeHolding()]);
+      const calls = mockRefresh([linked]);
+      await openHoldings(userEvent.setup());
+      expect(await screen.findByText(/may be delayed or end-of-day/)).toBeInTheDocument();
+      expect(screen.queryByText(/real-time/i)).not.toBeInTheDocument();
+      expect(screen.getByText("Apple Inc")).toBeInTheDocument();
+      await waitFor(() => expect(calls()).toBe(1));
+    });
+
+    it("does not call refresh when no holding is linked", async () => {
+      mockApi(makeAccount(), [makeHolding()]);
+      const calls = mockRefresh([]);
+      await openHoldings(userEvent.setup());
+      await screen.findByLabelText("BTC quantity");
+      expect(calls()).toBe(0);
+    });
+
+    it("explains a linked holding with no market price", async () => {
+      const missing = {
+        ...linked,
+        valuation: { ...linked.valuation, unitPrice: null, priceCurrency: null, value: null, missingReason: "price_unavailable" as const }
+      };
+      mockApi(makeAccount(), [missing]);
+      mockRefresh([missing]);
+      await openHoldings(userEvent.setup());
+      expect(await screen.findByText("Market price unavailable; set a manual price")).toBeInTheDocument();
+    });
+
+    it("sends only the quantity when a linked holding is edited", async () => {
+      mockApi(makeAccount(), [linked]);
+      mockRefresh([linked]);
+      const bodies = captureHoldingsPatches();
+      const user = userEvent.setup();
+      await openHoldings(user);
+      const quantity = await screen.findByLabelText("AAPL quantity");
+      await user.clear(quantity);
+      await user.type(quantity, "3");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(bodies[0]).toEqual({ upsert: [{ id: "h-aapl", quantity: "3" }], remove: [] });
+    });
   });
 });

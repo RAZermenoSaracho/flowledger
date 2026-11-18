@@ -8,15 +8,20 @@ import { formatValuationTime } from "../../../utils/dateTime";
  *   mouse hover, keyboard focus and tap, and closes on blur, outside tap and Escape. It is announced through
  *   `aria-describedby`.
  * - `label`: `children` followed by a small secondary "Last updated: ..." line, for stacked mobile rows.
+ * `checkedAt` adds a "Last checked: ..." line and `note` a further line (e.g. why a quote is stale), in both variants.
  * With no `valuedAt` (cash, or a missing value) nothing is added and `children` render as plain content.
  */
 export function ValuationTime({
   valuedAt,
+  checkedAt,
+  note,
   variant = "tooltip",
   className = "",
   children
 }: {
   valuedAt: string | null;
+  checkedAt?: string | null;
+  note?: string;
   variant?: "tooltip" | "label";
   className?: string;
   children: ReactNode;
@@ -29,15 +34,24 @@ export function ValuationTime({
   useDismiss(rootRef, () => setIsOpen(false), isOpen);
 
   if (!valuedAt) return <span className={className}>{children}</span>;
-  const text = `Last updated: ${formatValuationTime(valuedAt)}`;
+  const lines = [
+    `Last updated: ${formatValuationTime(valuedAt)}`,
+    ...(checkedAt ? [`Last checked: ${formatValuationTime(checkedAt)}`] : []),
+    ...(note ? [note] : [])
+  ];
 
   if (variant === "label") {
     return (
       <span className={className}>
         {children}
-        <span className="block text-xs text-slate-500 dark:text-slate-400">
-          {text}
-        </span>
+        {lines.map((line) => (
+          <span
+            key={line}
+            className="block text-xs text-slate-500 dark:text-slate-400"
+          >
+            {line}
+          </span>
+        ))}
       </span>
     );
   }
@@ -82,7 +96,11 @@ export function ValuationTime({
         hidden={!isOpen}
         className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-max max-w-[16rem] rounded-md bg-slate-900 px-3 py-1.5 text-center text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
       >
-        {text}
+        {lines.map((line) => (
+          <span key={line} className="block">
+            {line}
+          </span>
+        ))}
       </span>
     </span>
   );

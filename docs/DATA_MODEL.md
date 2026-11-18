@@ -163,14 +163,35 @@ One position in an `investment` or `crypto` account. Quantities are manual; valu
 | `userId` | String | FK → User (cascade); every query scopes by it |
 | `accountId` | String | FK → Account (cascade) |
 | `kind` | HoldingKind | `fiat` = uninvested cash (ISO 4217 `code`), `crypto` = crypto asset; `stock`, `etf`, `other` = manually priced assets |
-| `code` | String? | Upper-case instrument code; null for `other`; `(accountId, kind, code)` is unique (multiple null codes allowed) |
-| `name` | VarChar(80)? | Required for `other`, optional otherwise |
+| `code` | String? | Upper-case instrument code; null for `other`; `(accountId, kind, code, exchange)` is unique. Postgres treats NULLs as distinct, so the update service also rejects a second unlinked `(kind, code)` in an account |
+| `name` | VarChar(80)? | Required for `other`, optional otherwise (a linked stock/ETF stores the instrument name) |
 | `unit` | VarChar(20)? | Optional quantity unit for `other` only |
 | `quantity` | Decimal(38,18) | Exact positive quantity; fiat limited to the currency's minor units |
-| `manualUnitPrice` | Decimal(38,18)? | Optional override for crypto; required for stock, ETF and other; never used for fiat |
+| `exchange` | VarChar(10)? | ISO 10383 MIC of a provider-linked stock/ETF listing (for example `XNGS`); null otherwise. Create-only, immutable |
+| `quoteCurrency` | VarChar(10)? | Currency of the linked listing, set with `exchange`. Create-only, immutable |
+| `manualUnitPrice` | Decimal(38,18)? | Optional override for crypto and provider-linked stock/ETF; required for unlinked stock/ETF and other; never used for fiat |
 | `manualPriceCurrency` | String? | Currency of the manual price, stored as entered |
 | `manualPricedAt` | DateTime? | When the manual valuation was set (or the date the user entered); unchanged by quantity-only edits |
 | `createdAt` / `updatedAt` | DateTime | |
+
+### SecurityQuote
+
+Shared cache of the last market quote of a stock/ETF listing, for every user holding it. It is public market data with no `userId`, is only exposed through an owned holding, and is filled only for listings someone holds. Not a securities catalog: it stores no names or types. Deleting rows loses only cached prices.
+
+| Field | Type | Notes |
+|---|---|---|
+| `symbol`, `exchange` | VarChar(15), VarChar(10) | Composite PK: the ticker and its MIC |
+| `currency` | VarChar(10)? | Quote currency reported by the provider |
+| `price` | Decimal(38,18)? | Last valid price, parsed from the provider's decimal string |
+| `quotedAt` | DateTime? | When the price applies (provider `last_quote_at`, else `timestamp`); the holding's "Last updated" |
+| `checkedAt` | DateTime? | Last successful provider response ("Last checked") |
+| `marketOpen` | Boolean? | `is_market_open` at `checkedAt` |
+| `failedAt`, `failureReason`, `failureCount` | DateTime?, VarChar(40)?, Int | Latest failed attempt and the consecutive count; cleared by a success. A failure never changes `price`, `currency`, `quotedAt` or `checkedAt` |
+| `nextAttemptAt` | DateTime | Earliest next provider call; doubles as the 2-minute claim lease that deduplicates concurrent refreshes |
+
+### ProviderCreditWindow
+
+Shared provider credit ledger so restarts and several processes draw on one budget. Composite PK `(provider, kind, windowStart)` with `kind` `minute` or `day` (UTC) and `used` credits. Rows older than two days are deleted when the first window of a UTC day is created.
 
 ---
 

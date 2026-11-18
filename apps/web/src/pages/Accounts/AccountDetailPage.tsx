@@ -325,6 +325,7 @@ export function AccountDetailPage() {
                   label: "Holdings",
                   content: (
                     <HoldingsTab
+                      accountId={id}
                       draft={draft}
                       accountType={account.type}
                       accountCurrency={account.currency}

@@ -795,3 +795,23 @@ Still open:
 ST-022's original scope assumed these. They were deliberately not built, because no current requirement needs them.
 
 **Suggested fix:** If a concrete need appears, add the smallest field first (for example nullable `notes` on `Holding`) rather than a separate asset model. Valuation history and cost basis belong with a future investment-returns intent.
+
+## [OPEN] #061 — Duplicate unlinked holdings are blocked by the service, not the database
+
+**Found in:** B-010 implementation (`b010-provider-backed-securities`).
+
+**Scope:** `Holding` unique index `[accountId, kind, code, exchange]` and `apps/api/src/modules/accounts/services/holdings.update.service.ts`.
+
+**Description:** adding `exchange` to the unique key lets the same ticker exist on two exchanges. Postgres treats `NULL` values as distinct, though, so the index no longer stops a second unlinked `(kind, code)`, such as a second BTC in one account. The update service rejects such duplicates inside its change set, but two concurrent change sets on the same account could each add one.
+
+**Impact:** low. It needs two simultaneous saves of the same account by the same user, and the result is visible and removable.
+
+**Fix when needed:** a migration with a partial unique index (`WHERE exchange IS NULL`) or `NULLS NOT DISTINCT`. Both need raw SQL in the migration, which needs approval.
+
+## [OPEN] #062 — Twelve Data Basic licensing gates production use by other users
+
+**Found in:** B-010 implementation.
+
+**Description:** the Basic plan covers personal, non-commercial, internal use. Staging and the owner's own use fit that. Showing Twelve Data prices to other users in production, or any commercial use, needs a plan with display rights. BMV (`XMEX`) quotes also need the Pro or Venture plan; on Basic, the provider answers 404 "available starting with the Pro or Venture plan", which FlowLedger records as `plan_restricted`.
+
+**Fix when needed:** approve a display-rights plan before production use by others.

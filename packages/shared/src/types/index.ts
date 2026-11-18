@@ -3,6 +3,8 @@ import type {
   HOLDING_KINDS,
   HOLDING_MISSING_REASONS,
   HOLDING_VALUATION_SOURCES,
+  SECURITY_QUOTE_FAILURE_REASONS,
+  SECURITY_TYPES,
   CATEGORY_TYPES,
   CREDIT_CARD_KINDS,
   PAYMENT_DUE_RULES,
@@ -23,6 +25,8 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export type HoldingKind = (typeof HOLDING_KINDS)[number];
 export type HoldingValuationSource = (typeof HOLDING_VALUATION_SOURCES)[number];
 export type HoldingMissingReason = (typeof HOLDING_MISSING_REASONS)[number];
+export type SecurityType = (typeof SECURITY_TYPES)[number];
+export type SecurityQuoteFailureReason = (typeof SECURITY_QUOTE_FAILURE_REASONS)[number];
 export type SharedExpenseStatus = (typeof SHARED_EXPENSE_STATUSES)[number];
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
@@ -237,7 +241,48 @@ export interface Holding {
   manualUnitPrice: string | null;
   manualPriceCurrency: string | null;
   manualPricedAt: string | null;
+  /** ISO 10383 MIC of the listing; set only on provider-linked `stock`/`etf` holdings. */
+  exchange: string | null;
+  /** The listing's currency; set together with `exchange`. */
+  quoteCurrency: string | null;
+  /** The shared market quote of the listing, for provider-linked holdings (also when a manual price overrides it); otherwise null. */
+  marketQuote: SecurityMarketQuote | null;
   valuation: HoldingValuation;
+}
+
+/**
+ * The shared, cached quote of a stock/ETF listing. `quotedAt` is when the price applies according to the provider ("Last
+ * updated"); `checkedAt` is FlowLedger's last successful provider response ("Last checked"). `price`/`currency` are the last
+ * valid quote (null before any). `stale` is true when the latest attempt failed (`failureReason` says why) or when an open
+ * market returned a quote older than twice the refresh interval; a stale quote still counts in totals.
+ */
+export interface SecurityMarketQuote {
+  provider: "twelve_data";
+  price: string | null;
+  currency: string | null;
+  quotedAt: string | null;
+  checkedAt: string | null;
+  stale: boolean;
+  failureReason: SecurityQuoteFailureReason | null;
+}
+
+/** One stock/ETF listing found by `GET /currencies/securities`. A listing is identified by `symbol` + `micCode`. */
+export interface SecuritySearchResult {
+  symbol: string;
+  name: string;
+  /** Exchange display name, e.g. "NASDAQ". */
+  exchange: string;
+  /** ISO 10383 MIC, e.g. "XNGS". */
+  micCode: string;
+  country: string;
+  currency: string;
+  type: SecurityType;
+}
+
+/** Body of `GET /currencies/securities`: `available` is false (with no results) when search is not configured, failed, or is out of credits. */
+export interface SecuritySearchResponse {
+  available: boolean;
+  results: SecuritySearchResult[];
 }
 
 /**

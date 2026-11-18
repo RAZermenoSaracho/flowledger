@@ -3,6 +3,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
+    // Keeps a developer .env key from ever reaching the live provider; dotenv never overrides an existing variable.
+    env: { TWELVE_DATA_API_KEY: "" },
     mockReset: true,
     setupFiles: ["src/tests/helpers/loopback.setup.ts"],
     // docker-test-vm has 2 vCPUs; default parallelism drives its load to ~30 and trips 5s test / 10s hook timeouts.

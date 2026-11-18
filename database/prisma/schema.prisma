@@ -269,13 +269,49 @@ model Holding {
   manualUnitPrice     Decimal?    @db.Decimal(38, 18)
   manualPriceCurrency String?
   manualPricedAt      DateTime?
+  /// ISO 10383 MIC of a provider-linked stock/ETF listing; null for every other holding. Immutable.
+  exchange            String?     @db.VarChar(10)
+  /// Currency of the linked listing, set with `exchange`. Immutable.
+  quoteCurrency       String?     @db.VarChar(10)
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   account             Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([accountId, kind, code])
+  @@unique([accountId, kind, code, exchange])
   @@index([userId])
+}
+
+/// Shared cache of the last market quote of a stock/ETF listing, for every user holding it. Public market data, not user
+/// data: it has no userId and is only exposed through an owned holding. `nextAttemptAt` is also the refresh claim lease.
+model SecurityQuote {
+  symbol        String    @db.VarChar(15)
+  exchange      String    @db.VarChar(10)
+  currency      String?   @db.VarChar(10)
+  price         Decimal?  @db.Decimal(38, 18)
+  /// When the price applies, per the provider.
+  quotedAt      DateTime?
+  /// Last successful provider response.
+  checkedAt     DateTime?
+  marketOpen    Boolean?
+  failedAt      DateTime?
+  failureReason String?   @db.VarChar(40)
+  failureCount  Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@id([symbol, exchange])
+}
+
+/// Shared market-data provider credit ledger: credits used per provider per minute or UTC-day window, across processes.
+model ProviderCreditWindow {
+  provider    String   @db.VarChar(20)
+  kind        String   @db.VarChar(10)
+  windowStart DateTime
+  used        Int      @default(0)
+
+  @@id([provider, kind, windowStart])
 }
 
 model Category {

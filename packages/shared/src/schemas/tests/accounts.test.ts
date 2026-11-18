@@ -7,6 +7,7 @@ import {
   accountsQueryParamSchema,
   holdingsChangeSetSchema,
   holdingUpsertSchema,
+  securitySearchQuerySchema,
   refineCreditCardAccount,
   updateAccountSchema
 } from "../accounts.js";
@@ -304,5 +305,52 @@ describe("revised holding instruments", () => {
     expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BAD/TICKER" }).success).toBe(false);
     expect(holdingUpsertSchema.safeParse({ quantity: "1", kind, code: "AAPL" }).success).toBe(false);
     expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "AAPL", unit: "shares" }).success).toBe(false);
+  });
+});
+
+describe("provider-linked securities", () => {
+  const linked = { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", quantity: "10" };
+
+  it("accepts a linked stock or ETF without a manual price, with a name", () => {
+    expect(holdingUpsertSchema.safeParse({ ...linked, name: "Apple Inc." }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...linked, kind: "etf", code: "SPY" }).success).toBe(true);
+  });
+
+  it("normalizes the exchange to upper case and still requires a price when unlinked", () => {
+    expect(holdingUpsertSchema.parse({ ...linked, exchange: "xngs" }).exchange).toBe("XNGS");
+    expect(holdingUpsertSchema.safeParse({ kind: "stock", code: "AAPL", quantity: "1" }).success).toBe(false);
+  });
+
+  it("rejects a malformed MIC or quote currency", () => {
+    expect(holdingUpsertSchema.safeParse({ ...linked, exchange: "NASDAQ" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, quoteCurrency: "ZZZ" }).success).toBe(false);
+  });
+
+  it("requires exchange and quoteCurrency together", () => {
+    expect(holdingUpsertSchema.safeParse({ ...linked, quoteCurrency: undefined, manualUnitPrice: "1", manualPriceCurrency: "USD" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, exchange: undefined, manualUnitPrice: "1", manualPriceCurrency: "USD" }).success).toBe(false);
+  });
+
+  it.each(["crypto", "fiat", "other"])("rejects listing fields on %s", (kind) => {
+    const base = kind === "fiat" ? { code: "USD" } : kind === "crypto" ? { code: "BTC" } : { name: "Gold", manualUnitPrice: "1", manualPriceCurrency: "USD" };
+    expect(holdingUpsertSchema.safeParse({ kind, quantity: "1", exchange: "XNGS", quoteCurrency: "USD", ...base }).success).toBe(false);
+  });
+
+  it("makes listing fields immutable on update", () => {
+    expect(holdingUpsertSchema.safeParse({ id: "h1", exchange: "XNGS" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", quoteCurrency: "USD" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success).toBe(true);
+  });
+});
+
+describe("securitySearchQuerySchema", () => {
+  it("trims and accepts 1-20 characters", () => {
+    expect(securitySearchQuerySchema.parse({ q: "  AAPL " })).toEqual({ q: "AAPL" });
+    expect(securitySearchQuerySchema.safeParse({ q: "x".repeat(20) }).success).toBe(true);
+  });
+
+  it("rejects empty, blank and longer queries", () => {
+    for (const q of ["", "   ", "x".repeat(21)]) expect(securitySearchQuerySchema.safeParse({ q }).success).toBe(false);
+    expect(securitySearchQuerySchema.safeParse({}).success).toBe(false);
   });
 });

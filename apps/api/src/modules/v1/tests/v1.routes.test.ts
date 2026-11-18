@@ -339,6 +339,17 @@ describe("/v1 routes", () => {
     });
   });
 
+  describe("security search", () => {
+    it("serves the same body as the internal route to a read key", async () => {
+      const v1 = await request(app).get("/v1/currencies/securities").query({ q: "AAPL" }).set(bearer(a.readKey));
+      const internal = await request(app).get("/currencies/securities").query({ q: "AAPL" }).set(bearer(a.jwt));
+      expect(v1.status).toBe(200);
+      expect(v1.body).toEqual(internal.body);
+      expect((await request(app).get("/v1/currencies/securities").query({ q: "AAPL" })).status).toBe(401);
+      expect((await request(app).get("/v1/currencies/securities").set(bearer(a.readKey))).status).toBe(400);
+    });
+  });
+
   describe("audit and rate limit", () => {
     it("emits one audit line per write (201, 403, 404) and none for GET", async () => {
       const { auditLog } = await import("../../../utils/auditLog.js");

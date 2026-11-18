@@ -380,4 +380,59 @@ describe("/accounts/:id/holdings", () => {
     expect(removed.body.valuation).toMatchObject({ value: "0.00", status: "empty", holdingCount: 0 });
   });
 
+  describe("provider-linked securities", () => {
+    const linked = { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", name: "Apple Inc.", quantity: "10" };
+
+    async function seedQuote(price: string, currency = "USD") {
+      const { prisma } = await import("../../../db/prisma.js");
+      await prisma.securityQuote.upsert({
+        where: { symbol_exchange: { symbol: "AAPL", exchange: "XNGS" } },
+        create: { symbol: "AAPL", exchange: "XNGS", price, currency, quotedAt: new Date("2026-11-16T20:59:00Z"), checkedAt: new Date(), marketOpen: false },
+        update: { price, currency }
+      });
+    }
+
+    it("stores a linked holding without a price, values it from the shared quote and shares one quote across accounts", async () => {
+      await seedQuote("352.78");
+      const one = await setupHoldings("investment");
+      const two = await setupHoldings("investment");
+      const first = await one.auth(request(app).patch(`/accounts/${one.accountId}/holdings`)).send({ upsert: [linked] });
+      const second = await two.auth(request(app).patch(`/accounts/${two.accountId}/holdings`)).send({ upsert: [{ ...linked, quantity: "1" }] });
+
+      expect(first.status).toBe(200);
+      expect(first.body.holdings[0]).toMatchObject({
+        exchange: "XNGS",
+        quoteCurrency: "USD",
+        name: "Apple Inc.",
+        valuation: { source: "market", unitPrice: "352.78", value: "3527.80" },
+        marketQuote: { provider: "twelve_data", price: "352.78", stale: false }
+      });
+      expect(second.body.holdings[0].valuation).toMatchObject({ value: "352.78" });
+      expect(first.body.valuation).toMatchObject({ value: "3527.80", status: "complete" });
+    });
+
+    it("rejects a duplicate listing and a duplicate unlinked ticker in one account", async () => {
+      const { auth, accountId } = await setupHoldings("investment");
+      const path = `/accounts/${accountId}/holdings`;
+      expect((await auth(request(app).patch(path)).send({ upsert: [linked] })).status).toBe(200);
+      expect((await auth(request(app).patch(path)).send({ upsert: [linked] })).status).toBe(400);
+      const manual = { kind: "stock", code: "AAPL", quantity: "1", manualUnitPrice: "1", manualPriceCurrency: "USD" };
+      expect((await auth(request(app).patch(path)).send({ upsert: [manual] })).status).toBe(200);
+      expect((await auth(request(app).patch(path)).send({ upsert: [manual] })).status).toBe(400);
+    });
+
+    it("refreshes only the caller's own account and returns the GET body", async () => {
+      const mine = await setupHoldings("investment");
+      const theirs = await setupHoldings("investment");
+      await mine.auth(request(app).patch(`/accounts/${mine.accountId}/holdings`)).send({ upsert: [linked] });
+
+      const refreshed = await mine.auth(request(app).post(`/accounts/${mine.accountId}/holdings/refresh`));
+      const got = await mine.auth(request(app).get(`/accounts/${mine.accountId}/holdings`));
+      expect(refreshed.status).toBe(200);
+      expect(refreshed.body).toEqual(got.body);
+
+      expect((await theirs.auth(request(app).post(`/accounts/${mine.accountId}/holdings/refresh`))).status).toBe(404);
+      expect((await request(app).post(`/accounts/${mine.accountId}/holdings/refresh`)).status).toBe(401);
+    });
+  });
 });

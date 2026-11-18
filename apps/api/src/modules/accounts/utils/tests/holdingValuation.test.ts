@@ -13,18 +13,25 @@ function holding(overrides: Partial<HoldingValuationInput> & { code: string }): 
     manualUnitPrice: null,
     manualPriceCurrency: null,
     manualPricedAt: null,
+    exchange: null,
+    quoteCurrency: null,
     ...overrides
   };
 }
 
-function deps(quotes: Record<string, HoldingQuote> = {}, rates: Record<string, number> = {}) {
+function deps(
+  quotes: Record<string, HoldingQuote> = {},
+  rates: Record<string, number> = {},
+  securityQuotes: Record<string, HoldingQuote> = {}
+) {
   const quote = vi.fn(async (code: string) => quotes[code] ?? { unsupported: true as const });
   const rate = vi.fn(async (from: string, to: string) => {
     const found = rates[`${from}>${to}`];
     if (found === undefined) throw new Error("no rate");
     return found;
   });
-  return { quote, rate };
+  const securityQuote = vi.fn(async (h: HoldingValuationInput) => securityQuotes[h.code!] ?? { unavailable: true as const });
+  return { quote, securityQuote, rate };
 }
 
 describe("valueHoldings", () => {
@@ -195,5 +202,61 @@ describe("identity market quotation", () => {
   it("does not attach a Binance list timestamp to USDT", async () => {
     const result = await valueHoldings([holding({ code: "USDT" })], "USD", deps({ USDT: { price: 1, currency: "USDT", fetchedAt: new Date("2026-01-01T00:00:00Z") } }, { "USDT>USD": 1 }));
     expect(result.valuations[0]).toMatchObject({ source: "market", value: "1.00", valuedAt: null });
+  });
+});
+
+describe("provider-linked stock and ETF", () => {
+  const QUOTED_AT = new Date("2026-11-16T20:59:00Z");
+  const linked = (extra: Partial<Omit<HoldingValuationInput, "code">> = {}) =>
+    holding({ kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", quantity: D("10"), ...extra });
+
+  it("values a linked holding from the stored quote with the quote time", async () => {
+    const d = deps({}, {}, { AAPL: { price: "352.78", currency: "USD", fetchedAt: QUOTED_AT } });
+    const result = await valueHoldings([linked()], "USD", d);
+    expect(result.valuations[0]).toEqual({
+      source: "market",
+      unitPrice: "352.78",
+      priceCurrency: "USD",
+      valuedAt: QUOTED_AT.toISOString(),
+      value: "3527.80",
+      missingReason: null
+    });
+    expect(d.quote).not.toHaveBeenCalled();
+  });
+
+  it("keeps the quote currency and converts once", async () => {
+    const d = deps({}, { "MXN>USD": 0.05 }, { AAPL: { price: "100", currency: "MXN", fetchedAt: QUOTED_AT } });
+    const result = await valueHoldings([linked({ quoteCurrency: "MXN", exchange: "XMEX" })], "USD", d);
+    expect(result.valuations[0]).toMatchObject({ priceCurrency: "MXN", value: "50.00" });
+  });
+
+  it("lets a manual override win over the stored quote", async () => {
+    const d = deps({}, {}, { AAPL: { price: "352.78", currency: "USD", fetchedAt: QUOTED_AT } });
+    const result = await valueHoldings(
+      [linked({ manualUnitPrice: D("340"), manualPriceCurrency: "USD", manualPricedAt: new Date("2026-11-01T00:00:00Z") })],
+      "USD",
+      d
+    );
+    expect(result.valuations[0]).toMatchObject({ source: "manual", value: "3400.00" });
+    expect(d.securityQuote).not.toHaveBeenCalled();
+  });
+
+  it("reports price_unavailable without a usable quote", async () => {
+    const result = await valueHoldings([linked()], "USD", deps());
+    expect(result.valuations[0]).toMatchObject({ value: null, missingReason: "price_unavailable" });
+    expect(result.missingCount).toBe(1);
+  });
+
+  it("reports rate_unavailable when the conversion fails", async () => {
+    const d = deps({}, {}, { AAPL: { price: "100", currency: "MXN", fetchedAt: QUOTED_AT } });
+    const result = await valueHoldings([linked({ quoteCurrency: "MXN" })], "USD", d);
+    expect(result.valuations[0]).toMatchObject({ value: null, missingReason: "rate_unavailable" });
+  });
+
+  it("keeps an unlinked stock unsupported without a manual price", async () => {
+    const d = deps();
+    const result = await valueHoldings([linked({ exchange: null, quoteCurrency: null })], "USD", d);
+    expect(result.valuations[0]).toMatchObject({ missingReason: "unsupported" });
+    expect(d.securityQuote).not.toHaveBeenCalled();
   });
 });

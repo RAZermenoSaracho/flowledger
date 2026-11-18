@@ -184,3 +184,13 @@ export function updateAccountHoldings(
     body
   });
 }
+
+/** Refreshes the account's due provider-linked holdings and returns the same body as `getAccountHoldings`. Called once per Holdings tab mount. */
+export function refreshHoldings(accountId: string) {
+  return apiRequest<AccountHoldings>(
+    `/accounts/${accountId}/holdings/refresh`,
+    {
+      method: "POST"
+    }
+  );
+}

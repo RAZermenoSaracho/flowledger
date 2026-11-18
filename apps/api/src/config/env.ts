@@ -91,6 +91,11 @@ const envSchema = z.object({
     .default(120000),
   SYNCFY_AUTO_SYNC_CONCURRENCY: z.coerce.number().int().positive().default(1),
   SYNCFY_TRANSACTION_LOOKBACK_DAYS: z.coerce.number().int().positive().default(60),
+  TWELVE_DATA_API_KEY: z.preprocess((value) => (value === "" ? undefined : value), z.string().min(1).optional()),
+  SECURITIES_QUOTE_REFRESH_MINUTES: z.coerce.number().int().positive().default(60),
+  SECURITIES_QUOTE_CLOSED_RECHECK_MINUTES: z.coerce.number().int().positive().default(240),
+  TWELVE_DATA_CREDITS_PER_MINUTE: z.coerce.number().int().positive().default(6),
+  TWELVE_DATA_CREDITS_PER_DAY: z.coerce.number().int().positive().default(600),
   NOTIFICATION_PROCESSOR_MAX_CONCURRENT_GLOBAL: concurrencyLimit(4),
   NOTIFICATION_PROCESSOR_MAX_CONCURRENT_PER_USER: concurrencyLimit(2),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")

@@ -6,10 +6,13 @@ vi.mock("../../services/read.service.js", () => ({
   listCurrencies: vi.fn()
 }));
 
+vi.mock("../../providers/twelveData/services/search.service.js", () => ({ searchSecurities: vi.fn() }));
+
+const { searchSecurities } = await import("../../providers/twelveData/services/search.service.js");
 const { getExchangeRate, listCurrencies } = await import(
   "../../services/read.service.js"
 );
-const { getCurrencies, getRate } = await import("../read.controller.js");
+const { getCurrencies, getRate, getSecurities } = await import("../read.controller.js");
 
 describe("getCurrencies", () => {
   it("returns the fiat/crypto currency lists", async () => {
@@ -35,5 +38,17 @@ describe("getRate", () => {
 
     expect(getExchangeRate).toHaveBeenCalledWith("USD", "MXN");
     expect(res.json).toHaveBeenCalledWith({ from: "USD", to: "MXN", rate: 17.5 });
+  });
+});
+
+describe("getSecurities", () => {
+  it("returns the search body for the validated query", async () => {
+    vi.mocked(searchSecurities).mockResolvedValue({ available: true, results: [] });
+    const res = mockResponse();
+
+    await getSecurities(mockRequest({ query: { q: "AAPL" } }), res);
+
+    expect(searchSecurities).toHaveBeenCalledWith("AAPL");
+    expect(res.json).toHaveBeenCalledWith({ available: true, results: [] });
   });
 });
