@@ -1,9 +1,10 @@
 import type { AccountInput, UpdateAccountInput } from "@flowledger/shared";
 import type { SortDirection, WhereNode } from "../utils/searchDomain";
-import { apiRequest } from "./api.client";
+import { ApiError, apiRequest } from "./api.client";
 import type {
   Account,
   AccountHoldings,
+  HoldingIdentity,
   HoldingsChangeSet,
   Connector,
   Institution,
@@ -174,15 +175,25 @@ export function getAccountHoldings(accountId: string) {
   return apiRequest<AccountHoldings>(`/accounts/${accountId}/holdings`);
 }
 
-/** Applies one atomic holdings change set (upserts and removals by id); holdings not mentioned are untouched. */
-export function updateAccountHoldings(
+/** Applies one atomic holdings change set (upserts and removals by id); holdings not mentioned are untouched. A 409 `duplicate_holding` rejects with an `Error` carrying `duplicateHolding`, the instrument the account already holds. */
+export async function updateAccountHoldings(
   accountId: string,
   body: HoldingsChangeSet
 ) {
-  return apiRequest<AccountHoldings>(`/accounts/${accountId}/holdings`, {
-    method: "PATCH",
-    body
-  });
+  try {
+    return await apiRequest<AccountHoldings>(`/accounts/${accountId}/holdings`, {
+      method: "PATCH",
+      body
+    });
+  } catch (error) {
+    const conflict = error instanceof ApiError && error.status === 409
+      ? (error.body as { code?: string; holding?: HoldingIdentity } | undefined)
+      : undefined;
+    if (conflict?.code === "duplicate_holding" && conflict.holding) {
+      throw Object.assign(new Error((error as Error).message), { duplicateHolding: conflict.holding });
+    }
+    throw error;
+  }
 }
 
 /** Refreshes the account's due provider-linked holdings and returns the same body as `getAccountHoldings`. Called once per Holdings tab mount. */

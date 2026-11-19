@@ -17,7 +17,11 @@ This is a concurrent duplicate-create race, not an unlinking or foreign-key prob
   - It is raw SQL inside a normal Prisma migration, because Prisma 6 cannot express partial indexes.
   - Rows with a NULL code (`other` holdings) still never conflict.
   - The existing key keeps covering linked listings.
-- **API/MCP:** no new code path. The service already maps Prisma `P2002` to the domain duplicate 400, which REST, `/v1` and the MCP `update_holdings` tool share. The pre-check stays for early feedback; only its documentation changes.
+- **API/MCP:** a duplicate create (pre-check for linked and unlinked holdings, or a Prisma `P2002` from a lost race) returns `409 duplicate_holding`, which names the instrument, in the structured error format. REST, `/v1` and the MCP `update_holdings` tool share this behavior.
+- **Web (follow-up from manual acceptance):** a duplicate listing picked from the security search failed validation without showing its error. Save went disabled with only a hover reason, so the page looked stuck on "Updates on Save". Now:
+  - the row shows the duplicate message inline;
+  - a blocked save shows "Fix the highlighted fields to save";
+  - a server `409` lands on the conflicting row, with the draft kept.
 - **Tests:** a DB-backed integration suite races real concurrent requests and checks the identity rules that must stay allowed.
 
 **Not changing:** holding identity semantics, valuation, net worth, transactions, the Prisma schema, or any existing row. Nothing is deployed to production.

@@ -285,12 +285,12 @@ describe("/accounts/:id/holdings", () => {
     expect(next.body.valuation.value).toBe("100.00");
   });
 
-  it("returns 400 for an invalid body, an ineligible account type and a duplicate asset", async () => {
+  it("returns 400 for an invalid body or an ineligible account type, and 409 for a duplicate asset", async () => {
     const { auth, accountId } = await setupHoldings();
     const path = `/accounts/${accountId}/holdings`;
     expect((await auth(request(app).patch(path)).send({ upsert: [{ kind: "fiat", code: "USD", quantity: "10.005" }] })).status).toBe(400);
     expect((await auth(request(app).patch(path)).send({})).status).toBe(400);
-    expect((await auth(request(app).patch(path)).send({ upsert: [cash, cash] })).status).toBe(400);
+    expect((await auth(request(app).patch(path)).send({ upsert: [cash, cash] })).status).toBe(409);
 
     const checking = await setupHoldings("checking");
     expect(
@@ -323,7 +323,7 @@ describe("/accounts/:id/holdings", () => {
     const failed = await auth(request(app).patch(path)).send({
       upsert: [{ id: cashId, quantity: "1" }, { kind: "fiat", code: "USD", quantity: "5" }]
     });
-    expect(failed.status).toBe(400);
+    expect(failed.status).toBe(409);
     expect((await auth(request(app).get(path))).body.holdings[0].quantity).toBe("250.5");
   });
 
@@ -415,10 +415,14 @@ describe("/accounts/:id/holdings", () => {
       const { auth, accountId } = await setupHoldings("investment");
       const path = `/accounts/${accountId}/holdings`;
       expect((await auth(request(app).patch(path)).send({ upsert: [linked] })).status).toBe(200);
-      expect((await auth(request(app).patch(path)).send({ upsert: [linked] })).status).toBe(400);
+      const dupLinked = await auth(request(app).patch(path)).send({ upsert: [linked] });
+      expect(dupLinked.status).toBe(409);
+      expect(dupLinked.body).toMatchObject({ code: "duplicate_holding", holding: { kind: "stock", code: "AAPL" } });
       const manual = { kind: "stock", code: "AAPL", quantity: "1", manualUnitPrice: "1", manualPriceCurrency: "USD" };
       expect((await auth(request(app).patch(path)).send({ upsert: [manual] })).status).toBe(200);
-      expect((await auth(request(app).patch(path)).send({ upsert: [manual] })).status).toBe(400);
+      const dupManual = await auth(request(app).patch(path)).send({ upsert: [manual] });
+      expect(dupManual.status).toBe(409);
+      expect(dupManual.body.holding).toMatchObject({ code: "AAPL", exchange: null });
     });
 
     it("refreshes only the caller's own account and returns the GET body", async () => {

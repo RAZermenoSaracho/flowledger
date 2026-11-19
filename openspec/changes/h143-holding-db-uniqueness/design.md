@@ -22,8 +22,16 @@ Neither transaction can see the other's uncommitted insert, so both pass the che
 
 - **D1: partial index instead of `NULLS NOT DISTINCT`.** `NULLS NOT DISTINCT` (PG 15+) on the existing key would also make `other` holdings, which have a NULL code, conflict with each other. A partial index `WHERE exchange IS NULL` is the smallest rule that matches the spec. It does not touch or duplicate the existing key.
 - **D2: raw SQL in a migration.** Prisma 6 has no syntax for partial indexes, so the index exists only in `migration.sql`. Checked on a scratch database: `prisma migrate diff --from-url <db> --to-schema-datamodel` produced an empty migration, so later Prisma migrations will not drop it.
-- **D3: no new application locking.** The database decides the race; the losing insert blocks until the winner commits and then fails with 23505. Prisma reports that as `P2002`, which the existing catch maps to `badRequest(DUPLICATE_MESSAGE)` and rolls back the whole change set. A process-local mutex would not help across PM2 processes. Updates cannot create a duplicate because `kind`, `code` and `exchange` are immutable.
-- **D4: keep the 400 response.** A sequential duplicate is already a 400 with the same message, so a racing duplicate behaves identically for REST and MCP callers.
+- **D3: no new application locking.** The database decides the race; the losing insert blocks until the winner commits and then fails with 23505. Prisma reports that as `P2002`, which the catch maps to the `409 duplicate_holding` (D4) and rolls back the whole change set. A process-local mutex would not help across PM2 processes. Updates cannot create a duplicate because `kind`, `code` and `exchange` are immutable.
+- **D4: 409 `duplicate_holding`.** Sequential and racing duplicates both return `409`, using `conflict()` in `utils/httpError.ts`.
+  - The body is `{ message, code, holding: { kind, code, exchange }, issues.fieldErrors["upsert.<i>.code"] }`.
+  - After a `P2002`, the service reads which of the change set's creates the account now holds, so it names the right instrument.
+  - The label uses the stored MIC (for example `AAPL (XNGS)`), because exchange display names are not stored.
+- **D5: web feedback (acceptance follow-up).**
+  - **Root cause:** `HoldingsTab` rendered the `code` error only for manual-code inputs. A new linked row, picked from the security search, had the error but never showed it. `FormView` disables Save on any field error, with a screen-reader-only reason.
+  - **Inline errors:** the linked-row branch now renders the error. `validateHoldingRows` uses the account-level duplicate message when the duplicate matches a saved row.
+  - **Blocked save:** `useFormDraft` sets a visible `saveError` ("Fix the highlighted fields to save") and clears it on the next edit.
+  - **Server conflict:** `accounts.client.ts` turns a `409 duplicate_holding` into an `Error` carrying `duplicateHolding`. `useAccountForm` maps it to `holdings.<row>.code` through `duplicateHoldingRowIndex`, so the inline error lands on the right row and the draft is kept.
 
 ## Existing-data audit and remediation
 
