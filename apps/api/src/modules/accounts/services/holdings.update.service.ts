@@ -85,7 +85,9 @@ function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date
  * on a fiat precision or manual-price violation, or a duplicate `(kind, code)`. Crypto accounts accept crypto only;
  * incompatible stored holdings may be removed but not updated. Unlinked stock/ETF and other require manual prices;
  * provider-linked stock/ETF (created with `exchange` + `quoteCurrency`, immutable afterwards) may omit or clear them.
- * A second unlinked holding of the same `(kind, code)` is rejected, because Postgres treats NULL exchanges as distinct.
+ * A second holding of the same `(kind, code, exchange)`, or unlinked `(kind, code)`, is rejected with the duplicate 400: the
+ * pre-check gives early feedback and the database unique indexes (including a partial one for NULL exchanges) decide concurrent
+ * creates, whose P2002 maps to the same 400.
  * After the commit, listings that became auto-priced (created linked without a manual price, or manual price cleared) get a
  * best-effort quote refresh bounded to a short deadline; quantity-only edits never refresh and a refresh failure never fails the save.
  * Returns the same body as `getAccountHoldings`.
