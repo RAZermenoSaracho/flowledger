@@ -17,7 +17,6 @@ flowledger/
 │   └── prisma/
 │       └── schema.prisma   # Single source of truth for the data model
 ├── CLAUDE.md         # This file (read first every session)
-├── ROADMAP.md        # Temporary Odoo migration ledger (review items only)
 ├── README.md         # Human-facing setup and operations
 └── docs/             # Deep-dive documentation
     ├── DATA_MODEL.md
