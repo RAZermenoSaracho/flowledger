@@ -43,7 +43,7 @@ WHERE exchange IS NULL AND code IS NOT NULL GROUP BY 1, 2, 3 HAVING count(*) > 1
 ```
 
 - **Staging (2026-11-18):** 5 holdings, 0 conflicting groups, 0 non-upper-case codes.
-- **Production:** must be audited before promotion (not done in this change).
+- **Production (2026-11-18, before promotion):** 9 holdings, 0 conflicting groups, 0 non-upper-case codes. The migration applied cleanly and no row changed.
 
 If duplicates exist, the owner decides per account which row to keep. Nothing is merged or deleted automatically.
 
