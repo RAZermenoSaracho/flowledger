@@ -163,7 +163,7 @@ One position in an `investment` or `crypto` account. Quantities are manual; valu
 | `userId` | String | FK → User (cascade); every query scopes by it |
 | `accountId` | String | FK → Account (cascade) |
 | `kind` | HoldingKind | `fiat` = uninvested cash (ISO 4217 `code`), `crypto` = crypto asset; `stock`, `etf`, `other` = manually priced assets |
-| `code` | String? | Upper-case instrument code; null for `other`; `(accountId, kind, code, exchange)` is unique. Postgres treats NULLs as distinct, so the update service also rejects a second unlinked `(kind, code)` in an account |
+| `code` | String? | Upper-case instrument code; null for `other`; `(accountId, kind, code, exchange)` is unique, and the partial unique index `Holding_accountId_kind_code_unlinked_key` (`WHERE exchange IS NULL`, raw SQL in migration `20261118120000_holding_unlinked_uniqueness`, not expressible in `schema.prisma`) makes each unlinked `(kind, code)` unique too, since Postgres treats NULLs as distinct. `other` rows (null code) never conflict |
 | `name` | VarChar(80)? | Required for `other`, optional otherwise (a linked stock/ETF stores the instrument name) |
 | `unit` | VarChar(20)? | Optional quantity unit for `other` only |
 | `quantity` | Decimal(38,18) | Exact positive quantity; fiat limited to the currency's minor units |
