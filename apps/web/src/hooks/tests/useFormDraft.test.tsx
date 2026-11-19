@@ -75,6 +75,31 @@ describe("useFormDraft", () => {
     expect(untouched.result.current.fieldErrors).toEqual({ qty: "bad" });
   });
 
+  it("sets a blocked-save message that the next edit clears", async () => {
+    const { result, save } = setup({ validate: () => ({ qty: "bad" }) });
+    act(() => result.current.setField("title", "Y"));
+    await act(() => result.current.save());
+    expect(save).not.toHaveBeenCalled();
+    expect(result.current.saveError).toBe("Fix the highlighted fields to save");
+
+    act(() => result.current.update((d) => ({ ...d, title: "Z" })));
+    expect(result.current.saveError).toBeNull();
+
+    await act(() => result.current.save());
+    expect(result.current.saveError).toBe("Fix the highlighted fields to save");
+    act(() => result.current.setField("title", "W"));
+    expect(result.current.saveError).toBeNull();
+  });
+
+  it("keeps a server save error through an edit", async () => {
+    const { result, save } = setup();
+    save.mockRejectedValueOnce(new Error("Taken"));
+    act(() => result.current.setField("title", "Coffee"));
+    await act(() => result.current.save());
+    act(() => result.current.setField("title", "Latte"));
+    expect(result.current.saveError).toBe("Taken");
+  });
+
   it("saves changed keys, then stays clean showing the saved values", async () => {
     const { result, save } = setup();
     act(() => result.current.setField("title", "Coffee"));

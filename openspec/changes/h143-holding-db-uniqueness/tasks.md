@@ -12,7 +12,7 @@
 
 ## 3. API
 
-- [x] 3.1 Document in `applyHoldingChanges` that the database indexes decide concurrent creates and that `P2002` maps to the duplicate 400 (D3, D4).
+- [x] 3.1 Document in `applyHoldingChanges` that the database indexes decide concurrent creates and that `P2002` maps to the duplicate error (D3, D4).
 
 ## 4. Tests
 
@@ -32,6 +32,13 @@
 ## 5. Docs
 
 - [x] 5.1 `docs/DATA_MODEL.md`: describe the partial index; `docs/KNOWN_ISSUES.md`: resolve #061.
+
+## 5b. Acceptance follow-up: duplicate-holding UX
+
+- [x] 5b.1 Reproduce on a local stack against the staging database with a disposable user: duplicate rows are blocked client-side, and a linked duplicate's error is never rendered.
+- [x] 5b.2 API: return `409 duplicate_holding` from the pre-check (linked and unlinked) and from `P2002`, in the structured error format (D4).
+- [x] 5b.3 Web: render the linked-row error, show a visible blocked-save notice, and map a server `409` to the conflicting row (D5).
+- [x] 5b.4 Update API, unit, integration and web tests; verify in a browser (linked duplicate, recovery, stale-tab `409`, Discard).
 
 ## 6. Release (staging only)
 

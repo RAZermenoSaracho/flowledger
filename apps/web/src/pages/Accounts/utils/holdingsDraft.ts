@@ -218,10 +218,30 @@ function positiveDecimalError(value: string): string | null {
   return null;
 }
 
+/** The message for adding an instrument the account already holds, naming it with its exchange when linked. */
+export function duplicateHoldingMessage(code: string, exchange: string | null) {
+  const label = exchange ? `${code} (${exchange})` : code;
+  return `This account already contains a holding for ${label}. Edit the existing holding instead.`;
+}
+
+/** Index of the new (unsaved) row that adds `identity`, or -1; codes and exchanges compare upper-case. */
+export function duplicateHoldingRowIndex(
+  rows: HoldingDraft[],
+  identity: { kind: string; code: string; exchange: string | null }
+) {
+  return rows.findIndex(
+    (row) =>
+      !row.id &&
+      row.kind === identity.kind &&
+      row.code.trim().toUpperCase() === identity.code.toUpperCase() &&
+      (row.exchange || null) === (identity.exchange?.toUpperCase() ?? null)
+  );
+}
+
 /** Validates the holdings rows; errors are keyed `holdings.<index>.<field>` (field: code, name, unit, quantity, manualUnitPrice, manualPriceCurrency, manualPricedAt). Code rules follow the kind (crypto symbol, stock/ETF ticker, fiat ISO currency); `other` needs a name. A manual source needs a price. Precision errors reuse the shared amount-precision messages. */
 export function validateHoldingRows(rows: HoldingDraft[]): FormErrors {
   const errors: FormErrors = {};
-  const seen = new Set<string>();
+  const seen = new Map<string, HoldingDraft>();
   rows.forEach((row, index) => {
     const key = (field: string) => `holdings.${index}.${field}`;
     const code = row.code.trim().toUpperCase();
@@ -242,8 +262,12 @@ export function validateHoldingRows(rows: HoldingDraft[]): FormErrors {
     }
     if (row.kind !== "other") {
       const identity = `${row.kind}:${code}:${row.exchange}`;
-      if (code && seen.has(identity)) errors[key("code")] ??= `${code} is already listed`;
-      seen.add(identity);
+      const first = code ? seen.get(identity) : undefined;
+      if (first) {
+        errors[key("code")] ??= first.id
+          ? duplicateHoldingMessage(code, row.exchange || null)
+          : `${code} is already listed`;
+      } else if (code) seen.set(identity, row);
     }
 
     const quantityError = positiveDecimalError(row.quantity);

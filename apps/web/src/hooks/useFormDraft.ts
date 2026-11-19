@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { FormDraft, FormErrors, UseFormDraftOptions } from "../types/common.types";
 import { structuralEqual } from "../utils/structuralEqual";
 
+const BLOCKED_SAVE_MESSAGE = "Fix the highlighted fields to save";
+
 function changedKeysOf<T extends object>(draft: T | null, baseline: T | null) {
   if (!draft || !baseline) return [];
   return (Object.keys(draft) as (keyof T & string)[]).filter(
@@ -25,7 +27,7 @@ function overlayKeys<T extends object>(base: T | null, source: T | null, keys: (
  * When `initial` changes the draft rebases onto it and keeps only the keys the user edited, so a
  * refetch never clobbers edits nor saves back stale values for untouched keys. After a successful save the saved draft becomes the clean baseline until
  * `initial` next changes; if `initial` changed while `save` ran (a refetch with server-assigned
- * values), the draft and baseline become that fresher `initial` instead, keeping keys edited while `save` ran. A save rejection keeps the draft and sets `saveError`; when the
+ * values), the draft and baseline become that fresher `initial` instead, keeping keys edited while `save` ran. A save blocked by validation errors sets `saveError` to "Fix the highlighted fields to save" until the next edit or save. A save rejection keeps the draft and sets `saveError`; when the
  * rejection carries a string `field`, the message also lands in `fieldErrors` for that field.
  * `fieldErrors` only contains touched fields (or all of them after a blocked save attempt).
  * `values` is an empty object while `initial` is `null`.
@@ -69,9 +71,14 @@ export function useFormDraft<T extends object>({
     if (submitted || touched.has(key.split(".")[0]!)) fieldErrors[key] ??= message;
   }
 
+  function clearBlockedSaveError() {
+    setSaveError((current) => (current === BLOCKED_SAVE_MESSAGE ? null : current));
+  }
+
   function touch(key: string) {
     setTouched((current) => new Set(current).add(key));
     setServerErrors({});
+    clearBlockedSaveError();
   }
 
   function setField<K extends keyof T>(key: K, value: T[K]) {
@@ -82,6 +89,7 @@ export function useFormDraft<T extends object>({
   function update(fn: (draft: T) => T) {
     setDraft((current) => current && fn(current));
     setServerErrors({});
+    clearBlockedSaveError();
   }
 
   function revertField(key: keyof T) {
@@ -101,6 +109,7 @@ export function useFormDraft<T extends object>({
     if (!draft || savingRef.current || !isDirty) return;
     if (Object.keys(errors).length > 0) {
       setSubmitted(true);
+      setSaveError(BLOCKED_SAVE_MESSAGE);
       return;
     }
     savingRef.current = true;

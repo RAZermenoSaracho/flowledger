@@ -808,7 +808,7 @@ ST-022's original scope assumed these. They were deliberately not built, because
 
 **Fix when needed:** a migration with a partial unique index (`WHERE exchange IS NULL`) or `NULLS NOT DISTINCT`. Both need raw SQL in the migration, which needs approval.
 
-**Resolution (2026-11-18, Odoo #143, `h143-holding-db-uniqueness`):** migration `20261118120000_holding_unlinked_uniqueness` adds the partial unique index `(accountId, kind, code) WHERE exchange IS NULL`. Racing creates now fail with the existing duplicate 400, which `holdingUniqueness.integration.test.ts` checks. The index is on staging; production waits for approval and a duplicate audit.
+**Resolution (2026-11-18, Odoo #143, `h143-holding-db-uniqueness`):** migration `20261118120000_holding_unlinked_uniqueness` adds the partial unique index `(accountId, kind, code) WHERE exchange IS NULL`. Racing and sequential duplicate creates fail with `409 duplicate_holding`, which names the instrument and is shown inline in the Holdings tab; `holdingUniqueness.integration.test.ts` checks. The index is on staging; production waits for approval and a duplicate audit.
 
 ## [OPEN] #062 — Twelve Data Basic licensing gates production use by other users
 

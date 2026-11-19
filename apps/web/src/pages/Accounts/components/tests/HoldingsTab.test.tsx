@@ -658,6 +658,122 @@ describe("account header", () => {
       });
     });
 
+    describe("duplicate listing", () => {
+      const message = "This account already contains a holding for AAPL (XNGS). Edit the existing holding instead.";
+      const conflictBody = {
+        message,
+        code: "duplicate_holding",
+        holding: { kind: "stock", code: "AAPL", exchange: "XNGS" },
+        issues: { formErrors: [], fieldErrors: { "upsert.0.code": [message] } }
+      };
+
+      const rowAlert = () => within(screen.getAllByText("AAPL · XNGS").at(-1)!.parentElement!).getByRole("alert");
+
+      async function pickAapl(user: ReturnType<typeof userEvent.setup>, results = [aapl], rowNumber = 1) {
+        server.use(
+          http.get(`${API}/currencies/securities`, () => HttpResponse.json({ available: true, results }))
+        );
+        await user.click(await screen.findByRole("button", { name: "Add holding" }));
+        await user.type(screen.getByRole("combobox", { name: `New holding ${rowNumber} search` }), "aapl");
+        await user.click(await screen.findByRole("option", { name: /AAPL · Apple Inc/ }));
+      }
+
+      it("flags a listing the account already holds inline and blocks Save without a request", async () => {
+        mockApi(makeAccount(), [linked]);
+        mockRefresh([linked]);
+        const bodies = captureHoldingsPatches();
+        const user = userEvent.setup();
+        await openHoldings(user);
+        await screen.findByLabelText("AAPL quantity");
+        await pickAapl(user, [aapl], 2);
+        await user.type(screen.getAllByLabelText("AAPL quantity")[1]!, "1");
+
+        await screen.findAllByText("AAPL · XNGS");
+        await waitFor(() => expect(rowAlert()).toHaveTextContent(message));
+        await user.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() =>
+          expect(screen.getAllByRole("alert").map((el) => el.textContent)).toContain("Fix the highlighted fields to save")
+        );
+        expect(bodies).toHaveLength(0);
+      });
+
+      it("shows a server 409 under the right row, keeps the input and lets Save run again", async () => {
+        mockApi(makeAccount(), []);
+        let calls = 0;
+        server.use(
+          http.patch(`${API}/accounts/acc-1/holdings`, () => {
+            calls += 1;
+            return HttpResponse.json(conflictBody, { status: 409 });
+          })
+        );
+        const user = userEvent.setup();
+        await openHoldings(user);
+        await pickAapl(user);
+        await user.type(screen.getByLabelText("AAPL quantity"), "2");
+        await user.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(calls).toBe(1));
+        await screen.findAllByText("AAPL · XNGS");
+        await waitFor(() => expect(rowAlert()).toHaveTextContent(message));
+        expect(screen.getByLabelText("AAPL quantity")).toHaveValue("2");
+        const save = screen.getByRole("button", { name: "Save" });
+        expect(save).not.toHaveAttribute("aria-busy", "true");
+        expect(save).toBeDisabled();
+      });
+
+      it("succeeds on retry after changing the listing", async () => {
+        mockApi(makeAccount(), []);
+        const bodies: { upsert: { code: string }[] }[] = [];
+        server.use(
+          http.patch(`${API}/accounts/acc-1/holdings`, async ({ request }) => {
+            const body = (await request.json()) as { upsert: { code: string }[] };
+            bodies.push(body);
+            return body.upsert[0]!.code === "AAPL"
+              ? HttpResponse.json(conflictBody, { status: 409 })
+              : HttpResponse.json(holdingsPayload([]));
+          })
+        );
+        const user = userEvent.setup();
+        await openHoldings(user);
+        await pickAapl(user, [aapl, { ...aapl, symbol: "MSFT", name: "Microsoft" }]);
+        await user.type(screen.getByLabelText("AAPL quantity"), "2");
+        await user.click(screen.getByRole("button", { name: "Save" }));
+        await screen.findAllByText("AAPL · XNGS");
+        await waitFor(() => expect(rowAlert()).toHaveTextContent(message));
+
+        await user.click(screen.getByRole("button", { name: "Change listing" }));
+        await user.type(screen.getByRole("combobox", { name: "New holding 1 search" }), "msft");
+        await user.click(await screen.findByRole("option", { name: /MSFT · Microsoft/ }));
+        await user.type(screen.getByLabelText("MSFT quantity"), "1");
+        const save = screen.getByRole("button", { name: "Save" });
+        await waitFor(() => expect(save).toBeEnabled());
+        await user.click(save);
+
+        await waitFor(() => expect(bodies).toHaveLength(2));
+        expect(bodies[1]!.upsert[0]!.code).toBe("MSFT");
+      });
+
+      it("restores the saved rows on Discard after a failed save", async () => {
+        mockApi(makeAccount(), [makeHolding()]);
+        server.use(
+          http.patch(`${API}/accounts/acc-1/holdings`, () => HttpResponse.json(conflictBody, { status: 409 }))
+        );
+        const user = userEvent.setup();
+        await openHoldings(user);
+        await screen.findByLabelText("BTC quantity");
+        await pickAapl(user, [aapl], 2);
+        await user.type(screen.getByLabelText("AAPL quantity"), "2");
+        await user.click(screen.getByRole("button", { name: "Save" }));
+        await screen.findAllByText("AAPL · XNGS");
+        await waitFor(() => expect(rowAlert()).toHaveTextContent(message));
+
+        await user.click(screen.getByRole("button", { name: "Cancel" }));
+        expect(screen.queryByText("AAPL · XNGS")).not.toBeInTheDocument();
+        expect(screen.queryByText(message)).not.toBeInTheDocument();
+        expect(screen.getByLabelText("BTC quantity")).toBeInTheDocument();
+      });
+    });
+
     it("sets the kind from an ETF result", async () => {
       mockApi(makeAccount(), []);
       server.use(

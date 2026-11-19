@@ -16,3 +16,7 @@ export const notFound = (resource = "Resource") =>
 /** Builds a 400 {@link HttpError}, optionally carrying structured `details` for the response body. */
 export const badRequest = (message: string, details?: unknown) =>
   new HttpError(400, message, details);
+
+/** Builds a 409 {@link HttpError} for a request that conflicts with existing state, optionally carrying structured `details`. */
+export const conflict = (message: string, details?: unknown) =>
+  new HttpError(409, message, details);

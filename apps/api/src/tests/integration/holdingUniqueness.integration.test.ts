@@ -17,7 +17,7 @@ let prisma: (typeof import("../../db/prisma.js"))["prisma"];
 let token: string;
 let auth: { Authorization: string };
 
-const DUPLICATE = "An account can hold each asset only once; that kind and code already exists";
+const duplicateMessage = (label: string) => `This account already contains a holding for ${label}. Edit the existing holding instead.`;
 const INTERNALS = /P2002|Unique constraint|Holding_accountId|prisma/i;
 
 type Item = Record<string, unknown>;
@@ -39,13 +39,23 @@ function race(accountId: string, item: Item, times: number) {
   return Promise.all(Array.from({ length: times }, () => patch(accountId, { upsert: [item] })));
 }
 
-function expectOneWinner(responses: request.Response[]) {
+function expectDuplicate(response: request.Response, label: string, holding: Record<string, unknown>) {
+  expect(response.status).toBe(409);
+  expect(response.body).toMatchObject({
+    message: duplicateMessage(label),
+    code: "duplicate_holding",
+    holding,
+    issues: { formErrors: [], fieldErrors: { "upsert.0.code": [duplicateMessage(label)] } }
+  });
+  expect(JSON.stringify(response.body)).not.toMatch(INTERNALS);
+}
+
+function expectOneWinner(responses: request.Response[], label: string, holding: Record<string, unknown>) {
   expect(responses.filter((r) => r.status === 200)).toHaveLength(1);
   const losers = responses.filter((r) => r.status !== 200);
   expect(losers).toHaveLength(responses.length - 1);
   for (const loser of losers) {
-    expect(loser.status).toBe(400);
-    expect(loser.body.message).toBe(DUPLICATE);
+    expectDuplicate(loser, label, holding);
   }
 }
 
@@ -88,20 +98,24 @@ describe("partial unique index", () => {
 describe("concurrent creates of the same holding", () => {
   it("lets exactly one of two simultaneous crypto creates win", async () => {
     const accountId = await newAccount("crypto");
-    expectOneWinner(await race(accountId, { kind: "crypto", code: "BTC", quantity: "1" }, 2));
+    expectOneWinner(await race(accountId, { kind: "crypto", code: "BTC", quantity: "1" }, 2), "BTC", {
+      kind: "crypto", code: "BTC", exchange: null
+    });
     expect(await rows(accountId)).toHaveLength(1);
   });
 
   it("lets exactly one of five simultaneous fiat cash creates win", async () => {
     const accountId = await newAccount();
-    expectOneWinner(await race(accountId, { kind: "fiat", code: "USD", quantity: "10" }, 5));
+    expectOneWinner(await race(accountId, { kind: "fiat", code: "USD", quantity: "10" }, 5), "USD", {
+      kind: "fiat", code: "USD", exchange: null
+    });
     expect(await rows(accountId)).toHaveLength(1);
   });
 
   it("lets exactly one of five simultaneous unlinked stock creates win", async () => {
     const accountId = await newAccount();
     const item = { kind: "stock", code: "TSLA", quantity: "2", manualUnitPrice: "100", manualPriceCurrency: "USD" };
-    expectOneWinner(await race(accountId, item, 5));
+    expectOneWinner(await race(accountId, item, 5), "TSLA", { kind: "stock", code: "TSLA", exchange: null });
     expect(await rows(accountId)).toHaveLength(1);
   });
 
@@ -111,7 +125,7 @@ describe("concurrent creates of the same holding", () => {
       kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD",
       quantity: "2", manualUnitPrice: "100", manualPriceCurrency: "USD"
     };
-    expectOneWinner(await race(accountId, item, 5));
+    expectOneWinner(await race(accountId, item, 5), "AAPL (XNGS)", { kind: "stock", code: "AAPL", exchange: "XNGS" });
     expect(await rows(accountId)).toHaveLength(1);
   });
 
@@ -124,8 +138,7 @@ describe("concurrent creates of the same holding", () => {
       patch(accountId, { upsert: [{ kind: "crypto", code: "BTC", quantity: "9" }] })
     ]);
     expect(update.status).toBe(200);
-    expect(create.status).toBe(400);
-    expect(create.body.message).toBe(DUPLICATE);
+    expectDuplicate(create, "BTC", { kind: "crypto", code: "BTC", exchange: null });
     const stored = await rows(accountId);
     expect(stored).toHaveLength(1);
     expect(stored[0]!.quantity.toString()).toBe("5");
@@ -141,7 +154,9 @@ describe("concurrent creates of the same holding", () => {
     const before = await prisma.transaction.findMany({ where: { accountId } });
     expect(before).toHaveLength(1);
 
-    expectOneWinner(await race(accountId, { kind: "fiat", code: "USD", quantity: "100" }, 5));
+    expectOneWinner(await race(accountId, { kind: "fiat", code: "USD", quantity: "100" }, 5), "USD", {
+      kind: "fiat", code: "USD", exchange: null
+    });
 
     const read = await request(app).get(`/accounts/${accountId}/holdings`).set(auth);
     expect(read.status).toBe(200);
@@ -156,8 +171,7 @@ describe("duplicate rejection", () => {
     const accountId = await newAccount("crypto");
     expect((await patch(accountId, { upsert: [{ kind: "crypto", code: "BTC", quantity: "1" }] })).status).toBe(200);
     const duplicate = await patch(accountId, { upsert: [{ kind: "crypto", code: "btc", quantity: "2" }] });
-    expect(duplicate.status).toBe(400);
-    expect(duplicate.body.message).toBe(DUPLICATE);
+    expectDuplicate(duplicate, "BTC", { kind: "crypto", code: "BTC", exchange: null });
     expect(await rows(accountId)).toHaveLength(1);
   });
 
@@ -167,9 +181,7 @@ describe("duplicate rejection", () => {
     expect((await patch(accountId, { upsert: [item] })).status).toBe(200);
 
     const rest = await patch(accountId, { upsert: [item] });
-    expect(rest.status).toBe(400);
-    expect(rest.body.message).toBe(DUPLICATE);
-    expect(JSON.stringify(rest.body)).not.toMatch(INTERNALS);
+    expectDuplicate(rest, "ETH", { kind: "crypto", code: "ETH", exchange: null });
 
     const client = new Client({ name: "test", version: "1.0.0" });
     await client.connect(
@@ -183,8 +195,21 @@ describe("duplicate rejection", () => {
     })) as { isError?: boolean; content: { text: string }[] };
     await client.close();
     expect(mcp.isError).toBe(true);
-    expect(mcp.content[0]!.text).toContain(DUPLICATE);
+    expect(mcp.content[0]!.text).toContain(duplicateMessage("ETH"));
     expect(mcp.content[0]!.text).not.toMatch(INTERNALS);
+    expect(await rows(accountId)).toHaveLength(1);
+  });
+});
+
+describe("linked duplicate pre-check", () => {
+  it("409s naming the listing when a saved linked holding is created again", async () => {
+    const accountId = await newAccount();
+    const item = {
+      kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD",
+      quantity: "1", manualUnitPrice: "10", manualPriceCurrency: "USD"
+    };
+    expect((await patch(accountId, { upsert: [item] })).status).toBe(200);
+    expectDuplicate(await patch(accountId, { upsert: [item] }), "AAPL (XNGS)", { kind: "stock", code: "AAPL", exchange: "XNGS" });
     expect(await rows(accountId)).toHaveLength(1);
   });
 });

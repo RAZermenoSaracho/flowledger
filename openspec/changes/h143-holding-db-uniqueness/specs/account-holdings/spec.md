@@ -18,7 +18,14 @@
 
 **Uniqueness:**
 - An account SHALL hold each `(kind, code, exchange)` at most once, and each unlinked `(kind, code)` at most once. An account MAY hold several `other` holdings, because their code is `null`.
-- Both rules SHALL be enforced by the database, so they hold under concurrent requests from any number of API processes. A request that loses a race SHALL get the same duplicate error as a sequential duplicate, without database details, and SHALL change nothing.
+- Both rules SHALL be enforced by the database, so they hold under concurrent requests from any number of API processes.
+- A change set that would create a holding the account already holds SHALL be rejected with `409` and change nothing, whether an application check or the database detects it. The body SHALL use the structured error format:
+  - `message`: "This account already contains a holding for <code>[ (<exchange>)]. Edit the existing holding instead.";
+  - `code`: `duplicate_holding`;
+  - `holding`: the conflicting `kind`, `code` and `exchange`;
+  - `issues.fieldErrors`: keyed `upsert.<index>.code`.
+  It SHALL NOT expose SQL, constraint names or stack traces. MCP returns the same message as a tool error.
+- The web app SHALL show a duplicate inline under the row that adds it, for manual and search-linked rows alike, and SHALL show a visible notice when Save is blocked by field errors. The user's unsaved rows SHALL be kept; the user can correct the row and save again, or Discard, without reloading.
 - `code` and `exchange` SHALL be compared upper-case. A linked and an unlinked holding of the same ticker, or a `stock` and an `etf` with the same code, are different identities.
 - The same ticker on different exchanges MAY be held in one account as separate holdings.
 - The same instrument MAY be held in any number of other accounts, each with its own quantity.
@@ -71,6 +78,14 @@ An account SHALL hold at most 200 holdings. No transaction SHALL be created or r
 #### Scenario: Concurrent duplicate creates
 - **WHEN** two or more requests create the same BTC `crypto`, USD `fiat` or unlinked AAPL `stock` holding in one account at the same time
 - **THEN** exactly one succeeds, every other one is rejected with the duplicate error, and the account holds one such holding
+
+#### Scenario: Duplicate listing in the UI
+- **WHEN** an account holds AAPL on `XNGS` and the user picks the same listing from the security search and presses Save
+- **THEN** the row shows "This account already contains a holding for AAPL (XNGS). Edit the existing holding instead.", the header shows "Fix the highlighted fields to save", no request is sent, and changing the listing lets the save succeed
+
+#### Scenario: Duplicate detected by the server
+- **WHEN** a stale page saves a EUR cash row that another tab has already saved
+- **THEN** the API answers `409` `duplicate_holding`, the EUR row shows the message inline, its quantity is kept, and the page leaves the saving state
 
 #### Scenario: Concurrent create and update
 - **WHEN** one request edits the quantity of an account's BTC holding while another creates BTC in the same account

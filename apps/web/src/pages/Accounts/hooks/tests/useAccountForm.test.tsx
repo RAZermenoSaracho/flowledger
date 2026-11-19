@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { server } from "../../../../tests/mocks/server";
 import type { Account } from "../../../../types/accounts.types";
+import { listingPatch, newHoldingDraft } from "../../utils/holdingsDraft";
 import { useAccountForm } from "../useAccountForm";
 
 const API_URL = "http://localhost:4000";
@@ -317,5 +318,52 @@ describe("useAccountForm", () => {
       expect(onCreated).not.toHaveBeenCalled();
       expect(result.current.fieldErrors.name).toBeTruthy();
     });
+  });
+});
+
+describe("useAccountForm holdings conflicts", () => {
+  const investment: Account = { ...account, type: "investment" };
+  const holding = { kind: "stock", code: "AAPL", exchange: "XNGS" };
+
+  function conflictError(identity = holding) {
+    return Object.assign(new Error("Already there"), { duplicateHolding: identity });
+  }
+
+  function setup(error: Error) {
+    const save = vi.fn().mockRejectedValue(error);
+    const hook = renderHook(() => useAccountForm(investment, undefined, { saved: [], save }), { wrapper });
+    act(() =>
+      hook.result.current.setField("holdings", [
+        {
+          ...newHoldingDraft("stock", "USD"),
+          ...listingPatch({ symbol: "AAPL", name: "Apple Inc", exchange: "NASDAQ", micCode: "XNGS", country: "US", currency: "USD", type: "stock" }),
+          quantity: "2"
+        }
+      ])
+    );
+    return { ...hook, save };
+  }
+
+  it("puts a duplicate_holding error on the code field of the row that adds it and keeps the rows", async () => {
+    const { result, save } = setup(conflictError());
+    await act(() => result.current.save());
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.current.fieldErrors["holdings.0.code"]).toBe("Already there");
+    expect(result.current.saveError).toBe("Already there");
+    expect(result.current.values.holdings).toHaveLength(1);
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("rethrows as a plain save error when no row matches or the error is not a conflict", async () => {
+    const unmatched = setup(conflictError({ kind: "stock", code: "MSFT", exchange: "XNGS" }));
+    await act(() => unmatched.result.current.save());
+    expect(unmatched.result.current.saveError).toBe("Already there");
+    expect(unmatched.result.current.fieldErrors["holdings.0.code"]).toBeUndefined();
+
+    const plain = setup(new Error("Boom"));
+    await act(() => plain.result.current.save());
+    expect(plain.result.current.saveError).toBe("Boom");
+    expect(plain.result.current.fieldErrors["holdings.0.code"]).toBeUndefined();
   });
 });

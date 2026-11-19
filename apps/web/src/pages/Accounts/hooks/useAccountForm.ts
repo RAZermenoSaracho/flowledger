@@ -9,6 +9,7 @@ import { creditCardBody, creditCardFields } from "../utils/creditCardDraft";
 import { validateAccountDraft } from "../utils/accountValidation";
 import {
   buildHoldingsChangeSet,
+  duplicateHoldingRowIndex,
   holdingsToDrafts,
   isHoldingType
 } from "../utils/holdingsDraft";
@@ -29,7 +30,7 @@ export type AccountHoldingsBinding = {
  * cycle fields are always sent together). With `newAccount`, the draft starts empty in `newAccount.currency` and `save`
  * sends one `POST /accounts` (card fields only for credit cards), then calls `onCreated`. Both invalidate `accounts`
  * and `transactions`. With `holdings`, the draft also carries the holdings rows; `save` sends the account `PUT` only
- * when an account field changed, then one holdings `PATCH` when the rows changed (a failed `PATCH` rejects, so the draft
+ * when an account field changed, then one holdings `PATCH` when the rows changed (a failed `PATCH` rejects, a duplicate-holding conflict on the `code` field of the row that adds it, so the draft
  * keeps the rows and the error shows). Stored values are coerced to strings, so a numeric API value never reaches a text input.
  */
 export function useAccountForm(
@@ -121,9 +122,19 @@ export function useAccountForm(
         await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       }
       if (holdings && changedKeys.includes("holdings")) {
-        await holdings.save(
-          buildHoldingsChangeSet(values.holdings, holdings.saved)
-        );
+        try {
+          await holdings.save(
+            buildHoldingsChangeSet(values.holdings, holdings.saved)
+          );
+        } catch (error) {
+          const identity = (error as { duplicateHolding?: Parameters<typeof duplicateHoldingRowIndex>[1] })
+            .duplicateHolding;
+          const index = identity ? duplicateHoldingRowIndex(values.holdings, identity) : -1;
+          if (index >= 0) {
+            throw Object.assign(new Error((error as Error).message), { field: `holdings.${index}.code` });
+          }
+          throw error;
+        }
       }
     }
   });
