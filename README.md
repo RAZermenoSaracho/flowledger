@@ -11,7 +11,15 @@ The platform supports:
 - Automated transaction imports
 - Financial reporting
 
-The long-term goal is to become a unified financial operating system for individuals, families, and small groups.
+The long-term goal is to become a unified financial operating system for individuals, families, and small groups, covering bank accounts, credit cards, cash, shared expenses, debts, investments, crypto, and reports.
+
+## Product direction
+
+Priorities, in order: security, data ownership, automation, simplicity, and financial visibility.
+
+FlowLedger should work well for individuals and for groups, reduce manual bookkeeping, automate aggregation where possible, stay provider-agnostic with no provider as a hard dependency, and grow without major rewrites. It succeeds when a user can connect their accounts, keep them synchronized automatically, track spending with minimal manual work, manage debts and shared expenses, and understand their financial position in real time, while keeping strong security, privacy, and ownership of their data.
+
+Pending work (features, bugs, technical debt) is tracked in the Odoo project "Flowledger", not in Markdown files.
 
 ---
 
@@ -120,7 +128,7 @@ Database responsibilities:
 
 FlowLedger currently supports authentication (email/password + Google OAuth), manual and provider-linked accounts, personal and group categories, groups (replacing the original "Household" model — all new development must use Group terminology), income/expense/transfer transactions with an imported-transaction review workflow, shared expenses with settlement workflows, per-person debt balances, summary/category/monthly-cashflow reports, and in-app notifications.
 
-For the authoritative, up-to-date feature-by-feature status (including what's planned next), see `ROADMAP.md` — this section intentionally doesn't duplicate that list.
+It also supports credit-card limits and billing periods, holdings with crypto and stock/ETF prices, net worth and savings-rate metrics, notification processing models, and a public REST API and MCP server. Planned work lives in the Odoo project "Flowledger".
 
 ---
 
@@ -403,15 +411,6 @@ bash npm run prisma:seed
 - `docs/PROVIDER_SYNC.md` — Syncfy integration and auto-sync scheduler
 - `docs/AUTH_FLOW.md` — JWT, OAuth flows
 - `docs/TESTING.md` — test architecture, stack, coverage thresholds, how to write and run tests
-- `ROADMAP.md` — full milestone status and product direction
-
----
-
-# Current Development Priorities
-
-The Full Currency Logic group (Milestones 7-10) is complete — accounts, transactions, and debts all carry explicit currency fields, with live exchange rates from Frankfurter (fiat) and Binance (crypto). Current priority is the Full Crypto Adaptation group (Milestones 11-15), starting with Milestone 11: Binance API Integration.
-
-See `ROADMAP.md` for the complete, authoritative implementation sequence and status — this section intentionally doesn't restate it.
 
 ---
 
