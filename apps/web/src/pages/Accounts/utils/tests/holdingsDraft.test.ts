@@ -5,6 +5,8 @@ import {
   addHoldingRow,
   allowedHoldingKinds,
   buildHoldingsChangeSet,
+  duplicateHoldingMessage,
+  duplicateHoldingRowIndex,
   holdingsToDrafts,
   isHoldingRowEdited,
   isHoldingType,
@@ -331,5 +333,51 @@ describe("linked listings", () => {
     expect(row!.priceSource).toBe("manual");
     const auto = { ...row!, priceSource: "automatic" as const };
     expect(buildHoldingsChangeSet([auto], [saved]).upsert).toEqual([{ id: "h1", manualUnitPrice: null }]);
+  });
+});
+
+describe("duplicateHoldingMessage", () => {
+  it("names the ticker, adding the exchange when linked", () => {
+    expect(duplicateHoldingMessage("BTC", null)).toBe(
+      "This account already contains a holding for BTC. Edit the existing holding instead."
+    );
+    expect(duplicateHoldingMessage("AAPL", "XNGS")).toBe(
+      "This account already contains a holding for AAPL (XNGS). Edit the existing holding instead."
+    );
+  });
+});
+
+describe("duplicateHoldingRowIndex", () => {
+  const saved = holdingsToDrafts([holding()]);
+  const added = { ...newHoldingDraft("crypto", "USD"), code: "eth" };
+  const linked = { ...newHoldingDraft("stock", "USD"), code: "AAPL", exchange: "XNGS" };
+
+  it("finds the new row by kind, case-insensitive code and exchange", () => {
+    const rows = [...saved, added, linked];
+    expect(duplicateHoldingRowIndex(rows, { kind: "crypto", code: "ETH", exchange: null })).toBe(1);
+    expect(duplicateHoldingRowIndex(rows, { kind: "stock", code: "AAPL", exchange: "XNGS" })).toBe(2);
+  });
+
+  it("ignores saved rows and non-matching kind or exchange", () => {
+    const rows = [...saved, linked];
+    expect(duplicateHoldingRowIndex(rows, { kind: "crypto", code: "BTC", exchange: null })).toBe(-1);
+    expect(duplicateHoldingRowIndex(rows, { kind: "stock", code: "AAPL", exchange: null })).toBe(-1);
+    expect(duplicateHoldingRowIndex(rows, { kind: "etf", code: "AAPL", exchange: "XNGS" })).toBe(-1);
+  });
+});
+
+describe("validateHoldingRows duplicate messages", () => {
+  const price = { quantity: "1", manualUnitPrice: "10", manualPriceCurrency: "USD" };
+
+  it("uses the already-contains message when a new row repeats a saved one", () => {
+    const savedRows = holdingsToDrafts([holding({ id: "h9", kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD" })]);
+    const linkedDuplicate = { ...newHoldingDraft("stock", "USD"), code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", ...price };
+    const errors = validateHoldingRows([...savedRows, linkedDuplicate]);
+    expect(errors["holdings.1.code"]).toBe(duplicateHoldingMessage("AAPL", "XNGS"));
+  });
+
+  it("keeps the already-listed message for two new rows", () => {
+    const row = { ...newHoldingDraft("stock", "USD"), code: "TSLA", ...price };
+    expect(validateHoldingRows([row, { ...row }])["holdings.1.code"]).toBe("TSLA is already listed");
   });
 });

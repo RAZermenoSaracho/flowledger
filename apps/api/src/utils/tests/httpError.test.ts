@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badRequest, HttpError, notFound } from "../httpError.js";
+import { badRequest, conflict, HttpError, notFound } from "../httpError.js";
 
 describe("HttpError", () => {
   it("carries statusCode, message, and optional details", () => {
@@ -38,5 +38,14 @@ describe("badRequest", () => {
   it("carries optional details", () => {
     const error = badRequest("Invalid", { field: "amount" });
     expect(error.details).toEqual({ field: "amount" });
+  });
+});
+
+describe("conflict", () => {
+  it("builds a 409 with the message and optional details", () => {
+    const error = conflict("Already there", { code: "dup" });
+    expect(error.statusCode).toBe(409);
+    expect(error.message).toBe("Already there");
+    expect(error.details).toEqual({ code: "dup" });
   });
 });

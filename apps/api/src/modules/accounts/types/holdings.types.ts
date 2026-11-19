@@ -45,3 +45,10 @@ export interface AccountForHoldings {
 
 /** Stored holding fields required to validate an update. */
 export type ExistingHolding = Pick<Prisma.HoldingGetPayload<object>, "id" | "kind" | "code" | "manualUnitPrice" | "exchange" | "quoteCurrency">;
+
+/** What makes two holdings of one account the same instrument; `exchange` is null for every unlinked holding. */
+export interface HoldingIdentity {
+  kind: HoldingKind;
+  code: string;
+  exchange: string | null;
+}

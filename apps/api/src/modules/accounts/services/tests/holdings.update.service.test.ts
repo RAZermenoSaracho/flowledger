@@ -94,14 +94,47 @@ describe("applyHoldingChanges", () => {
     });
   });
 
-  it("maps a unique violation to a 400 with a clear message", async () => {
-    prismaMock.holding.create.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" })
-    );
+  const p2002 = () => new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" });
+  const linkedAapl = { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", quantity: "1" };
+
+  it("maps a unique violation to a 409 duplicate_holding naming the instrument", async () => {
+    prismaMock.holding.create.mockRejectedValue(p2002());
+    prismaMock.holding.findMany.mockResolvedValue([{ kind: "crypto", code: "BTC", exchange: null }] as never);
     await expect(apply({ upsert: [{ kind: "crypto", code: "BTC", quantity: "1" }] })).rejects.toMatchObject({
-      statusCode: 400,
-      message: expect.stringContaining("only once")
+      statusCode: 409,
+      message: "This account already contains a holding for BTC. Edit the existing holding instead.",
+      details: {
+        code: "duplicate_holding",
+        holding: { kind: "crypto", code: "BTC", exchange: null },
+        issues: { formErrors: [], fieldErrors: { "upsert.0.code": [expect.stringContaining("BTC")] } }
+      }
     });
+  });
+
+  it("on a unique violation blames the create the account now holds", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.create.mockRejectedValue(p2002());
+    prismaMock.holding.findMany.mockResolvedValue([{ kind: "crypto", code: "ETH", exchange: null }] as never);
+    await expect(
+      apply({ upsert: [{ kind: "crypto", code: "BTC", quantity: "1" }, { kind: "crypto", code: "ETH", quantity: "1" }] })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      details: { holding: { kind: "crypto", code: "ETH", exchange: null }, issues: { fieldErrors: { "upsert.1.code": expect.any(Array) } } }
+    });
+  });
+
+  it("pre-checks a linked create and 409s naming the listing with its exchange", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "investment" } as never);
+    prismaMock.holding.findFirst.mockResolvedValue({ id: "h1" } as never);
+    await expect(apply({ upsert: [linkedAapl] })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "This account already contains a holding for AAPL (XNGS). Edit the existing holding instead.",
+      details: { code: "duplicate_holding", holding: { kind: "stock", code: "AAPL", exchange: "XNGS" } }
+    });
+    expect(prismaMock.holding.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { accountId: "acc-1", userId: "user-1", kind: "stock", code: "AAPL", exchange: "XNGS" } })
+    );
+    expect(prismaMock.holding.create).not.toHaveBeenCalled();
   });
 
   it("propagates a mid-change failure out of the transaction so nothing is committed", async () => {
@@ -244,7 +277,7 @@ describe("provider-linked securities", () => {
     prismaMock.holding.findFirst.mockResolvedValue({ id: "h9" } as never);
     await expect(
       apply({ upsert: [{ kind: "stock", code: "AAPL", quantity: "1", manualUnitPrice: "1", manualPriceCurrency: "USD" }] })
-    ).rejects.toMatchObject({ statusCode: 400 });
+    ).rejects.toMatchObject({ statusCode: 409 });
     expect(prismaMock.holding.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { accountId: "acc-1", userId: "user-1", kind: "stock", code: "AAPL", exchange: null } })
     );

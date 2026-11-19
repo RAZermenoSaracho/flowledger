@@ -8,15 +8,31 @@ import {
 } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import { badRequest, notFound } from "../../../utils/httpError.js";
+import { badRequest, conflict, notFound } from "../../../utils/httpError.js";
 import { refreshSecurityQuotes } from "../../currencies/providers/twelveData/services/quotes.service.js";
 import type { SecurityListing } from "../../currencies/providers/twelveData/types/twelveData.types.js";
-import type { ExistingHolding } from "../types/holdings.types.js";
+import type { ExistingHolding, HoldingIdentity } from "../types/holdings.types.js";
 import { getAccountHoldings } from "./holdings.read.service.js";
 
 const MAX_HOLDINGS_PER_ACCOUNT = 200;
 const REFRESH_DEADLINE_MS = 8000;
-const DUPLICATE_MESSAGE = "An account can hold each asset only once; that kind and code already exists";
+/** 409 naming the instrument the account already holds, in the structured error format with a field error on `upsert.<index>.code`. */
+function duplicateHolding(index: number, identity: HoldingIdentity) {
+  const label = identity.exchange ? `${identity.code} (${identity.exchange})` : identity.code;
+  const message = `This account already contains a holding for ${label}. Edit the existing holding instead.`;
+  return conflict(message, {
+    code: "duplicate_holding",
+    holding: identity,
+    issues: { formErrors: [], fieldErrors: { [`upsert.${index}.code`]: [message] } }
+  });
+}
+
+/** Identities of the creates in a change set, with their upsert index; `other` creates have no code and never conflict. */
+function createdIdentities(changeSet: HoldingsChangeSetInput): { index: number; identity: HoldingIdentity }[] {
+  return changeSet.upsert.flatMap((item, index) =>
+    !item.id && item.code ? [{ index, identity: { kind: item.kind!, code: item.code, exchange: item.exchange ?? null } }] : []
+  );
+}
 
 /** Runs a best-effort quote refresh, waiting at most {@link REFRESH_DEADLINE_MS}; a failure or timeout never reaches the caller. */
 async function refreshWithinDeadline(listings: SecurityListing[]): Promise<void> {
@@ -82,10 +98,13 @@ function updateData(item: HoldingUpsertInput, stored: ExistingHolding, now: Date
  * Applies an atomic holdings change set to an account in one transaction: creates items without `id`, updates those with `id`
  * (quantity and/or manual valuation; a quantity-only edit keeps `manualPricedAt`), and deletes `remove` ids. Unmentioned holdings are untouched.
  * 404 for a foreign account or an id not belonging to this account and user; 400 when the account type cannot hold holdings,
- * on a fiat precision or manual-price violation, or a duplicate `(kind, code)`. Crypto accounts accept crypto only;
+ * or on a fiat precision or manual-price violation. Crypto accounts accept crypto only;
  * incompatible stored holdings may be removed but not updated. Unlinked stock/ETF and other require manual prices;
  * provider-linked stock/ETF (created with `exchange` + `quoteCurrency`, immutable afterwards) may omit or clear them.
- * A second unlinked holding of the same `(kind, code)` is rejected, because Postgres treats NULL exchanges as distinct.
+ * A create whose `(kind, code, exchange)` the account already holds (NULL exchange included) is rejected with a 409
+ * `duplicate_holding` naming the instrument (see `duplicateHolding`). The pre-check gives early feedback; the database unique
+ * indexes (including a partial one for NULL exchanges) decide concurrent creates, whose P2002 maps to the same 409 for the
+ * create the account now holds.
  * After the commit, listings that became auto-priced (created linked without a manual price, or manual price cleared) get a
  * best-effort quote refresh bounded to a short deadline; quantity-only edits never refresh and a refresh failure never fails the save.
  * Returns the same body as `getAccountHoldings`.
@@ -151,12 +170,13 @@ export async function applyHoldingChanges(
             toRefresh.push({ symbol: current.code, exchange: current.exchange, quoteCurrency: current.quoteCurrency });
           }
         } else {
-          if (item.code && !item.exchange) {
+          if (item.code) {
+            const identity = { kind: item.kind!, code: item.code, exchange: item.exchange ?? null };
             const duplicate = await tx.holding.findFirst({
-              where: { accountId, userId, kind: item.kind!, code: item.code, exchange: null },
+              where: { accountId, userId, ...identity },
               select: { id: true }
             });
-            if (duplicate) throw badRequest(DUPLICATE_MESSAGE);
+            if (duplicate) throw duplicateHolding(changeSet.upsert.indexOf(item), identity);
           }
           if (item.exchange && item.code && !item.manualUnitPrice) {
             toRefresh.push({ symbol: item.code, exchange: item.exchange, quoteCurrency: item.quoteCurrency ?? null });
@@ -186,7 +206,15 @@ export async function applyHoldingChanges(
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw badRequest(DUPLICATE_MESSAGE);
+      const creates = createdIdentities(changeSet);
+      const existing = await prisma.holding.findMany({
+        where: { accountId, userId, OR: creates.map(({ identity }) => identity) },
+        select: { kind: true, code: true, exchange: true }
+      });
+      const winner = creates.find(({ identity }) =>
+        existing.some((row) => row.kind === identity.kind && row.code === identity.code && row.exchange === identity.exchange)
+      ) ?? creates[0];
+      throw winner ? duplicateHolding(winner.index, winner.identity) : conflict("This account already contains one of these holdings");
     }
     throw error;
   }

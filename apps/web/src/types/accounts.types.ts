@@ -119,3 +119,6 @@ export type HoldingUpsert = {
 
 /** Body of `PATCH /accounts/:id/holdings`. */
 export type HoldingsChangeSet = { upsert: HoldingUpsert[]; remove: string[] };
+
+/** The instrument a rejected holdings change set tried to add twice: `exchange` is null for an unlinked holding. */
+export type HoldingIdentity = { kind: string; code: string; exchange: string | null };

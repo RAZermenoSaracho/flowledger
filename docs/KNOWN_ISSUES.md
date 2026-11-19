@@ -796,7 +796,7 @@ ST-022's original scope assumed these. They were deliberately not built, because
 
 **Suggested fix:** If a concrete need appears, add the smallest field first (for example nullable `notes` on `Holding`) rather than a separate asset model. Valuation history and cost basis belong with a future investment-returns intent.
 
-## [OPEN] #061 — Duplicate unlinked holdings are blocked by the service, not the database
+## [RESOLVED] #061 — Duplicate unlinked holdings are blocked by the service, not the database
 
 **Found in:** B-010 implementation (`b010-provider-backed-securities`).
 
@@ -807,6 +807,8 @@ ST-022's original scope assumed these. They were deliberately not built, because
 **Impact:** low. It needs two simultaneous saves of the same account by the same user, and the result is visible and removable.
 
 **Fix when needed:** a migration with a partial unique index (`WHERE exchange IS NULL`) or `NULLS NOT DISTINCT`. Both need raw SQL in the migration, which needs approval.
+
+**Resolution (2026-11-18, Odoo #143, `h143-holding-db-uniqueness`):** migration `20261118120000_holding_unlinked_uniqueness` adds the partial unique index `(accountId, kind, code) WHERE exchange IS NULL`. Racing and sequential duplicate creates fail with `409 duplicate_holding`, which names the instrument and is shown inline in the Holdings tab; `holdingUniqueness.integration.test.ts` checks. The index is on staging; production waits for approval and a duplicate audit.
 
 ## [OPEN] #062 — Twelve Data Basic licensing gates production use by other users
 

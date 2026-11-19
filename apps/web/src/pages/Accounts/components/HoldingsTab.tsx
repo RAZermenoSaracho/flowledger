@@ -233,6 +233,11 @@ export function HoldingsTab({
               {row.code} · {row.exchange}
             </p>
             <p className={mutedClassName}>{row.name}</p>
+            {rowError(index, "code", row.code) ? (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                {rowError(index, "code", row.code)}
+              </p>
+            ) : null}
             <button
               type="button"
               className="min-h-11 text-sm font-semibold text-pine underline-offset-4 hover:underline dark:text-emerald-300"
