@@ -115,6 +115,12 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
 - Never remove or weaken Syncfy webhook HMAC validation.
 - Never store bank login credentials (usernames, passwords, OTPs, card numbers).
 - Database changes must use Prisma migrations — no raw SQL without approval.
+- **Destructive data operations need the product owner's explicit approval of the exact operation before execution, and never run automatically.** This covers resets, bulk deletes, and destructive backfills in any environment.
+- **Pre-production data policy:** FlowLedger is in early testing with trusted users, so a correct financial model beats compatibility with test records created under incorrect behavior. Don't add migrations, backfills, or compatibility layers only to preserve such records; a reset of the affected test financial data is acceptable. The OpenSpec proposal documents the reset (affected tables, dependencies, scope), uses the smallest scope that leaves a coherent dataset, and preserves user accounts, authentication, credentials, configuration, and unrelated data unless separately authorized.
+- Build the smallest maintainable thing that meets the requirement: no speculative abstractions or dependencies, and extract shared code only when a real second consumer exists.
+- When a financial figure is partial, estimated, or stale, the UI and API say so — never present it as complete.
+- Pending work (features, bugs, technical debt) is tracked in the Odoo project "Flowledger" (#56), not in Markdown backlog files.
+- Agent orchestration: Opus orchestrates and makes the decisions, Sonnet subagents investigate, and bounded mechanical work goes to Codex through `/codex:rescue` when that saves effort.
 - Production Syncfy webhooks route through `/providers/webhooks/syncfy`. The legacy `/syncfy/webhook` route is deprecated and must not be revived for event processing.
 - Extend `FinancialProviderAdapter` for new providers — do not create parallel provider-specific systems.
 - Use "Group" terminology throughout — never introduce "Household".
