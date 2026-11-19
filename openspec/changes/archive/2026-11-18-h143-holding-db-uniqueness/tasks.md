@@ -42,5 +42,10 @@
 
 ## 6. Release (staging only)
 
-- [ ] 6.1 Open a PR to `razs_ai`, merge, and apply the migration to staging; check the index, the services, and that staging holdings are unchanged.
-- [ ] 6.2 Update Odoo #143 for acceptance. Production promotion, archive and closure wait for owner approval.
+- [x] 6.1 Open a PR to `razs_ai`, merge, and apply the migration to staging; check the index, the services, and that staging holdings are unchanged.
+- [x] 6.2 Update Odoo #143 for acceptance; the owner approved after manual staging acceptance.
+
+## 7. Production
+
+- [x] 7.1 Back up production, run the read-only duplicate audit (0 conflicts), promote `razs_ai` to `main` (#78) and deploy; verify the index, data integrity and health.
+- [x] 7.2 Archive this change, sync the canonical spec, and close Odoo #143.
