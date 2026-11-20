@@ -66,6 +66,8 @@ Replay: a captured pending token can at most repeat the same link for the same u
 
 **D5 — Web.** `GoogleSection` reads `googleLink` once, as it does now. When the value is `pending`, it fires a `useMutation(completeGoogleLink)` exactly once, guarded by a ref against StrictMode double effects, and shows "Connecting Google…". A 400 or a network error maps to the `failed` message. On settle it invalidates `["google-link"]`. The Profile route already requires an authenticated session, so the call runs after session restore.
 
+`completeGoogleLink()` goes through `apiRequest`. That retries a 401 once after a silent refresh, but only for `/auth/*` paths listed in `ACCESS_TOKEN_AUTH_PATHS` (`apps/web/src/services/api.client.ts`). Today that set lists `/auth/google/link` by exact path, not `/auth/google/link/complete`. The new path **must be added**. Otherwise an expired access token on return from Google gives "failed" for a valid session, with no retry. The retry is safe: `requireAuth` rejects the first attempt before the controller runs, so the pending cookie is not cleared yet and the retried request still carries it.
+
 ## Risks / Trade-offs
 
 - **Installed Home Screen app (iOS standalone PWA).** No regression versus today. `POST /auth/google/link` sets the nonce cookie in the jar of the context that started the link, and the callback needs that cookie.

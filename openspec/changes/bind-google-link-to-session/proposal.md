@@ -30,6 +30,6 @@ None.
 ## Impact
 
 - API: `auth/providers/google/services/create.service.ts`, `controllers/create.controller.ts`, `google.routes.ts` (the new route with `requireWebOrigin` and `requireAuth`), the existing `utils/googleState.ts` and `utils/googleStateCookie.ts` (pending-link token and cookie helpers), `types/google.types.ts`, `auth/tests/auth.routes.test.ts`, and the matching tests.
-- Web: `services/auth.client.ts`, `pages/Profile/components/GoogleSection.tsx`, and their tests.
+- Web: `services/auth.client.ts`, `services/api.client.ts` (add the completion path to `ACCESS_TOKEN_AUTH_PATHS`), `pages/Profile/components/GoogleSection.tsx`, and their tests.
 - Docs: `docs/AUTH_FLOW.md`, the Google link section.
 - No database migration, no new dependency, no new env var.
