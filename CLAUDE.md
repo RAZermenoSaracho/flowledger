@@ -121,6 +121,24 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
 - **Backlog lives in Odoo only.** Every new bug, regression, enhancement, feature, and technical-debt item goes in the Odoo project "Flowledger" (#56), including findings deliberately left out of the current task's scope:
   - Search the project (including archived tasks) for an equivalent before creating one. Update or extend the existing task instead of duplicating it.
   - Prefix titles with `[ISSUE]` (a defect, with Odoo color 1, red) or `[INTENT]` (a feature, enhancement, or technical debt, with color 10, green).
+  - Tag every task (`tag_ids`, model `project.tags`; tag color is separate from task color):
+    - exactly one type tag matching the prefix: `issue` or `intent`;
+    - at least one category tag, from these existing tags (never create near-duplicates):
+      - `identity`: users, auth, sessions, OAuth, profile, plans;
+      - `security`: cross-cutting hardening, privacy, dependency advisories;
+      - `transactions`: ledger, imports review, categories, dates;
+      - `integrations`: external providers such as Syncfy, Binance, chains and Twelve Data;
+      - `holdings`: investments, crypto, valuation;
+      - `groups-sharing`: groups, shared expenses, debts, settlements;
+      - `reporting`: reports, dashboards, insights;
+      - `planning`: budgets, goals;
+      - `notifications`;
+      - `api-mcp`: `/v1` and MCP;
+      - `web-ux`: frontend UI and UX;
+      - `data-integrity`: atomicity, constraints, races, orphaning;
+      - `infrastructure`: CI, dependencies, deploy, hosting, test tooling;
+      - `documentation`.
+    - A new category needs a real gap that no existing tag covers.
   - Keep each task atomic and independently verifiable: scope, evidence, expected behavior, and staging-verifiable acceptance criteria.
   - Never create ROADMAP, KNOWN_ISSUES, backlog, or TODO Markdown files.
   - If Odoo is unavailable, report the blocker to the user instead of keeping a shadow backlog.
