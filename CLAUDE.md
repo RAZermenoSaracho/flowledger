@@ -118,12 +118,21 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
 - **Pre-production data policy:** FlowLedger is in early testing with trusted users, so a correct financial model beats compatibility with test records created under incorrect behavior. Don't add migrations, backfills, or compatibility layers only to preserve such records; a reset of the affected test financial data is acceptable. The OpenSpec proposal documents the reset (affected tables, dependencies, scope), uses the smallest scope that leaves a coherent dataset, and preserves user accounts, authentication, credentials, configuration, and unrelated data unless separately authorized.
 - Build the smallest maintainable thing that meets the requirement: no speculative abstractions or dependencies, and extract shared code only when a real second consumer exists.
 - When a financial figure is partial, estimated, or stale, the UI and API say so — never present it as complete.
-- **Backlog lives in Odoo only.** Every new bug, regression, enhancement, feature, and technical-debt item goes in the Odoo project "Flowledger" (#56), including findings deliberately left out of the current task's scope:
-  - Search the project (including archived tasks) for an equivalent before creating one. Update or extend the existing task instead of duplicating it.
-  - Prefix titles with `[ISSUE]` (a defect, with Odoo color 1, red) or `[INTENT]` (a feature, enhancement, or technical debt, with color 10, green).
-  - Tag every task (`tag_ids`, model `project.tags`; tag color is separate from task color):
-    - exactly one type tag matching the prefix: `issue` or `intent`;
-    - at least one category tag, from these existing tags (never create near-duplicates):
+- **Backlog lives in Odoo only.** Every new intent, issue, regression, enhancement, and technical-debt item goes in Odoo project "Flowledger" (`project.project` id 56, model `project.task`). This includes findings deliberately left out of the current task's scope.
+  - **Never** create ROADMAP, KNOWN_ISSUES, backlog, or TODO Markdown files.
+  - If Odoo is unavailable, report the blocker instead of keeping a shadow backlog.
+  - **No duplicates:**
+    - Before creating a task, search project 56, including archived tasks, by keywords from both the title and the description.
+    - If an existing task's intent already covers the work, update or extend that task instead.
+  - **Title:** exactly one prefix, then a concise, descriptive English title.
+    - `[ISSUE] ` is for a defect or regression.
+    - `[INTENT] ` is for a feature, enhancement, or technical debt.
+  - **Task color:** the integer field `color` on `project.task`. Use `1` (red) for `[ISSUE]` and `10` (green) for `[INTENT]`. These are Odoo 19 color indices.
+  - **Tags (`tag_ids`, model `project.tags`):**
+    - Tag color is separate from task color.
+    - Add tags with the command `[[4, <tag id>]]`, so existing tags are kept.
+    - Each task gets exactly one type tag matching its prefix: `issue` (id 2) or `intent` (id 3).
+    - Each task also gets at least one category tag. Look categories up by name and reuse them, never creating near-duplicates. They are:
       - `identity`: users, auth, sessions, OAuth, profile, plans;
       - `security`: cross-cutting hardening, privacy, dependency advisories;
       - `transactions`: ledger, imports review, categories, dates;
@@ -132,16 +141,27 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
       - `groups-sharing`: groups, shared expenses, debts, settlements;
       - `reporting`: reports, dashboards, insights;
       - `planning`: budgets, goals;
-      - `notifications`;
+      - `notifications`: in-app notifications, notification models and worker;
       - `api-mcp`: `/v1` and MCP;
       - `web-ux`: frontend UI and UX;
       - `data-integrity`: atomicity, constraints, races, orphaning;
       - `infrastructure`: CI, dependencies, deploy, hosting, test tooling;
-      - `documentation`.
+      - `documentation`: docs content and the docs portal.
     - A new category needs a real gap that no existing tag covers.
-  - Keep each task atomic and independently verifiable: scope, evidence, expected behavior, and staging-verifiable acceptance criteria.
-  - Never create ROADMAP, KNOWN_ISSUES, backlog, or TODO Markdown files.
-  - If Odoo is unavailable, report the blocker to the user instead of keeping a shadow backlog.
+  - **Quality:** each task is one complete, atomic, independently implementable feature or fix. The description (HTML) states:
+    - the scope and the evidence (file paths, or reproduction steps);
+    - the expected behavior;
+    - objectively verifiable acceptance criteria that can be checked on staging.
+    - Open owner decisions go under a "Discovery" or "Owner decision" heading.
+  - **Lifecycle:** stages are Backlog → Ready → Plan → Development → In Review → Cleanup → Done, plus Canceled.
+    - Create new tasks in Backlog (stage id 8).
+    - Active `base.automation` rules fire on stage and field changes (task entered Ready, plan approved, changes requested, terminal request). Move a task's stage only when the user or the workflow asks.
+    - Never skip stages to bypass these rules.
+    - Never set Done or Canceled without the required verification.
+  - **Updating tasks:**
+    - Change only what the request needs.
+    - Keep the prefix, color, tags, stage, assignees, priority, and the existing description content and history.
+    - Extend descriptions instead of rewriting them.
 - OpenSpec holds active implementation specifications (`openspec/changes/`), current behavior (`openspec/specs/`), and implementation history (`openspec/changes/archive/`). Technical and architecture Markdown in `docs/` stays as documentation, not as a backlog.
 - Agent orchestration: Opus orchestrates and makes the decisions, Sonnet subagents investigate, and bounded mechanical work goes to Codex through `/codex:rescue` when that saves effort.
 - Production Syncfy webhooks route through `/providers/webhooks/syncfy`. The legacy `/syncfy/webhook` route is deprecated and must not be revived for event processing.
