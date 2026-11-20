@@ -118,7 +118,13 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
 - **Pre-production data policy:** FlowLedger is in early testing with trusted users, so a correct financial model beats compatibility with test records created under incorrect behavior. Don't add migrations, backfills, or compatibility layers only to preserve such records; a reset of the affected test financial data is acceptable. The OpenSpec proposal documents the reset (affected tables, dependencies, scope), uses the smallest scope that leaves a coherent dataset, and preserves user accounts, authentication, credentials, configuration, and unrelated data unless separately authorized.
 - Build the smallest maintainable thing that meets the requirement: no speculative abstractions or dependencies, and extract shared code only when a real second consumer exists.
 - When a financial figure is partial, estimated, or stale, the UI and API say so — never present it as complete.
-- Pending work (features, bugs, technical debt) is tracked in the Odoo project "Flowledger" (#56), not in Markdown backlog files.
+- **Backlog lives in Odoo only.** Every new bug, regression, enhancement, feature, and technical-debt item goes in the Odoo project "Flowledger" (#56), including findings deliberately left out of the current task's scope:
+  - Search the project (including archived tasks) for an equivalent before creating one. Update or extend the existing task instead of duplicating it.
+  - Prefix titles with `[ISSUE]` (a defect, with Odoo color 1, red) or `[INTENT]` (a feature, enhancement, or technical debt, with color 10, green).
+  - Keep each task atomic and independently verifiable: scope, evidence, expected behavior, and staging-verifiable acceptance criteria.
+  - Never append to `docs/KNOWN_ISSUES.md`, and never create ROADMAP, backlog, or TODO Markdown files.
+  - If Odoo is unavailable, report the blocker to the user instead of keeping a shadow backlog.
+- OpenSpec holds active implementation specifications (`openspec/changes/`), current behavior (`openspec/specs/`), and implementation history (`openspec/changes/archive/`). Technical and architecture Markdown in `docs/` stays as documentation, not as a backlog.
 - Agent orchestration: Opus orchestrates and makes the decisions, Sonnet subagents investigate, and bounded mechanical work goes to Codex through `/codex:rescue` when that saves effort.
 - Production Syncfy webhooks route through `/providers/webhooks/syncfy`. The legacy `/syncfy/webhook` route is deprecated and must not be revived for event processing.
 - Extend `FinancialProviderAdapter` for new providers — do not create parallel provider-specific systems.
@@ -203,7 +209,7 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
 | `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements |
 | `docs/TESTING.md` | Test architecture, stack, coverage thresholds, how to write and run tests |
-| `docs/KNOWN_ISSUES.md` | Backlog of deferred/out-of-scope issues surfaced during work — check before re-flagging something already logged |
+| `docs/KNOWN_ISSUES.md` | Temporary migration review ledger with owner decisions pending; never add entries, delete once resolved |
 | `apps/api/CLAUDE.md` | Backend module system, request lifecycle, provider pattern |
 | `apps/web/CLAUDE.md` | Frontend routing, page-module structure, shared components |
 | `database/CLAUDE.md` | Schema conventions, migration workflow |
