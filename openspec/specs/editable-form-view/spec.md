@@ -202,7 +202,7 @@ A field error SHALL render with `role="alert"` and be linked to the input by `ar
 - **THEN** no menu button is rendered
 
 ### Requirement: Unsaved-change protection
-While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's back arrow SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty, and SHALL navigate and discard the draft only when confirmed. Cancel never asks. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be recorded as a known issue.
+While a draft is dirty, the hook SHALL register a `beforeunload` guard and remove it when clean. The view's back arrow SHALL ask for confirmation, through the app's in-app confirm dialog and not `window.confirm`, when the draft is dirty, and SHALL navigate and discard the draft only when confirmed. Cancel never asks. Blocking navigation through arbitrary in-app links is out of scope for this version and SHALL be tracked as a task in the Odoo project "Flowledger".
 
 #### Scenario: Close tab with edits
 - **WHEN** a user closes or reloads the page with a dirty draft

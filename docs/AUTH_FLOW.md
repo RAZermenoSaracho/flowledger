@@ -137,7 +137,7 @@ Controller: `apps/api/src/modules/auth/controllers/update.controller.ts`. Not be
    - Revoke the presented row's own predecessor, because using this token proves the client received it
 3. Set the session cookies, return `{ token, user }`
 
-A token stays valid until its successor is first used, then it is rejected. That covers a response lost to a network drop or app suspension, however long the device takes to return, and parallel refreshes from several tabs. Siblings created this way expire on their own; no client holds them, because the cookie store keeps one value. There is no reuse alarm (`docs/KNOWN_ISSUES.md` #007).
+A token stays valid until its successor is first used, then it is rejected. That covers a response lost to a network drop or app suspension, however long the device takes to return, and parallel refreshes from several tabs. Siblings created this way expire on their own; no client holds them, because the cookie store keeps one value. There is no reuse alarm.
 
 The MCP OAuth server has its own rotation with a 30-second grace window (see below), which suits server clients that retry immediately.
 

@@ -211,7 +211,7 @@ Creating a Group, editing, archiving, restoring, deleting, adding members, manag
 
 ### Requirement: Overlays render above page content
 
-Filter modals and dropdowns on the overview and detail views SHALL appear above all page content and SHALL NOT be clipped or overlapped by other fields, in a single-column layout with no sticky list column. This closes KNOWN_ISSUES #028.
+Filter modals and dropdowns on the overview and detail views SHALL appear above all page content and SHALL NOT be clipped or overlapped by other fields, in a single-column layout with no sticky list column.
 
 #### Scenario: Filter modal on the overview
 - **WHEN** the user opens the filter modal on the overview at mobile and desktop width
