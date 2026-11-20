@@ -122,7 +122,7 @@ Vitest runs in every workspace (`apps/api`, `apps/web`, `packages/shared`) with 
   - Search the project (including archived tasks) for an equivalent before creating one. Update or extend the existing task instead of duplicating it.
   - Prefix titles with `[ISSUE]` (a defect, with Odoo color 1, red) or `[INTENT]` (a feature, enhancement, or technical debt, with color 10, green).
   - Keep each task atomic and independently verifiable: scope, evidence, expected behavior, and staging-verifiable acceptance criteria.
-  - Never append to `docs/KNOWN_ISSUES.md`, and never create ROADMAP, backlog, or TODO Markdown files.
+  - Never create ROADMAP, KNOWN_ISSUES, backlog, or TODO Markdown files.
   - If Odoo is unavailable, report the blocker to the user instead of keeping a shadow backlog.
 - OpenSpec holds active implementation specifications (`openspec/changes/`), current behavior (`openspec/specs/`), and implementation history (`openspec/changes/archive/`). Technical and architecture Markdown in `docs/` stays as documentation, not as a backlog.
 - Agent orchestration: Opus orchestrates and makes the decisions, Sonnet subagents investigate, and bounded mechanical work goes to Codex through `/codex:rescue` when that saves effort.
@@ -209,7 +209,6 @@ A file's role is fixed by its location: types only in a module's `types.ts` file
 | `docs/PROVIDER_SYNC.md` | Syncfy integration, webhook security, auto-sync scheduler |
 | `docs/DOMAIN_LOGIC.md` | Groups, shared expenses, debts, settlements |
 | `docs/TESTING.md` | Test architecture, stack, coverage thresholds, how to write and run tests |
-| `docs/KNOWN_ISSUES.md` | Temporary migration review ledger with owner decisions pending; never add entries, delete once resolved |
 | `apps/api/CLAUDE.md` | Backend module system, request lifecycle, provider pattern |
 | `apps/web/CLAUDE.md` | Frontend routing, page-module structure, shared components |
 | `database/CLAUDE.md` | Schema conventions, migration workflow |
