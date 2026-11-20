@@ -182,7 +182,9 @@ Only a `401` from `/auth/refresh` ends the session: it clears the token and noti
 
 ## Connecting Google to an existing account
 
-`POST /auth/google/link` (behind `requireAuth`) returns the Google URL and sets the nonce cookie, with the signed state carrying `linkUserId`. The callback then creates only the link, issues no session, and returns to `/profile?tab=security&googleLink=connected|conflict|failed`. An identity linked to another account, or a user already linked to a different identity, gets `conflict`, which never names the other account. `GET /auth/google/link` reports `{ connected }`.
+`POST /auth/google/link` (behind `requireAuth`) returns the Google URL and sets the nonce cookie, with the signed state carrying `linkUserId`. The callback itself creates no link, because it carries no proof of who is signed in: the refresh cookie is `SameSite=Strict` and not sent on the cross-site return from Google, the bearer token is never attached to a navigation, and the nonce cookie can be planted by a sibling subdomain. Once the code is exchanged and the identity verified, the callback clears the nonce cookie, sets a signed pending-link cookie, and redirects to `/profile?tab=security&googleLink=pending|failed`. It issues no session.
+
+The pending cookie `flowledger_google_link_pending` holds a JWT (audience `google-link`, `HS256`, 5 minutes) with `{ linkUserId, providerAccountId, email }`. It is `HttpOnly; SameSite=Lax; Path=/auth/google/link`, and `Secure` in production. On `pending`, the Profile page calls `POST /auth/google/link/complete` (`requireWebOrigin`, then `requireAuth`). The link is created only when the bearer user equals `linkUserId`. A missing, forged, expired, or mismatched cookie gets a generic 400 and links nothing; a mismatch also logs a warning with no identifiers. The endpoint expires the pending cookie even on a 400, and returns `{ result: "connected" | "conflict" }`. An identity linked to another account, or a user already linked to a different identity, gets `conflict`, which never names the other account; repeating the same link is `connected`. `GET /auth/google/link` reports `{ connected }`.
 
 ## Changing email
 
@@ -229,6 +231,7 @@ All JWTs share `JWT_SECRET`, so every verifier names its audience and algorithm,
 |---|---|---|---|
 | Access token | `flowledger-access` | `auth/utils/tokens.ts` | `verifyAccessToken` |
 | Google OAuth state | `google-oauth` | `auth/providers/google/utils/googleState.ts` | `verifyGoogleState` |
+| Google pending link | `google-link` | `auth/providers/google/utils/googleState.ts` | `verifyGoogleLinkPending` |
 | MCP consent request | `oauth-consent` | `oauth/utils/consentRequest.ts` | `verifyConsentRequest` |
 
 The subject check matters because Prisma removes `undefined` from a `where`, so a request with no user id would otherwise lose its owner filter.
@@ -310,5 +313,6 @@ FlowLedger is an OAuth 2.1 authorization server for `/mcp` (module `apps/api/src
 - The nonce in the OAuth cookie prevents CSRF during the OAuth handshake
 - The nonce cookie is scoped to `Path=/auth/google/callback` to limit exposure
 - Both the refresh and nonce cookies are `Secure` in production
+- A Google link is created only by an authenticated request: the callback leaves a signed pending-link cookie (`Path=/auth/google/link`, 5 minutes), and `POST /auth/google/link/complete` links only when the bearer user equals the signed `linkUserId`, so a planted nonce cookie cannot attach a Google identity to another user's account
 - OAuth state carries the redirect destination inside a short-lived signed JWT — it cannot be forged
 - `passwordHash` is never included in API responses

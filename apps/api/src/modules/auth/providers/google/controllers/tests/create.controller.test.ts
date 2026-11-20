@@ -6,12 +6,14 @@ vi.mock("../../../../../../config/env.js", () => ({
 }));
 
 vi.mock("../../services/create.service.js", () => ({
+  completeGoogleLink: vi.fn(),
   buildGoogleAuthUrl: vi.fn(),
   handleGoogleCallback: vi.fn(),
   hasGoogleLink: vi.fn()
 }));
 
 vi.mock("../../utils/googleStateCookie.js", () => ({
+  googleLinkPendingCookie: vi.fn(),
   googleStateCookie: vi.fn()
 }));
 
@@ -19,12 +21,12 @@ vi.mock("../../../../utils/refreshTokenCookie.js", () => ({
   buildSessionCookies: vi.fn()
 }));
 
-const { buildGoogleAuthUrl, handleGoogleCallback, hasGoogleLink } = await import(
+const { buildGoogleAuthUrl, completeGoogleLink, handleGoogleCallback, hasGoogleLink } = await import(
   "../../services/create.service.js"
 );
-const { googleStateCookie } = await import("../../utils/googleStateCookie.js");
+const { googleLinkPendingCookie, googleStateCookie } = await import("../../utils/googleStateCookie.js");
 const { buildSessionCookies } = await import("../../../../utils/refreshTokenCookie.js");
-const { googleLinkStart, googleLinkStatus, googleOAuthCallback, googleOAuthStart } = await import(
+const { googleLinkComplete, googleLinkStart, googleLinkStatus, googleOAuthCallback, googleOAuthStart } = await import(
   "../create.controller.js"
 );
 
@@ -149,9 +151,66 @@ describe("googleOAuthCallback in link mode", () => {
     await googleOAuthCallback(mockRequest({ query: { state: "s", code: "c" }, headers: {} }), res);
 
     expect(buildSessionCookies).not.toHaveBeenCalled();
-    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "cleared-state");
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", ["cleared-state"]);
     expect(res.redirect).toHaveBeenCalledWith(
       "http://localhost:5173/profile?tab=security&googleLink=conflict"
     );
+  });
+});
+
+describe("googleOAuthCallback with a pending link", () => {
+  it("sets the pending cookie, clears the nonce cookie, and redirects with googleLink=pending", async () => {
+    vi.mocked(handleGoogleCallback).mockResolvedValue({
+      linkResult: "pending",
+      pendingToken: "pending-jwt"
+    } as never);
+    vi.mocked(buildSessionCookies).mockClear();
+    vi.mocked(googleStateCookie).mockReturnValue("cleared-state");
+    vi.mocked(googleLinkPendingCookie).mockReturnValue("pending-cookie");
+    const res = mockResponse();
+
+    await googleOAuthCallback(mockRequest({ query: { state: "s", code: "c" }, headers: {} }), res);
+
+    expect(googleLinkPendingCookie).toHaveBeenCalledWith("pending-jwt", 300);
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", ["cleared-state", "pending-cookie"]);
+    expect(buildSessionCookies).not.toHaveBeenCalled();
+    expect(res.redirect).toHaveBeenCalledWith(
+      "http://localhost:5173/profile?tab=security&googleLink=pending"
+    );
+  });
+});
+
+describe("googleLinkComplete", () => {
+  it("expires the pending cookie and returns the result for the signed-in user", async () => {
+    vi.mocked(completeGoogleLink).mockResolvedValue("connected");
+    vi.mocked(googleLinkPendingCookie).mockReturnValue("expired-pending");
+    const res = mockResponse();
+
+    await googleLinkComplete(
+      mockRequest({
+        user: { id: "user-1", email: "a@example.com" },
+        headers: { cookie: "c=1" }
+      } as never),
+      res
+    );
+
+    expect(googleLinkPendingCookie).toHaveBeenCalledWith("", 0);
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "expired-pending");
+    expect(completeGoogleLink).toHaveBeenCalledWith("user-1", "c=1");
+    expect(res.json).toHaveBeenCalledWith({ result: "connected" });
+  });
+
+  it("still expires the cookie when completion throws", async () => {
+    vi.mocked(completeGoogleLink).mockRejectedValue(new Error("nope"));
+    vi.mocked(googleLinkPendingCookie).mockReturnValue("expired-pending");
+    const res = mockResponse();
+
+    await expect(
+      googleLinkComplete(
+        mockRequest({ user: { id: "user-1", email: "a@example.com" }, headers: {} } as never),
+        res
+      )
+    ).rejects.toThrow("nope");
+    expect(res.setHeader).toHaveBeenCalledWith("Set-Cookie", "expired-pending");
   });
 });
