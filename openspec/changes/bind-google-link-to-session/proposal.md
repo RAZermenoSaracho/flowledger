@@ -13,7 +13,7 @@ Binding therefore has to happen on a request that does carry a session.
 ## What Changes
 
 - In link mode, the callback no longer creates the link. After the nonce check, it exchanges the code and verifies the Google identity as before. It then stores the result in a short-lived signed "pending link" cookie that holds `linkUserId` and the Google identity, and redirects to `/profile?tab=security&googleLink=pending`. Cancellation and exchange errors still redirect with `googleLink=failed` and set no pending cookie.
-- New `POST /auth/google/link/complete`, behind `requireAuth`. It verifies the pending cookie, and creates the link only when the bearer token's user equals the pending `linkUserId`. It always clears the cookie. A missing, invalid, or expired cookie, or a user mismatch, gets a generic 400 and links nothing.
+- New `POST /auth/google/link/complete`, behind `requireWebOrigin` and `requireAuth`. It verifies the pending cookie, and creates the link only when the bearer token's user equals the pending `linkUserId`. It always clears the cookie. A missing, invalid, or expired cookie, or a user mismatch, gets a generic 400 and links nothing.
 - On `googleLink=pending`, the web Profile Google section calls the completion endpoint once (after session restore), shows the result through the existing `connected | conflict | failed` messages, and refreshes the link status.
 - Google sign-in and registration (non-link mode) are unchanged.
 
@@ -29,8 +29,7 @@ None.
 
 ## Impact
 
-- API: `auth/providers/google/services/create.service.ts`, `controllers/create.controller.ts`, `google.routes.ts`, `utils/` (new pending-link token and cookie helpers), `types/google.types.ts`, and the matching tests.
+- API: `auth/providers/google/services/create.service.ts`, `controllers/create.controller.ts`, `google.routes.ts` (the new route with `requireWebOrigin` and `requireAuth`), the existing `utils/googleState.ts` and `utils/googleStateCookie.ts` (pending-link token and cookie helpers), `types/google.types.ts`, `auth/tests/auth.routes.test.ts`, and the matching tests.
 - Web: `services/auth.client.ts`, `pages/Profile/components/GoogleSection.tsx`, and their tests.
-- Shared: the completion response type/schema in `packages/shared/src/schemas/auth.ts`.
 - Docs: `docs/AUTH_FLOW.md`, the Google link section.
 - No database migration, no new dependency, no new env var.
