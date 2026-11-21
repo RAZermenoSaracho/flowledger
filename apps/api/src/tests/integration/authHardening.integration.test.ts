@@ -8,16 +8,28 @@ import {
   refreshWith,
   registerWithSession
 } from "../helpers/sessionCookies.js";
-import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js";
+import {
+  startTestDatabase,
+  stopTestDatabase
+} from "../helpers/testDatabase.js";
 import { refreshTokenCookieName } from "../../modules/auth/utils/refreshTokenCookie.js";
 import { signGoogleState } from "../../modules/auth/providers/google/utils/googleState.js";
-import { googleStateCookieName } from "../../modules/auth/providers/google/utils/googleStateCookie.js";
+import {
+  googleLinkPendingCookieName,
+  googleStateCookieName
+} from "../../modules/auth/providers/google/utils/googleStateCookie.js";
 import { hashRefreshToken } from "../../modules/auth/utils/tokens.js";
 
-vi.mock("../../modules/auth/providers/google/services/google.client.js", () => ({
-  exchangeGoogleCode: vi.fn(async (code: string) => ({ id_token: code, access_token: code })),
-  verifyGoogleIdentity: vi.fn(async (idToken: string) => JSON.parse(idToken))
-}));
+vi.mock(
+  "../../modules/auth/providers/google/services/google.client.js",
+  () => ({
+    exchangeGoogleCode: vi.fn(async (code: string) => ({
+      id_token: code,
+      access_token: code
+    })),
+    verifyGoogleIdentity: vi.fn(async (idToken: string) => JSON.parse(idToken))
+  })
+);
 
 let app: Express;
 let prisma: typeof import("../../db/prisma.js").prisma;
@@ -38,6 +50,25 @@ function googleCallback(
     .get("/auth/google/callback")
     .query({ state, code: JSON.stringify(profile) })
     .set("Cookie", `${googleStateCookieName}=${nonce}`);
+}
+
+/** Runs the link callback and returns it with its pending-link cookie as a `Cookie` header value. */
+async function startGoogleLink(
+  profile: { providerAccountId: string; email: string; name: string },
+  linkUserId: string
+) {
+  const callback = await googleCallback(profile, linkUserId);
+  const setCookie = findSetCookie(callback, googleLinkPendingCookieName);
+  return { callback, setCookie, cookie: (setCookie ?? "").split(";")[0] ?? "" };
+}
+
+/** Redeems a pending-link cookie as the user holding `token`, from the web origin. */
+function completeGoogleLink(token: string, cookie: string) {
+  return request(app)
+    .post("/auth/google/link/complete")
+    .set("Origin", "http://localhost:5173")
+    .set("Authorization", `Bearer ${token}`)
+    .set("Cookie", cookie);
 }
 
 const uniqueId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -66,7 +97,9 @@ describe("account identity and session hardening", () => {
       expect(response.status).toBe(302);
       expect(response.headers.location).toContain("/login?oauthError=");
       expect(findSetCookie(response, refreshTokenCookieName)).toBeUndefined();
-      expect(await prisma.userAuthAccount.count({ where: { userId: owner.userId } })).toBe(0);
+      expect(
+        await prisma.userAuthAccount.count({ where: { userId: owner.userId } })
+      ).toBe(0);
     });
 
     it("creates a new account for a new email and returns to it through the link", async () => {
@@ -79,7 +112,9 @@ describe("account identity and session hardening", () => {
       const first = await googleCallback(profile);
       expect(findSetCookie(first, refreshTokenCookieName)).toBeDefined();
 
-      const user = await prisma.user.findUniqueOrThrow({ where: { email: profile.email } });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email: profile.email }
+      });
       await prisma.user.update({
         where: { id: user.id },
         data: { email: `changed-${uniqueId()}@example.com` }
@@ -87,7 +122,9 @@ describe("account identity and session hardening", () => {
 
       const second = await googleCallback(profile);
       expect(findSetCookie(second, refreshTokenCookieName)).toBeDefined();
-      expect(await prisma.user.count({ where: { email: profile.email } })).toBe(0);
+      expect(await prisma.user.count({ where: { email: profile.email } })).toBe(
+        0
+      );
     });
 
     it("links from a signed-in flow with no session change, then allows Google sign-in", async () => {
@@ -98,10 +135,29 @@ describe("account identity and session hardening", () => {
         name: "Owner"
       };
 
-      const link = await googleCallback(profile, owner.userId);
+      const { callback, setCookie, cookie } = await startGoogleLink(
+        profile,
+        owner.userId
+      );
 
-      expect(link.headers.location).toContain("/profile?tab=security&googleLink=connected");
-      expect(findSetCookie(link, refreshTokenCookieName)).toBeUndefined();
+      expect(callback.headers.location).toContain(
+        "/profile?tab=security&googleLink=pending"
+      );
+      expect(findSetCookie(callback, refreshTokenCookieName)).toBeUndefined();
+      expect(setCookie).toContain("HttpOnly");
+      expect(setCookie).toContain("SameSite=Lax");
+      expect(setCookie).toContain("Path=/auth/google/link");
+      expect(
+        await prisma.userAuthAccount.count({ where: { userId: owner.userId } })
+      ).toBe(0);
+
+      const complete = await completeGoogleLink(owner.token, cookie);
+      expect(complete.status).toBe(200);
+      expect(complete.body).toEqual({ result: "connected" });
+      expect(findSetCookie(complete, googleLinkPendingCookieName)).toContain(
+        "Max-Age=0"
+      );
+      expect(findSetCookie(complete, refreshTokenCookieName)).toBeUndefined();
 
       const status = await request(app)
         .get("/auth/google/link")
@@ -120,13 +176,73 @@ describe("account identity and session hardening", () => {
         email: `shared-${uniqueId()}@example.com`,
         name: "Shared"
       };
-      await googleCallback(profile, first.userId);
+      const firstLink = await startGoogleLink(profile, first.userId);
+      await completeGoogleLink(first.token, firstLink.cookie);
 
-      const conflict = await googleCallback(profile, second.userId);
+      const { callback, cookie } = await startGoogleLink(
+        profile,
+        second.userId
+      );
+      expect(callback.headers.location).toContain("googleLink=pending");
 
-      expect(conflict.headers.location).toContain("googleLink=conflict");
-      expect(conflict.headers.location).not.toContain(first.email);
-      expect(await prisma.userAuthAccount.count({ where: { userId: second.userId } })).toBe(0);
+      const conflict = await completeGoogleLink(second.token, cookie);
+
+      expect(conflict.status).toBe(200);
+      expect(conflict.body).toEqual({ result: "conflict" });
+      expect(JSON.stringify(conflict.body)).not.toContain(first.email);
+      expect(findSetCookie(conflict, googleLinkPendingCookieName)).toContain(
+        "Max-Age=0"
+      );
+      expect(
+        await prisma.userAuthAccount.count({ where: { userId: second.userId } })
+      ).toBe(0);
+    });
+
+    it("treats a replayed pending-link cookie as an idempotent connect with no duplicate identity", async () => {
+      const owner = await registerWithSession(app);
+      const profile = {
+        providerAccountId: `sub-${uniqueId()}`,
+        email: `replay-${uniqueId()}@example.com`,
+        name: "Owner"
+      };
+      const { cookie } = await startGoogleLink(profile, owner.userId);
+
+      expect((await completeGoogleLink(owner.token, cookie)).body).toEqual({
+        result: "connected"
+      });
+      const replay = await completeGoogleLink(owner.token, cookie);
+
+      expect(replay.status).toBe(200);
+      expect(replay.body).toEqual({ result: "connected" });
+      expect(
+        await prisma.userAuthAccount.count({ where: { userId: owner.userId } })
+      ).toBe(1);
+    });
+
+    it("rejects a pending-link cookie redeemed by a different signed-in user, linking nothing", async () => {
+      const owner = await registerWithSession(app);
+      const intruder = await registerWithSession(app);
+      const profile = {
+        providerAccountId: `sub-${uniqueId()}`,
+        email: `stolen-${uniqueId()}@example.com`,
+        name: "Owner"
+      };
+      const { cookie } = await startGoogleLink(profile, owner.userId);
+
+      const response = await completeGoogleLink(intruder.token, cookie);
+
+      expect(response.status).toBe(400);
+      expect(findSetCookie(response, googleLinkPendingCookieName)).toContain(
+        "Max-Age=0"
+      );
+      expect(
+        await prisma.userAuthAccount.count({
+          where: { userId: intruder.userId }
+        })
+      ).toBe(0);
+      expect(
+        await prisma.userAuthAccount.count({ where: { userId: owner.userId } })
+      ).toBe(0);
     });
 
     it("rejects the link start without an access token", async () => {
@@ -181,10 +297,15 @@ describe("account identity and session hardening", () => {
         .patch("/auth/email")
         .set("Authorization", `Bearer ${owner.token}`)
         .set("Cookie", owner.cookie)
-        .send({ email: `no-${uniqueId()}@example.com`, currentPassword: "wrong-password" });
+        .send({
+          email: `no-${uniqueId()}@example.com`,
+          currentPassword: "wrong-password"
+        });
 
       expect(response.status).toBe(400);
-      const stored = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+      const stored = await prisma.user.findUniqueOrThrow({
+        where: { id: owner.userId }
+      });
       expect(stored.email).toBe(owner.email);
       expect((await refreshWith(app, owner.cookie)).status).toBe(200);
     });
@@ -196,7 +317,10 @@ describe("account identity and session hardening", () => {
       const response = await request(app)
         .patch("/auth/email")
         .set("Authorization", `Bearer ${owner.token}`)
-        .send({ email: other.email.toUpperCase(), currentPassword: owner.password });
+        .send({
+          email: other.email.toUpperCase(),
+          currentPassword: owner.password
+        });
 
       expect(response.status).toBe(409);
     });
@@ -210,7 +334,9 @@ describe("account identity and session hardening", () => {
         .send({ name: "New Name", email: `sneaky-${uniqueId()}@example.com` });
 
       expect(response.status).toBe(400);
-      const stored = await prisma.user.findUniqueOrThrow({ where: { id: owner.userId } });
+      const stored = await prisma.user.findUniqueOrThrow({
+        where: { id: owner.userId }
+      });
       expect(stored.email).toBe(owner.email);
       expect(stored.name).toBe("Session User");
     });
@@ -225,7 +351,11 @@ describe("account identity and session hardening", () => {
       const owner = await registerWithSession(app);
       const second = await refreshWith(app, owner.cookie);
       const third = await refreshWith(app, refreshCookieFrom(second));
-      return { owner, original: owner.cookie, latest: refreshCookieFrom(third) };
+      return {
+        owner,
+        original: owner.cookie,
+        latest: refreshCookieFrom(third)
+      };
     }
 
     it("leaves descendants valid when a token revoked inside the grace period is replayed", async () => {
@@ -260,7 +390,9 @@ describe("account identity and session hardening", () => {
 
       await loginSession(app, owner.email, owner.password);
 
-      expect(await prisma.refreshToken.findUnique({ where: { id: expired.id } })).toBeNull();
+      expect(
+        await prisma.refreshToken.findUnique({ where: { id: expired.id } })
+      ).toBeNull();
       expect(
         await prisma.refreshToken.findUnique({
           where: { tokenHash: hashRefreshToken(tokenFrom(original)) }
@@ -272,7 +404,9 @@ describe("account identity and session hardening", () => {
   describe("foreign origins", () => {
     it("rejects refresh and logout from a sibling origin without touching the token", async () => {
       const owner = await registerWithSession(app);
-      const hash = hashRefreshToken(decodeURIComponent(owner.cookie.split("=")[1] ?? ""));
+      const hash = hashRefreshToken(
+        decodeURIComponent(owner.cookie.split("=")[1] ?? "")
+      );
 
       for (const path of ["/auth/refresh", "/auth/logout"]) {
         const response = await request(app)
@@ -282,7 +416,9 @@ describe("account identity and session hardening", () => {
         expect(response.status).toBe(403);
       }
 
-      const stored = await prisma.refreshToken.findUniqueOrThrow({ where: { tokenHash: hash } });
+      const stored = await prisma.refreshToken.findUniqueOrThrow({
+        where: { tokenHash: hash }
+      });
       expect(stored.revokedAt).toBeNull();
       expect((await refreshWith(app, owner.cookie)).status).toBe(200);
     });
