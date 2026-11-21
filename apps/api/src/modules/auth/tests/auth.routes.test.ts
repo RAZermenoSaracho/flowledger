@@ -18,7 +18,11 @@ import {
   refreshTokenCookieName,
   sessionPresenceCookieName
 } from "../utils/refreshTokenCookie.js";
-import { signGoogleState } from "../providers/google/utils/googleState.js";
+import {
+  signGoogleLinkPending,
+  signGoogleState
+} from "../providers/google/utils/googleState.js";
+import { googleLinkPendingCookieName } from "../providers/google/utils/googleStateCookie.js";
 import { hashRefreshToken } from "../utils/tokens.js";
 
 // NOT run in this sandbox (no Docker) — see docs/TESTING.md.
@@ -308,6 +312,72 @@ describe("/auth routes", () => {
         .send(body(a.password));
 
       expect(response.status).toBe(401);
+    });
+  });
+
+  describe("POST /auth/google/link/complete", () => {
+    const pendingFor = (linkUserId: string, providerAccountId: string) =>
+      `${googleLinkPendingCookieName}=${signGoogleLinkPending({
+        linkUserId,
+        providerAccountId,
+        email: "linked@example.com"
+      })}`;
+
+    it("returns 401 without a bearer token and leaves the pending cookie alone", async () => {
+      const { userId } = await registerWithSession(app);
+
+      const response = await request(app)
+        .post("/auth/google/link/complete")
+        .set("Cookie", pendingFor(userId, "sub-401"));
+
+      expect(response.status).toBe(401);
+      expect(findSetCookie(response, googleLinkPendingCookieName)).toBeUndefined();
+    });
+
+    it("returns 403 for a foreign Origin", async () => {
+      const { token, userId } = await registerWithSession(app);
+
+      const response = await request(app)
+        .post("/auth/google/link/complete")
+        .set("Origin", "https://evil.example")
+        .set("Authorization", `Bearer ${token}`)
+        .set("Cookie", pendingFor(userId, "sub-403"));
+
+      expect(response.status).toBe(403);
+    });
+
+    it("returns 400, expires the cookie, and links nothing when the bearer user is not the linking user", async () => {
+      const victim = await registerWithSession(app);
+      const attacker = await registerWithSession(app);
+
+      const response = await request(app)
+        .post("/auth/google/link/complete")
+        .set("Authorization", `Bearer ${attacker.token}`)
+        .set("Cookie", pendingFor(victim.userId, "sub-mismatch"));
+
+      expect(response.status).toBe(400);
+      expect(findSetCookie(response, googleLinkPendingCookieName)).toContain("Max-Age=0");
+      expect(
+        await prisma.userAuthAccount.count({ where: { providerAccountId: "sub-mismatch" } })
+      ).toBe(0);
+    });
+
+    it("links the identity, expires the cookie, and returns connected for the matching user", async () => {
+      const { token, userId } = await registerWithSession(app);
+
+      const response = await request(app)
+        .post("/auth/google/link/complete")
+        .set("Authorization", `Bearer ${token}`)
+        .set("Cookie", pendingFor(userId, "sub-ok"));
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ result: "connected" });
+      expect(findSetCookie(response, googleLinkPendingCookieName)).toContain("Max-Age=0");
+      expect(
+        await prisma.userAuthAccount.findFirst({
+          where: { userId, provider: "google", providerAccountId: "sub-ok" }
+        })
+      ).not.toBeNull();
     });
   });
 

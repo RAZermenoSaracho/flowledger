@@ -6,10 +6,16 @@ import { withGeneratedUsername } from "../../../../users/utils/generateUsername.
 import { issueRefreshToken } from "../../../services/create.service.js";
 import type { GoogleLinkResult, GoogleProfile } from "../types/google.types.js";
 import {
+  googleLinkPendingCookieName,
   googleStateCookieName,
   parseCookies
 } from "../utils/googleStateCookie.js";
-import { signGoogleState, verifyGoogleState } from "../utils/googleState.js";
+import {
+  signGoogleLinkPending,
+  signGoogleState,
+  verifyGoogleLinkPending,
+  verifyGoogleState
+} from "../utils/googleState.js";
 import { exchangeGoogleCode, verifyGoogleIdentity } from "./google.client.js";
 
 const googleOAuthProvider = "google";
@@ -87,7 +93,7 @@ async function findOrCreateGoogleUser(profile: GoogleProfile) {
 
 async function linkGoogleIdentity(
   userId: string,
-  profile: GoogleProfile
+  profile: Pick<GoogleProfile, "providerAccountId" | "email">
 ): Promise<GoogleLinkResult> {
   return prisma.$transaction(async (tx) => {
     const identity = await tx.userAuthAccount.findUnique({
@@ -139,7 +145,7 @@ export async function hasGoogleLink(userId: string) {
 /**
  * Verifies the OAuth state/nonce cookie pair and exchanges the auth code for a Google identity.
  *
- * In sign-in mode it enters the linked or newly created account and issues a refresh token, like a regular login; the web app gets its access token through session restore, so none ever appears in a URL. In link mode (`linkUserId` in the signed state) it links the identity to that user and issues no session, reporting problems as a `linkResult` so the caller returns to Profile.
+ * In sign-in mode it enters the linked or newly created account and issues a refresh token, like a regular login; the web app gets its access token through session restore, so none ever appears in a URL. In link mode (`linkUserId` in the signed state) it creates no link and issues no session: the callback carries no proof of who is signed in, so it returns a signed `pendingToken` for {@link completeGoogleLink} to redeem under the user's bearer token, reporting problems as a `linkResult` so the caller returns to Profile.
  */
 export async function handleGoogleCallback(input: {
   state: string;
@@ -155,7 +161,7 @@ export async function handleGoogleCallback(input: {
   }
 
   if (state.linkUserId) {
-    return { linkResult: await completeLink(state.linkUserId, input) };
+    return prepareLink(state.linkUserId, input);
   }
 
   if (input.error || !input.code) {
@@ -174,18 +180,44 @@ async function fetchGoogleProfile(code: string) {
   return verifyGoogleIdentity(googleTokens.id_token, googleTokens.access_token);
 }
 
-async function completeLink(
-  userId: string,
+async function prepareLink(
+  linkUserId: string,
   input: { code?: string; error?: string }
-): Promise<GoogleLinkResult> {
+): Promise<{ linkResult: "failed" } | { linkResult: "pending"; pendingToken: string }> {
   if (input.error || !input.code) {
-    return "failed";
+    return { linkResult: "failed" };
   }
 
   try {
-    return await linkGoogleIdentity(userId, await fetchGoogleProfile(input.code));
+    const { providerAccountId, email } = await fetchGoogleProfile(input.code);
+
+    return {
+      linkResult: "pending",
+      pendingToken: signGoogleLinkPending({ linkUserId, providerAccountId, email })
+    };
   } catch (error) {
     console.error("Google account link failed", error);
-    return "failed";
+    return { linkResult: "failed" };
   }
+}
+
+/** Redeems the pending-link cookie for the authenticated user; throws a generic 400 when the cookie is missing, invalid, expired, or was issued for another user. */
+export async function completeGoogleLink(
+  userId: string,
+  cookieHeader: string | undefined
+): Promise<GoogleLinkResult> {
+  const token = parseCookies(cookieHeader).get(googleLinkPendingCookieName);
+
+  if (!token) {
+    throw new HttpError(400, "Google could not be connected");
+  }
+
+  const { linkUserId, providerAccountId, email } = verifyGoogleLinkPending(token);
+
+  if (linkUserId !== userId) {
+    console.warn("Google link completion rejected: user mismatch");
+    throw new HttpError(400, "Google could not be connected");
+  }
+
+  return linkGoogleIdentity(userId, { providerAccountId, email });
 }

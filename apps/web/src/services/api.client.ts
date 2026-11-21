@@ -64,7 +64,12 @@ export function apiUrl(path: string) {
 }
 
 /** `/auth/*` routes that are ordinary access-token routes, so a 401 on them is retried after a silent refresh. */
-const ACCESS_TOKEN_AUTH_PATHS = new Set(["/auth/password", "/auth/email", "/auth/google/link"]);
+const ACCESS_TOKEN_AUTH_PATHS = new Set([
+  "/auth/password",
+  "/auth/email",
+  "/auth/google/link",
+  "/auth/google/link/complete"
+]);
 
 let refreshPromise: Promise<boolean> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
@@ -120,8 +125,8 @@ export function refreshAccessToken(): Promise<boolean> {
  * Generic authenticated fetch wrapper used by every `<module>.client.ts`
  * function; attaches the bearer token, sends/receives the httpOnly refresh
  * cookie, and throws `ApiError` on non-2xx responses. On a 401 from any
- * non-`/auth` path, or from `/auth/password`, `/auth/email` or `/auth/google/link`
- * (ordinary access-token routes despite their prefix), attempts one silent token refresh and retries the
+ * non-`/auth` path, or from `/auth/password`, `/auth/email`, `/auth/google/link` or
+ * `/auth/google/link/complete` (ordinary access-token routes despite their prefix), attempts one silent token refresh and retries the
  * request before giving up.
  */
 export async function apiRequest<T>(

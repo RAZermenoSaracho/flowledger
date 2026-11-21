@@ -45,6 +45,13 @@ export function startGoogleLink() {
   return apiRequest<{ url: string }>("/auth/google/link", { method: "POST" });
 }
 
+/** Completes the Google link the OAuth callback left pending in a cookie; resolves `connected` or `conflict`, and rejects when the pending link is missing, expired, or belongs to another user. */
+export function completeGoogleLink() {
+  return apiRequest<{ result: "connected" | "conflict" }>("/auth/google/link/complete", {
+    method: "POST"
+  });
+}
+
 /** Reports whether the signed-in user has a Google identity linked. */
 export function getGoogleLinkStatus() {
   return apiRequest<{ connected: boolean }>("/auth/google/link");

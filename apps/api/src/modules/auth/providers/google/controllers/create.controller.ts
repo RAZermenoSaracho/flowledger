@@ -7,10 +7,14 @@ import { env } from "../../../../../config/env.js";
 import { HttpError } from "../../../../../utils/httpError.js";
 import {
   buildGoogleAuthUrl,
+  completeGoogleLink,
   handleGoogleCallback,
   hasGoogleLink
 } from "../services/create.service.js";
-import { googleStateCookie } from "../utils/googleStateCookie.js";
+import {
+  googleLinkPendingCookie,
+  googleStateCookie
+} from "../utils/googleStateCookie.js";
 import { buildSessionCookies } from "../../../utils/refreshTokenCookie.js";
 
 function redirectOAuthFailure(res: Response, message: string) {
@@ -44,7 +48,15 @@ export async function googleLinkStatus(req: Request, res: Response) {
   res.json({ connected: await hasGoogleLink(req.user!.id) });
 }
 
-/** Handles Google's OAuth redirect: completes login and forwards the caller to the web app with session cookies and no token, returns a link flow to Profile with its result and no session, or sends a failure to the login page with an error. */
+/** Completes a pending Google link for the signed-in user and expires the single-use pending cookie even when the link is rejected. */
+export async function googleLinkComplete(req: Request, res: Response) {
+  res.setHeader("Set-Cookie", googleLinkPendingCookie("", 0));
+  const result = await completeGoogleLink(req.user!.id, req.headers.cookie);
+
+  res.json({ result });
+}
+
+/** Handles Google's OAuth redirect: completes login and forwards the caller to the web app with session cookies and no token, returns a link flow to Profile with its result (plus a pending-link cookie to complete) and no session, or sends a failure to the login page with an error. */
 export async function googleOAuthCallback(req: Request, res: Response) {
   try {
     const query = req.query as unknown as GoogleOAuthCallbackQuery;
@@ -55,11 +67,16 @@ export async function googleOAuthCallback(req: Request, res: Response) {
       error: query.error
     });
 
-    if (result.linkResult) {
+    if ("linkResult" in result) {
       const profileUrl = new URL("/profile", env.WEB_APP_URL);
       profileUrl.searchParams.set("tab", "security");
       profileUrl.searchParams.set("googleLink", result.linkResult);
-      res.setHeader("Set-Cookie", googleStateCookie("", 0));
+      res.setHeader("Set-Cookie", [
+        googleStateCookie("", 0),
+        ...(result.linkResult === "pending"
+          ? [googleLinkPendingCookie(result.pendingToken, 5 * 60)]
+          : [])
+      ]);
       res.redirect(profileUrl.toString());
       return;
     }
