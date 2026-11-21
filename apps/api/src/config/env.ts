@@ -33,13 +33,12 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot =
   findWorkspaceRoot(process.cwd()) ?? findWorkspaceRoot(moduleDir);
 
-if (workspaceRoot) {
+// Vitest supplies fake values via vitest.config.ts so tests never read a developer .env.
+if (!process.env.VITEST) {
   dotenv.config({
-    path: path.join(workspaceRoot, ".env"),
+    path: workspaceRoot && path.join(workspaceRoot, ".env"),
     override: process.env.NODE_ENV === "production"
   });
-} else {
-  dotenv.config({ override: process.env.NODE_ENV === "production" });
 }
 
 /** Parses a boolean env flag: `true`/`1` enable; `false`/`0`/empty/unset disable (case-insensitive, trimmed); anything else fails validation. */

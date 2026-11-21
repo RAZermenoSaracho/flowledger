@@ -3,8 +3,16 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    // Keeps a developer .env key from ever reaching the live provider; dotenv never overrides an existing variable.
-    env: { TWELVE_DATA_API_KEY: "" },
+    // config/env.ts skips dotenv under Vitest, so tests never read a developer .env and run in fresh worktrees; these are fake values for the required variables.
+    env: {
+      DATABASE_URL: "postgresql://test:test@127.0.0.1:1/flowledger_test",
+      JWT_SECRET: "test-only-jwt-secret-not-a-real-secret-0123456789",
+      GOOGLE_CLIENT_ID: "test-google-client-id",
+      GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+      GOOGLE_CALLBACK_URL: "http://localhost:4000/auth/google/callback",
+      WEB_APP_URL: "http://localhost:5173",
+      TWELVE_DATA_API_KEY: ""
+    },
     mockReset: true,
     setupFiles: ["src/tests/helpers/loopback.setup.ts"],
     // docker-test-vm has 2 vCPUs; default parallelism drives its load to ~30 and trips 5s test / 10s hook timeouts.
