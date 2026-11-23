@@ -4,6 +4,7 @@ import { server } from "../../tests/mocks/server";
 import { tokenStore } from "../api.client";
 import {
   clearLegacyStoredToken,
+  completeGoogleLink,
   getGoogleLinkStatus,
   googleOAuthUrl,
   login,
@@ -82,6 +83,13 @@ describe("Google link", () => {
   it("starts the link with a POST and returns the consent url", async () => {
     server.use(http.post(`${API}/auth/google/link`, () => HttpResponse.json({ url: "https://g.example/consent" })));
     expect(await startGoogleLink()).toEqual({ url: "https://g.example/consent" });
+  });
+
+  it("completes the pending link with a POST and returns the result", async () => {
+    server.use(
+      http.post(`${API}/auth/google/link/complete`, () => HttpResponse.json({ result: "conflict" }))
+    );
+    expect(await completeGoogleLink()).toEqual({ result: "conflict" });
   });
 
   it("reads the connected status", async () => {

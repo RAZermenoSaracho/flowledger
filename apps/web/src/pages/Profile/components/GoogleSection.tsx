@@ -1,9 +1,9 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
-import { getGoogleLinkStatus, startGoogleLink } from "../../../services/auth.client";
+import { completeGoogleLink, getGoogleLinkStatus, startGoogleLink } from "../../../services/auth.client";
 
 const resultMessages: Record<string, { text: string; isError: boolean }> = {
   connected: { text: "Google is now connected.", isError: false },
@@ -13,12 +13,29 @@ const resultMessages: Record<string, { text: string; isError: boolean }> = {
 
 /**
  * Google sign-in row for the Security tab: shows whether Google is connected and starts the link flow.
- * Reads the `googleLink` result param the API appends on return, shows its message once, and removes it from the URL.
+ * Reads the `googleLink` param the API appends on return and removes it from the URL. A `pending` value completes the link once under the signed-in session before its result is shown.
  */
 export function GoogleSection() {
   const [params, setParams] = useSearchParams();
   const [result] = useState(() => params.get("googleLink"));
-  const message = result ? resultMessages[result] : undefined;
+  const queryClient = useQueryClient();
+  const completed = useRef(false);
+  const [completion, setCompletion] = useState<string>();
+  const { mutate: completeLink } = useMutation({
+    mutationFn: completeGoogleLink,
+    onSuccess: (data) => setCompletion(data.result),
+    onError: () => setCompletion("failed"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["google-link"] })
+  });
+  const isConnecting = result === "pending" && !completion;
+  const outcome = result === "pending" ? completion : result;
+  const message = outcome ? resultMessages[outcome] : undefined;
+
+  useEffect(() => {
+    if (result !== "pending" || completed.current) return;
+    completed.current = true;
+    completeLink();
+  }, [result, completeLink]);
 
   useEffect(() => {
     if (!params.has("googleLink")) return;
@@ -55,6 +72,11 @@ export function GoogleSection() {
           </Button>
         ) : null}
       </div>
+      {isConnecting ? (
+        <p role="status" className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          Connecting Google…
+        </p>
+      ) : null}
       {message ? (
         <p
           role={message.isError ? "alert" : "status"}

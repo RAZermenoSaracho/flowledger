@@ -1,14 +1,18 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
+import { HttpError } from "../../../../../../utils/httpError.js";
 import { prismaMock } from "../../../../../../tests/helpers/prismaMock.js";
 
 vi.mock("../../utils/googleState.js", () => ({
   signGoogleState: vi.fn(),
-  verifyGoogleState: vi.fn()
+  verifyGoogleState: vi.fn(),
+  signGoogleLinkPending: vi.fn(),
+  verifyGoogleLinkPending: vi.fn()
 }));
 
 vi.mock("../../utils/googleStateCookie.js", () => ({
   googleStateCookieName: "flowledger_google_oauth_state",
+  googleLinkPendingCookieName: "flowledger_google_link_pending",
   parseCookies: vi.fn()
 }));
 
@@ -21,19 +25,26 @@ vi.mock("../../../../services/create.service.js", () => ({
   issueRefreshToken: vi.fn()
 }));
 
-const { signGoogleState, verifyGoogleState } = await import("../../utils/googleState.js");
+const {
+  signGoogleLinkPending,
+  signGoogleState,
+  verifyGoogleLinkPending,
+  verifyGoogleState
+} = await import("../../utils/googleState.js");
 const { parseCookies } = await import("../../utils/googleStateCookie.js");
 const { exchangeGoogleCode, verifyGoogleIdentity } = await import("../google.client.js");
 const { issueRefreshToken } = await import("../../../../services/create.service.js");
 
 const signGoogleStateMock = vi.mocked(signGoogleState);
 const verifyGoogleStateMock = vi.mocked(verifyGoogleState);
+const signGoogleLinkPendingMock = vi.mocked(signGoogleLinkPending);
+const verifyGoogleLinkPendingMock = vi.mocked(verifyGoogleLinkPending);
 const parseCookiesMock = vi.mocked(parseCookies);
 const exchangeGoogleCodeMock = vi.mocked(exchangeGoogleCode);
 const verifyGoogleIdentityMock = vi.mocked(verifyGoogleIdentity);
 const issueRefreshTokenMock = vi.mocked(issueRefreshToken);
 
-const { buildGoogleAuthUrl, handleGoogleCallback, hasGoogleLink } = await import(
+const { buildGoogleAuthUrl, completeGoogleLink, handleGoogleCallback, hasGoogleLink } = await import(
   "../create.service.js"
 );
 
@@ -161,8 +172,7 @@ describe("handleGoogleCallback", () => {
     });
 
     expect(tx.user.create).not.toHaveBeenCalled();
-    expect(result.redirect).toBe("/dashboard");
-    expect(result.refreshToken?.token).toBe("refresh-1");
+    expect(result).toMatchObject({ redirect: "/dashboard", refreshToken: { token: "refresh-1" } });
   });
 
   it("issues the refresh token in the session mode carried by the state", async () => {
@@ -361,41 +371,22 @@ describe("handleGoogleCallback", () => {
     const callback = () =>
       handleGoogleCallback({ state: "state-token", cookieHeader: "x", code: "auth-code" });
 
-    it("links the identity to the signed-state user without issuing a session", async () => {
+    it("returns a pending token without writing a link or issuing a session", async () => {
       linkState();
       const tx = linkTx(null);
+      signGoogleLinkPendingMock.mockReturnValue("pending-jwt");
 
       const result = await callback();
 
-      expect(result).toEqual({ linkResult: "connected" });
-      expect(tx.userAuthAccount.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ userId: "user-1", providerAccountId: "google-sub-1" })
+      expect(result).toEqual({ linkResult: "pending", pendingToken: "pending-jwt" });
+      expect(signGoogleLinkPendingMock).toHaveBeenCalledWith({
+        linkUserId: "user-1",
+        providerAccountId: "google-sub-1",
+        email: "other@example.com"
       });
+      expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
       expect(issueRefreshTokenMock).not.toHaveBeenCalled();
-    });
-
-    it("reports a conflict for an identity linked to another account", async () => {
-      linkState();
-      const tx = linkTx({ userId: "someone-else" });
-
-      expect(await callback()).toEqual({ linkResult: "conflict" });
-      expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
-    });
-
-    it("reports a conflict when the user already linked a different identity", async () => {
-      linkState();
-      const tx = linkTx(null, { id: "link-1" });
-
-      expect(await callback()).toEqual({ linkResult: "conflict" });
-      expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
-    });
-
-    it("treats the same identity on the same user as connected", async () => {
-      linkState();
-      const tx = linkTx({ userId: "user-1" });
-
-      expect(await callback()).toEqual({ linkResult: "connected" });
-      expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
     });
 
     it("reports failure when Google returns an error or the exchange throws", async () => {
@@ -419,6 +410,141 @@ describe("handleGoogleCallback", () => {
       await expect(callback()).rejects.toThrow("Invalid OAuth state");
       expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
     });
+  });
+
+  it("never returns a pending token in sign-in mode", async () => {
+    verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
+    parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+    exchangeGoogleCodeMock.mockResolvedValue({} as never);
+    verifyGoogleIdentityMock.mockResolvedValue({
+      providerAccountId: "google-sub-1",
+      email: "ada@example.com",
+      name: "Ada",
+      picture: undefined
+    });
+    issueRefreshTokenMock.mockResolvedValue({ token: "r", expiresAt: new Date(), persistent: true });
+    const tx = {
+      userAuthAccount: {
+        findUnique: vi.fn().mockResolvedValue({ user: { id: "user-1" } })
+      }
+    };
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+
+    const result = await handleGoogleCallback({ state: "s", cookieHeader: "x", code: "c" });
+
+    expect(result).not.toHaveProperty("pendingToken");
+    expect(result).not.toHaveProperty("linkResult");
+    expect(signGoogleLinkPendingMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("completeGoogleLink", () => {
+  function pendingCookie(linkUserId = "user-1") {
+    parseCookiesMock.mockReturnValue(
+      new Map([["flowledger_google_link_pending", "pending-jwt"]])
+    );
+    verifyGoogleLinkPendingMock.mockReturnValue({
+      linkUserId,
+      providerAccountId: "google-sub-1",
+      email: "other@example.com"
+    });
+  }
+
+  function linkTx(identity: { userId: string } | null, userLink: { id: string } | null = null) {
+    const tx = {
+      userAuthAccount: {
+        findUnique: vi.fn().mockResolvedValue(identity),
+        findFirst: vi.fn().mockResolvedValue(userLink),
+        create: vi.fn()
+      }
+    };
+    prismaMock.$transaction.mockClear();
+    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+    );
+    return tx;
+  }
+
+  it("links the identity for the matching user", async () => {
+    pendingCookie();
+    const tx = linkTx(null);
+
+    expect(await completeGoogleLink("user-1", "cookie")).toBe("connected");
+    expect(tx.userAuthAccount.create).toHaveBeenCalledWith({
+      data: {
+        userId: "user-1",
+        provider: "google",
+        providerAccountId: "google-sub-1",
+        email: "other@example.com"
+      }
+    });
+  });
+
+  it("rejects a mismatched user with a generic 400, logging no identifiers", async () => {
+    pendingCookie("user-1");
+    const tx = linkTx(null);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(completeGoogleLink("user-2", "cookie")).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Google could not be connected"
+    });
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("Google link completion rejected: user mismatch");
+    warn.mockRestore();
+  });
+
+  it("rejects a missing cookie with a generic 400", async () => {
+    parseCookiesMock.mockReturnValue(new Map());
+    const tx = linkTx(null);
+
+    await expect(completeGoogleLink("user-1", undefined)).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Google could not be connected"
+    });
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+  });
+
+  it("propagates the 400 for an expired or forged cookie", async () => {
+    parseCookiesMock.mockReturnValue(
+      new Map([["flowledger_google_link_pending", "forged"]])
+    );
+    verifyGoogleLinkPendingMock.mockImplementation(() => {
+      throw new HttpError(400, "Google could not be connected");
+    });
+    const tx = linkTx(null);
+
+    await expect(completeGoogleLink("user-1", "cookie")).rejects.toMatchObject({
+      statusCode: 400
+    });
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+  });
+
+  it("reports a conflict for an identity linked to another account", async () => {
+    pendingCookie();
+    const tx = linkTx({ userId: "someone-else" });
+
+    expect(await completeGoogleLink("user-1", "cookie")).toBe("conflict");
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+  });
+
+  it("reports a conflict when the user already linked a different identity", async () => {
+    pendingCookie();
+    const tx = linkTx(null, { id: "link-1" });
+
+    expect(await completeGoogleLink("user-1", "cookie")).toBe("conflict");
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
+  });
+
+  it("treats a repeated completion of the same identity as connected", async () => {
+    pendingCookie();
+    const tx = linkTx({ userId: "user-1" });
+
+    expect(await completeGoogleLink("user-1", "cookie")).toBe("connected");
+    expect(await completeGoogleLink("user-1", "cookie")).toBe("connected");
+    expect(tx.userAuthAccount.create).not.toHaveBeenCalled();
   });
 });
 

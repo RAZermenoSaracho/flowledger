@@ -31,3 +31,19 @@ export function googleStateCookie(nonce: string, maxAgeSeconds: number) {
 
   return [...parts, ...secureAttribute()].join("; ");
 }
+
+/** Cookie name carrying the signed pending-link token from the callback to the completion request. */
+export const googleLinkPendingCookieName = "flowledger_google_link_pending";
+
+/** Builds the `Set-Cookie` header value for the pending-link cookie, scoped to the link path and `Secure` on HTTPS deployments. */
+export function googleLinkPendingCookie(value: string, maxAgeSeconds: number) {
+  const parts = [
+    `${googleLinkPendingCookieName}=${encodeURIComponent(value)}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/auth/google/link",
+    `Max-Age=${maxAgeSeconds}`
+  ];
+
+  return [...parts, ...secureAttribute()].join("; ");
+}
