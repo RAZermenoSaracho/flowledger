@@ -35,9 +35,11 @@ Every changed file under `controllers/`, `services/`, `utils/`, `hooks/`, or `co
 ## 3. Docs and verification
 
 - [x] 3.1 Update the Google link section and the security notes in `docs/AUTH_FLOW.md`.
-- [ ] 3.2 Run `npm run typecheck`, `npm run lint`, and `npm run test`.
+- [x] 3.2 Run `npm run typecheck`, `npm run lint`, and `npm run test`.
 - [ ] 3.3 Staging:
   - link on desktop Chrome and Safari, mobile Safari and Chrome, and the installed iOS Home Screen app (record whether the app's cookie jar is shared, per the design's PWA risk);
   - replay a captured callback in a signed-out browser → no link;
   - complete with a second user's session → rejected, no link;
   - Google sign-in and registration still work in both session modes.
+
+  Outcome (owner accepted 2026-11-23): signed-out replay, second-user completion, and Google sign-in were verified; cross-account rejection was verified by the owner on desktop Chrome and iPhone Safari. First-time linking and first-time Google registration were not manually tested (Cloudflare Access limits staging to the owner's Google identity), nor was the installed iOS app; the owner accepted this residual risk.
