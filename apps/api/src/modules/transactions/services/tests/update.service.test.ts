@@ -1,3 +1,4 @@
+import { HttpError } from "../../../../utils/httpError.js";
 import { Prisma } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
@@ -592,6 +593,15 @@ describe("unignoreImportedTransaction", () => {
 });
 
 describe("batchIgnoreImportedTransactions", () => {
+  it("fails on an unknown id from the resolver without opening a transaction", async () => {
+    resolveImportedTransactionSelectionIdsMock.mockRejectedValueOnce(
+      new HttpError(400, "Some imported transactions were not found", { errors: [{ id: "x", message: "Imported transaction not found" }] })
+    );
+
+    await expect(batchIgnoreImportedTransactions("user-1", { mode: "ids", ids: ["x"] })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it("throws a 400 collecting errors for every non-pending row, ignoring none", async () => {
     resolveImportedTransactionSelectionIdsMock.mockResolvedValue(["it-1"]);
     const tx = {
@@ -640,6 +650,15 @@ describe("batchIgnoreImportedTransactions", () => {
 });
 
 describe("batchUnignoreImportedTransactions", () => {
+  it("fails on an unknown id from the resolver without opening a transaction", async () => {
+    resolveImportedTransactionSelectionIdsMock.mockRejectedValueOnce(
+      new HttpError(400, "Some imported transactions were not found", { errors: [{ id: "x", message: "Imported transaction not found" }] })
+    );
+
+    await expect(batchUnignoreImportedTransactions("user-1", { mode: "ids", ids: ["x"] })).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it("throws a 400 when a selected row isn't ignored", async () => {
     resolveImportedTransactionSelectionIdsMock.mockResolvedValue(["it-1"]);
     const tx = {

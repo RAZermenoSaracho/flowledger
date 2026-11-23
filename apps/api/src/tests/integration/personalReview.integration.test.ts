@@ -203,7 +203,7 @@ describe("personal review, notifications and profile (REST + MCP)", () => {
       expect((await prisma.user.findUniqueOrThrow({ where: { id: a.userId } })).name).not.toBe("Hacked");
     });
 
-    it("treats another user's rows as 404 (single) or skips them (batch) and changes nothing", async () => {
+    it("treats another user's rows as 404 (single) or a 400 for the whole batch and changes nothing", async () => {
       const foreign = await seedImported(b);
       for (const [method, path, body] of [
         ["patch", `/v1/imported-transactions/${foreign.id}`, { categoryId: a.categoryId }],
@@ -214,7 +214,8 @@ describe("personal review, notifications and profile (REST + MCP)", () => {
         expect((await request(app)[method](path).set(bearer(a.writeKey)).send(body)).status, path).toBe(404);
       }
       const batch = await request(app).post("/v1/imported-transactions/batch-ignore").set(bearer(a.writeKey)).send({ selection: { mode: "ids", ids: [foreign.id] } });
-      expect(batch.body).toEqual({ ignoredCount: 0, errors: [] });
+      expect(batch.status).toBe(400);
+      expect(batch.body.errors).toEqual([{ id: foreign.id, message: "Imported transaction not found" }]);
       expect(await status(foreign.id)).toBe("pending");
     });
   });
@@ -387,8 +388,14 @@ describe("personal review, notifications and profile (REST + MCP)", () => {
     it("imported-review tools never touch another user's rows", async () => {
       const foreign = await seedImported(b);
       expect((await call(a.write, "update_imported_transaction", { id: foreign.id, categoryId: a.categoryId })).content[0]!.text).toMatch(/not found/i);
-      expect((await call(a.write, "ignore_imported_transactions", { ids: [foreign.id] })).structuredContent).toEqual({ ignoredCount: 0, errors: [] });
-      expect((await call(a.write, "import_imported_transactions", { ids: [foreign.id], categoryId: a.categoryId })).structuredContent).toMatchObject({ importedCount: 0 });
+      for (const [tool, args] of [
+        ["ignore_imported_transactions", { ids: [foreign.id] }],
+        ["import_imported_transactions", { ids: [foreign.id], categoryId: a.categoryId }]
+      ] as const) {
+        const result = await call(a.write, tool, args);
+        expect(result.isError, tool).toBe(true);
+        expect(result.content[0]!.text, tool).toMatch(/not found/i);
+      }
       expect(await status(foreign.id)).toBe("pending");
       expect(await prisma.transaction.count({ where: { userId: a.userId, name: foreign.description } })).toBe(0);
     });

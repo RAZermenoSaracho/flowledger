@@ -12,7 +12,7 @@ Odoo task #158 (KNOWN_ISSUES #021). The batch import of pending provider-importe
 - In `ids` mode, any requested id that is not an existing row owned by the caller makes the batch fail with 400 and a per-id `errors` list (`Imported transaction not found`). A missing id and another user's id produce the same message, so existence is not revealed. Nothing changes. (Chosen over "process valid ids and report": see Owner decisions.)
 - A row that is not pending (already processed or ignored) keeps today's per-row 400, and nothing changes.
 - The same unknown-id rule applies to batch ignore and unignore, because they share the resolver.
-- `filtered` mode (web only) resolves by query; a batch import resolving to more than `MAX_BATCH_IMPORT_ROWS` (500) rows fails with 400 and imports nothing.
+- `filtered` mode (web only) resolves by query; a batch import (any mode) resolving to more than `MAX_BATCH_IMPORT_ROWS` (500) rows fails with 400 and imports nothing.
 - Remove the "not wrapped in one database transaction" sentence from the MCP tool description.
 
 ## Capabilities
