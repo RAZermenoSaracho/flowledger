@@ -14,7 +14,7 @@ Assessment: real, but it needs control of a sibling subdomain (or an XSS there) 
 
 - On HTTPS deployments (the same condition that already adds `Secure`), the state cookie is named `__Host-flowledger_google_oauth_state` with `Secure; Path=/`, and no `Domain`. Browsers refuse to store a `__Host-` cookie that carries `Domain` or is set from another host, so a sibling subdomain cannot plant it.
 - On plain-HTTP development (`http://localhost`), the cookie keeps its current unprefixed name and `Path=/auth/google/callback`, because `__Host-` requires `Secure`, which Safari does not honor on HTTP localhost. There is no sibling-subdomain exposure on localhost.
-- The callback reads only the name that matches the deployment mode. It never falls back to the unprefixed name when the prefixed one is expected, so a planted legacy-named cookie is ignored.
+- The cookie name is a function, `googleStateCookieName()`, that reads env at call time. The callback reads only the name that matches the deployment mode. It never falls back to the unprefixed name when the prefixed one is expected, so a planted legacy-named cookie is ignored.
 - The set and clear helpers use the same name and attributes; the clear cookie sets `Max-Age=0` with identical attributes.
 - Link flow and sign-in share the cookie, so both are fixed. In-flight sign-ins at deploy time fail once with the existing generic error and can be retried.
 
@@ -30,6 +30,6 @@ None.
 
 ## Impact
 
-- API: `auth/providers/google/utils/googleStateCookie.ts` (name and attributes), its test, `controllers/create.controller.ts` (no change expected beyond the shared helpers), `services/create.service.ts` (reads the name via the helper), and their tests.
+- API: `auth/providers/google/utils/googleStateCookie.ts` (name and attributes), its test, `services/create.service.ts` and `controllers/create.controller.ts` (call `googleStateCookieName()` where they used the constant), and the helper and service tests.
 - Docs: `docs/AUTH_FLOW.md` (cookie name, path, and the planted-cookie note in the Google section).
 - No database migration, no new dependency, no new env var, no web change.

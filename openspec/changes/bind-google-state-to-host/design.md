@@ -12,7 +12,7 @@ The state cookie is the only browser binding on the callback: the state JWT is s
 
 **D1 — `__Host-` prefixed nonce cookie on HTTPS.** Browsers accept a `__Host-` cookie only when it is `Secure`, has `Path=/`, has no `Domain`, and is set over a secure connection by that exact host. A sibling cannot set it for the API host. This is the smallest correct fix: one name and attribute change, no new state, no new dependency. Alternatives rejected: a binding nonce echoed in a second cookie (also plantable), PKCE (same planting problem), a server-side store keyed by a cookie (still needs an unforgeable cookie).
 
-**D2 — Prefix only when `secureAttribute()` is non-empty.** `Secure` is already derived from production or an `https://` `WEB_APP_URL`. The name is computed from the same condition, so prefix and `Secure` cannot disagree. `http://localhost` development keeps the unprefixed name and the callback path, because Safari rejects `Secure` cookies on HTTP localhost and Chrome-only support is not enough. Staging (`flowledger-dev.razs.dev`) is HTTPS, so it exercises the prefixed path.
+**D2 — Prefix only when `secureAttribute()` is non-empty.** `Secure` is already derived from production or an `https://` `WEB_APP_URL`. The name comes from `googleStateCookieName()`, a function that reads env at call time from the same condition, so prefix and `Secure` cannot disagree and tests can mock env without reloading modules. `http://localhost` development keeps the unprefixed name and the callback path, because Safari rejects `Secure` cookies on HTTP localhost and Chrome-only support is not enough. Staging (`flowledger-dev.razs.dev`) is HTTPS, so it exercises the prefixed path.
 
 **D3 — `Path=/` is required and acceptable.** The cookie is `HttpOnly; SameSite=Lax`, so it is sent on the top-level GET from Google, and it is also sent to other API paths, which ignore it. It is cleared by the callback on every outcome, and expires after 10 minutes.
 
@@ -20,7 +20,6 @@ The state cookie is the only browser binding on the callback: the state JWT is s
 
 **D5 — Clearing.** `googleStateCookie("", 0)` emits the same name and attributes with `Max-Age=0`, which browsers require to match for the delete to apply.
 
-**Browser notes.** `__Host-` is supported in Safari 12+, Chrome 49+, and Firefox 50+. Installed Home Screen apps behave as today: if the OS opens the callback in a context without the cookie, sign-in fails with the existing generic error; this change does not alter that, and the spec scenario for it stays as written.
 
 ## Risks / Trade-offs
 
