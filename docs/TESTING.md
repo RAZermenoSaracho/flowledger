@@ -16,6 +16,8 @@
 
 Vitest is used identically in `apps/api`, `apps/web`, and `packages/shared` — one runner, one config shape, one `describe`/`it`/`expect` API everywhere. Only the `environment` (`node` vs `jsdom`) and the mocking layer (Prisma vs `fetch`) differ per workspace.
 
+API tests never read `.env`: `config/env.ts` skips dotenv under Vitest and `apps/api/vitest.config.ts` (`test.env`) supplies fake values for the required variables (database, JWT, Google, web URL).
+
 ---
 
 ## Directory architecture
