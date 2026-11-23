@@ -2,7 +2,12 @@ import jwt from "jsonwebtoken";
 import { describe, expect, it } from "vitest";
 import { env } from "../../../../../../config/env.js";
 import { signAccessToken } from "../../../../utils/tokens.js";
-import { signGoogleState, verifyGoogleState } from "../googleState.js";
+import {
+  signGoogleLinkPending,
+  signGoogleState,
+  verifyGoogleLinkPending,
+  verifyGoogleState
+} from "../googleState.js";
 
 describe("signGoogleState / verifyGoogleState", () => {
   it("round-trips a valid state payload", () => {
@@ -80,5 +85,66 @@ describe("signGoogleState / verifyGoogleState", () => {
 
   it("rejects a malformed token", () => {
     expect(() => verifyGoogleState("not-a-jwt")).toThrow();
+  });
+});
+
+describe("signGoogleLinkPending / verifyGoogleLinkPending", () => {
+  const payload = {
+    linkUserId: "user-1",
+    providerAccountId: "google-sub-1",
+    email: "ada@example.com"
+  };
+  const badRequest = { statusCode: 400, message: "Google could not be connected" };
+
+  it("round-trips a pending link payload", () => {
+    expect(verifyGoogleLinkPending(signGoogleLinkPending(payload))).toEqual(payload);
+  });
+
+  it("scopes the token to the google-link audience for five minutes", () => {
+    const decoded = jwt.verify(signGoogleLinkPending(payload), env.JWT_SECRET, {
+      audience: "google-link"
+    }) as jwt.JwtPayload;
+
+    expect(decoded.exp! - decoded.iat!).toBe(300);
+  });
+
+  it("rejects a token signed for a different audience", () => {
+    const token = jwt.sign(payload, env.JWT_SECRET, { audience: "other", expiresIn: "5m" });
+
+    expect(() => verifyGoogleLinkPending(token)).toThrow(expect.objectContaining(badRequest));
+  });
+
+  it("rejects an expired token", () => {
+    const token = jwt.sign(payload, env.JWT_SECRET, { audience: "google-link", expiresIn: -10 });
+
+    expect(() => verifyGoogleLinkPending(token)).toThrow(expect.objectContaining(badRequest));
+  });
+
+  it("rejects a wrong algorithm and a malformed token", () => {
+    const token = jwt.sign(payload, env.JWT_SECRET, {
+      audience: "google-link",
+      algorithm: "HS512"
+    });
+
+    expect(() => verifyGoogleLinkPending(token)).toThrow(expect.objectContaining(badRequest));
+    expect(() => verifyGoogleLinkPending("not-a-jwt")).toThrow(expect.objectContaining(badRequest));
+  });
+
+  it.each([
+    { ...payload, linkUserId: "" },
+    { ...payload, providerAccountId: 7 },
+    { linkUserId: "user-1", providerAccountId: "google-sub-1" }
+  ])("rejects a malformed payload %#", (bad) => {
+    const token = jwt.sign(bad, env.JWT_SECRET, { audience: "google-link", expiresIn: "5m" });
+
+    expect(() => verifyGoogleLinkPending(token)).toThrow(expect.objectContaining(badRequest));
+  });
+
+  it("rejects an access token and a Google state token", () => {
+    const accessToken = signAccessToken({ id: "user-1", email: "user1@example.com" });
+    const stateToken = signGoogleState({ nonce: "n", redirect: "/", keepLoggedIn: true });
+
+    expect(() => verifyGoogleLinkPending(accessToken)).toThrow(expect.objectContaining(badRequest));
+    expect(() => verifyGoogleLinkPending(stateToken)).toThrow(expect.objectContaining(badRequest));
   });
 });

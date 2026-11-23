@@ -91,7 +91,7 @@ describe("apiRequest", () => {
     expect(calls).toBe(2);
   });
 
-  it.each(["/auth/email", "/auth/google/link"])("refreshes and retries after a 401 from %s", async (path) => {
+  it.each(["/auth/email", "/auth/google/link", "/auth/google/link/complete"])("refreshes and retries after a 401 from %s", async (path) => {
     let calls = 0;
     server.use(
       http.patch(`${API}${path}`, () => {
@@ -108,7 +108,7 @@ describe("apiRequest", () => {
       }),
       http.post(`${API}/auth/refresh`, () => HttpResponse.json({ token: "fresh" }))
     );
-    await apiRequest(path, { method: path === "/auth/email" ? "PATCH" : "GET" });
+    await apiRequest(path, { method: { "/auth/email": "PATCH", "/auth/google/link/complete": "POST" }[path] ?? "GET" });
     expect(calls).toBe(2);
   });
 

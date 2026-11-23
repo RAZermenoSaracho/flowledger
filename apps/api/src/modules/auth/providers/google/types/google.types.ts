@@ -6,8 +6,15 @@ export type GoogleState = {
   linkUserId?: string;
 };
 
-/** Outcome of the link flow, passed to Profile as a query value; it never names another account. */
-export type GoogleLinkResult = "connected" | "conflict" | "failed";
+/** Outcome of completing a link for the signed-in user; it never names another account. */
+export type GoogleLinkResult = "connected" | "conflict";
+
+/** Verified Google identity held in the pending-link cookie until the signed-in user completes the link. */
+export type GoogleLinkPending = {
+  linkUserId: string;
+  providerAccountId: string;
+  email: string;
+};
 
 /** Normalized Google identity fields extracted after id-token and userinfo verification. */
 export type GoogleProfile = {

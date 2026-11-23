@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { env } from "../../../../../../config/env.js";
 import {
+  googleLinkPendingCookie,
+  googleLinkPendingCookieName,
   googleStateCookie,
   googleStateCookieName,
   parseCookies
@@ -49,5 +51,30 @@ describe("googleStateCookie", () => {
   it("adds Secure in production", () => {
     Object.assign(env, { NODE_ENV: "production" });
     expect(googleStateCookie("n", 600)).toContain("Secure");
+  });
+});
+
+describe("googleLinkPendingCookie", () => {
+  beforeEach(() => {
+    Object.assign(env, { NODE_ENV: "development" });
+  });
+
+  it("builds an HttpOnly, SameSite=Lax cookie scoped to the link path", () => {
+    const cookie = googleLinkPendingCookie("a b", 300);
+
+    expect(cookie).toContain(`${googleLinkPendingCookieName}=a%20b`);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Path=/auth/google/link;");
+    expect(cookie).toContain("Max-Age=300");
+    expect(cookie).not.toContain("Secure");
+  });
+
+  it("expires with Max-Age=0 and adds Secure in production", () => {
+    Object.assign(env, { NODE_ENV: "production" });
+    const cookie = googleLinkPendingCookie("", 0);
+
+    expect(cookie).toContain("Max-Age=0");
+    expect(cookie).toContain("Secure");
   });
 });

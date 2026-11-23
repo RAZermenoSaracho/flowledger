@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { StrictMode } from "react";
 import { useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "../../../../tests/mocks/server";
@@ -55,5 +56,60 @@ describe("GoogleSection", () => {
     expect(await screen.findByRole(role)).toHaveTextContent(text);
     await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent("?tab=security"));
     expect(screen.getByTestId("search")).not.toHaveTextContent("googleLink");
+  });
+
+  describe("googleLink=pending", () => {
+    const route = "/profile?tab=security&googleLink=pending";
+    const complete = (handler: () => Response | Promise<Response>) =>
+      server.use(http.post(`${API_URL}/auth/google/link/complete`, handler));
+
+    it("shows a connecting status, then the connected message, and removes the param", async () => {
+      mockStatus(true);
+      complete(() => HttpResponse.json({ result: "connected" }));
+      renderWithProviders(<Harness />, { route });
+      expect(screen.getByText("Connecting Google…")).toBeInTheDocument();
+      expect(await screen.findByText("Google is now connected.")).toBeInTheDocument();
+      expect(screen.queryByText("Connecting Google…")).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent("?tab=security"));
+      expect(screen.getByTestId("search")).not.toHaveTextContent("googleLink");
+    });
+
+    it("shows the conflict message", async () => {
+      mockStatus(false);
+      complete(() => HttpResponse.json({ result: "conflict" }));
+      renderWithProviders(<Harness />, { route });
+      expect(await screen.findByRole("alert")).toHaveTextContent("may already be in use");
+    });
+
+    it("shows the failed message on a 400", async () => {
+      mockStatus(false);
+      complete(() => HttpResponse.json({ message: "Google could not be connected" }, { status: 400 }));
+      renderWithProviders(<Harness />, { route });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Google could not be connected");
+    });
+
+    it("shows the failed message on a network error", async () => {
+      mockStatus(false);
+      complete(() => HttpResponse.error());
+      renderWithProviders(<Harness />, { route });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Google could not be connected");
+    });
+
+    it("completes exactly once under StrictMode", async () => {
+      mockStatus(true);
+      let calls = 0;
+      complete(() => {
+        calls += 1;
+        return HttpResponse.json({ result: "connected" });
+      });
+      renderWithProviders(
+        <StrictMode>
+          <Harness />
+        </StrictMode>,
+        { route }
+      );
+      expect(await screen.findByText("Google is now connected.")).toBeInTheDocument();
+      expect(calls).toBe(1);
+    });
   });
 });
