@@ -1,39 +1,40 @@
 ## Lockfile choice
 
-Commit the dev clone's `/Users/razs/projects/flowledger/package-lock.json` (lockfileVersion matches npm on Node 24; `npm ci --dry-run` against current `package.json` files succeeds, 1128 packages, no `localhost` or local path strings, so no secrets or machine paths). Regenerating would resolve newer supertest/jsdom and reproduce the failures. Verification before commit, in a clean worktree: copy the lockfile, `npm ci`, `npm run prisma:generate`, `npm run typecheck`, `npm run lint`, `npm run test` (unit; integration/e2e need Docker per CLAUDE.local.md). Then confirm `git status` shows the lockfile unchanged after `npm ci` and `npm audit` output is identical on two clones.
-
-If a regenerated lockfile is ever needed, it is a separate reviewed change, not part of this one.
+Commit the dev clone's `/Users/razs/projects/flowledger/package-lock.json`, not a regenerated one: regenerating resolves newer supertest 7.3.x / jsdom 30.1 and reproduces the failing suites. `npm ci --dry-run` against the current `package.json` files succeeds. Verification happens in a clean worktree (task 1.1).
 
 ## Install rules
 
-Root lockfile only; run `npm ci` at the repository root (workspaces install from it). `npm ci` fails if `package.json` and the lockfile disagree, which is the desired guard. Dependency updates: run `npm install <pkg>` at root, commit the lockfile diff for review.
+Root lockfile only; run `npm ci` at the repository root. `npm ci` fails when `package.json` and the lockfile disagree, which is the desired guard. Dependency updates: `npm install <pkg>` at root, and the lockfile diff is reviewed in the PR.
 
-## Cutover (ordering matters)
+## Cutover
 
-`git pull`/checkout aborts when an incoming tracked file would overwrite an untracked one. Locations with an untracked lockfile today: dev clone (`/Users/razs/projects/flowledger`, branch `razs_ai`), production (`~/production/flowledger`, branch `main`, lockfile modified by every `npm install`). Worktrees created from a tracked commit are fine.
+The lockfile is ignored and untracked today in the dev clone (`razs_ai`) and in `~/production/flowledger` (`main`). Git treats an ignored untracked file as expendable, so `git pull` silently overwrites it; nothing aborts. The only reason to copy it first is rollback.
 
-1. Merge the change to `razs_ai` (not `main`) first. No deploy fires (deploy-prod.yml triggers on `main` only).
-2. Staging (dev clone): `mv package-lock.json ~/package-lock.dev.bak`, `git pull`, `git diff --quiet` the tracked lockfile against the backup (should be identical; if not, keep the tracked one), `npm ci`, restart pm2 `flowledger-dev-*`. The review launcher already uses `npm ci` when a lockfile exists, so worktrees from the tracked commit need no launcher change; its stale "gitignored" comment is cosmetic.
-3. Before the change reaches `main`: owner edits `~/scripts/deploy-flowledger-prod.sh`: after `git checkout main`, when the lockfile is untracked (`git ls-files --error-unmatch package-lock.json` fails) run `mv package-lock.json package-lock.untracked.bak`; then `git pull origin main`; then `npm ci` in place of `npm install`. After the first successful deploy the guard is a harmless no-op and can be removed. Script change must land before the merge to `main`; merging first makes the deploy fail at `git pull` (before migrations and the DB backup, so no partial state).
-4. Merge `razs_ai` to `main` (owner-driven, explicit go-ahead), watch the deploy, run `curl -fsS http://127.0.0.1:4000/health/notification-worker` and `pm2 status`.
+`npm ci` works with the existing untracked production lockfile, so the script can switch to it before the lockfile reaches `main`, with no broken window.
 
-Local files are preserved by `mv` to a `.bak` rather than deleting.
+1. Merge to `razs_ai` (no deploy: `deploy-prod.yml` triggers on `main` only). Staging: `cp package-lock.json ~/package-lock.dev.bak`, `git pull`, `cmp package-lock.json ~/package-lock.dev.bak` (expect identical), `npm ci`, run the full suite including Docker integration/e2e, `pm2 restart flowledger-dev-*`.
+2. With the owner's authorization, change `~/scripts/deploy-flowledger-prod.sh` from `npm install` to `npm ci`, and `cp ~/production/flowledger/package-lock.json ~/package-lock.prod.bak`.
+3. Merge to `main` (explicit go-ahead). The deploy pulls the tracked lockfile and runs `npm ci`. Verify `curl -fsS http://127.0.0.1:4000/health/notification-worker` and `pm2 status`.
+
+The review launcher `~/.config/razs/launchers/flowledger-dev` already runs `npm ci` when a lockfile exists; only its "gitignored" comment goes stale.
+
+## Accepted risk
+
+`npm ci` deletes `node_modules` before installing, so running pm2 services can degrade briefly until the script's restart step. Deploys are rare and users are trusted at this stage; no pm2 stop is added.
+
+Production's lockfile differs from the dev clone's (about 2200 diff lines), so the first production `npm ci` moves it to the dev clone's versions. Staging passing the full suite first is the mitigation.
 
 ## Rollback
 
-- Deploy fails at `git pull`: nothing changed (it precedes the DB backup and migrations); restore the `.bak` lockfile and re-run.
-- Bad lockfile after merge: revert the commit on `main`/`razs_ai`; restore the `.bak` lockfile and set the script back to `npm install`, which works with or without a tracked lockfile. Keep the `.bak` files until one production deploy succeeds.
-- The script change alone is safe before the merge: the guard is a no-op and `npm ci` needs a lockfile, so the script must only switch to `npm ci` once the lockfile is on `main` (or while the untracked file is still present, since `npm ci` accepts it).
+Reverting the commit deletes the tracked lockfile from the working tree, so `npm ci` would then fail. Order matters:
 
-## Risks
+1. Set the deploy script back to `npm install` first.
+2. Revert the commit on `main` (the deploy runs `npm install`).
+3. Optionally restore `~/package-lock.<env>.bak`.
 
-- `~/production/flowledger`'s lockfile differs from the dev clone's; production will move to the dev clone's versions on first `npm ci` (a controlled, reviewed change, but a real version delta). Run the full suite and a staging deploy first.
-- Production lockfile is rewritten by each `npm install`, so it is never clean; the `mv` step must not be skipped.
-- Reproducibility is only as good as lockfile freshness; Dependabot or manual bumps are out of scope.
-- Sibling worktree task-190 and PR #91 are unaffected; do not touch their lockfile copies.
+If `npm ci` fails after the pull: on the server run `npm install` and `pm2 restart` by hand, then revert as above.
 
 ## Owner decisions
 
-- Confirm committing the dev clone's lockfile (vs a regenerated one that likely needs test fixes for supertest 7.3.x / jsdom 30.1).
-- Confirm the script ordering (script first, then merge to `main`) and who runs the staging cutover.
-- Whether to add a PR CI workflow using `npm ci` (separate intent).
+- Confirm committing the dev clone's lockfile.
+- Authorize the deploy script change (step 2) and who runs the staging cutover.
