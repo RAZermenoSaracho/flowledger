@@ -9,16 +9,10 @@
 3. **Read-only Subscription tab.** Keep the tab (current plan label and description from `planLabels`/`planDescriptions`), drop the action buttons, `usePlan`, and the client call. The plan comes from `useProfileUser`, as the General tab already does.
 4. **Mass-assignment stays closed.** `updateUserPreferencesSchema` keeps stripping `planType` (existing tests retained).
 
-## Alternatives considered
-
-- Keep the route and require an admin flag: needs a new column and migration plus an admin-granting path; speculative.
-- Keep the route but reject unless `planType` is unchanged: dead code.
-
 ## Owner decisions
 
-1. Confirm "delete now, build the trusted path with billing" versus adding a minimal owner-only path now (for example a script or CLI under `database/`).
-2. Existing test users with `flowledger_one`: leave as is (recommended; nothing reads it) or reset to `free`. A reset is a destructive operation: affected table `User`, column `planType` only, scope `where planType <> 'free'`; it needs the owner's approval of the exact statement before it runs.
-3. Should the Subscription tab link anywhere (upgrade flow) or just display? Recommended: display only until billing exists.
+1. Confirm "delete now; billing builds the trusted path later" (no owner-only path now).
+2. Remove the Subscription tab entirely (GeneralTab and ProfileHeader already show the plan) or keep it read-only. Recommended: remove it. If removed, tasks 3.2 deletes `SubscriptionTab.tsx`, its test, and its `ProfilePage` entry instead of making it read-only.
 
 ## Risks
 
