@@ -154,7 +154,7 @@ export async function handleGoogleCallback(input: {
   error?: string;
 }) {
   const state = verifyGoogleState(input.state);
-  const cookieNonce = parseCookies(input.cookieHeader).get(googleStateCookieName);
+  const cookieNonce = parseCookies(input.cookieHeader).get(googleStateCookieName());
 
   if (!cookieNonce || cookieNonce !== state.nonce) {
     throw new HttpError(400, "Invalid OAuth state");

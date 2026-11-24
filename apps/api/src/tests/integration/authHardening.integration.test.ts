@@ -49,7 +49,7 @@ function googleCallback(
   return request(app)
     .get("/auth/google/callback")
     .query({ state, code: JSON.stringify(profile) })
-    .set("Cookie", `${googleStateCookieName}=${nonce}`);
+    .set("Cookie", `${googleStateCookieName()}=${nonce}`);
 }
 
 /** Runs the link callback and returns it with its pending-link cookie as a `Cookie` header value. */
@@ -259,7 +259,7 @@ describe("account identity and session hardening", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.url).toContain("accounts.google.com");
-      expect(findSetCookie(response, googleStateCookieName)).toContain(
+      expect(findSetCookie(response, googleStateCookieName())).toContain(
         "Path=/auth/google/callback"
       );
     });
