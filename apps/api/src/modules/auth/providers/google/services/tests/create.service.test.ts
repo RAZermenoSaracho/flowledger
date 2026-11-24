@@ -11,7 +11,7 @@ vi.mock("../../utils/googleState.js", () => ({
 }));
 
 vi.mock("../../utils/googleStateCookie.js", () => ({
-  googleStateCookieName: "flowledger_google_oauth_state",
+  googleStateCookieName: vi.fn(() => "__Host-flowledger_google_oauth_state"),
   googleLinkPendingCookieName: "flowledger_google_link_pending",
   parseCookies: vi.fn()
 }));
@@ -94,10 +94,23 @@ describe("handleGoogleCallback", () => {
     ).rejects.toThrow("Invalid OAuth state");
   });
 
+  it("rejects a legacy unprefixed nonce cookie and creates no user, session, or pending link", async () => {
+    verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
+    parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+
+    await expect(
+      handleGoogleCallback({ state: "state-token", cookieHeader: "x", code: "c1" })
+    ).rejects.toThrow("Invalid OAuth state");
+    expect(exchangeGoogleCodeMock).not.toHaveBeenCalled();
+    expect(issueRefreshTokenMock).not.toHaveBeenCalled();
+    expect(signGoogleLinkPendingMock).not.toHaveBeenCalled();
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
   it("throws a 400 when the cookie nonce doesn't match the state nonce", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "different-nonce"]])
+      new Map([["__Host-flowledger_google_oauth_state", "different-nonce"]])
     );
 
     await expect(
@@ -108,7 +121,7 @@ describe("handleGoogleCallback", () => {
   it("throws a 401 when Google reports an error (user cancelled)", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
 
     await expect(
@@ -123,7 +136,7 @@ describe("handleGoogleCallback", () => {
   it("throws a 401 when there's no code and no error", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
 
     await expect(
@@ -134,7 +147,7 @@ describe("handleGoogleCallback", () => {
   it("reuses an existing linked account without creating a new user", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/dashboard", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
     exchangeGoogleCodeMock.mockResolvedValue({
       access_token: "at-1",
@@ -182,7 +195,7 @@ describe("handleGoogleCallback", () => {
       keepLoggedIn: false
     });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
     exchangeGoogleCodeMock.mockResolvedValue({} as never);
     verifyGoogleIdentityMock.mockResolvedValue({
@@ -215,7 +228,7 @@ describe("handleGoogleCallback", () => {
   it("refuses when an unlinked account has the email, creating no link, user or session", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
     exchangeGoogleCodeMock.mockResolvedValue({} as never);
     verifyGoogleIdentityMock.mockResolvedValue({
@@ -254,7 +267,7 @@ describe("handleGoogleCallback", () => {
   it("creates a brand-new user when no account or email match exists", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
     parseCookiesMock.mockReturnValue(
-      new Map([["flowledger_google_oauth_state", "nonce-1"]])
+      new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]])
     );
     exchangeGoogleCodeMock.mockResolvedValue({} as never);
     verifyGoogleIdentityMock.mockResolvedValue({
@@ -305,7 +318,7 @@ describe("handleGoogleCallback", () => {
 
   it("retries the whole transaction with a new username when the generated one collides", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
-    parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+    parseCookiesMock.mockReturnValue(new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]]));
     exchangeGoogleCodeMock.mockResolvedValue({} as never);
     verifyGoogleIdentityMock.mockResolvedValue({
       providerAccountId: "google-sub-3",
@@ -343,7 +356,7 @@ describe("handleGoogleCallback", () => {
         keepLoggedIn: true,
         linkUserId: "user-1"
       });
-      parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+      parseCookiesMock.mockReturnValue(new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]]));
       exchangeGoogleCodeMock.mockResolvedValue({} as never);
       verifyGoogleIdentityMock.mockResolvedValue({
         providerAccountId: "google-sub-1",
@@ -404,7 +417,7 @@ describe("handleGoogleCallback", () => {
 
     it("rejects a mismatched nonce before linking", async () => {
       linkState();
-      parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "wrong"]]));
+      parseCookiesMock.mockReturnValue(new Map([["__Host-flowledger_google_oauth_state", "wrong"]]));
       const tx = linkTx(null);
 
       await expect(callback()).rejects.toThrow("Invalid OAuth state");
@@ -414,7 +427,7 @@ describe("handleGoogleCallback", () => {
 
   it("never returns a pending token in sign-in mode", async () => {
     verifyGoogleStateMock.mockReturnValue({ nonce: "nonce-1", redirect: "/", keepLoggedIn: true });
-    parseCookiesMock.mockReturnValue(new Map([["flowledger_google_oauth_state", "nonce-1"]]));
+    parseCookiesMock.mockReturnValue(new Map([["__Host-flowledger_google_oauth_state", "nonce-1"]]));
     exchangeGoogleCodeMock.mockResolvedValue({} as never);
     verifyGoogleIdentityMock.mockResolvedValue({
       providerAccountId: "google-sub-1",

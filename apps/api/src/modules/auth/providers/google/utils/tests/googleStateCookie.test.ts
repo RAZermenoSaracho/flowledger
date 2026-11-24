@@ -25,32 +25,58 @@ describe("parseCookies", () => {
 });
 
 describe("googleStateCookie", () => {
-  beforeEach(() => {
-    Object.assign(env, { NODE_ENV: "development" });
+  describe("secure mode", () => {
+    beforeEach(() => {
+      Object.assign(env, { NODE_ENV: "production" });
+    });
+
+    it("uses the __Host- name with Secure, Path=/, no Domain", () => {
+      const cookie = googleStateCookie("nonce-value", 600);
+
+      expect(googleStateCookieName()).toBe("__Host-flowledger_google_oauth_state");
+      expect(cookie).toContain("__Host-flowledger_google_oauth_state=nonce-value");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("SameSite=Lax");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("Path=/;");
+      expect(cookie).not.toContain("Domain");
+      expect(cookie).toContain("Max-Age=600");
+    });
+
+    it("clears with the same name and attributes", () => {
+      const cookie = googleStateCookie("", 0);
+
+      expect(cookie).toContain("__Host-flowledger_google_oauth_state=;");
+      expect(cookie).toContain("Max-Age=0");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("Path=/;");
+    });
   });
 
-  it("builds an HttpOnly, SameSite=Lax cookie scoped to the callback path", () => {
-    const cookie = googleStateCookie("nonce-value", 600);
+  describe("HTTP mode", () => {
+    beforeEach(() => {
+      Object.assign(env, { NODE_ENV: "development", WEB_APP_URL: "http://localhost:5173" });
+    });
 
-    expect(cookie).toContain(`${googleStateCookieName}=nonce-value`);
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("SameSite=Lax");
-    expect(cookie).toContain("Path=/auth/google/callback");
-    expect(cookie).toContain("Max-Age=600");
-  });
+    it("keeps the legacy name and callback path without Secure", () => {
+      const cookie = googleStateCookie("a b", 600);
 
-  it("URI-encodes the nonce", () => {
-    const cookie = googleStateCookie("a b", 600);
-    expect(cookie).toContain(`${googleStateCookieName}=a%20b`);
-  });
+      expect(googleStateCookieName()).toBe("flowledger_google_oauth_state");
+      expect(cookie).toContain("flowledger_google_oauth_state=a%20b");
+      expect(cookie).toContain("Path=/auth/google/callback");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("SameSite=Lax");
+      expect(cookie).not.toContain("Secure");
+      expect(cookie).not.toContain("Domain");
+    });
 
-  it("omits Secure outside production", () => {
-    expect(googleStateCookie("n", 600)).not.toContain("Secure");
-  });
+    it("clears with the same name and path", () => {
+      const cookie = googleStateCookie("", 0);
 
-  it("adds Secure in production", () => {
-    Object.assign(env, { NODE_ENV: "production" });
-    expect(googleStateCookie("n", 600)).toContain("Secure");
+      expect(cookie).toContain("flowledger_google_oauth_state=;");
+      expect(cookie).toContain("Max-Age=0");
+      expect(cookie).toContain("Path=/auth/google/callback");
+    });
   });
 });
 

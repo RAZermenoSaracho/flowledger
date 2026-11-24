@@ -99,7 +99,7 @@ GET /auth/google?redirect=<destination>&keepLoggedIn=<true|false>
 
 1. Generate a random 32-byte nonce
 2. Sign `{ nonce, redirect, keepLoggedIn }` as a short-lived JWT (audience `"google-oauth"`, 10-minute expiry) → `state`
-3. Set `HttpOnly; SameSite=Lax; Path=/auth/google/callback` cookie containing the nonce (URL-encoded)
+3. Set the nonce cookie (URL-encoded): on HTTPS, `__Host-flowledger_google_oauth_state` with `HttpOnly; SameSite=Lax; Secure; Path=/` and no `Domain`; over plain HTTP (local development), `flowledger_google_oauth_state` with `Path=/auth/google/callback` and no `Secure`. The callback reads only the name for the current mode
 4. Build Google authorization URL with `response_type=code`, `scope=openid email profile`, `prompt=select_account`
 5. Redirect to Google
 
@@ -311,7 +311,7 @@ FlowLedger is an OAuth 2.1 authorization server for `/mcp` (module `apps/api/src
 - The refresh cookie is `HttpOnly` (no JS access), `SameSite=Strict` (not sent on cross-site navigations or requests), and scoped to `Path=/auth` (not attached to every API call). The session presence cookie carries no credential
 - The access token is kept in memory on the frontend, never in `localStorage`/`sessionStorage`, limiting exposure to XSS reading persisted storage
 - The nonce in the OAuth cookie prevents CSRF during the OAuth handshake
-- The nonce cookie is scoped to `Path=/auth/google/callback` to limit exposure
+- The nonce cookie uses the `__Host-` prefix on HTTPS (`Secure; Path=/`, no `Domain`), so a sibling subdomain cannot plant it for the API host; the callback has no fallback to the unprefixed name. Plain-HTTP development keeps the unprefixed name and `Path=/auth/google/callback`, and has no planting protection
 - Both the refresh and nonce cookies are `Secure` in production
 - A Google link is created only by an authenticated request: the callback leaves a signed pending-link cookie (`Path=/auth/google/link`, 5 minutes), and `POST /auth/google/link/complete` links only when the bearer user equals the signed `linkUserId`, so a planted nonce cookie cannot attach a Google identity to another user's account
 - OAuth state carries the redirect destination inside a short-lived signed JWT — it cannot be forged
