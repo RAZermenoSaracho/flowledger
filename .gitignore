@@ -146,6 +146,4 @@ keys/
 *.pem
 *.key
 
-package-lock.json
-
 apps/web/.vite
