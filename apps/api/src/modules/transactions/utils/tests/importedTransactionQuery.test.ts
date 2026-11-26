@@ -264,16 +264,24 @@ describe("resolveImportedTransactionSelectionIds — 'ids' mode", () => {
     expect(ids).toEqual(["it-1", "it-2"]);
   });
 
-  it("silently drops ids that don't belong to the user", async () => {
+  it("fails the batch with one identical error per missing or foreign id", async () => {
     prismaMock.providerImportedTransaction.findMany.mockResolvedValue([
       { id: "it-1" }
     ] as never);
 
-    const ids = await resolveImportedTransactionSelectionIds("user-1", {
-      mode: "ids",
-      ids: ["it-1", "not-mine"]
+    await expect(
+      resolveImportedTransactionSelectionIds("user-1", {
+        mode: "ids",
+        ids: ["it-1", "not-mine", "does-not-exist"]
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      details: {
+        errors: [
+          { id: "not-mine", message: "Imported transaction not found" },
+          { id: "does-not-exist", message: "Imported transaction not found" }
+        ]
+      }
     });
-
-    expect(ids).toEqual(["it-1"]);
   });
 });

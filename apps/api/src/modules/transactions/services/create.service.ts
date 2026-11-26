@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { TransactionInput } from "@flowledger/shared";
 import { prisma } from "../../../db/prisma.js";
@@ -5,6 +6,7 @@ import { HttpError, notFound } from "../../../utils/httpError.js";
 import { createSharedExpenseForTransaction } from "../../shared-expenses/services/create.service.js";
 import { prepareTransactionInput } from "./prepareTransaction.service.js";
 import { resolveAppliedAmounts } from "../utils/appliedAmounts.js";
+import { BATCH_IMPORT_TRANSACTION_TIMEOUT_MS, MAX_BATCH_IMPORT_ROWS } from "../utils/boundedPagination.js";
 import { resolveTransactionCurrencyFields } from "../utils/transactionCurrency.js";
 import {
   importedTransactionInclude,
@@ -16,7 +18,7 @@ import {
   assertImportedTransactionCategory,
   clearProviderPendingNotifications
 } from "./importedTransactionValidation.service.js";
-import type { ImportedTransactionSelection } from "../types/transactions.types.js";
+import type { ImportedTransactionSelection, ResolvedImport } from "../types/transactions.types.js";
 
 /** Validates relations (account/category/group/transfer/expense-offset) and creates a transaction, optionally with an attached shared expense. When `tx` is given the write runs on that client instead of opening its own transaction, so the caller can commit it atomically with other writes. */
 export async function createTransaction(userId: string, body: TransactionInput, tx?: Prisma.TransactionClient) {
@@ -117,51 +119,71 @@ export async function importProviderImportedTransaction(input: {
   });
 
   return prisma.$transaction(async (tx) => {
-    const current = await tx.providerImportedTransaction.findFirst({
-      where: { id: existing.id, userId: input.userId },
-      include: { providerAccount: true }
-    });
-
-    if (!current) throw notFound("Imported transaction");
-    if (current.status !== "pending") {
-      throw new HttpError(
-        400,
-        "Only pending imported transactions can be imported"
-      );
-    }
-
-    const transaction = await tx.transaction.create({
-      data: {
-        userId: input.userId,
-        name: current.description,
-        amount: current.amount.abs(),
-        ...currencyFields,
-        ...appliedAmounts,
-        type,
-        date: current.transactionDate,
-        categoryId: categoryId ?? null,
-        accountId: current.providerAccount?.accountId ?? null
-      }
-    });
-
-    const importedTransaction = await tx.providerImportedTransaction.update({
-      where: { id: current.id },
-      data: {
-        status: "processed",
-        errorMessage: null,
-        categoryId: categoryId ?? null,
-        transactionId: transaction.id
-      },
+    await createImportedTransactionsInTx(tx, input.userId, [
+      { id: existing.id, categoryId, type, appliedAmounts, currencyFields }
+    ]);
+    await clearProviderPendingNotifications(tx, input.userId);
+    return tx.providerImportedTransaction.findUniqueOrThrow({
+      where: { id: existing.id },
       include: importedTransactionInclude
     });
-
-    await clearProviderPendingNotifications(tx, input.userId);
-
-    return importedTransaction;
   });
 }
 
-/** Imports a selection/batch of pending imported transactions; validates every row up front and throws with all per-row errors if any fail before importing any of them. */
+/**
+ * Imports `resolved` rows on `tx` in a constant number of statements plus one link update per row. A single guarded `updateMany` claims every row that is still pending and its count must match, so a row imported, ignored or removed since validation throws 400 and rolls back the caller's transaction. Callers re-read the hydrated rows once afterwards.
+ */
+async function createImportedTransactionsInTx(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  resolved: ResolvedImport[]
+) {
+  const ids = resolved.map((row) => row.id);
+  const claimed = await tx.providerImportedTransaction.updateMany({
+    where: { id: { in: ids }, userId, status: "pending" },
+    data: { status: "processed", errorMessage: null }
+  });
+  if (claimed.count !== ids.length) {
+    throw new HttpError(400, "Only pending imported transactions can be imported");
+  }
+
+  const sources = new Map(
+    (
+      await tx.providerImportedTransaction.findMany({
+        where: { id: { in: ids }, userId },
+        include: { providerAccount: true }
+      })
+    ).map((row) => [row.id, row])
+  );
+  const transactionIds = new Map(ids.map((id) => [id, randomUUID()]));
+
+  await tx.transaction.createMany({
+    data: resolved.map((row) => {
+      const source = sources.get(row.id)!;
+      return {
+        id: transactionIds.get(row.id)!,
+        userId,
+        name: source.description,
+        amount: source.amount.abs(),
+        ...row.currencyFields,
+        ...row.appliedAmounts,
+        type: row.type,
+        date: source.transactionDate,
+        categoryId: row.categoryId ?? null,
+        accountId: source.providerAccount?.accountId ?? null
+      };
+    })
+  });
+
+  for (const row of resolved) {
+    await tx.providerImportedTransaction.update({
+      where: { id: row.id },
+      data: { categoryId: row.categoryId ?? null, transactionId: transactionIds.get(row.id)! }
+    });
+  }
+}
+
+/** Imports a selection/batch of pending imported transactions atomically: validates every row up front (400 with all per-row errors, including ids that are not the user's), then creates them in one database transaction so a failed write rolls back the whole batch. A selection above `MAX_BATCH_IMPORT_ROWS` is a 400. */
 export async function batchImportProviderImportedTransactions(
   userId: string,
   body: {
@@ -172,6 +194,12 @@ export async function batchImportProviderImportedTransactions(
   const selection = body.selection;
   const batchCategoryId = body.categoryId;
   const ids = await resolveImportedTransactionSelectionIds(userId, selection);
+  if (ids.length > MAX_BATCH_IMPORT_ROWS) {
+    throw new HttpError(
+      400,
+      `A batch import is limited to ${MAX_BATCH_IMPORT_ROWS} imported transactions; narrow the filter`
+    );
+  }
   const rows = await prisma.providerImportedTransaction.findMany({
     where: { userId, id: { in: ids } }
   });
@@ -189,6 +217,7 @@ export async function batchImportProviderImportedTransactions(
     linkedAccounts.map((linked) => [linked.id, linked.account?.type])
   );
   const errors: { id: string; message: string }[] = [];
+  const valid: { row: (typeof rows)[number]; type: "income" | "expense"; categoryId: string | null; accountCurrency: string | undefined }[] = [];
 
   for (const row of rows) {
     if (row.status !== "pending") {
@@ -252,7 +281,10 @@ export async function batchImportProviderImportedTransactions(
           error instanceof Error ? error.message : "Category is invalid"
         )
       );
+      continue;
     }
+
+    valid.push({ row, type, categoryId, accountCurrency });
   }
 
   if (errors.length > 0) {
@@ -261,16 +293,44 @@ export async function batchImportProviderImportedTransactions(
     });
   }
 
-  const importedTransactions = [];
-  for (const row of rows) {
-    importedTransactions.push(
-      await importProviderImportedTransaction({
-        id: row.id,
-        userId,
-        categoryId: batchCategoryId ?? row.categoryId ?? undefined
+  const { preferredCurrency } = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { preferredCurrency: true }
+  });
+  const resolvedRows: ResolvedImport[] = [];
+  for (const { row, type, categoryId, accountCurrency } of valid) {
+    const importedAmount = row.amount.abs();
+    resolvedRows.push({
+      id: row.id,
+      categoryId,
+      type,
+      appliedAmounts: resolveAppliedAmounts({
+        type,
+        amount: importedAmount.toFixed(),
+        executionCurrency: row.currency,
+        accountCurrency: accountCurrency ?? null
+      }),
+      currencyFields: await resolveTransactionCurrencyFields({
+        executionCurrency: row.currency,
+        amount: importedAmount,
+        preferredCurrency
       })
-    );
+    });
   }
+
+  const importedTransactions = await prisma.$transaction(
+    async (tx) => {
+      await createImportedTransactionsInTx(tx, userId, resolvedRows);
+      await clearProviderPendingNotifications(tx, userId);
+      const imported = await tx.providerImportedTransaction.findMany({
+        where: { userId, id: { in: resolvedRows.map((resolved) => resolved.id) } },
+        include: importedTransactionInclude
+      });
+      const byId = new Map(imported.map((row) => [row.id, row]));
+      return resolvedRows.map((resolved) => byId.get(resolved.id)!);
+    },
+    { timeout: BATCH_IMPORT_TRANSACTION_TIMEOUT_MS }
+  );
 
   return {
     importedTransactions,
