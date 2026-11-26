@@ -345,6 +345,8 @@ after the widget reports completion. The transaction refresh window defaults to
 
 # Development Commands
 
+Install dependencies with `npm ci` (uses the committed root `package-lock.json`; run `npm install` only when intentionally changing dependencies).
+
 Development:
 
 bash npm run dev 
