@@ -238,3 +238,12 @@ export type TransactionFinancialSnapshot = {
   feeCurrency: string | null;
   date: string | null;
 };
+
+/** One validated row ready to write: its precomputed type, category, applied amounts and currency fields. */
+export type ResolvedImport = {
+  id: string;
+  categoryId: string | null | undefined;
+  type: "income" | "expense";
+  appliedAmounts: AppliedAmounts;
+  currencyFields: { executionCurrency: string; exchangeRate: number; amountInPreferredCurrency: Prisma.Decimal };
+};

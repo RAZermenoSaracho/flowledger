@@ -226,20 +226,28 @@ export async function resolveImportedTransactionIds(
 /**
  * Resolves a batch action's target ids: the explicit list, or everything
  * currently matching its filter. The "ids" branch re-verifies ownership
- * against the DB rather than trusting the client-supplied array directly —
- * an id list is client input, not pre-authorized, so every id not actually
- * owned by `userId` is silently dropped here (same as `{userId, id: {in:
- * ids}}` would do in a direct Prisma `where`).
+ * against the DB rather than trusting the client-supplied array directly,
+ * and fails the whole batch with a 400 and one `errors` entry per requested
+ * id that is not a row owned by `userId`. A missing id and another user's id
+ * get the same message, so the response does not reveal which ids exist.
  */
 export async function resolveImportedTransactionSelectionIds(
   userId: string,
   selection: ImportedTransactionSelection
 ): Promise<string[]> {
   if (selection.mode === "ids") {
+    const requested = Array.from(new Set(selection.ids));
     const rows = await prisma.providerImportedTransaction.findMany({
-      where: { userId, id: { in: Array.from(new Set(selection.ids)) } },
+      where: { userId, id: { in: requested } },
       select: { id: true }
     });
+    const found = new Set(rows.map((row) => row.id));
+    const missing = requested.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      throw new HttpError(400, "Some imported transactions were not found", {
+        errors: missing.map((id) => importValidationError(id, "Imported transaction not found"))
+      });
+    }
     return rows.map((row) => row.id);
   }
 

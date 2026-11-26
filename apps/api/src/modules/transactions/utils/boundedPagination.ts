@@ -17,3 +17,11 @@ export function boundedPagination(
 
   return pagination;
 }
+
+/**
+ * Most rows one batch import may resolve to (the web `filtered` mode and unbounded web `ids` lists; `/v1` and MCP already cap at 50). The batch commits in a single database transaction, so it cannot be chunked; a larger selection is rejected instead.
+ */
+export const MAX_BATCH_IMPORT_ROWS = 500;
+
+/** Timeout (ms) of the single database transaction that imports a batch; sized for {@link MAX_BATCH_IMPORT_ROWS} rows at a create plus an update each. */
+export const BATCH_IMPORT_TRANSACTION_TIMEOUT_MS = 30_000;

@@ -24,6 +24,12 @@ vi.mock("../importedTransactionValidation.service.js", () => ({
   clearProviderPendingNotifications: vi.fn()
 }));
 
+vi.mock("../../utils/importedTransactionQuery.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/importedTransactionQuery.js")>();
+  return { ...actual, resolveImportedTransactionSelectionIds: vi.fn(actual.resolveImportedTransactionSelectionIds) };
+});
+
+const { resolveImportedTransactionSelectionIds } = await import("../../utils/importedTransactionQuery.js");
 const { assertTransferAllowed, findAccountCurrencies } = await import(
   "../transactionValidation.service.js"
 );
@@ -64,6 +70,39 @@ function mockTx() {
       findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "txn-1" })
     }
   };
+}
+
+
+function sourceRow(id: string, amount = "-1", description = "d", accountId: string | null = null) {
+  return {
+    id,
+    status: "pending",
+    amount: new Prisma.Decimal(amount),
+    description,
+    transactionDate: new Date(),
+    providerAccount: accountId ? { accountId } : null
+  };
+}
+
+/** Mocks the interactive transaction client for the claim-then-createMany import path and installs it as `prisma.$transaction`'s callback argument. */
+function useImportTx(rows: ReturnType<typeof sourceRow>[]) {
+  const tx = {
+    providerImportedTransaction: {
+      updateMany: vi.fn().mockResolvedValue({ count: rows.length }),
+      findMany: vi.fn().mockResolvedValue(rows),
+      update: vi.fn().mockResolvedValue({}),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({ id: rows[0]?.id, status: "processed" })
+    },
+    transaction: { createMany: vi.fn().mockResolvedValue({ count: rows.length }) }
+  };
+  (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
+    typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
+  );
+  return tx;
+}
+
+function createdData(tx: ReturnType<typeof useImportTx>, index = 0) {
+  return tx.transaction.createMany.mock.calls[0]?.[0].data[index] as Record<string, Prisma.Decimal | string | null>;
 }
 
 beforeEach(() => {
@@ -307,27 +346,11 @@ describe("importProviderImportedTransaction", () => {
       exchangeRate: 1,
       amountInPreferredCurrency: new Prisma.Decimal("6000")
     });
-    const tx = {
-      providerImportedTransaction: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "it-1",
-          status: "pending",
-          amount: new Prisma.Decimal("6000"),
-          description: "Payment",
-          transactionDate: new Date(),
-          providerAccount: { accountId: "card-1" }
-        }),
-        update: vi.fn().mockResolvedValue({ id: "it-1" })
-      },
-      transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
-    };
-    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
-    );
+    const tx = useImportTx([sourceRow("it-1", "6000", "Payment", "card-1")]);
 
     await importProviderImportedTransaction({ id: "it-1", userId: "user-1" });
 
-    expect(tx.transaction.create.mock.calls[0]?.[0].data).toMatchObject({
+    expect(createdData(tx)).toMatchObject({
       type: "income",
       categoryId: null,
       accountId: "card-1"
@@ -368,23 +391,7 @@ describe("importProviderImportedTransaction", () => {
         exchangeRate: 1,
         amountInPreferredCurrency: new Prisma.Decimal("10")
       });
-      const tx = {
-        providerImportedTransaction: {
-          findFirst: vi.fn().mockResolvedValue({
-            id: "it-1",
-            status: "pending",
-            amount: new Prisma.Decimal("-10"),
-            description: "Coffee",
-            transactionDate: new Date(),
-            providerAccount: { accountId: "acc-1" }
-          }),
-          update: vi.fn().mockResolvedValue({ id: "it-1" })
-        },
-        transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
-      };
-      (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-        typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
-      );
+      const tx = useImportTx([sourceRow("it-1", "-10", "Coffee", "acc-1")]);
       return tx;
     }
 
@@ -393,7 +400,7 @@ describe("importProviderImportedTransaction", () => {
 
       await importProviderImportedTransaction({ id: "it-1", userId: "user-1" });
 
-      const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+      const data = createdData(tx) as Record<string, Prisma.Decimal>;
       expect(data.accountAmount?.toFixed()).toBe("10");
     });
 
@@ -406,7 +413,7 @@ describe("importProviderImportedTransaction", () => {
         statusCode: 400,
         details: { issues: { fieldErrors: { accountAmount: expect.any(Array) } } }
       });
-      expect(tx.transaction.create).not.toHaveBeenCalled();
+      expect(tx.transaction.createMany).not.toHaveBeenCalled();
     });
 
     it("persists the stated accountAmount for a cross-currency import", async () => {
@@ -418,7 +425,7 @@ describe("importProviderImportedTransaction", () => {
         accountAmount: "171.25"
       });
 
-      const data = tx.transaction.create.mock.calls[0]?.[0].data as Record<string, Prisma.Decimal>;
+      const data = createdData(tx) as Record<string, Prisma.Decimal>;
       expect(data.accountAmount?.toFixed()).toBe("171.25");
     });
   });
@@ -442,39 +449,22 @@ describe("importProviderImportedTransaction", () => {
       amountInPreferredCurrency: new Prisma.Decimal("10")
     });
 
-    const tx = {
-      providerImportedTransaction: {
-        findFirst: vi.fn().mockResolvedValue({
-          id: "it-1",
-          status: "pending",
-          amount: new Prisma.Decimal("-10"),
-          description: "Coffee",
-          transactionDate: new Date(),
-          providerAccount: { accountId: "acc-1" }
-        }),
-        update: vi.fn().mockResolvedValue({ id: "it-1", status: "processed" })
-      },
-      transaction: { create: vi.fn().mockResolvedValue({ id: "txn-1" }) }
-    };
-    (prismaMock.$transaction.mockImplementation as unknown as (fn: (arg: unknown) => unknown) => unknown)((arg: unknown) =>
-      typeof arg === "function" ? (arg as (tx: unknown) => unknown)(tx) : Promise.resolve(arg)
-    );
+    const tx = useImportTx([sourceRow("it-1", "-10", "Coffee", "acc-1")]);
 
     const result = await importProviderImportedTransaction({
       id: "it-1",
       userId: "user-1"
     });
 
-    expect(tx.transaction.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ type: "expense", categoryId: "cat-1" })
-      })
-    );
-    expect(tx.providerImportedTransaction.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ status: "processed", transactionId: "txn-1" })
-      })
-    );
+    expect(createdData(tx)).toMatchObject({ type: "expense", categoryId: "cat-1" });
+    expect(tx.providerImportedTransaction.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["it-1"] }, userId: "user-1", status: "pending" },
+      data: { status: "processed", errorMessage: null }
+    });
+    expect(tx.providerImportedTransaction.update).toHaveBeenCalledWith({
+      where: { id: "it-1" },
+      data: { categoryId: "cat-1", transactionId: createdData(tx).id }
+    });
     expect(clearProviderPendingNotificationsMock).toHaveBeenCalled();
     expect(result.id).toBe("it-1");
   });
@@ -549,11 +539,18 @@ describe("batchImportProviderImportedTransactions", () => {
     prismaMock.providerAccount.findMany.mockResolvedValue([
       { id: "pa-1", account: { currency: "MXN", type: "credit_card" } }
     ] as never);
-    prismaMock.providerImportedTransaction.findFirst.mockResolvedValue(null);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: null } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "MXN",
+      exchangeRate: 1,
+      amountInPreferredCurrency: new Prisma.Decimal("50")
+    });
+    const tx = useImportTx([sourceRow("it-1", "50")]);
 
     await expect(
       batchImportProviderImportedTransactions("user-1", { selection: { mode: "ids", ids: ["it-1"] } })
-    ).rejects.toThrow("Imported transaction not found");
+    ).resolves.toMatchObject({ importedCount: 1 });
+    expect(createdData(tx)).toMatchObject({ categoryId: null });
   });
 
   it("throws a 400 when a row has no resolvable category", async () => {
@@ -570,5 +567,89 @@ describe("batchImportProviderImportedTransactions", () => {
         errors: [{ id: "it-1", message: "Category is required before importing" }]
       }
     });
+  });
+
+  function pendingRow(id: string) {
+    return {
+      id,
+      status: "pending",
+      amount: new Prisma.Decimal("-1"),
+      currency: "USD",
+      categoryId: "cat-1",
+      providerAccountRefId: null
+    };
+  }
+
+  function setupBatch(ids: string[]) {
+    prismaMock.providerImportedTransaction.findMany.mockResolvedValue(ids.map(pendingRow) as never);
+    assertImportedTransactionCategoryMock.mockResolvedValue({ id: "cat-1" } as never);
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ preferredCurrency: null } as never);
+    resolveTransactionCurrencyFieldsMock.mockResolvedValue({
+      executionCurrency: "USD",
+      exchangeRate: 1,
+      amountInPreferredCurrency: new Prisma.Decimal("1")
+    });
+  }
+
+  it("creates every row inside one transaction with a modest explicit timeout", async () => {
+    setupBatch(["it-1", "it-2", "it-3"]);
+    const tx = useImportTx(["it-1", "it-2", "it-3"].map((id) => sourceRow(id)));
+
+    const result = await batchImportProviderImportedTransactions("user-1", {
+      selection: { mode: "ids", ids: ["it-1", "it-2", "it-3"] }
+    });
+
+    expect(result.importedCount).toBe(3);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 30_000 });
+    expect(tx.transaction.createMany).toHaveBeenCalledTimes(1);
+    expect(tx.transaction.createMany.mock.calls[0]?.[0].data).toHaveLength(3);
+    expect(tx.providerImportedTransaction.updateMany).toHaveBeenCalledTimes(1);
+    expect(clearProviderPendingNotificationsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects the whole batch when row 2 of 3 fails to write, committing nothing", async () => {
+    setupBatch(["it-1", "it-2", "it-3"]);
+    const tx = useImportTx(["it-1", "it-2", "it-3"].map((id) => sourceRow(id)));
+    tx.providerImportedTransaction.update
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("write failed"));
+
+    await expect(
+      batchImportProviderImportedTransactions("user-1", {
+        selection: { mode: "ids", ids: ["it-1", "it-2", "it-3"] }
+      })
+    ).rejects.toThrow("write failed");
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.providerImportedTransaction.update).toHaveBeenCalledTimes(2);
+    expect(clearProviderPendingNotificationsMock).not.toHaveBeenCalled();
+  });
+
+  it("rolls back with the 400 when a row was imported or ignored since validation", async () => {
+    setupBatch(["it-1", "it-2"]);
+    const tx = useImportTx(["it-1", "it-2"].map((id) => sourceRow(id)));
+    tx.providerImportedTransaction.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      batchImportProviderImportedTransactions("user-1", {
+        selection: { mode: "ids", ids: ["it-1", "it-2"] }
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(tx.transaction.createMany).not.toHaveBeenCalled();
+    expect(clearProviderPendingNotificationsMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a filtered selection above the cap with a 400 and writes nothing", async () => {
+    vi.mocked(resolveImportedTransactionSelectionIds).mockResolvedValueOnce(
+      Array.from({ length: 501 }, (_, i) => `it-${i}`)
+    );
+
+    await expect(
+      batchImportProviderImportedTransactions("user-1", {
+        selection: { mode: "filtered", where: undefined }
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

@@ -14,7 +14,7 @@ import type { McpAuth } from "../types/mcp.types.js";
 import { runWrite } from "../utils/runTool.js";
 
 const BATCH_NOTE =
-  " Takes 1 to 50 imported-transaction ids. Validation is all-or-nothing: if any row is not in the required status the call fails with per-row errors and changes nothing. Ids that are not the user's are silently skipped.";
+  " Takes 1 to 50 imported-transaction ids. Validation is all-or-nothing: if any row is not in the required status the call fails with per-row errors and changes nothing. An id that does not exist or is not the user's fails the whole call with the same per-id error, and nothing changes.";
 
 /**
  * Registers the imported-transaction review write tools (set category, ignore, unignore, import). Callers register
@@ -74,7 +74,7 @@ export function registerImportedWriteTools(server: McpServer, auth: McpAuth) {
   server.registerTool(
     "import_imported_transactions",
     {
-      description: `Create real transactions from pending bank imports (the same as the web app's Import). Each row needs a category (set earlier or passed as categoryId, applied to every row) of the matching type. A row whose currency differs from its account's cannot be batch-imported (it needs an accountAmount, a decimal string, via the web import). The imports cannot be undone except by deleting the created transactions. You MUST obtain explicit user confirmation before calling.${BATCH_NOTE} Rows are validated up front; the creation loop itself is sequential and not wrapped in one database transaction.`,
+      description: `Create real transactions from pending bank imports (the same as the web app's Import). Each row needs a category (set earlier or passed as categoryId, applied to every row) of the matching type. A row whose currency differs from its account's cannot be batch-imported (it needs an accountAmount, a decimal string, via the web import). The imports cannot be undone except by deleting the created transactions. You MUST obtain explicit user confirmation before calling.${BATCH_NOTE} Rows are validated up front and created in one database transaction: if any write fails, no transaction is created.`,
       inputSchema: importImportedToolSchema.shape,
       annotations: { destructiveHint: false, idempotentHint: false }
     },
