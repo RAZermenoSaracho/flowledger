@@ -228,17 +228,17 @@ describe("credit card billing across write paths (real Postgres)", () => {
       expect(bad.status).toBe(400);
       expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
 
-      const nextClosing = closingDateOf(CYCLE, monthIndexOfKey(closed.key) + 1);
-      await ok(await patchPeriod(cardId, closed.key, { dueDate: ymd(addDays(nextClosing, -2)) }));
+      const closing = closingDateOf(CYCLE, monthIndexOfKey(closed.key));
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: ymd(addDays(closing, 15)) }));
       const blocked = await request(app)
         .put(`/accounts/${cardId}`)
         .set(bearer(jwt))
-        .send({ statementClosingDay: 15, paymentDueValue: 15 });
+        .send({ statementClosingDay: 3, paymentDueValue: 3 });
       expect(blocked.status, JSON.stringify(blocked.body)).toBe(400);
       expect(await prisma.account.findUniqueOrThrow({ where: { id: cardId } })).toMatchObject({ statementClosingDay: 20 });
 
-      await ok(await patchPeriod(cardId, closed.key, { dueDate: null }));
-      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ statementClosingDay: 15, paymentDueValue: 15 }));
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: null }));
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ statementClosingDay: 3, paymentDueValue: 3 }));
     }, 60_000);
 
     it("keeps overrides across a default change that stays consistent and deletes them with the account", async () => {

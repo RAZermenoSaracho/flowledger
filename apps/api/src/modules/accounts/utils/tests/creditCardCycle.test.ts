@@ -345,16 +345,43 @@ describe("validateCycleSequence", () => {
     expect(check([[nov, { dueDate: { y: 2026, m: 11, d: 20 } }]])).toMatch(/after its closing/);
   });
 
-  it("rejects a due date after the next period's closing", () => {
-    expect(check([[nov, { dueDate: { y: 2026, m: 12, d: 21 } }]])).toMatch(/cannot be after the next period's closing/);
+  it("accepts a due date after the next period's closing", () => {
+    expect(check([[nov, { dueDate: { y: 2026, m: 12, d: 21 } }]])).toBeNull();
   });
 
-  it("protects the previous period's due date from a closing moved earlier", () => {
+  it("accepts a closing moved before the previous period's due date, leaving that due date alone", () => {
     const config: Array<[number, { closingDate?: LocalDate; dueDate?: LocalDate }]> = [
       [nov - 1, { dueDate: { y: 2026, m: 11, d: 18 } }],
       [nov, { closingDate: { y: 2026, m: 11, d: 17 } }]
     ];
-    expect(check(config)).toMatch(/2026-10.*next period's closing/);
+    expect(check(config)).toBeNull();
+  });
+
+  describe("the six institution periods (closing 18, due day 18 of next month)", () => {
+    const plata = { statementClosingDay: 18, paymentDueValue: 18 };
+    const closings: Array<[number, LocalDate]> = [
+      [idx(2026, 7), { y: 2026, m: 7, d: 20 }],
+      [idx(2026, 10), { y: 2026, m: 10, d: 19 }]
+    ];
+
+    for (const [name, order] of [["oldest first", closings], ["newest first", [...closings].reverse()]] as const) {
+      it(`accepts every edit applied ${name}`, () => {
+        const applied = new Map<number, { closingDate: LocalDate }>();
+        for (const [index, closingDate] of order) {
+          applied.set(index, { closingDate });
+          expect(validateCycleSequence(mx({ ...plata, overrides: applied }), [index - 1, index, index + 1])).toBeNull();
+        }
+      });
+    }
+
+    it("accepts the full sequence and a due override past the next closing", () => {
+      const overrides = new Map<number, { closingDate?: LocalDate; dueDate?: LocalDate }>([
+        ...closings.map(([index, closingDate]) => [index, { closingDate }] as const),
+        [idx(2026, 10), { closingDate: { y: 2026, m: 10, d: 19 }, dueDate: { y: 2026, m: 11, d: 25 } }]
+      ]);
+      const all = Array.from({ length: 8 }, (_, n) => idx(2026, 5) + n);
+      expect(validateCycleSequence(mx({ ...plata, overrides }), all)).toBeNull();
+    });
   });
 
   it("rejects a wrong-year typo", () => {

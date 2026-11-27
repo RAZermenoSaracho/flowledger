@@ -106,7 +106,7 @@ export function toCycleConfig(account: CardBillingAccount, overrides?: PeriodOve
  * Builds the full billing projection of one credit card from its configuration and ledger entries; pure and deterministic
  * for a given `now`. `metrics.balance` equals `calculateAccountBalance` over the same ledger. Periods run from the one
  * containing the earlier of the account's creation and its first entry up to the open period, newest first, `BILLING_PAGE_SIZE`
- * per 1-based `page`. `overrides` replaces the closing and/or due date of individual periods; everything else derives from the effective dates. A card without a complete cycle configuration returns metrics and no periods. All amounts are exact decimal strings.
+ * per 1-based `page`. A closed period's payment window runs from its closing to the later of the next closing and its own due date, so a payment made after the next closing but before the due date counts toward both statements (closing debts are cumulative, so the next statement already contains the unpaid remainder). `overrides` replaces the closing and/or due date of individual periods; everything else derives from the effective dates. A card without a complete cycle configuration returns metrics and no periods. All amounts are exact decimal strings.
  */
 export function buildCardBilling(input: {
   account: CardBillingAccount;
@@ -230,8 +230,8 @@ export function buildCardBilling(input: {
     }
 
     const nextClose = periodBounds(config, monthIndex + 1).closeInstant;
-    const windowEnd = lowerBound(nextClose);
     const onTimeEnd = lowerBound(bounds.dueInstant);
+    const windowEnd = Math.max(lowerBound(nextClose), onTimeEnd);
     const closingDebt = positive(prefix[endIdx]!.negated());
     const breakdown = emptyBreakdown();
     let credits = ZERO;

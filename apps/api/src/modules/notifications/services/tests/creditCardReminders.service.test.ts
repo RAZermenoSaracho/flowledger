@@ -102,6 +102,16 @@ describe("runCreditCardReminders", () => {
     expect(overdue.message).toContain("1 days overdue");
   });
 
+  it("does not emit overdue for a period paid on time after the next closing", async () => {
+    const extendedDue = async (_userId: string, ids: string[]) =>
+      new Map(ids.map((id) => [id, new Map([[2027 * 12, { dueDate: { y: 2027, m: 2, d: 25 } }]])]));
+    const entries = [purchase, charge("2027-02-05T18:00:00Z", 2000), payment("2027-02-22T18:00:00Z", 10000)];
+    const inputs = await run(entries, "2027-02-26T18:00:00Z", [card("c1", "u1")], extendedDue as never);
+    expect(inputs.map((n) => n.type)).not.toContain("credit_card_payment_overdue");
+    const unpaid = await run([purchase, charge("2027-02-05T18:00:00Z", 2000)], "2027-02-26T18:00:00Z", [card("c1", "u1")], extendedDue as never);
+    expect(unpaid.find((n) => n.type === "credit_card_payment_overdue")!.dedupeKey).toBe("cc:credit_card_payment_overdue:c1:2027-01-20");
+  });
+
   it("does not emit overdue before the due date ends", async () => {
     const inputs = await run([purchase], "2027-02-20T23:00:00Z");
     expect(inputs.map((n) => n.type)).not.toContain("credit_card_payment_overdue");

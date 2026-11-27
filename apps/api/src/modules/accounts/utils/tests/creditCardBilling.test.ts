@@ -578,3 +578,82 @@ describe("period date overrides", () => {
     });
   });
 });
+
+describe("due dates after the next closing", () => {
+  const ymd = (value: string) => {
+    const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+    return { y, m, d };
+  };
+  const key = (value: string) => {
+    const [y, m] = value.split("-").map(Number) as [number, number];
+    return y * 12 + m - 1;
+  };
+  const plata = new Map([
+    [key("2026-07"), { closingDate: ymd("2026-07-20") }],
+    [key("2026-10"), { closingDate: ymd("2026-10-19"), dueDate: ymd("2026-11-25") }]
+  ]);
+  const card = account({
+    statementClosingDay: 18,
+    paymentDueValue: 18,
+    createdAt: new Date("2026-05-01T00:00:00Z"),
+    annualInterestRate: null
+  });
+  const run = (entries: CardEntry[], now: string, overrides = plata) =>
+    buildCardBilling({ account: card, entries, now: at(now), page: 1, overrides });
+
+  it("reproduces the six institution periods through closing overrides, contiguous with default due dates", () => {
+    const billing = run([], "2026-11-27");
+    const ordered = [...billing.periods].reverse().filter((p) => p.end >= "2026-06-18" && p.end <= "2026-11-18");
+    expect(ordered.map((p) => [p.start, p.end, p.dueDate])).toEqual([
+      ["2026-05-19", "2026-06-18", "2026-07-18"],
+      ["2026-06-19", "2026-07-20", "2026-08-18"],
+      ["2026-07-21", "2026-08-18", "2026-09-18"],
+      ["2026-08-19", "2026-09-18", "2026-10-18"],
+      ["2026-09-19", "2026-10-19", "2026-11-25"],
+      ["2026-10-20", "2026-11-18", "2026-12-18"]
+    ]);
+    ordered.slice(1).forEach((p, i) => {
+      const next = new Date(`${ordered[i]!.end}T00:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      expect(p.start).toBe(next.toISOString().slice(0, 10));
+    });
+  });
+
+  const ledger = [charge("2026-10-10", 1000), charge("2026-11-05", 500)];
+
+  it("counts a payment between the next closing and the due date toward both statements' own balances", () => {
+    const billing = run([...ledger, credit("2026-11-20", 1000)], "2026-11-27");
+    expect(period(billing, "2026-10-19")).toMatchObject({
+      closingDebt: "1000",
+      credits: "1000",
+      remaining: "0",
+      onTimeRemaining: "0",
+      status: "paid",
+      creditsBreakdown: { transfers: "1000" }
+    });
+    expect(period(billing, "2026-11-18")).toMatchObject({
+      closingDebt: "1500",
+      credits: "1000",
+      remaining: "500",
+      onTimeRemaining: "500",
+      status: "partially_paid"
+    });
+  });
+
+  it("does not count the same entry twice inside one period", () => {
+    const billing = run([...ledger, credit("2026-11-19", 400), credit("2026-11-20", 600)], "2026-11-27");
+    expect(period(billing, "2026-10-19")).toMatchObject({ credits: "1000", creditsBreakdown: { transfers: "1000" } });
+  });
+
+  it("leaves a payment after the extended due date out of the earlier period and marks it overdue", () => {
+    const billing = run([...ledger, credit("2026-11-26", 1000)], "2026-11-27");
+    expect(period(billing, "2026-10-19")).toMatchObject({ credits: "0", remaining: "1000", status: "overdue" });
+    expect(period(billing, "2026-11-18")).toMatchObject({ credits: "1000", remaining: "500" });
+  });
+
+  it("keeps the next-closing window when the due date is earlier", () => {
+    const early = new Map([[key("2026-10"), { closingDate: ymd("2026-10-19"), dueDate: ymd("2026-11-10") }]]);
+    const billing = run([...ledger, credit("2026-11-15", 1000)], "2026-11-27", early);
+    expect(period(billing, "2026-10-19")).toMatchObject({ credits: "1000", onTimeRemaining: "1000", remaining: "0", status: "paid_late" });
+  });
+});

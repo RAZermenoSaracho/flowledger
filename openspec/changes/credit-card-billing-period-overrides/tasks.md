@@ -44,6 +44,13 @@
 - [x] 6b.2 `validateCycleSequence` reports closing-order errors before due-date errors.
 - [x] 6b.3 `updateBillingPeriodOverride` runs Serializable; `P2034` maps to 409. Tests: continuity example (A 2026-10-21..2026-11-20, B 2026-11-21..2026-12-20, A end 2026-11-19), unrelated overrides preserved, rollback, zone, concurrency integration test.
 
+## 6c. Independent boundaries and deadlines
+
+- [x] 6c.1 `validateCycleSequence`: drop the "due not after the next closing" rule; keep strictly increasing closings and due after its own closing.
+- [x] 6c.2 `buildCardBilling`: a closed period's payment window ends at `max(close(N+1), due(N))`; the interest estimate end date is unchanged.
+- [x] 6c.3 Tests: the six institution periods in several edit orders, a due override past the next closing, a payment inside the overlap (per-statement figures, no double count within a period), a closing edit writes one row and never changes a due date, no false overdue reminder.
+- [x] 6c.4 Update the delta spec (MODIFIED boundary and payment requirements), design, proposal and `docs/DOMAIN_LOGIC.md`.
+
 ## 7. Verification
 
 - [x] 7.1 `npm run typecheck`, `npm run lint`, targeted `npm run test` per workspace.

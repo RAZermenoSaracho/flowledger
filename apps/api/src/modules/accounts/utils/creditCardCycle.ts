@@ -150,8 +150,8 @@ export function enumeratePeriodIndexes(config: CycleConfig, from: Date, to: Date
 }
 
 /**
- * Checks the periods `indexes` against the cycle invariants. Closing-order violations are reported before any due-date violation, so the error names the date the caller changed rather than a neighbour's due date. Closing dates strictly increase, and each due
- * date is after its own closing date and not after the next closing date. Returns a message naming the first offending period,
+ * Checks the periods `indexes` against the cycle invariants. Closing-order violations are reported before any due-date violation, so the error names the date the caller changed rather than a neighbour's due date. Closing dates strictly increase and each due
+ * date is after its own closing date. A due date may fall after the next closing: boundaries and payment deadlines are independent. Returns a message naming the first offending period,
  * or `null` when the sequence is consistent.
  */
 export function validateCycleSequence(config: CycleConfig, indexes: Iterable<number>): string | null {
@@ -166,9 +166,6 @@ export function validateCycleSequence(config: CycleConfig, indexes: Iterable<num
     const due = dueDateOf(config, index);
     if (daysBetween(closingDateOf(config, index), due) <= 0) {
       return `Period ${key}: the payment due date must be after its closing date`;
-    }
-    if (daysBetween(closingDateOf(config, index + 1), due) > 0) {
-      return `Period ${key}: the payment due date cannot be after the next period's closing date`;
     }
   }
   return null;

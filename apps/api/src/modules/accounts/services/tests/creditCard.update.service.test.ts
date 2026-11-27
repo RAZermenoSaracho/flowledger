@@ -133,20 +133,13 @@ describe("updateBillingPeriodOverride", () => {
     ).resolves.toMatchObject({ key: "2026-10", dueDate: "2026-11-18" });
   });
 
-  it("rejects overlapping, due-before-closing and neighbour-breaking values without writing", async () => {
+  it("rejects overlapping and due-before-closing values without writing", async () => {
     await expect(
       updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-10-20" }, NOW)
     ).rejects.toMatchObject({ statusCode: 400 });
     await expect(
       updateBillingPeriodOverride("user-1", "card-1", "2026-11", { dueDate: "2026-11-20" }, NOW)
     ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("after its closing") });
-    await expect(
-      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { dueDate: "2026-12-21" }, NOW)
-    ).rejects.toMatchObject({ statusCode: 400 });
-    rows = [stored({ monthIndex: november - 1, dueDate: utc("2026-11-18") })];
-    await expect(
-      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-17" }, NOW)
-    ).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.creditCardPeriodOverride.upsert).not.toHaveBeenCalled();
   });
 
@@ -166,21 +159,60 @@ describe("updateBillingPeriodOverride", () => {
     expect(previous).toMatchObject({ end: "2026-10-20", endAdjusted: false });
   });
 
-  it("rejects shortening a closing below the previous period's due date, naming that period", async () => {
-    await expect(
-      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-19" }, NOW)
-    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/2026-10.*cannot be after the next period's closing/) });
-    expect(rows).toEqual([]);
+  it("lets a closing move before the previous period's due date and leaves every due date untouched", async () => {
+    rows = [stored({ monthIndex: november - 1, dueDate: utc("2026-11-18") })];
+    const before = structuredClone(rows);
+    await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-17" }, NOW);
+    expect(rows).toEqual([...before, stored({ closingDate: utc("2026-11-17") })]);
+    expect(prismaMock.creditCardPeriodOverride.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it("does not erase another period's due override when a boundary moves", async () => {
-    rows = [stored({ monthIndex: november - 1, dueDate: utc("2026-11-18") })];
-    await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW);
-    expect(rows.find((row) => row.monthIndex === november - 1)?.dueDate).toEqual(utc("2026-11-18"));
+  it("accepts a due date after the next period's closing", async () => {
     await expect(
-      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-17" }, NOW)
-    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("2026-10") });
-    expect(rows.find((row) => row.monthIndex === november - 1)?.dueDate).toEqual(utc("2026-11-18"));
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { dueDate: "2026-12-28" }, NOW)
+    ).resolves.toMatchObject({ key: "2026-11", dueDate: "2026-12-28", dueAdjusted: true });
+  });
+
+  describe("replaying the six institution periods (closing 18, due day 18 of next month)", () => {
+    const plata = { ...card, createdAt: new Date("2026-05-01T00:00:00Z"), statementClosingDay: 18, paymentDueValue: 18 };
+    const NOV_NOW = new Date("2026-11-27T18:00:00Z");
+    const edits: Array<[string, string]> = [
+      ["2026-07", "2026-07-20"],
+      ["2026-10", "2026-10-19"]
+    ];
+
+    for (const [name, order] of [["oldest first", edits], ["newest first", [...edits].reverse()]] as const) {
+      it(`succeeds with one override row per edit, ${name}`, async () => {
+        prismaMock.account.findFirst.mockResolvedValue(plata as never);
+        for (const [key, closingDate] of order) {
+          const others = structuredClone(rows);
+          await updateBillingPeriodOverride("user-1", "card-1", key, { closingDate }, NOV_NOW);
+          expect(rows).toHaveLength(others.length + 1);
+          expect(rows.slice(0, others.length)).toEqual(others);
+        }
+        const periods = await Promise.all(
+          ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"].map((key) =>
+            getBillingPeriod("user-1", "card-1", key, NOV_NOW)
+          )
+        );
+        expect(periods.map((period) => [period!.start, period!.end, period!.dueDate])).toEqual([
+          ["2026-05-19", "2026-06-18", "2026-07-18"],
+          ["2026-06-19", "2026-07-20", "2026-08-18"],
+          ["2026-07-21", "2026-08-18", "2026-09-18"],
+          ["2026-08-19", "2026-09-18", "2026-10-18"],
+          ["2026-09-19", "2026-10-19", "2026-11-18"],
+          ["2026-10-20", "2026-11-18", "2026-12-18"]
+        ]);
+        expect(rows.every((row) => row.dueDate === null)).toBe(true);
+      });
+    }
+
+    it("accepts an Oct due date past the next closing without touching other rows", async () => {
+      prismaMock.account.findFirst.mockResolvedValue(plata as never);
+      rows = [stored({ monthIndex: november - 1, closingDate: utc("2026-10-19") })];
+      await updateBillingPeriodOverride("user-1", "card-1", "2026-10", { dueDate: "2026-11-25" }, NOV_NOW);
+      expect(rows).toEqual([stored({ monthIndex: november - 1, closingDate: utc("2026-10-19"), dueDate: utc("2026-11-25") })]);
+    });
   });
 
   it("runs in a Serializable transaction and maps a serialization failure to 409", async () => {
