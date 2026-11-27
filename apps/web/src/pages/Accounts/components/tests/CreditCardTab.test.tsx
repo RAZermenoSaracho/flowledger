@@ -179,4 +179,31 @@ describe("CreditCardTab", () => {
     await screen.findByText("Billing periods");
     expect(pages).toContain("2");
   });
+
+  it("edits a period's end, then shows it Adjusted with the default after the reload", async () => {
+    let adjusted = false;
+    server.use(
+      http.get("http://localhost:4000/accounts/card-1/credit-card", () =>
+        HttpResponse.json(
+          makeBilling({
+            periods: [makePeriod(adjusted ? { end: "2027-02-23", endAdjusted: true, defaultEnd: "2027-02-20" } : {})]
+          })
+        )
+      ),
+      http.patch("http://localhost:4000/accounts/card-1/credit-card/periods/2027-02", () => {
+        adjusted = true;
+        return HttpResponse.json(makePeriod());
+      })
+    );
+    renderTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Edit dates of period 2027-02/ }));
+    const end = screen.getByLabelText("Period end");
+    await userEvent.clear(end);
+    await userEvent.type(end, "2027-02-23");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Adjusted")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Reset Period end to default/ })).toBeInTheDocument();
+  });
 });

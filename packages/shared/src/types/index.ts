@@ -146,6 +146,16 @@ export interface InterestEstimate {
 
 /** One closed or open billing period. Dates are local `YYYY-MM-DD` in the card's billing time zone; `closingDebt` is null while open. */
 export interface BillingPeriod {
+  /** `YYYY-MM` of the period's default closing month; stable identity used to override its dates. */
+  key: string;
+  /** True when the closing date was manually overridden. */
+  endAdjusted: boolean;
+  /** True when the due date was manually overridden. */
+  dueAdjusted: boolean;
+  /** The closing date the card's cycle would give this period, ignoring its own override. */
+  defaultEnd: string;
+  /** The due date the card's cycle would give this period, ignoring its own override. */
+  defaultDue: string;
   start: string;
   end: string;
   /** Period start instant (inclusive), UTC ISO, computed in the card's billing time zone. */

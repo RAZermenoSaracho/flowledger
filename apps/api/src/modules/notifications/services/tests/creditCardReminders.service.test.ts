@@ -4,8 +4,9 @@ import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import type { CardEntry } from "../../../accounts/types/creditCardBilling.types.js";
 
 const loadCardEntries = vi.fn();
+const loadCardOverrides = vi.fn();
 const createNotifications = vi.fn();
-vi.mock("../../../accounts/services/creditCard.read.service.js", () => ({ loadCardEntries }));
+vi.mock("../../../accounts/services/creditCard.read.service.js", () => ({ loadCardEntries, loadCardOverrides }));
 vi.mock("../create.service.js", () => ({ createNotifications }));
 
 const { runCreditCardReminders } = await import("../creditCardReminders.service.js");
@@ -36,8 +37,11 @@ function card(id: string, userId: string, name = "Plata") {
   };
 }
 
-async function run(entries: CardEntry[], now: string, cards = [card("c1", "u1")]) {
+const noOverrides = async (_userId: string, ids: string[]) => new Map(ids.map((id) => [id, new Map()]));
+
+async function run(entries: CardEntry[], now: string, cards = [card("c1", "u1")], overrides = noOverrides) {
   prismaMock.account.findMany.mockResolvedValue(cards as never);
+  loadCardOverrides.mockImplementation(overrides);
   loadCardEntries.mockImplementation(async (_userId: string, ids: string[]) => new Map(ids.map((id) => [id, entries])));
   createNotifications.mockClear();
   await runCreditCardReminders(new Date(now));
@@ -119,12 +123,23 @@ describe("runCreditCardReminders", () => {
     loadCardEntries.mockImplementation(async (userId: string, ids: string[]) =>
       new Map(ids.map((id) => [id, userId === "u1" ? [purchase] : []]))
     );
+    loadCardOverrides.mockImplementation(noOverrides);
     createNotifications.mockClear();
     await runCreditCardReminders(new Date("2027-01-25T18:00:00Z"));
     expect(loadCardEntries).toHaveBeenCalledWith("u1", ["c1"]);
+    expect(loadCardOverrides).toHaveBeenCalledWith("u2", ["c2"]);
     expect(loadCardEntries).toHaveBeenCalledWith("u2", ["c2"]);
     const inputs = createNotifications.mock.calls[0]![1] as Array<{ userId: string }>;
     expect(inputs.every((n) => n.userId === "u1")).toBe(true);
     expect(inputs).toHaveLength(1);
+  });
+
+  it("uses an overridden due date for due-soon and overdue reminders", async () => {
+    const overrides = async (_userId: string, ids: string[]) =>
+      new Map(ids.map((id) => [id, new Map([[2027 * 12, { dueDate: { y: 2027, m: 2, d: 5 } }]])]));
+    const soon = await run([purchase], "2027-02-02T18:00:00Z", [card("c1", "u1")], overrides);
+    expect(soon.find((n) => n.type === "credit_card_payment_due_soon")?.message).toContain("3 days remaining");
+    const overdue = await run([purchase], "2027-02-06T18:00:00Z", [card("c1", "u1")], overrides);
+    expect(overdue.map((n) => n.type)).toContain("credit_card_payment_overdue");
   });
 });

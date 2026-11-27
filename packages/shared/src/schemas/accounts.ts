@@ -143,6 +143,32 @@ export const creditCardBillingQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1)
 });
 
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+  .refine((value) => {
+    const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+  }, "Not a valid calendar date");
+
+/** Route params of `PATCH /accounts/:id/credit-card/periods/:key`; `key` is the `YYYY-MM` of the period's default closing month. */
+export const billingPeriodKeyParamsSchema = z.object({
+  id: z.string().min(1),
+  key: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Period key must be YYYY-MM")
+});
+
+/** Body of `PATCH /accounts/:id/credit-card/periods/:key`: absent field = unchanged, `null` = reset to the card's default. */
+export const updateBillingPeriodSchema = z
+  .object({
+    closingDate: calendarDateSchema.nullable().optional(),
+    dueDate: calendarDateSchema.nullable().optional()
+  })
+  .refine((body) => body.closingDate !== undefined || body.dueDate !== undefined, {
+    message: "Provide closingDate, dueDate or both"
+  });
+
+export type UpdateBillingPeriodInput = z.infer<typeof updateBillingPeriodSchema>;
 export type CreditCardBillingQuery = z.infer<
   typeof creditCardBillingQuerySchema
 >;

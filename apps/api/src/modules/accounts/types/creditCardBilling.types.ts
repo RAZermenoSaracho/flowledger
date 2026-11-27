@@ -4,12 +4,19 @@ import type { Prisma } from "@prisma/client";
 /** A calendar date in some time zone; `m` is 1-12. */
 export type LocalDate = { y: number; m: number; d: number };
 
-/** The billing-cycle part of a card's configuration. */
+/** Manual dates of one billing period; an absent date keeps the card's default for it. */
+export type PeriodOverride = { closingDate?: LocalDate; dueDate?: LocalDate };
+
+/** Period overrides keyed by the period's `monthIndex`. */
+export type PeriodOverrides = ReadonlyMap<number, PeriodOverride>;
+
+/** The billing-cycle part of a card's configuration, plus optional per-period date overrides. */
 export type CycleConfig = {
   statementClosingDay: number;
   paymentDueRule: PaymentDueRule;
   paymentDueValue: number;
   billingTimeZone: string;
+  overrides?: PeriodOverrides;
 };
 
 /** Boundaries of one billing period, identified by the month (`monthIndex = year * 12 + month - 1`) of its closing date. */

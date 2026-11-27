@@ -5,13 +5,15 @@ import { RelatedList } from "../../../components/RelatedList";
 import { formatMoney } from "../../../utils/currency";
 import { formatFilterValue } from "../../../utils/dateTime";
 import { isNonZero } from "../../../utils/money";
+import { BillingPeriodDateCell } from "./BillingPeriodDateCell";
+import { BillingPeriodDatesEditor } from "./BillingPeriodDatesEditor";
 import { periodStatusClass, periodStatusLabel } from "../utils/creditCardDisplay";
 import { periodTransactionsPath } from "../utils/creditCardLinks";
 
 /**
  * Billing-periods table of a credit card (newest first, one API page at a time), with stacked
  * records on mobile. Every figure is shown as returned by the API. Selecting a period opens the
- * account's Transactions tab filtered to its dates. An overdue period other than the latest closed one is labeled as carried.
+ * account's Transactions tab filtered to its dates. Period end and Payment due can be adjusted per period (marked "Adjusted" with the default shown) and reset to the card's default. An overdue period other than the latest closed one is labeled as carried.
  */
 export function CreditCardPeriodsTable({
   accountId,
@@ -58,8 +60,16 @@ export function CreditCardPeriodsTable({
             </Link>
           )
         },
-        { key: "end", header: "Period end", cell: (period) => formatFilterValue(period.end) },
-        { key: "due", header: "Payment due", cell: (period) => formatFilterValue(period.dueDate) },
+        {
+          key: "end",
+          header: "Period end",
+          cell: (period) => <BillingPeriodDateCell accountId={accountId} period={period} field="end" />
+        },
+        {
+          key: "due",
+          header: "Payment due",
+          cell: (period) => <BillingPeriodDateCell accountId={accountId} period={period} field="due" />
+        },
         {
           key: "closing",
           header: "Debt at closing",
@@ -94,6 +104,11 @@ export function CreditCardPeriodsTable({
               </span>
             );
           }
+        },
+        {
+          key: "dates",
+          header: "Adjust dates",
+          cell: (period) => <BillingPeriodDatesEditor key={`${period.key}:${period.end}:${period.dueDate}`} accountId={accountId} period={period} />
         }
       ]}
     />

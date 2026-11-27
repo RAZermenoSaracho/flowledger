@@ -1,19 +1,22 @@
 import {
   accountsQueryParamSchema,
   accountSchema,
+  billingPeriodKeyParamsSchema,
   confirmProviderAccountsSchema,
   holdingsChangeSetSchema,
   createProviderConnectionSchema,
   institutionCatalogQuerySchema,
   providerConnectionParamsSchema,
   providerWebhookParamsSchema,
-  updateAccountSchema
+  updateAccountSchema,
+  updateBillingPeriodSchema
 } from "@flowledger/shared";
 import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middleware/validate.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getCreditCard } from "./controllers/creditCard.read.controller.js";
+import { patchBillingPeriod } from "./controllers/creditCard.update.controller.js";
 import { postAccount } from "./controllers/create.controller.js";
 import { deleteAccountHandler } from "./controllers/delete.controller.js";
 import { getHoldings, patchHoldings, postRefreshHoldings } from "./controllers/holdings.controller.js";
@@ -72,6 +75,13 @@ accountsRouter.get(
 );
 
 accountsRouter.get("/:id/credit-card", asyncHandler(getCreditCard));
+
+accountsRouter.patch(
+  "/:id/credit-card/periods/:key",
+  validate(billingPeriodKeyParamsSchema, "params"),
+  validate(updateBillingPeriodSchema),
+  asyncHandler(patchBillingPeriod)
+);
 
 accountsRouter.get("/:id/holdings", asyncHandler(getHoldings));
 

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { calculateAccountBalance } from "../../../transactions/utils/transactionCalculations.js";
 import type { CardBillingAccount, CardEntry, CreditKind } from "../../types/creditCardBilling.types.js";
 import { BILLING_PAGE_SIZE, buildCardBilling, toCardEntry } from "../creditCardBilling.js";
+import goldenBilling from "./fixtures/creditCardBilling.golden.json" with { type: "json" };
+import { BILLING_SCENARIOS } from "./fixtures/creditCardScenarios.js";
 
 const D = (value: Prisma.Decimal.Value) => new Prisma.Decimal(value);
 /** Local noon in America/Mexico_City (UTC-6, no DST). */
@@ -371,5 +373,193 @@ describe("toCardEntry", () => {
   it("maps an interest expense to interest and other expenses to charges", () => {
     expect(toCardEntry(row({ creditCardKind: "interest" }), "card-1").role).toBe("interest");
     expect(toCardEntry(row({}), "card-1").role).toBe("charge");
+  });
+});
+
+describe("period date overrides", () => {
+  const ymd = (value: string) => {
+    const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+    return { y, m, d };
+  };
+  const overrides = (spec: Record<string, { closing?: string; due?: string }>) =>
+    new Map(
+      Object.entries(spec).map(([key, { closing, due }]) => {
+        const [y, m] = key.split("-").map(Number) as [number, number];
+        return [
+          y * 12 + m - 1,
+          { ...(closing ? { closingDate: ymd(closing) } : {}), ...(due ? { dueDate: ymd(due) } : {}) }
+        ] as const;
+      })
+    );
+  const withOverrides = (
+    entries: CardEntry[],
+    now: string,
+    spec: Parameters<typeof overrides>[0],
+    over: Partial<CardBillingAccount> = {}
+  ) => buildCardBilling({ account: account(over), entries, now: at(now), page: 1, overrides: overrides(spec) });
+
+  const NEW_FIELDS = ["key", "endAdjusted", "dueAdjusted", "defaultEnd", "defaultDue"] as const;
+  const withoutNewFields = (billing: ReturnType<typeof build>) =>
+    JSON.parse(
+      JSON.stringify(billing, (name, value) => ((NEW_FIELDS as readonly string[]).includes(name) ? undefined : value))
+    );
+
+  describe("without overrides", () => {
+    for (const [name, scenario] of Object.entries(BILLING_SCENARIOS)) {
+      it(`reproduces the pre-override output for ${name}`, () => {
+        const golden = (goldenBilling as Record<string, unknown[]>)[name]!;
+        for (const page of [1, 2]) {
+          const billing = buildCardBilling({ ...scenario, page });
+          expect(withoutNewFields(billing)).toEqual(golden[page - 1]);
+          expect(buildCardBilling({ ...scenario, page, overrides: new Map() })).toEqual(billing);
+          for (const p of billing.periods) {
+            expect(p).toMatchObject({ endAdjusted: false, dueAdjusted: false, defaultEnd: p.end, defaultDue: p.dueDate });
+          }
+        }
+      });
+    }
+  });
+
+  describe("closing date override", () => {
+    const ledger = [charge("2026-10-10", 1000), charge("2026-11-22", 2000)];
+    const now = "2026-12-05";
+
+    it("moves a purchase into the overridden period and starts the next period the day after", () => {
+      const base = build(ledger, now);
+      const moved = withOverrides(ledger, now, { "2026-11": { closing: "2026-11-23" } });
+      expect(period(base, "2026-11-20").closingDebt).toBe("1000");
+      expect(period(moved, "2026-11-23")).toMatchObject({
+        key: "2026-11",
+        closingDebt: "3000",
+        endAdjusted: true,
+        dueAdjusted: false,
+        defaultEnd: "2026-11-20"
+      });
+      expect(moved.periods[0]).toMatchObject({ status: "open", start: "2026-11-24" });
+      expect(moved.openPeriod!.start).toBe("2026-11-24");
+    });
+
+    it("never changes the balance or the input entries", () => {
+      const entries = [...ledger];
+      const before = JSON.stringify(entries);
+      const moved = withOverrides(entries, now, { "2026-11": { closing: "2026-11-23" } });
+      expect(JSON.stringify(entries)).toBe(before);
+      expect(moved.metrics).toEqual(build(ledger, now).metrics);
+    });
+
+    it("leaves every period except the overridden one and its neighbours identical", () => {
+      const long = [charge("2026-09-10", 100), charge("2026-10-10", 1000), charge("2026-11-22", 2000), charge("2026-12-22", 500)];
+      const base = build(long, "2027-02-05");
+      const moved = withOverrides(long, "2027-02-05", { "2026-11": { closing: "2026-11-23" } });
+      const untouched = (billing: ReturnType<typeof build>) =>
+        billing.periods.filter((p) => !["2026-10", "2026-11", "2026-12"].includes(p.key));
+      expect(untouched(moved)).toEqual(untouched(base));
+      expect(untouched(moved).length).toBeGreaterThan(0);
+      expect(moved.periods.length).toBe(base.periods.length);
+    });
+
+    it("moves a credit between payment windows and recomputes the neighbours' figures", () => {
+      const entries = [charge("2026-10-10", 1000), credit("2026-11-21", 400), credit("2026-11-24", 100)];
+      const base = build(entries, "2026-12-05");
+      const moved = withOverrides(entries, "2026-12-05", { "2026-11": { closing: "2026-11-23" } });
+      expect(period(base, "2026-10-20")).toMatchObject({ closingDebt: "1000", credits: "0", remaining: "1000" });
+      expect(period(moved, "2026-10-20")).toMatchObject({ closingDebt: "1000", credits: "400", remaining: "600" });
+      expect(period(base, "2026-11-20")).toMatchObject({ closingDebt: "1000", credits: "500" });
+      expect(period(moved, "2026-11-23")).toMatchObject({ closingDebt: "600", credits: "100" });
+    });
+
+    it("resets exactly to the original figures", () => {
+      expect(withOverrides(ledger, now, {})).toEqual(build(ledger, now));
+    });
+
+    it("moves confirmed interest with the entry date", () => {
+      const withInterest = [charge("2026-10-10", 1000), interest("2026-11-22", 50)];
+      expect(period(build(withInterest, now), "2026-11-20").confirmedInterest).toBe("0");
+      const moved = withOverrides(withInterest, now, { "2026-11": { closing: "2026-11-23" } });
+      expect(period(moved, "2026-11-23").confirmedInterest).toBe("50");
+    });
+
+    it("handles a short month after a year boundary override (closing 31)", () => {
+      const over = { statementClosingDay: 31, paymentDueRule: "days_after_closing" as const, paymentDueValue: 10 };
+      const entries = [charge("2026-12-15", 100)];
+      const moved = withOverrides(entries, "2027-03-10", { "2027-01": { closing: "2027-02-02" } }, over);
+      const byKey = Object.fromEntries(moved.periods.map((p) => [p.key, p]));
+      expect(byKey["2027-01"]).toMatchObject({ end: "2027-02-02", defaultEnd: "2027-01-31", dueDate: "2027-02-12" });
+      expect(byKey["2027-02"]).toMatchObject({ start: "2027-02-03", end: "2027-02-28" });
+      const base = Object.fromEntries(build(entries, "2027-03-10", over).periods.map((p) => [p.key, p]));
+      const { estimate: _movedEstimate, ...december } = byKey["2026-12"]!;
+      const { estimate: _baseEstimate, ...baseDecember } = base["2026-12"]!;
+      expect(december).toEqual(baseDecember);
+    });
+
+    it("lets an unoverridden days_after_closing due follow the effective closing", () => {
+      const over = { paymentDueRule: "days_after_closing" as const, paymentDueValue: 10 };
+      const followed = withOverrides(ledger, now, { "2026-11": { closing: "2026-11-23" } }, over);
+      expect(period(followed, "2026-11-23")).toMatchObject({ dueDate: "2026-12-03", dueAdjusted: false, defaultDue: "2026-12-03" });
+      const both = withOverrides(ledger, now, { "2026-11": { closing: "2026-11-23", due: "2026-12-08" } }, over);
+      expect(period(both, "2026-11-23")).toMatchObject({ dueDate: "2026-12-08", dueAdjusted: true, defaultDue: "2026-12-03" });
+    });
+  });
+
+  describe("due date override", () => {
+    const due10 = { paymentDueValue: 10 };
+    const ledger = [charge("2026-10-10", 1000), credit("2026-12-15", 1000, "payment")];
+    const nov = "2026-11-20";
+
+    it("is independent of the closing date and the neighbours", () => {
+      const base = build(ledger, "2027-01-05", due10);
+      const moved = withOverrides(ledger, "2027-01-05", { "2026-11": { due: "2026-12-18" } }, due10);
+      expect(period(moved, nov)).toMatchObject({
+        dueDate: "2026-12-18",
+        dueAdjusted: true,
+        endAdjusted: false,
+        defaultDue: "2026-12-10",
+        start: "2026-10-21"
+      });
+      const others = (billing: ReturnType<typeof build>) => billing.periods.filter((p) => p.key !== "2026-11");
+      expect(others(moved)).toEqual(others(base));
+    });
+
+    it("turns paid_late into paid and back on reset", () => {
+      const base = build(ledger, "2027-01-05", due10);
+      expect(period(base, nov).status).toBe("paid_late");
+      const moved = withOverrides(ledger, "2027-01-05", { "2026-11": { due: "2026-12-18" } }, due10);
+      expect(period(moved, nov)).toMatchObject({ status: "paid", onTimeRemaining: "0" });
+      expect(withOverrides(ledger, "2027-01-05", {}, due10)).toEqual(base);
+    });
+
+    it("turns overdue into pending when the due date moves past now", () => {
+      const unpaid = [charge("2026-10-10", 1000)];
+      expect(period(build(unpaid, "2026-12-15", due10), nov).status).toBe("overdue");
+      const moved = withOverrides(unpaid, "2026-12-15", { "2026-11": { due: "2026-12-18" } }, due10);
+      expect(period(moved, nov).status).toBe("pending");
+    });
+
+    it("turns paid into paid_late when the due date moves before the payment", () => {
+      const paidEarly = [charge("2026-10-10", 1000), credit("2026-12-05", 1000, "payment")];
+      expect(period(build(paidEarly, "2027-01-05", due10), nov).status).toBe("paid");
+      const earlier = withOverrides(paidEarly, "2027-01-05", { "2026-11": { due: "2026-12-03" } }, due10);
+      expect(period(earlier, nov).status).toBe("paid_late");
+    });
+  });
+
+  describe("DST time zones", () => {
+    it("allocates by the zone's local day when an override straddles a DST change", () => {
+      const ny = { billingTimeZone: "America/New_York", statementClosingDay: 10, paymentDueValue: 10 };
+      const entries: CardEntry[] = [
+        { date: new Date("2027-03-14T06:30:00Z"), delta: D(-10), role: "charge" },
+        { date: new Date("2027-03-15T03:30:00Z"), delta: D(-20), role: "charge" },
+        { date: new Date("2027-03-15T04:30:00Z"), delta: D(-40), role: "charge" }
+      ];
+      const moved = buildCardBilling({
+        account: account(ny),
+        entries,
+        now: new Date("2027-04-20T16:00:00Z"),
+        page: 1,
+        overrides: overrides({ "2027-03": { closing: "2027-03-14" } })
+      });
+      expect(period(moved, "2027-03-14").closingDebt).toBe("30");
+      expect(period(moved, "2027-04-10")).toMatchObject({ start: "2027-03-15", closingDebt: "70" });
+    });
   });
 });

@@ -13,14 +13,18 @@ import type {
   CardEntry,
   CreditKind,
   CycleConfig,
-  PeriodBounds
+  PeriodBounds,
+  PeriodOverrides
 } from "../types/creditCardBilling.types.js";
 import {
   addDays,
   closingDateOf,
   daysBetween,
+  defaultClosingDateOf,
+  defaultDueDateOf,
   enumeratePeriodIndexes,
   formatLocalDate,
+  keyOfMonthIndex,
   localDateOf,
   periodBounds,
   startOfLocalDay
@@ -91,23 +95,25 @@ function positive(value: Prisma.Decimal) {
   return value.isNegative() ? ZERO : value;
 }
 
-function toCycleConfig(account: CardBillingAccount): CycleConfig | null {
+/** Reduces the account's cycle columns (plus the period overrides) to a {@link CycleConfig}, or `null` when the cycle isn't fully configured. */
+export function toCycleConfig(account: CardBillingAccount, overrides?: PeriodOverrides): CycleConfig | null {
   const { statementClosingDay, paymentDueRule, paymentDueValue, billingTimeZone } = account;
   if (statementClosingDay == null || !paymentDueRule || paymentDueValue == null || !billingTimeZone) return null;
-  return { statementClosingDay, paymentDueRule, paymentDueValue, billingTimeZone };
+  return { statementClosingDay, paymentDueRule, paymentDueValue, billingTimeZone, overrides };
 }
 
 /**
  * Builds the full billing projection of one credit card from its configuration and ledger entries; pure and deterministic
  * for a given `now`. `metrics.balance` equals `calculateAccountBalance` over the same ledger. Periods run from the one
  * containing the earlier of the account's creation and its first entry up to the open period, newest first, `BILLING_PAGE_SIZE`
- * per 1-based `page`. A card without a complete cycle configuration returns metrics and no periods. All amounts are exact decimal strings.
+ * per 1-based `page`. `overrides` replaces the closing and/or due date of individual periods; everything else derives from the effective dates. A card without a complete cycle configuration returns metrics and no periods. All amounts are exact decimal strings.
  */
 export function buildCardBilling(input: {
   account: CardBillingAccount;
   entries: CardEntry[];
   now: Date;
   page: number;
+  overrides?: PeriodOverrides;
 }): CreditCardBilling {
   const { account, now, page } = input;
   const entries = [...input.entries].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -130,7 +136,7 @@ export function buildCardBilling(input: {
     overLimit: available ? available.isNegative() : false
   };
 
-  const config = toCycleConfig(account);
+  const config = toCycleConfig(account, input.overrides);
   if (!config) {
     return {
       accountId: account.id,
@@ -189,7 +195,13 @@ export function buildCardBilling(input: {
 
   const rows = indexes.map((monthIndex): BillingPeriod => {
     const bounds = periodBounds(config, monthIndex);
+    const override = config.overrides?.get(monthIndex);
     const base = {
+      key: keyOfMonthIndex(monthIndex),
+      endAdjusted: override?.closingDate !== undefined,
+      dueAdjusted: override?.dueDate !== undefined,
+      defaultEnd: formatLocalDate(defaultClosingDateOf(config, monthIndex)),
+      defaultDue: formatLocalDate(defaultDueDateOf(config, monthIndex)),
       start: formatLocalDate(bounds.start),
       end: formatLocalDate(bounds.closingDate),
       startAt: bounds.startInstant.toISOString(),

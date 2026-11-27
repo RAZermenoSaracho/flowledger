@@ -10,6 +10,11 @@ export function makePeriod(overrides: Partial<BillingPeriod> = {}): BillingPerio
   const dayAfterEnd = new Date(`${end}T00:00:00.000Z`);
   dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
   return {
+    key: end.slice(0, 7),
+    endAdjusted: false,
+    dueAdjusted: false,
+    defaultEnd: end,
+    defaultDue: overrides.dueDate ?? "2027-03-20",
     startAt: `${start}T06:00:00.000Z`,
     endAt: `${dayAfterEnd.toISOString().slice(0, 10)}T06:00:00.000Z`,
     start: "2027-01-21",

@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   accountSchema,
   creditCardBillingQuerySchema,
+  billingPeriodKeyParamsSchema,
+  updateBillingPeriodSchema,
   accountBaseSchema,
   accountsQueryParamSchema,
   holdingsChangeSetSchema,
@@ -211,6 +213,34 @@ describe("creditCardBillingQuerySchema", () => {
     expect(creditCardBillingQuerySchema.safeParse({ page: "0" }).success).toBe(
       false
     );
+  });
+});
+
+describe("updateBillingPeriodSchema", () => {
+  it("accepts dates, nulls and a single field", () => {
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2026-11-23", dueDate: null }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ dueDate: "2026-12-18" }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: null }).success).toBe(true);
+  });
+
+  it("rejects an empty body, malformed and impossible dates", () => {
+    expect(updateBillingPeriodSchema.safeParse({}).success).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "23/11/2026" }).success).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2026-02-30" }).success).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ dueDate: "2026-13-01" }).success).toBe(false);
+  });
+
+  it("accepts leap day only in leap years", () => {
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2028-02-29" }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2027-02-29" }).success).toBe(false);
+  });
+});
+
+describe("billingPeriodKeyParamsSchema", () => {
+  it("accepts YYYY-MM keys and rejects others", () => {
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-11" }).success).toBe(true);
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-13" }).success).toBe(false);
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-1" }).success).toBe(false);
   });
 });
 
