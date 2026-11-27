@@ -180,7 +180,7 @@ describe("CreditCardTab", () => {
     expect(pages).toContain("2");
   });
 
-  it("edits a period's end, then shows it Adjusted with the default after the reload", async () => {
+  it("edits a period's end inline, then shows it Adjusted with the default after the reload", async () => {
     let adjusted = false;
     server.use(
       http.get("http://localhost:4000/accounts/card-1/credit-card", () =>
@@ -197,11 +197,10 @@ describe("CreditCardTab", () => {
     );
     renderTab();
 
-    await userEvent.click(await screen.findByRole("button", { name: /Edit dates of period 2027-02/ }));
-    const end = screen.getByLabelText("Period end");
+    await userEvent.click(await screen.findByRole("button", { name: /Edit Period end of period 2027-02/ }));
+    const end = screen.getByLabelText(/^Period end, period 2027-02/);
     await userEvent.clear(end);
-    await userEvent.type(end, "2027-02-23");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.type(end, "2027-02-23{Enter}");
 
     expect(await screen.findByText("Adjusted")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Reset Period end to default/ })).toBeInTheDocument();
