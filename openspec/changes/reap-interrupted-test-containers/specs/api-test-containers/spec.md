@@ -1,25 +1,7 @@
 ## ADDED Requirements
 
-### Requirement: Test Postgres containers leave no volumes
-The API integration and e2e test database container SHALL keep its data directory on tmpfs so that no anonymous Docker volume is created, even if the container is never removed.
-
-#### Scenario: No volume while running
-- **WHEN** `startTestDatabase()` has resolved
-- **THEN** the Docker host lists no volume created for that container
-
-### Requirement: Test Postgres containers have a bounded lifetime
-The API integration and e2e test database container SHALL stop itself after a fixed maximum lifetime of 20 minutes, so that a container left without a reaper does not keep running.
-
-#### Scenario: Unreaped container stops
-- **WHEN** a test Postgres container has been running for 20 minutes without being stopped by its test process or a reaper
-- **THEN** the container is in the exited state
-
-#### Scenario: Normal startup is unaffected
-- **WHEN** `startTestDatabase()` is called
-- **THEN** it resolves with a working connection URI and migrations applied
-
 ### Requirement: Interrupted runs are reaped
-A killed or aborted API test run SHALL leave no container labelled `org.testcontainers=true` and no volume on the Docker host within 2 minutes, while the reaper container is alive.
+A killed or aborted API test run SHALL leave no container labelled `org.testcontainers=true` and no volume on the Docker test host within 2 minutes, while the run's reaper container is alive.
 
 #### Scenario: SIGKILL mid-run
 - **WHEN** the vitest process tree of an integration test file is SIGKILLed after the Postgres container is up
@@ -29,8 +11,27 @@ A killed or aborted API test run SHALL leave no container labelled `org.testcont
 - **WHEN** the full `apps/api` test run finishes
 - **THEN** the Docker host lists zero testcontainers containers and zero volumes
 
-### Requirement: Leftovers are discoverable without automation
-`docs/TESTING.md` SHALL document a read-only command that lists leftover testcontainers containers and volumes on the Docker host, state the situations in which the reaper cannot cover a run, and describe removal as a manual per-id step. No script SHALL remove containers or volumes automatically.
+### Requirement: Orphaned testcontainers are swept conservatively
+The Docker test host SHALL run a periodic sweep that removes a container only when it carries the label `org.testcontainers=true`, is not a running Ryuk, is older than 3 hours, and, if running, has no running Ryuk container with the same `org.testcontainers.session-id`. The sweep SHALL remove only those containers and their anonymous volumes, SHALL NOT prune volumes, networks, images or unlabelled containers, and SHALL list without removing unless explicitly applied.
+
+#### Scenario: Orphan removed
+- **WHEN** a labelled Postgres container has been running for more than 3 hours and no Ryuk with its session id is running
+- **THEN** the sweep removes it and its anonymous volume and logs the removal
+
+#### Scenario: Live run untouched
+- **WHEN** a labelled container is younger than 3 hours, or its session has a running Ryuk
+- **THEN** the sweep leaves it running
+
+#### Scenario: Unrelated workload untouched
+- **WHEN** a container has no `org.testcontainers=true` label, whatever its state or age
+- **THEN** the sweep neither removes nor lists it
+
+#### Scenario: Default is read-only
+- **WHEN** the sweep runs without the apply flag
+- **THEN** it prints the containers it would remove and removes nothing
+
+### Requirement: Leftovers are documented
+`docs/TESTING.md` SHALL describe the sweep, its selection rule, a read-only command that lists leftover testcontainers containers and volumes, and that nothing in the repository removes containers or volumes.
 
 #### Scenario: Listing leftovers
 - **WHEN** a developer runs the documented listing command
