@@ -13,7 +13,7 @@ Evidence collected on 2026-11-26 (details in `design.md`):
 ## What Changes
 
 - Pin the repository to Node 22 LTS: `.nvmrc`, root `engines`, and the Node version references in `CLAUDE.md`.
-- After the owner approves, make the deploy script and the host default Node 22 (outside the repo; see `design.md`, "Infrastructure steps").
+- After the owner approves, make the deploy script and the PM2 apps use Node 22 (outside the repo; see `design.md`, "Infrastructure runbook").
 - Owner-run hardware diagnostics for the two kernel panics (no repo change).
 - No change to application code, VM settings, or retry policy unless the acceptance runs still fail on Node 22.
 
@@ -27,5 +27,5 @@ Evidence collected on 2026-11-26 (details in `design.md`):
 ## Impact
 
 - `.nvmrc`, root `package.json` (`engines`), `CLAUDE.md`, and any README or docs that name Node 24.
-- The production runtime changes with the host default Node (API, worker and web restart under the deploy shell's Node). That is an infrastructure change and needs separate owner approval.
+- The production runtime changes to Node 22 (API, worker and web are re-registered in PM2 with the Node 22 interpreter). That is an infrastructure change and needs separate owner approval.
 - Overlap with task #196: this change does not touch `apps/api` vitest or testcontainers configuration, the Docker VM, or the Docker integration tests.
