@@ -97,11 +97,11 @@ Pyodide **314.0.7** runs CPython in a fresh child for each execution, with rough
 
 1. AST validation on save and before execution: maximum 20,000 code characters; rejects imports, classes, global/nonlocal, with, async/await, yield, generator expressions, decorators and match. Names and attributes starting with `_`, frame/code traversal attributes and `format`, `format_map`, `mro` are forbidden. Validation errors include line and column.
 2. Restricted builtins and helper namespace. Ordinary collection, numeric and string operations plus `Exception` and `ValueError` are available; `open`, `eval`, `exec`, `getattr` and imports are unavailable to scripts. `re` is a restricted namespace. Bootstrap removes Python-to-JS bridge modules and deletes child `fetch` and `WebSocket` globals.
-3. Process isolation: empty environment, no shell, JSON-line stdin/stdout protocol, Node 24 permission model denying file writes, child processes, workers and native addons. Read access is limited to Pyodide and sandbox directories, with a separate `--allow-fs-read=<dir>/*` flag for each. The child shims only `process.binding("constants")` using public `fs.constants`; other bindings throw.
+3. Process isolation: empty environment, no shell, JSON-line stdin/stdout protocol, Node 22 permission model denying file writes, child processes, workers and native addons. Read access is limited to Pyodide and sandbox directories, with a separate `--allow-fs-read=<dir>/*` flag for each. The child shims only `process.binding("constants")` using public `fs.constants`; other bindings throw.
 
 The child uses `--max-old-space-size=128` (128 MB V8 heap) and `--wasm-max-mem-pages=4096` (256 MB WebAssembly linear memory). These are separate limits, not a total RSS cap. The parent kills children after 2 s of script execution following readiness, 15 s total lifetime, or over 64 KB protocol stdout. Resource exhaustion and regex backtracking fail with `resource_limit` or `timeout`. Playground capacity is separate: 2 per API process, 1 per user; busy requests return 503.
 
-**Residual network risk:** Node 24 permissions do not block outbound network. A Python/WebAssembly/JS escape past the first two layers could reach it. An execution service with disabled egress is the upgrade path.
+**Residual network risk:** Node 22 permissions do not block outbound network. A Python/WebAssembly/JS escape past the first two layers could reach it. An execution service with disabled egress is the upgrade path.
 
 ## Queue and concurrency
 
