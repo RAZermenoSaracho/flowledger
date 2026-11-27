@@ -30,7 +30,7 @@ flowledger/
 
 ## How to run
 
-Node `>=24` required (see `.nvmrc` / `engines` in root `package.json`).
+Node `>=22.13` required (Node 22 LTS; the macOS 12 host cannot run Node 24 reliably) (see `.nvmrc` / `engines` in root `package.json`).
 
 ```bash
 cp .env.example .env          # fill in secrets before running
