@@ -28,7 +28,7 @@ The owner SHALL be able to override, independently, the closing date and the pay
 
 #### Scenario: Short month and year boundary
 - **WHEN** a card with closing day 31 has the period closing 2027-01-31 overridden to 2027-02-02
-- **THEN** the following period starts 2027-02-03 and closes 2027-02-28, and the December 2026 period is unchanged
+- **THEN** the following period starts 2027-02-03 and closes 2027-02-28, and the December 2026 period keeps its start, end, due date and closing debt (only its window-derived figures, such as the interest estimate window, follow the moved closing)
 
 ### Requirement: Override validation
 
@@ -104,7 +104,7 @@ Every period other than N-1, N and N+1 SHALL return output identical to the outp
 
 #### Scenario: Credit moves between payment windows
 - **WHEN** a payment is dated on the day after the default closing and the closing is overridden to that day
-- **THEN** the payment now falls before the overridden closing and no longer counts as a credit of that period's payment window, the previous period's window figures are recomputed, and resetting the override restores the original figures exactly
+- **THEN** the payment now falls inside the previous period's payment window instead of this period's, the previous period's credits, remaining and status are recomputed, this period's closing debt falls by the payment, and resetting the override restores the original figures exactly
 
 #### Scenario: Paid-late becomes paid and back
 - **WHEN** a period paid on 2026-12-22 against due 2026-12-20 (`paid_late`) has its due date overridden to 2026-12-24
