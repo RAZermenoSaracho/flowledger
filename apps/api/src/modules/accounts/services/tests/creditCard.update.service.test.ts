@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { beforeEach, describe, expect, it } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
+import { getBillingPeriod } from "../creditCard.read.service.js";
 import { updateBillingPeriodOverride } from "../creditCard.update.service.js";
 
 const card = {
@@ -147,6 +148,66 @@ describe("updateBillingPeriodOverride", () => {
       updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-17" }, NOW)
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(prismaMock.creditCardPeriodOverride.upsert).not.toHaveBeenCalled();
+  });
+
+  it("gives the closing-date error for a date before the previous closing, not a neighbour's due error", async () => {
+    await expect(
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-10-15" }, NOW)
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/2026-11.*closing date must be after the previous/) });
+  });
+
+  it("keeps the owner's example contiguous and leaves other periods unchanged", async () => {
+    prismaMock.account.findFirst.mockResolvedValue({ ...card, paymentDueValue: 10 } as never);
+    const period = await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-19" }, NOW);
+    expect(period).toMatchObject({ start: "2026-10-21", end: "2026-11-19" });
+    const next = await getBillingPeriod("user-1", "card-1", "2026-12", NOW);
+    expect(next).toMatchObject({ start: "2026-11-20", end: "2026-12-20", endAdjusted: false });
+    const previous = await getBillingPeriod("user-1", "card-1", "2026-10", NOW);
+    expect(previous).toMatchObject({ end: "2026-10-20", endAdjusted: false });
+  });
+
+  it("rejects shortening a closing below the previous period's due date, naming that period", async () => {
+    await expect(
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-19" }, NOW)
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/2026-10.*cannot be after the next period's closing/) });
+    expect(rows).toEqual([]);
+  });
+
+  it("does not erase another period's due override when a boundary moves", async () => {
+    rows = [stored({ monthIndex: november - 1, dueDate: utc("2026-11-18") })];
+    await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW);
+    expect(rows.find((row) => row.monthIndex === november - 1)?.dueDate).toEqual(utc("2026-11-18"));
+    await expect(
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-17" }, NOW)
+    ).rejects.toMatchObject({ statusCode: 400, message: expect.stringContaining("2026-10") });
+    expect(rows.find((row) => row.monthIndex === november - 1)?.dueDate).toEqual(utc("2026-11-18"));
+  });
+
+  it("runs in a Serializable transaction and maps a serialization failure to 409", async () => {
+    prismaMock.$transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("conflict", { code: "P2034", clientVersion: "x" })
+    );
+    await expect(
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW)
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW);
+    expect(prismaMock.$transaction).toHaveBeenLastCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+    });
+  });
+
+  it("stores nothing when the write fails", async () => {
+    prismaMock.creditCardPeriodOverride.upsert.mockRejectedValueOnce(new Error("db down"));
+    await expect(
+      updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW)
+    ).rejects.toThrow("db down");
+    expect(rows).toEqual([]);
+  });
+
+  it("reads calendar dates in the card's billing zone, not the server's", async () => {
+    const period = await updateBillingPeriodOverride("user-1", "card-1", "2026-11", { closingDate: "2026-11-23" }, NOW);
+    expect(period.end).toBe("2026-11-23");
+    expect(rows[0]?.closingDate).toEqual(utc("2026-11-23"));
   });
 
   it("never writes to the ledger or the account", async () => {

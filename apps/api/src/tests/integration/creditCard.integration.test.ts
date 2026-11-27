@@ -36,9 +36,9 @@ async function ok<T extends { status: number; body: Json }>(res: T) {
   return res.body;
 }
 
-async function createCard(name: string) {
+async function createCard(name: string, cycle: { paymentDueValue?: number } = {}) {
   const body = await ok(
-    await request(app).post("/accounts").set(bearer(jwt)).send({ name, type: "credit_card", currency: "MXN", creditLimit: "50000", ...CYCLE })
+    await request(app).post("/accounts").set(bearer(jwt)).send({ name, type: "credit_card", currency: "MXN", creditLimit: "50000", ...CYCLE, ...cycle })
   );
   const id = body.account.id as string;
   await ok(
@@ -264,6 +264,22 @@ describe("credit card billing across write paths (real Postgres)", () => {
       await ok(await patchPeriod(cardId, open.key, { dueDate: open.defaultDue }));
       await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ type: "checking" }));
       expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
+    }, 60_000);
+
+    it("never leaves an invalid sequence when two edits that conflict jointly run concurrently", async () => {
+      const cycle = { paymentDueValue: 5 };
+      const config = { ...CYCLE, ...cycle };
+      const cardId = await createCard("Racing", cycle);
+      const [open, closed] = (await billing(cardId)).periods as [Json, Json];
+      const nextClosing = closingDateOf(config, monthIndexOfKey(closed.key) + 1);
+      const results = await Promise.all([
+        patchPeriod(cardId, closed.key, { dueDate: ymd(nextClosing) }),
+        patchPeriod(cardId, open.key, { closingDate: ymd(addDays(nextClosing, -3)) })
+      ]);
+      expect(results.map((res) => res.status).every((status) => [200, 400, 409].includes(status))).toBe(true);
+      expect(results.filter((res) => res.status === 200).length).toBeLessThan(2);
+      const after = (await billing(cardId)).periods as [Json, Json];
+      expect(after[1].dueDate <= after[0].end).toBe(true);
     }, 60_000);
 
     it("rejects a period key after the open period", async () => {

@@ -439,6 +439,21 @@ describe("period date overrides", () => {
       expect(moved.openPeriod!.start).toBe("2026-11-24");
     });
 
+    it("shortening a closing moves only the next start, leaving contiguous periods and every other end", () => {
+      const entries = [charge("2026-11-20", 700), charge("2026-11-19", 300)];
+      const base = build(entries, now);
+      const moved = withOverrides(entries, now, { "2026-11": { closing: "2026-11-19" } });
+      expect(period(moved, "2026-11-19")).toMatchObject({ start: "2026-10-21", closingDebt: "300" });
+      expect(period(moved, "2026-12-20")).toMatchObject({ start: "2026-11-20", status: "open", endAdjusted: false });
+      expect(moved.periods.map((p) => p.end)).toEqual(base.periods.map((p) => (p.end === "2026-11-20" ? "2026-11-19" : p.end)));
+      const ordered = [...moved.periods].reverse();
+      ordered.slice(1).forEach((p, i) => {
+        const prev = new Date(`${ordered[i]!.end}T00:00:00Z`);
+        prev.setUTCDate(prev.getUTCDate() + 1);
+        expect(p.start).toBe(prev.toISOString().slice(0, 10));
+      });
+    });
+
     it("never changes the balance or the input entries", () => {
       const entries = [...ledger];
       const before = JSON.stringify(entries);

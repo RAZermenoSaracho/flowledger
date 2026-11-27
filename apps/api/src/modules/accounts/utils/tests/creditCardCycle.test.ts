@@ -331,6 +331,11 @@ describe("validateCycleSequence", () => {
     expect(check([[nov, { closingDate: { y: 2026, m: 10, d: 5 } }]])).not.toBeNull();
   });
 
+  it("reports a closing on or before the previous closing before a neighbour's due-date error", () => {
+    const config = mx({ overrides: new Map([[nov, { closingDate: { y: 2026, m: 10, d: 15 } }]]) });
+    expect(validateCycleSequence(config, [nov - 1, nov, nov + 1])).toMatch(/Period 2026-11: the closing date must be after the previous/);
+  });
+
   it("rejects a closing on or after the next closing", () => {
     const config = mx({ overrides: new Map([[nov, { closingDate: { y: 2026, m: 12, d: 20 } }]]) });
     expect(validateCycleSequence(config, [nov + 1])).toMatch(/2026-12.*after the previous/);
