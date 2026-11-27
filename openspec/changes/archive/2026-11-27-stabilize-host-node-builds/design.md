@@ -87,6 +87,8 @@ npm ci
 
 The same shell then runs `prisma`, `npm run build`, and the `pm2 restart ... --update-env` lines. Those restarts keep each app's pinned interpreter, so the apps stay on whatever step (b) set; `--update-env` refreshes the saved `PATH` to Node 22. For the one fallback branch that does `pm2 start npm ... flowledger-prod-worker`, add `--interpreter "$(nvm which 22)"`. Dry run before the first real deploy: `bash -c 'source ~/.nvm/nvm.sh && cd ~/production/flowledger && nvm use && node -v'` from a non-login shell.
 
+As deployed: `pm2` is a global package installed only under Node 24, so after `nvm use` the script no longer finds it on `PATH`; the first deploy failed with exit code 127 at `pm2 restart`, after the build. The script captures `PM2_BIN="$(command -v pm2)"` before `nvm use` and calls it through a `pm2` shell function. The step (b) commands must run with the Node 22 `bin` first on `PATH` (the prelude's `nvm use 22`); otherwise the `node` that npm spawns is still v24.
+
 Rollback (c): restore the previous script (`cp` the backup taken before editing, e.g. `~/scripts/deploy-flowledger-prod.sh.bak-193`) or delete the four added lines.
 
 ### (d) Persist
