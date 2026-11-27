@@ -10,7 +10,7 @@ Banks sometimes close a statement or set a payment due date off the card's defau
 - The billing calculation resolves each period's closing and due date as override-or-default. The next period starts the day after the effective end, so periods never gap or overlap, and every derived figure (allocation, closing debt, credits, remaining, status, interest estimate and confirmed interest, reminders, MCP and `/v1` output) follows without separate code.
 - New endpoint `PATCH /accounts/:id/credit-card/periods/:key` sets or resets (null) either date. Writes are rejected when the resulting sequence of periods would be invalid.
 - Changing the card's default cycle fields is rejected when it would invalidate an existing override; otherwise defaults keep applying to every period without an override.
-- Billing periods table: inline edit of the two dates per row, an "Adjusted" marker with the default shown, and reset to default.
+- Billing periods table: Period end and Payment due are edited directly in their cells (click the date, native date input, Enter/blur saves, Escape cancels, inline saving and error states); an "Adjusted" badge, the default and a reset icon stay in the cell. Period start remains derived (previous end + 1 day) and not editable. No extra column.
 - Each period in the billing response gains `key`, `endAdjusted`, `dueAdjusted`, `defaultEnd`, `defaultDue`.
 
 ## Capabilities
@@ -26,5 +26,5 @@ Banks sometimes close a statement or set a payment due date off the card's defau
 - `database/prisma/schema.prisma` plus one migration (new table `CreditCardPeriodOverride`; no data reset, no backfill).
 - API `accounts` module: `utils/creditCardCycle.ts`, `utils/creditCardBilling.ts`, `types/creditCardBilling.types.ts`, `services/creditCard.read.service.ts`, new `services/creditCard.update.service.ts` and controller, `accounts.routes.ts`, `services/update.service.ts`; `notifications/services/creditCardReminders.service.ts` (pass overrides).
 - `packages/shared`: new schemas, `BillingPeriod` type fields.
-- Web `pages/Accounts`: `CreditCardPeriodsTable.tsx`, new row editor component and `useUpdateBillingPeriod` hook, `services/creditCard.client.ts`.
+- Web `pages/Accounts`: `CreditCardPeriodsTable.tsx`, `BillingPeriodDateCell` and `useUpdateBillingPeriod` hook, `services/creditCard.client.ts`.
 - `docs/DATA_MODEL.md`, `docs/DOMAIN_LOGIC.md` (billing section).

@@ -35,8 +35,14 @@
 
 - [x] 6.1 `services/creditCard.client.ts`: `updateBillingPeriod(accountId, key, body)`; test in `services/tests` with msw.
 - [x] 6.2 `pages/Accounts/hooks/useUpdateBillingPeriod.ts`: mutation invalidating `["accounts","credit-card",accountId]`; hook test.
-- [x] 6.3 `pages/Accounts/components/BillingPeriodDatesEditor.tsx`: date inputs, Save/Cancel, per-date reset, error display; component test (save, cancel, error keeps values, reset).
-- [x] 6.4 `CreditCardPeriodsTable.tsx`: "Adjusted" badge with default, edit action, mobile stacked layout; extend its tests; update `src/tests/fixtures/creditCardBilling.ts` for new fields.
+- [x] 6.3 `pages/Accounts/components/BillingPeriodDateCell.tsx`: in-cell date button turning into a native date input (Enter/blur save, Escape cancel, saving state, inline error keeping the value, Adjusted badge, reset icon, focus return); component test with user-event (click, type, Enter, Escape, blur, error, reset, keyboard-only). No separate editor or "Adjust dates" column.
+- [x] 6.4 `CreditCardPeriodsTable.tsx`: "Adjusted" badge with default, in-cell editing, mobile stacked layout; extend its tests; update `src/tests/fixtures/creditCardBilling.ts` for new fields.
+
+## 6b. UX correction and domain checks
+
+- [x] 6b.1 Remove `BillingPeriodDatesEditor` and the "Adjust dates" column; edit Period end and Payment due in place.
+- [x] 6b.2 `validateCycleSequence` reports closing-order errors before due-date errors.
+- [x] 6b.3 `updateBillingPeriodOverride` runs Serializable; `P2034` maps to 409. Tests: continuity example (A 2026-10-21..2026-11-20, B 2026-11-21..2026-12-20, A end 2026-11-19), unrelated overrides preserved, rollback, zone, concurrency integration test.
 
 ## 7. Verification
 

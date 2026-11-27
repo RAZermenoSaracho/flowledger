@@ -67,6 +67,10 @@ Allocation, closing debt, payment windows, credits, remaining to avoid interest,
 - **WHEN** a 2000 purchase on 2026-11-22 follows a default closing of 2026-11-20 and the closing is overridden to 2026-11-23
 - **THEN** the period's closing debt includes the 2000 and the next period no longer contains it
 
+#### Scenario: Next start follows a shortened closing
+- **WHEN** period A spans 2026-10-21 to 2026-11-20, period B spans 2026-11-21 to 2026-12-20, and A's closing is overridden to 2026-11-19
+- **THEN** B starts 2026-11-20, B still ends 2026-12-20, and every other period is unchanged, with no gap or overlap between consecutive periods
+
 #### Scenario: Unrelated periods unchanged
 - **WHEN** one period is overridden
 - **THEN** every period other than it and its two neighbours returns identical figures
@@ -74,6 +78,10 @@ Allocation, closing debt, payment windows, credits, remaining to avoid interest,
 ### Requirement: Override endpoint and response flags
 
 `PATCH /accounts/:id/credit-card/periods/:key` SHALL require authentication and ownership of a `credit_card` account, accept `closingDate` and/or `dueDate` (`YYYY-MM-DD` or null; at least one field), and return the updated period. Another user's account or a non-card account SHALL return 404. Each period of `GET /accounts/:id/credit-card` SHALL include `key`, `endAdjusted`, `dueAdjusted`, `defaultEnd` and `defaultDue`.
+
+#### Scenario: Concurrent edits
+- **WHEN** two requests that are each valid but jointly invalid run at the same time
+- **THEN** the validation and write run in one Serializable transaction, at most one succeeds, the other is a 400 or a 409 "retry", and the stored sequence is always valid
 
 #### Scenario: Not the owner
 - **WHEN** another user patches the period
