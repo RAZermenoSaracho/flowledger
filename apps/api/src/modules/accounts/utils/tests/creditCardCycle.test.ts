@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { CycleConfig, LocalDate } from "../../types/creditCardBilling.types.js";
+import type {
+  CycleConfig,
+  LocalDate
+} from "../../types/creditCardBilling.types.js";
 import {
   addDays,
   closingDateOf,
@@ -248,33 +251,51 @@ describe("period overrides", () => {
   const nov = idx(2026, 11);
 
   it("resolves closing and due from the override, else the default", () => {
-    const config = withOverrides([[nov, { closingDate: { y: 2026, m: 11, d: 23 } }]]);
+    const config = withOverrides([
+      [nov, { closingDate: { y: 2026, m: 11, d: 23 } }]
+    ]);
     expect(formatLocalDate(closingDateOf(config, nov))).toBe("2026-11-23");
-    expect(formatLocalDate(defaultClosingDateOf(config, nov))).toBe("2026-11-20");
+    expect(formatLocalDate(defaultClosingDateOf(config, nov))).toBe(
+      "2026-11-20"
+    );
     expect(formatLocalDate(closingDateOf(config, nov + 1))).toBe("2026-12-20");
     expect(formatLocalDate(dueDateOf(config, nov))).toBe("2026-12-20");
   });
 
   it("follows the effective closing under days_after_closing but not a calendar due rule", () => {
     const moved = { closingDate: { y: 2026, m: 11, d: 23 } };
-    const days = withOverrides([[nov, moved]], { paymentDueRule: "days_after_closing", paymentDueValue: 10 });
-    expect(formatLocalDate(dueDateOf(days, nov))).toBe("2026-12-03");
-    const ownDue = withOverrides([[nov, { ...moved, dueDate: { y: 2026, m: 12, d: 8 } }]], {
+    const days = withOverrides([[nov, moved]], {
       paymentDueRule: "days_after_closing",
       paymentDueValue: 10
     });
+    expect(formatLocalDate(dueDateOf(days, nov))).toBe("2026-12-03");
+    const ownDue = withOverrides(
+      [[nov, { ...moved, dueDate: { y: 2026, m: 12, d: 8 } }]],
+      {
+        paymentDueRule: "days_after_closing",
+        paymentDueValue: 10
+      }
+    );
     expect(formatLocalDate(dueDateOf(ownDue, nov))).toBe("2026-12-08");
     expect(formatLocalDate(defaultDueDateOf(ownDue, nov))).toBe("2026-12-03");
   });
 
   it("starts the next period the day after the overridden closing, across a year end", () => {
-    const config = withOverrides([[idx(2026, 12), { closingDate: { y: 2027, m: 1, d: 3 } }]]);
-    expect(fmt(idx(2026, 12), config)).toEqual(["2026-11-21", "2027-01-03", "2027-01-20"]);
+    const config = withOverrides([
+      [idx(2026, 12), { closingDate: { y: 2027, m: 1, d: 3 } }]
+    ]);
+    expect(fmt(idx(2026, 12), config)).toEqual([
+      "2026-11-21",
+      "2027-01-03",
+      "2027-01-20"
+    ]);
     expect(fmt(idx(2027, 1), config)[0]).toBe("2027-01-04");
   });
 
   it("finds the period containing an instant when a closing moved across a month boundary", () => {
-    const config = withOverrides([[idx(2026, 12), { closingDate: { y: 2027, m: 1, d: 3 } }]]);
+    const config = withOverrides([
+      [idx(2026, 12), { closingDate: { y: 2027, m: 1, d: 3 } }]
+    ]);
     const at = (iso: string) => periodIndexContaining(config, new Date(iso));
     expect(at("2027-01-02T18:00:00Z")).toBe(idx(2026, 12));
     expect(at("2027-01-03T17:59:59Z")).toBe(idx(2026, 12));
@@ -283,7 +304,9 @@ describe("period overrides", () => {
   });
 
   it("finds the period when a closing moved earlier, before a default boundary", () => {
-    const config = withOverrides([[nov, { closingDate: { y: 2026, m: 11, d: 15 } }]]);
+    const config = withOverrides([
+      [nov, { closingDate: { y: 2026, m: 11, d: 15 } }]
+    ]);
     const at = (iso: string) => periodIndexContaining(config, new Date(iso));
     expect(at("2026-11-15T17:00:00Z")).toBe(nov);
     expect(at("2026-11-16T07:00:00Z")).toBe(nov + 1);
@@ -291,20 +314,29 @@ describe("period overrides", () => {
   });
 
   it("honors the zone's local day at an overridden boundary across a DST change", () => {
-    const config = withOverrides([[idx(2027, 3), { closingDate: { y: 2027, m: 3, d: 14 } }]], {
-      billingTimeZone: "America/New_York",
-      statementClosingDay: 10
-    });
+    const config = withOverrides(
+      [[idx(2027, 3), { closingDate: { y: 2027, m: 3, d: 14 } }]],
+      {
+        billingTimeZone: "America/New_York",
+        statementClosingDay: 10
+      }
+    );
     const bounds = periodBounds(config, idx(2027, 3));
     expect(bounds.closeInstant.toISOString()).toBe("2027-03-15T04:00:00.000Z");
-    expect(periodIndexContaining(config, new Date("2027-03-15T03:59:59Z"))).toBe(idx(2027, 3));
-    expect(periodIndexContaining(config, new Date("2027-03-15T04:00:00Z"))).toBe(idx(2027, 4));
+    expect(
+      periodIndexContaining(config, new Date("2027-03-15T03:59:59Z"))
+    ).toBe(idx(2027, 3));
+    expect(
+      periodIndexContaining(config, new Date("2027-03-15T04:00:00Z"))
+    ).toBe(idx(2027, 4));
   });
 
   it("enumerates the same periods with no overrides as before", () => {
     const from = new Date("2026-09-25T18:00:00Z");
     const to = new Date("2027-02-01T18:00:00Z");
-    expect(enumeratePeriodIndexes(withOverrides([]), from, to)).toEqual(enumeratePeriodIndexes(mx(), from, to));
+    expect(enumeratePeriodIndexes(withOverrides([]), from, to)).toEqual(
+      enumeratePeriodIndexes(mx(), from, to)
+    );
   });
 
   it("converts period keys and month indexes both ways", () => {
@@ -316,33 +348,58 @@ describe("period overrides", () => {
 
 describe("validateCycleSequence", () => {
   const nov = idx(2026, 11);
-  const check = (entries: Array<[number, { closingDate?: LocalDate; dueDate?: LocalDate }]>, over: Partial<CycleConfig> = {}) =>
-    validateCycleSequence(mx({ ...over, overrides: new Map(entries) }), [nov - 1, nov, nov + 1]);
+  const check = (
+    entries: Array<[number, { closingDate?: LocalDate; dueDate?: LocalDate }]>,
+    over: Partial<CycleConfig> = {}
+  ) =>
+    validateCycleSequence(mx({ ...over, overrides: new Map(entries) }), [
+      nov - 1,
+      nov,
+      nov + 1
+    ]);
 
   it("accepts the defaults and a sensible override", () => {
     expect(check([])).toBeNull();
-    expect(check([[nov, { closingDate: { y: 2026, m: 11, d: 23 } }]])).toBeNull();
+    expect(
+      check([[nov, { closingDate: { y: 2026, m: 11, d: 23 } }]])
+    ).toBeNull();
     expect(check([[nov, { dueDate: { y: 2026, m: 12, d: 18 } }]])).toBeNull();
   });
 
   it("rejects a closing on or before the previous closing", () => {
-    const config = mx({ overrides: new Map([[nov, { closingDate: { y: 2026, m: 10, d: 20 } }]]) });
-    expect(validateCycleSequence(config, [nov])).toMatch(/2026-11.*after the previous/);
-    expect(check([[nov, { closingDate: { y: 2026, m: 10, d: 5 } }]])).not.toBeNull();
+    const config = mx({
+      overrides: new Map([[nov, { closingDate: { y: 2026, m: 10, d: 20 } }]])
+    });
+    expect(validateCycleSequence(config, [nov])).toMatch(
+      /2026-11.*after the previous/
+    );
+    expect(
+      check([[nov, { closingDate: { y: 2026, m: 10, d: 5 } }]])
+    ).not.toBeNull();
   });
 
   it("reports a closing on or before the previous closing before a neighbour's due-date error", () => {
-    const config = mx({ overrides: new Map([[nov, { closingDate: { y: 2026, m: 10, d: 15 } }]]) });
-    expect(validateCycleSequence(config, [nov - 1, nov, nov + 1])).toMatch(/Period 2026-11: the closing date must be after the previous/);
+    const config = mx({
+      overrides: new Map([[nov, { closingDate: { y: 2026, m: 10, d: 15 } }]])
+    });
+    expect(validateCycleSequence(config, [nov - 1, nov, nov + 1])).toMatch(
+      /Period 2026-11: the closing date must be after the previous/
+    );
   });
 
   it("rejects a closing on or after the next closing", () => {
-    const config = mx({ overrides: new Map([[nov, { closingDate: { y: 2026, m: 12, d: 20 } }]]) });
-    expect(validateCycleSequence(config, [nov + 1])).toMatch(/2026-12.*after the previous/);
+    const config = mx({
+      overrides: new Map([[nov, { closingDate: { y: 2026, m: 12, d: 20 } }]])
+    });
+    expect(validateCycleSequence(config, [nov + 1])).toMatch(
+      /2026-12.*after the previous/
+    );
   });
 
   it("rejects a due date on or before its closing date", () => {
-    expect(check([[nov, { dueDate: { y: 2026, m: 11, d: 20 } }]])).toMatch(/after its closing/);
+    expect(check([[nov, { dueDate: { y: 2026, m: 11, d: 20 } }]])).toMatch(
+      /after its closing/
+    );
   });
 
   it("accepts a due date after the next period's closing", () => {
@@ -350,7 +407,9 @@ describe("validateCycleSequence", () => {
   });
 
   it("accepts a closing moved before the previous period's due date, leaving that due date alone", () => {
-    const config: Array<[number, { closingDate?: LocalDate; dueDate?: LocalDate }]> = [
+    const config: Array<
+      [number, { closingDate?: LocalDate; dueDate?: LocalDate }]
+    > = [
       [nov - 1, { dueDate: { y: 2026, m: 11, d: 18 } }],
       [nov, { closingDate: { y: 2026, m: 11, d: 17 } }]
     ];
@@ -364,34 +423,63 @@ describe("validateCycleSequence", () => {
       [idx(2026, 10), { y: 2026, m: 10, d: 19 }]
     ];
 
-    for (const [name, order] of [["oldest first", closings], ["newest first", [...closings].reverse()]] as const) {
+    for (const [name, order] of [
+      ["oldest first", closings],
+      ["newest first", [...closings].reverse()]
+    ] as const) {
       it(`accepts every edit applied ${name}`, () => {
         const applied = new Map<number, { closingDate: LocalDate }>();
         for (const [index, closingDate] of order) {
           applied.set(index, { closingDate });
-          expect(validateCycleSequence(mx({ ...plata, overrides: applied }), [index - 1, index, index + 1])).toBeNull();
+          expect(
+            validateCycleSequence(mx({ ...plata, overrides: applied }), [
+              index - 1,
+              index,
+              index + 1
+            ])
+          ).toBeNull();
         }
       });
     }
 
     it("accepts the full sequence and a due override past the next closing", () => {
-      const overrides = new Map<number, { closingDate?: LocalDate; dueDate?: LocalDate }>([
-        ...closings.map(([index, closingDate]) => [index, { closingDate }] as const),
-        [idx(2026, 10), { closingDate: { y: 2026, m: 10, d: 19 }, dueDate: { y: 2026, m: 11, d: 25 } }]
+      const overrides = new Map<
+        number,
+        { closingDate?: LocalDate; dueDate?: LocalDate }
+      >([
+        ...closings.map(
+          ([index, closingDate]) => [index, { closingDate }] as const
+        ),
+        [
+          idx(2026, 10),
+          {
+            closingDate: { y: 2026, m: 10, d: 19 },
+            dueDate: { y: 2026, m: 11, d: 25 }
+          }
+        ]
       ]);
       const all = Array.from({ length: 8 }, (_, n) => idx(2026, 5) + n);
-      expect(validateCycleSequence(mx({ ...plata, overrides }), all)).toBeNull();
+      expect(
+        validateCycleSequence(mx({ ...plata, overrides }), all)
+      ).toBeNull();
     });
   });
 
   it("rejects a wrong-year typo", () => {
-    expect(check([[nov, { closingDate: { y: 2025, m: 11, d: 23 } }]])).not.toBeNull();
-    expect(check([[nov, { closingDate: { y: 2027, m: 11, d: 23 } }]])).not.toBeNull();
+    expect(
+      check([[nov, { closingDate: { y: 2025, m: 11, d: 23 } }]])
+    ).not.toBeNull();
+    expect(
+      check([[nov, { closingDate: { y: 2027, m: 11, d: 23 } }]])
+    ).not.toBeNull();
   });
 
   it("accepts a leap-day closing and clamped day-31 neighbours", () => {
     const feb = idx(2028, 2);
-    const config = mx({ statementClosingDay: 31, overrides: new Map([[feb, { closingDate: { y: 2028, m: 2, d: 29 } }]]) });
+    const config = mx({
+      statementClosingDay: 31,
+      overrides: new Map([[feb, { closingDate: { y: 2028, m: 2, d: 29 } }]])
+    });
     expect(validateCycleSequence(config, [feb - 1, feb, feb + 1])).toBeNull();
   });
 });

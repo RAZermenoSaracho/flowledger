@@ -1,19 +1,39 @@
 import { Prisma } from "@prisma/client";
-import type { CardBillingAccount, CardEntry, CreditKind } from "../../../types/creditCardBilling.types.js";
+import type {
+  CardBillingAccount,
+  CardEntry,
+  CreditKind
+} from "../../../types/creditCardBilling.types.js";
 
 const D = (value: Prisma.Decimal.Value) => new Prisma.Decimal(value);
 
-const charge = (iso: string, amount: number): CardEntry => ({ date: new Date(iso), delta: D(-amount), role: "charge" });
-const credit = (iso: string, amount: number, creditKind: CreditKind = "transfer"): CardEntry => ({
+const charge = (iso: string, amount: number): CardEntry => ({
+  date: new Date(iso),
+  delta: D(-amount),
+  role: "charge"
+});
+const credit = (
+  iso: string,
+  amount: number,
+  creditKind: CreditKind = "transfer"
+): CardEntry => ({
   date: new Date(iso),
   delta: D(amount),
   role: "credit",
   creditKind
 });
-const interest = (iso: string, amount: number): CardEntry => ({ date: new Date(iso), delta: D(-amount), role: "interest" });
+const interest = (iso: string, amount: number): CardEntry => ({
+  date: new Date(iso),
+  delta: D(-amount),
+  role: "interest"
+});
 
 /** A reproducible card, ledger and clock used to compare billing output across code versions. */
-export type BillingScenario = { account: CardBillingAccount; entries: CardEntry[]; now: Date };
+export type BillingScenario = {
+  account: CardBillingAccount;
+  entries: CardEntry[];
+  now: Date;
+};
 
 const base: CardBillingAccount = {
   id: "card-1",

@@ -19,7 +19,11 @@ import { getCreditCard } from "./controllers/creditCard.read.controller.js";
 import { patchBillingPeriod } from "./controllers/creditCard.update.controller.js";
 import { postAccount } from "./controllers/create.controller.js";
 import { deleteAccountHandler } from "./controllers/delete.controller.js";
-import { getHoldings, patchHoldings, postRefreshHoldings } from "./controllers/holdings.controller.js";
+import {
+  getHoldings,
+  patchHoldings,
+  postRefreshHoldings
+} from "./controllers/holdings.controller.js";
 import { getAccounts } from "./controllers/read.controller.js";
 import {
   postArchiveAccount,

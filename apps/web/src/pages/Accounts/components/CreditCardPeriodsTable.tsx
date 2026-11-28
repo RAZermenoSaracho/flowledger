@@ -6,7 +6,10 @@ import { formatMoney } from "../../../utils/currency";
 import { formatFilterValue } from "../../../utils/dateTime";
 import { isNonZero } from "../../../utils/money";
 import { BillingPeriodDateCell } from "./BillingPeriodDateCell";
-import { periodStatusClass, periodStatusLabel } from "../utils/creditCardDisplay";
+import {
+  periodStatusClass,
+  periodStatusLabel
+} from "../utils/creditCardDisplay";
 import { periodTransactionsPath } from "../utils/creditCardLinks";
 
 /**
@@ -26,7 +29,8 @@ export function CreditCardPeriodsTable({
   onPageChange: (page: number) => void;
 }) {
   const currency = billing.metrics.currency;
-  const money = (value: string | null) => (value == null ? "—" : formatMoney(value, currency));
+  const money = (value: string | null) =>
+    value == null ? "—" : formatMoney(value, currency);
   const currentClosing = billing.current?.closingDate;
   const offset = (billing.page - 1) * billing.pageSize;
 
@@ -43,7 +47,9 @@ export function CreditCardPeriodsTable({
           total={billing.totalPeriods}
           hasNext={offset + billing.pageSize < billing.totalPeriods}
           isFetching={isFetching}
-          onRangeChange={(nextOffset) => onPageChange(Math.floor(nextOffset / billing.pageSize) + 1)}
+          onRangeChange={(nextOffset) =>
+            onPageChange(Math.floor(nextOffset / billing.pageSize) + 1)
+          }
         />
       }
       columns={[
@@ -62,12 +68,24 @@ export function CreditCardPeriodsTable({
         {
           key: "end",
           header: "Period end",
-          cell: (period) => <BillingPeriodDateCell accountId={accountId} period={period} field="end" />
+          cell: (period) => (
+            <BillingPeriodDateCell
+              accountId={accountId}
+              period={period}
+              field="end"
+            />
+          )
         },
         {
           key: "due",
           header: "Payment due",
-          cell: (period) => <BillingPeriodDateCell accountId={accountId} period={period} field="due" />
+          cell: (period) => (
+            <BillingPeriodDateCell
+              accountId={accountId}
+              period={period}
+              field="due"
+            />
+          )
         },
         {
           key: "closing",
@@ -91,7 +109,8 @@ export function CreditCardPeriodsTable({
           key: "status",
           header: "Status",
           cell: (period) => {
-            const carried = period.status === "overdue" && period.end !== currentClosing;
+            const carried =
+              period.status === "overdue" && period.end !== currentClosing;
             return (
               <span className={periodStatusClass(period.status, carried)}>
                 {periodStatusLabel(period.status, carried)}

@@ -1,4 +1,8 @@
-import type { CycleConfig, LocalDate, PeriodBounds } from "../types/creditCardBilling.types.js";
+import type {
+  CycleConfig,
+  LocalDate,
+  PeriodBounds
+} from "../types/creditCardBilling.types.js";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -25,7 +29,14 @@ function zoneFields(instant: Date, timeZone: string) {
   for (const part of formatterFor(timeZone).formatToParts(instant)) {
     if (part.type !== "literal") fields[part.type] = Number(part.value);
   }
-  return fields as { year: number; month: number; day: number; hour: number; minute: number; second: number };
+  return fields as {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+  };
 }
 
 /** The zone's offset from UTC in milliseconds at `instant` (positive east of UTC). */
@@ -46,7 +57,10 @@ export function localDateOf(instant: Date, timeZone: string): LocalDate {
   return { y: f.year, m: f.month, d: f.day };
 }
 
-/** The instant at which `date` starts (local 00:00) in `timeZone`; DST-safe via a second offset resolution. */
+/**
+ * The instant at which `date` starts (local 00:00) in `timeZone`; DST-safe via a second offset
+ * resolution.
+ */
 export function startOfLocalDay(date: LocalDate, timeZone: string): Date {
   const guess = Date.UTC(date.y, date.m - 1, date.d);
   const first = zoneOffsetMs(new Date(guess), timeZone);
@@ -57,17 +71,30 @@ export function startOfLocalDay(date: LocalDate, timeZone: string): Date {
 /** `date` shifted by `days` (may be negative) calendar days. */
 export function addDays(date: LocalDate, days: number): LocalDate {
   const shifted = new Date(Date.UTC(date.y, date.m - 1, date.d + days));
-  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1, d: shifted.getUTCDate() };
+  return {
+    y: shifted.getUTCFullYear(),
+    m: shifted.getUTCMonth() + 1,
+    d: shifted.getUTCDate()
+  };
 }
 
 /** Whole calendar days from `from` to `to` (negative when `to` is earlier). */
 export function daysBetween(from: LocalDate, to: LocalDate) {
-  return Math.round((Date.UTC(to.y, to.m - 1, to.d) - Date.UTC(from.y, from.m - 1, from.d)) / 86_400_000);
+  return Math.round(
+    (Date.UTC(to.y, to.m - 1, to.d) - Date.UTC(from.y, from.m - 1, from.d)) /
+      86_400_000
+  );
 }
 
 /** Formats a local date as `YYYY-MM-DD`. */
 export function formatLocalDate(date: LocalDate) {
   return `${String(date.y).padStart(4, "0")}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
+}
+
+/** Parses a `YYYY-MM-DD` string into a local date; the inverse of `formatLocalDate`. */
+export function parseLocalDate(value: string): LocalDate {
+  const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+  return { y, m, d };
 }
 
 /** The `monthIndex` (`year * 12 + month - 1`) of a local date's month. */
@@ -81,18 +108,36 @@ function dateInMonth(monthIndex: number, day: number): LocalDate {
   return { y, m, d: Math.min(day, daysInMonth(y, m)) };
 }
 
-/** Closing date the card's cycle gives the period closing in `monthIndex`: the configured day, clamped to the month's length. */
-export function defaultClosingDateOf(config: CycleConfig, monthIndex: number): LocalDate {
+/**
+ * Closing date the card's cycle gives the period closing in `monthIndex`: the configured day,
+ * clamped to the month's length.
+ */
+export function defaultClosingDateOf(
+  config: CycleConfig,
+  monthIndex: number
+): LocalDate {
   return dateInMonth(monthIndex, config.statementClosingDay);
 }
 
 /** Closing date of the period closing in `monthIndex`: its override, else the default. */
-export function closingDateOf(config: CycleConfig, monthIndex: number): LocalDate {
-  return config.overrides?.get(monthIndex)?.closingDate ?? defaultClosingDateOf(config, monthIndex);
+export function closingDateOf(
+  config: CycleConfig,
+  monthIndex: number
+): LocalDate {
+  return (
+    config.overrides?.get(monthIndex)?.closingDate ??
+    defaultClosingDateOf(config, monthIndex)
+  );
 }
 
-/** Due date the cycle rule gives the period, ignoring the period's own due override but following its effective closing date. */
-export function defaultDueDateOf(config: CycleConfig, monthIndex: number): LocalDate {
+/**
+ * Due date the cycle rule gives the period, ignoring the period's own due override but following
+ * its effective closing date.
+ */
+export function defaultDueDateOf(
+  config: CycleConfig,
+  monthIndex: number
+): LocalDate {
   if (config.paymentDueRule === "day_of_next_month") {
     return dateInMonth(monthIndex + 1, config.paymentDueValue);
   }
@@ -101,7 +146,10 @@ export function defaultDueDateOf(config: CycleConfig, monthIndex: number): Local
 
 /** Due date of the period closing in `monthIndex`: its override, else the default. */
 export function dueDateOf(config: CycleConfig, monthIndex: number): LocalDate {
-  return config.overrides?.get(monthIndex)?.dueDate ?? defaultDueDateOf(config, monthIndex);
+  return (
+    config.overrides?.get(monthIndex)?.dueDate ??
+    defaultDueDateOf(config, monthIndex)
+  );
 }
 
 /** The `monthIndex` for a `YYYY-MM` period key. */
@@ -115,8 +163,14 @@ export function keyOfMonthIndex(monthIndex: number) {
   return `${String(Math.floor(monthIndex / 12)).padStart(4, "0")}-${String((monthIndex % 12) + 1).padStart(2, "0")}`;
 }
 
-/** Computes every boundary (local dates and half-open instants) of the period closing in `monthIndex`. */
-export function periodBounds(config: CycleConfig, monthIndex: number): PeriodBounds {
+/**
+ * Computes every boundary (local dates and half-open instants) of the period closing in
+ * `monthIndex`.
+ */
+export function periodBounds(
+  config: CycleConfig,
+  monthIndex: number
+): PeriodBounds {
   const zone = config.billingTimeZone;
   const closingDate = closingDateOf(config, monthIndex);
   const previousClosing = closingDateOf(config, monthIndex - 1);
@@ -133,7 +187,10 @@ export function periodBounds(config: CycleConfig, monthIndex: number): PeriodBou
 }
 
 /** The `monthIndex` of the period whose half-open interval contains `instant`. */
-export function periodIndexContaining(config: CycleConfig, instant: Date): number {
+export function periodIndexContaining(
+  config: CycleConfig,
+  instant: Date
+): number {
   const local = localDateOf(instant, config.billingTimeZone);
   let index = monthIndexOf(local);
   if (local.d > defaultClosingDateOf(config, index).d) index += 1;
@@ -142,22 +199,42 @@ export function periodIndexContaining(config: CycleConfig, instant: Date): numbe
   return index;
 }
 
-/** Month indexes from the period containing `from` through the one containing `to` (inclusive), oldest first. */
-export function enumeratePeriodIndexes(config: CycleConfig, from: Date, to: Date): number[] {
+/**
+ * Month indexes from the period containing `from` through the one containing `to` (inclusive),
+ * oldest first.
+ */
+export function enumeratePeriodIndexes(
+  config: CycleConfig,
+  from: Date,
+  to: Date
+): number[] {
   const first = periodIndexContaining(config, from);
   const last = Math.max(first, periodIndexContaining(config, to));
-  return Array.from({ length: last - first + 1 }, (_, offset) => first + offset);
+  return Array.from(
+    { length: last - first + 1 },
+    (_, offset) => first + offset
+  );
 }
 
 /**
- * Checks the periods `indexes` against the cycle invariants. Closing-order violations are reported before any due-date violation, so the error names the date the caller changed rather than a neighbour's due date. Closing dates strictly increase and each due
+ * Checks the periods `indexes` against the cycle invariants. Closing-order violations are
+ * reported before any due-date violation, so the error names the date the caller changed rather
+ * than a neighbour's due date. Closing dates strictly increase and each due
  * date is after its own closing date. A due date may fall after the next closing: boundaries and payment deadlines are independent. Returns a message naming the first offending period,
  * or `null` when the sequence is consistent.
  */
-export function validateCycleSequence(config: CycleConfig, indexes: Iterable<number>): string | null {
+export function validateCycleSequence(
+  config: CycleConfig,
+  indexes: Iterable<number>
+): string | null {
   const checked = [...new Set(indexes)];
   for (const index of checked) {
-    if (daysBetween(closingDateOf(config, index - 1), closingDateOf(config, index)) <= 0) {
+    if (
+      daysBetween(
+        closingDateOf(config, index - 1),
+        closingDateOf(config, index)
+      ) <= 0
+    ) {
       return `Period ${keyOfMonthIndex(index)}: the closing date must be after the previous period's closing date`;
     }
   }

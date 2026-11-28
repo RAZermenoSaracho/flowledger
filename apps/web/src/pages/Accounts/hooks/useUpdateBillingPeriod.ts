@@ -9,7 +9,11 @@ import { updateBillingPeriod } from "../../../services/creditCard.client";
 export function useUpdateBillingPeriod(accountId: string, periodKey: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: UpdateBillingPeriodInput) => updateBillingPeriod(accountId, periodKey, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["accounts", "credit-card", accountId] })
+    mutationFn: (body: UpdateBillingPeriodInput) =>
+      updateBillingPeriod(accountId, periodKey, body),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["accounts", "credit-card", accountId]
+      })
   });
 }

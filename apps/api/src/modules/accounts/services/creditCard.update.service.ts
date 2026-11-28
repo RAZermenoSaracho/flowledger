@@ -12,6 +12,7 @@ import type {
 import { toCycleConfig } from "../utils/creditCardBilling.js";
 import {
   monthIndexOfKey,
+  parseLocalDate,
   periodIndexContaining,
   validateCycleSequence
 } from "../utils/creditCardCycle.js";
@@ -20,13 +21,19 @@ import {
   loadCardOverrides
 } from "./creditCard.read.service.js";
 
-function parseDate(value: string): LocalDate {
-  const [y, m, d] = value.split("-").map(Number) as [number, number, number];
-  return { y, m, d };
-}
-
 function toDbDate(date: LocalDate | undefined) {
   return date ? new Date(Date.UTC(date.y, date.m - 1, date.d)) : null;
+}
+
+/** Maps a Serializable-transaction failure (P2034) to a 409 and returns any other error unchanged, for `throw mapSerializationConflict(error)`. */
+export function mapSerializationConflict(error: unknown) {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2034"
+  ) {
+    return conflict("Billing dates changed at the same time. Please retry");
+  }
+  return error;
 }
 
 /** Applies a patch field: absent keeps `current`, `null` resets to the default (`undefined`), a string sets it. */
@@ -35,7 +42,7 @@ function patchDate(
   value: string | null | undefined
 ) {
   if (value === undefined) return current;
-  return value === null ? undefined : parseDate(value);
+  return value === null ? undefined : parseLocalDate(value);
 }
 
 /**
@@ -133,13 +140,7 @@ export async function updateBillingPeriodOverride(
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2034"
-    ) {
-      throw conflict("Billing dates changed at the same time. Please retry");
-    }
-    throw error;
+    throw mapSerializationConflict(error);
   }
 
   const period = await getBillingPeriod(userId, accountId, key, now);

@@ -26,7 +26,8 @@ export type HoldingKind = (typeof HOLDING_KINDS)[number];
 export type HoldingValuationSource = (typeof HOLDING_VALUATION_SOURCES)[number];
 export type HoldingMissingReason = (typeof HOLDING_MISSING_REASONS)[number];
 export type SecurityType = (typeof SECURITY_TYPES)[number];
-export type SecurityQuoteFailureReason = (typeof SECURITY_QUOTE_FAILURE_REASONS)[number];
+export type SecurityQuoteFailureReason =
+  (typeof SECURITY_QUOTE_FAILURE_REASONS)[number];
 export type SharedExpenseStatus = (typeof SHARED_EXPENSE_STATUSES)[number];
 export type ParticipantStatus = (typeof PARTICIPANT_STATUSES)[number];
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
@@ -189,7 +190,11 @@ export interface CreditCardBilling {
   configured: boolean;
   config: CreditCardBillingConfig | null;
   metrics: CreditCardMetrics;
-  openPeriod: { start: string; nextClosingDate: string; nextDueDate: string } | null;
+  openPeriod: {
+    start: string;
+    nextClosingDate: string;
+    nextDueDate: string;
+  } | null;
   current: {
     closingDate: string;
     dueDate: string;
