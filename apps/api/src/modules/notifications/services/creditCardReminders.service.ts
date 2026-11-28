@@ -1,15 +1,8 @@
 import type { BillingPeriod, CreditCardBilling } from "@flowledger/shared";
 import type { NotificationType } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import {
-  loadCardEntries,
-  loadCardOverrides
-} from "../../accounts/services/creditCard.read.service.js";
-import {
-  daysBetween,
-  formatLocalDate,
-  localDateOf
-} from "../../accounts/utils/creditCardCycle.js";
+import { loadCardEntries, loadCardOverrides } from "../../accounts/services/creditCard.read.service.js";
+import { daysBetween, formatLocalDate, localDateOf } from "../../accounts/utils/creditCardCycle.js";
 import { buildCardBilling } from "../../accounts/utils/creditCardBilling.js";
 import type { NotificationInput } from "../types/notifications.types.js";
 import { moneyText } from "../utils/moneyText.js";
@@ -48,11 +41,7 @@ export function evaluateCardReminders(
   const closed = billing.periods.filter((period) => period.status !== "open");
   const out: NotificationInput[] = [];
 
-  const push = (
-    type: NotificationType,
-    period: BillingPeriod,
-    dueText: string
-  ) => {
+  const push = (type: NotificationType, period: BillingPeriod, dueText: string) => {
     const closingDebt = period.closingDebt ?? "0";
     const remaining = period.remaining ?? "0";
     const currency = billing.metrics.currency;
@@ -75,33 +64,20 @@ export function evaluateCardReminders(
     const daysLeft = daysBetween(today, parseDay(latest.dueDate));
     if (closingDebt > 0) {
       push("credit_card_period_closed", latest, `${daysLeft} days remaining`);
-      if (remaining === 0)
-        push("credit_card_period_paid", latest, `${daysLeft} days remaining`);
+      if (remaining === 0) push("credit_card_period_paid", latest, `${daysLeft} days remaining`);
     }
     if (remaining > 0) {
       if (daysLeft >= 0 && daysLeft <= DUE_SOON_DAYS) {
-        push(
-          "credit_card_payment_due_soon",
-          latest,
-          `${daysLeft} days remaining`
-        );
+        push("credit_card_payment_due_soon", latest, `${daysLeft} days remaining`);
       }
       if (Number(latest.credits) > 0) {
-        push(
-          "credit_card_period_partially_paid",
-          latest,
-          `${daysLeft} days remaining`
-        );
+        push("credit_card_period_partially_paid", latest, `${daysLeft} days remaining`);
       }
     }
   }
 
   const pastDue = closed.find((period) => period.dueDate < todayText);
-  if (
-    pastDue &&
-    Number(pastDue.remaining ?? 0) > 0 &&
-    Number(billing.metrics.debt) > 0
-  ) {
+  if (pastDue && Number(pastDue.remaining ?? 0) > 0 && Number(billing.metrics.debt) > 0) {
     const overdueDays = daysBetween(parseDay(pastDue.dueDate), today);
     push("credit_card_payment_overdue", pastDue, `${overdueDays} days overdue`);
   }
@@ -113,9 +89,7 @@ export function evaluateCardReminders(
  * `(userId, dedupeKey)` unique constraint makes repeated runs and concurrent workers insert each event once.
  * Only the card's owner is notified. Returns nothing; failures propagate to the caller.
  */
-export async function runCreditCardReminders(
-  now: Date = new Date()
-): Promise<void> {
+export async function runCreditCardReminders(now: Date = new Date()): Promise<void> {
   const cards = await prisma.account.findMany({
     where: {
       type: "credit_card",
@@ -127,20 +101,14 @@ export async function runCreditCardReminders(
     }
   });
   const byUser = new Map<string, typeof cards>();
-  for (const card of cards)
-    byUser.set(card.userId, [...(byUser.get(card.userId) ?? []), card]);
+  for (const card of cards) byUser.set(card.userId, [...(byUser.get(card.userId) ?? []), card]);
 
   const inputs: NotificationInput[] = [];
   for (const [userId, userCards] of byUser) {
     const ids = userCards.map((card) => card.id);
-    const [entries, overrides] = await Promise.all([
-      loadCardEntries(userId, ids),
-      loadCardOverrides(userId, ids)
-    ]);
+    const [entries, overrides] = await Promise.all([loadCardEntries(userId, ids), loadCardOverrides(userId, ids)]);
     for (const card of userCards) {
-      const billing = buildCardBilling({
-        account: card,
-        entries: entries.get(card.id) ?? [],
+      const billing = buildCardBilling({ account: card, entries: entries.get(card.id) ?? [],
         overrides: overrides.get(card.id),
         now,
         page: 1

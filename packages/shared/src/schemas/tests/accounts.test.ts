@@ -218,56 +218,29 @@ describe("creditCardBillingQuerySchema", () => {
 
 describe("updateBillingPeriodSchema", () => {
   it("accepts dates, nulls and a single field", () => {
-    expect(
-      updateBillingPeriodSchema.safeParse({
-        closingDate: "2026-11-23",
-        dueDate: null
-      }).success
-    ).toBe(true);
-    expect(
-      updateBillingPeriodSchema.safeParse({ dueDate: "2026-12-18" }).success
-    ).toBe(true);
-    expect(
-      updateBillingPeriodSchema.safeParse({ closingDate: null }).success
-    ).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2026-11-23", dueDate: null }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ dueDate: "2026-12-18" }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: null }).success).toBe(true);
   });
 
   it("rejects an empty body, malformed and impossible dates", () => {
     expect(updateBillingPeriodSchema.safeParse({}).success).toBe(false);
-    expect(
-      updateBillingPeriodSchema.safeParse({ closingDate: "23/11/2026" }).success
-    ).toBe(false);
-    expect(
-      updateBillingPeriodSchema.safeParse({ closingDate: "2026-02-30" }).success
-    ).toBe(false);
-    expect(
-      updateBillingPeriodSchema.safeParse({ dueDate: "2026-13-01" }).success
-    ).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "23/11/2026" }).success).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2026-02-30" }).success).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ dueDate: "2026-13-01" }).success).toBe(false);
   });
 
   it("accepts leap day only in leap years", () => {
-    expect(
-      updateBillingPeriodSchema.safeParse({ closingDate: "2028-02-29" }).success
-    ).toBe(true);
-    expect(
-      updateBillingPeriodSchema.safeParse({ closingDate: "2027-02-29" }).success
-    ).toBe(false);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2028-02-29" }).success).toBe(true);
+    expect(updateBillingPeriodSchema.safeParse({ closingDate: "2027-02-29" }).success).toBe(false);
   });
 });
 
 describe("billingPeriodKeyParamsSchema", () => {
   it("accepts YYYY-MM keys and rejects others", () => {
-    expect(
-      billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-11" })
-        .success
-    ).toBe(true);
-    expect(
-      billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-13" })
-        .success
-    ).toBe(false);
-    expect(
-      billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-1" }).success
-    ).toBe(false);
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-11" }).success).toBe(true);
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-13" }).success).toBe(false);
+    expect(billingPeriodKeyParamsSchema.safeParse({ id: "a", key: "2026-1" }).success).toBe(false);
   });
 });
 
@@ -277,343 +250,137 @@ describe("holdingUpsertSchema", () => {
   it("accepts a valid create (upper-casing the code) and a valid update", () => {
     const created = holdingUpsertSchema.safeParse(create);
     expect(created.success && created.data.code).toBe("BTC");
+    expect(holdingUpsertSchema.safeParse({ id: "h1", quantity: "2" }).success).toBe(true);
     expect(
-      holdingUpsertSchema.safeParse({ id: "h1", quantity: "2" }).success
+      holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: "55000", manualPriceCurrency: "USD" }).success
     ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({
-        id: "h1",
-        manualUnitPrice: "55000",
-        manualPriceCurrency: "USD"
-      }).success
-    ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success).toBe(true);
   });
 
   it("requires kind, code and quantity on a create", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ code: "BTC", quantity: "1" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ kind: "crypto", quantity: "1" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ kind: "crypto", code: "BTC" }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ code: "BTC", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "BTC" }).success).toBe(false);
   });
 
   it("rejects kind or code on an update", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", kind: "crypto" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", code: "ETH" }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", kind: "crypto" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", code: "ETH" }).success).toBe(false);
   });
 
   it("requires an ISO 4217 code for fiat", () => {
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "USD",
-        quantity: "5"
-      }).success
-    ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "BTC",
-        quantity: "5"
-      }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "5" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "BTC", quantity: "5" }).success).toBe(false);
   });
 
   it("limits fiat to the currency's minor units and crypto to 18 decimals", () => {
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "USD",
-        quantity: "10.005"
-      }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "USD",
-        quantity: "10.01"
-      }).success
-    ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "JPY",
-        quantity: "10.5"
-      }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...create,
-        quantity: "1.123456789012345678"
-      }).success
-    ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...create,
-        quantity: "1.1234567890123456789"
-      }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "10.005" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "10.01" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ kind: "fiat", code: "JPY", quantity: "10.5" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...create, quantity: "1.123456789012345678" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...create, quantity: "1.1234567890123456789" }).success).toBe(false);
   });
 
   it("rejects zero, negative and numeric quantities", () => {
     for (const quantity of ["0", "-1", 1]) {
-      expect(
-        holdingUpsertSchema.safeParse({ ...create, quantity }).success
-      ).toBe(false);
+      expect(holdingUpsertSchema.safeParse({ ...create, quantity }).success).toBe(false);
     }
   });
 
   it("rejects a manual price on fiat and a price without its currency", () => {
     expect(
-      holdingUpsertSchema.safeParse({
-        kind: "fiat",
-        code: "USD",
-        quantity: "1",
-        manualUnitPrice: "2",
-        manualPriceCurrency: "USD"
-      }).success
+      holdingUpsertSchema.safeParse({ kind: "fiat", code: "USD", quantity: "1", manualUnitPrice: "2", manualPriceCurrency: "USD" }).success
     ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ ...create, manualUnitPrice: "2" }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...create, manualUnitPrice: "2" }).success).toBe(false);
   });
 
   it("rejects a future manualPricedAt but accepts a past one", () => {
-    const price = {
-      ...create,
-      manualUnitPrice: "2",
-      manualPriceCurrency: "USD"
-    };
+    const price = { ...create, manualUnitPrice: "2", manualPriceCurrency: "USD" };
     const future = new Date(Date.now() + 86_400_000).toISOString();
-    expect(
-      holdingUpsertSchema.safeParse({ ...price, manualPricedAt: future })
-        .success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...price,
-        manualPricedAt: "2020-01-01T00:00:00Z"
-      }).success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...price, manualPricedAt: future }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, manualPricedAt: "2020-01-01T00:00:00Z" }).success).toBe(true);
   });
 });
 
 describe("holdingsChangeSetSchema", () => {
   it("defaults the missing side to an empty list and rejects an empty change set", () => {
     const parsed = holdingsChangeSetSchema.safeParse({ remove: ["h1"] });
-    expect(parsed.success && parsed.data).toEqual({
-      upsert: [],
-      remove: ["h1"]
-    });
+    expect(parsed.success && parsed.data).toEqual({ upsert: [], remove: ["h1"] });
     expect(holdingsChangeSetSchema.safeParse({}).success).toBe(false);
-    expect(
-      holdingsChangeSetSchema.safeParse({ upsert: [], remove: [] }).success
-    ).toBe(false);
+    expect(holdingsChangeSetSchema.safeParse({ upsert: [], remove: [] }).success).toBe(false);
   });
 
   it("rejects the whole change set when one item is invalid", () => {
     expect(
       holdingsChangeSetSchema.safeParse({
-        upsert: [
-          { id: "h1", quantity: "1" },
-          { kind: "fiat", code: "USD", quantity: "1.001" }
-        ]
+        upsert: [{ id: "h1", quantity: "1" }, { kind: "fiat", code: "USD", quantity: "1.001" }]
       }).success
     ).toBe(false);
   });
 });
 
 describe("revised holding instruments", () => {
-  const price = {
-    quantity: "1",
-    manualUnitPrice: "10",
-    manualPriceCurrency: "USD"
-  };
+  const price = { quantity: "1", manualUnitPrice: "10", manualPriceCurrency: "USD" };
   it("requires an other name and forbids its code", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ ...price, kind: "other" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...price,
-        kind: "other",
-        name: "Gold",
-        code: "XAU"
-      }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...price,
-        kind: "other",
-        name: "Gold",
-        unit: "oz"
-      }).success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", code: "XAU" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind: "other", name: "Gold", unit: "oz" }).success).toBe(true);
   });
   it("rejects fiat codes as crypto and accepts USDT", () => {
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "crypto",
-        code: "USD",
-        quantity: "1"
-      }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "crypto",
-        code: "USDT",
-        quantity: "1"
-      }).success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USD", quantity: "1" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ kind: "crypto", code: "USDT", quantity: "1" }).success).toBe(true);
   });
-  it.each(["stock", "etf"])(
-    "validates %s tickers and requires a manual price",
-    (kind) => {
-      expect(
-        holdingUpsertSchema.safeParse({ ...price, kind, code: "BRK.B" }).success
-      ).toBe(true);
-      expect(
-        holdingUpsertSchema.safeParse({ ...price, kind, code: "BAD/TICKER" })
-          .success
-      ).toBe(false);
-      expect(
-        holdingUpsertSchema.safeParse({ quantity: "1", kind, code: "AAPL" })
-          .success
-      ).toBe(false);
-      expect(
-        holdingUpsertSchema.safeParse({
-          ...price,
-          kind,
-          code: "AAPL",
-          unit: "shares"
-        }).success
-      ).toBe(false);
-    }
-  );
+  it.each(["stock", "etf"])("validates %s tickers and requires a manual price", (kind) => {
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BRK.B" }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "BAD/TICKER" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ quantity: "1", kind, code: "AAPL" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...price, kind, code: "AAPL", unit: "shares" }).success).toBe(false);
+  });
 });
 
 describe("provider-linked securities", () => {
-  const linked = {
-    kind: "stock",
-    code: "AAPL",
-    exchange: "XNGS",
-    quoteCurrency: "USD",
-    quantity: "10"
-  };
+  const linked = { kind: "stock", code: "AAPL", exchange: "XNGS", quoteCurrency: "USD", quantity: "10" };
 
   it("accepts a linked stock or ETF without a manual price, with a name", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ ...linked, name: "Apple Inc." }).success
-    ).toBe(true);
-    expect(
-      holdingUpsertSchema.safeParse({ ...linked, kind: "etf", code: "SPY" })
-        .success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...linked, name: "Apple Inc." }).success).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ ...linked, kind: "etf", code: "SPY" }).success).toBe(true);
   });
 
   it("normalizes the exchange to upper case and still requires a price when unlinked", () => {
-    expect(
-      holdingUpsertSchema.parse({ ...linked, exchange: "xngs" }).exchange
-    ).toBe("XNGS");
-    expect(
-      holdingUpsertSchema.safeParse({
-        kind: "stock",
-        code: "AAPL",
-        quantity: "1"
-      }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.parse({ ...linked, exchange: "xngs" }).exchange).toBe("XNGS");
+    expect(holdingUpsertSchema.safeParse({ kind: "stock", code: "AAPL", quantity: "1" }).success).toBe(false);
   });
 
   it("rejects a malformed MIC or quote currency", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ ...linked, exchange: "NASDAQ" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ ...linked, quoteCurrency: "ZZZ" }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, exchange: "NASDAQ" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, quoteCurrency: "ZZZ" }).success).toBe(false);
   });
 
   it("requires exchange and quoteCurrency together", () => {
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...linked,
-        quoteCurrency: undefined,
-        manualUnitPrice: "1",
-        manualPriceCurrency: "USD"
-      }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({
-        ...linked,
-        exchange: undefined,
-        manualUnitPrice: "1",
-        manualPriceCurrency: "USD"
-      }).success
-    ).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, quoteCurrency: undefined, manualUnitPrice: "1", manualPriceCurrency: "USD" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ ...linked, exchange: undefined, manualUnitPrice: "1", manualPriceCurrency: "USD" }).success).toBe(false);
   });
 
-  it.each(["crypto", "fiat", "other"])(
-    "rejects listing fields on %s",
-    (kind) => {
-      const base =
-        kind === "fiat"
-          ? { code: "USD" }
-          : kind === "crypto"
-            ? { code: "BTC" }
-            : {
-                name: "Gold",
-                manualUnitPrice: "1",
-                manualPriceCurrency: "USD"
-              };
-      expect(
-        holdingUpsertSchema.safeParse({
-          kind,
-          quantity: "1",
-          exchange: "XNGS",
-          quoteCurrency: "USD",
-          ...base
-        }).success
-      ).toBe(false);
-    }
-  );
+  it.each(["crypto", "fiat", "other"])("rejects listing fields on %s", (kind) => {
+    const base = kind === "fiat" ? { code: "USD" } : kind === "crypto" ? { code: "BTC" } : { name: "Gold", manualUnitPrice: "1", manualPriceCurrency: "USD" };
+    expect(holdingUpsertSchema.safeParse({ kind, quantity: "1", exchange: "XNGS", quoteCurrency: "USD", ...base }).success).toBe(false);
+  });
 
   it("makes listing fields immutable on update", () => {
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", exchange: "XNGS" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", quoteCurrency: "USD" }).success
-    ).toBe(false);
-    expect(
-      holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success
-    ).toBe(true);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", exchange: "XNGS" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", quoteCurrency: "USD" }).success).toBe(false);
+    expect(holdingUpsertSchema.safeParse({ id: "h1", manualUnitPrice: null }).success).toBe(true);
   });
 });
 
 describe("securitySearchQuerySchema", () => {
   it("trims and accepts 1-20 characters", () => {
-    expect(securitySearchQuerySchema.parse({ q: "  AAPL " })).toEqual({
-      q: "AAPL"
-    });
-    expect(
-      securitySearchQuerySchema.safeParse({ q: "x".repeat(20) }).success
-    ).toBe(true);
+    expect(securitySearchQuerySchema.parse({ q: "  AAPL " })).toEqual({ q: "AAPL" });
+    expect(securitySearchQuerySchema.safeParse({ q: "x".repeat(20) }).success).toBe(true);
   });
 
   it("rejects empty, blank and longer queries", () => {
-    for (const q of ["", "   ", "x".repeat(21)])
-      expect(securitySearchQuerySchema.safeParse({ q }).success).toBe(false);
+    for (const q of ["", "   ", "x".repeat(21)]) expect(securitySearchQuerySchema.safeParse({ q }).success).toBe(false);
     expect(securitySearchQuerySchema.safeParse({}).success).toBe(false);
   });
 });

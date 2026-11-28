@@ -2,16 +2,8 @@ import type { BillingPeriod, CreditCardBilling } from "@flowledger/shared";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
 import { notFound } from "../../../utils/httpError.js";
-import type {
-  CardEntry,
-  LocalDate,
-  PeriodOverride
-} from "../types/creditCardBilling.types.js";
-import {
-  BILLING_PAGE_SIZE,
-  buildCardBilling,
-  toCardEntry
-} from "../utils/creditCardBilling.js";
+import type { CardEntry, LocalDate, PeriodOverride } from "../types/creditCardBilling.types.js";
+import { BILLING_PAGE_SIZE, buildCardBilling, toCardEntry } from "../utils/creditCardBilling.js";
 import { monthIndexOfKey } from "../utils/creditCardCycle.js";
 
 const ledgerSelect = {
@@ -32,9 +24,7 @@ export async function loadCardEntries(
   userId: string,
   accountIds: string[]
 ): Promise<Map<string, CardEntry[]>> {
-  const entries = new Map<string, CardEntry[]>(
-    accountIds.map((id) => [id, []])
-  );
+  const entries = new Map<string, CardEntry[]>(accountIds.map((id) => [id, []]));
   if (accountIds.length === 0) return entries;
 
   const [own, incoming] = await Promise.all([
@@ -43,33 +33,20 @@ export async function loadCardEntries(
       select: ledgerSelect
     }),
     prisma.transaction.findMany({
-      where: {
-        userId,
-        type: "transfer",
-        transferToAccountId: { in: accountIds }
-      },
+      where: { userId, type: "transfer", transferToAccountId: { in: accountIds } },
       select: ledgerSelect
     })
   ]);
 
-  for (const row of own)
-    entries.get(row.accountId!)?.push(toCardEntry(row, row.accountId!));
+  for (const row of own) entries.get(row.accountId!)?.push(toCardEntry(row, row.accountId!));
   for (const row of incoming) {
-    entries
-      .get(row.transferToAccountId!)
-      ?.push(toCardEntry(row, row.transferToAccountId!));
+    entries.get(row.transferToAccountId!)?.push(toCardEntry(row, row.transferToAccountId!));
   }
   return entries;
 }
 
 function toLocalDate(value: Date | null): LocalDate | undefined {
-  return value
-    ? {
-        y: value.getUTCFullYear(),
-        m: value.getUTCMonth() + 1,
-        d: value.getUTCDate()
-      }
-    : undefined;
+  return value ? { y: value.getUTCFullYear(), m: value.getUTCMonth() + 1, d: value.getUTCDate() } : undefined;
 }
 
 /**
@@ -81,9 +58,7 @@ export async function loadCardOverrides(
   accountIds: string[],
   db: Prisma.TransactionClient = prisma
 ): Promise<Map<string, Map<number, PeriodOverride>>> {
-  const result = new Map<string, Map<number, PeriodOverride>>(
-    accountIds.map((id) => [id, new Map()])
-  );
+  const result = new Map<string, Map<number, PeriodOverride>>(accountIds.map((id) => [id, new Map()]));
   if (accountIds.length === 0) return result;
   const rows = await db.creditCardPeriodOverride.findMany({
     where: { userId, accountId: { in: accountIds } }
@@ -143,9 +118,6 @@ export async function getBillingPeriod(
   const position = monthIndexOfKey(newest.key) - monthIndexOfKey(key);
   if (position < 0 || position >= first.totalPeriods) return null;
   const page = Math.floor(position / BILLING_PAGE_SIZE) + 1;
-  const billing =
-    page === 1
-      ? first
-      : await getCreditCardBilling(userId, accountId, page, now);
+  const billing = page === 1 ? first : await getCreditCardBilling(userId, accountId, page, now);
   return billing.periods.find((period) => period.key === key) ?? null;
 }

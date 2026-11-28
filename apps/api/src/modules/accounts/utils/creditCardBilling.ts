@@ -63,8 +63,7 @@ export type CardLedgerRow = {
 };
 
 /**
- * Reduces a ledger row to its effect on the card `accountId`. The signed `delta` comes from the
- * same
+ * Reduces a ledger row to its effect on the card `accountId`. The signed `delta` comes from the same
  * {@link transactionBalanceDelta} as the account balance. Transfers in and all card income are credits; expenses and
  * transfers out are charges, except expenses classified `interest`.
  */
@@ -74,22 +73,10 @@ export function toCardEntry(row: CardLedgerRow, accountId: string): CardEntry {
     return { date: row.date, delta, role: "credit", creditKind: "transfer" };
   }
   if (row.type === "income") {
-    const kinds: Record<string, CreditKind> = {
-      payment: "payment",
-      refund: "refund",
-      cashback: "cashback"
-    };
-    return {
-      date: row.date,
-      delta,
-      role: "credit",
-      creditKind: kinds[row.creditCardKind ?? ""] ?? "other"
-    };
+    const kinds: Record<string, CreditKind> = { payment: "payment", refund: "refund", cashback: "cashback" };
+    return { date: row.date, delta, role: "credit", creditKind: kinds[row.creditCardKind ?? ""] ?? "other" };
   }
-  const role =
-    row.type === "expense" && row.creditCardKind === "interest"
-      ? "interest"
-      : "charge";
+  const role = row.type === "expense" && row.creditCardKind === "interest" ? "interest" : "charge";
   return { date: row.date, delta, role };
 }
 
@@ -102,52 +89,22 @@ const CREDIT_BREAKDOWN_KEY: Record<CreditKind, keyof CreditBreakdown> = {
 };
 
 function emptyBreakdown(): Record<keyof CreditBreakdown, Prisma.Decimal> {
-  return {
-    transfers: ZERO,
-    payments: ZERO,
-    refunds: ZERO,
-    cashback: ZERO,
-    other: ZERO
-  };
+  return { transfers: ZERO, payments: ZERO, refunds: ZERO, cashback: ZERO, other: ZERO };
 }
 
 function positive(value: Prisma.Decimal) {
   return value.isNegative() ? ZERO : value;
 }
 
-/**
- * Reduces the account's cycle columns (plus the period overrides) to a {@link CycleConfig}, or
- * `null` when the cycle isn't fully configured.
- */
-export function toCycleConfig(
-  account: CardBillingAccount,
-  overrides?: PeriodOverrides
-): CycleConfig | null {
-  const {
-    statementClosingDay,
-    paymentDueRule,
-    paymentDueValue,
-    billingTimeZone
-  } = account;
-  if (
-    statementClosingDay == null ||
-    !paymentDueRule ||
-    paymentDueValue == null ||
-    !billingTimeZone
-  )
-    return null;
-  return {
-    statementClosingDay,
-    paymentDueRule,
-    paymentDueValue,
-    billingTimeZone,
-    overrides
-  };
+/** Reduces the account's cycle columns (plus the period overrides) to a {@link CycleConfig}, or `null` when the cycle isn't fully configured. */
+export function toCycleConfig(account: CardBillingAccount, overrides?: PeriodOverrides): CycleConfig | null {
+  const { statementClosingDay, paymentDueRule, paymentDueValue, billingTimeZone } = account;
+  if (statementClosingDay == null || !paymentDueRule || paymentDueValue == null || !billingTimeZone) return null;
+  return { statementClosingDay, paymentDueRule, paymentDueValue, billingTimeZone, overrides };
 }
 
 /**
- * Builds the full billing projection of one credit card from its configuration and ledger
- * entries; pure and deterministic
+ * Builds the full billing projection of one credit card from its configuration and ledger entries; pure and deterministic
  * for a given `now`. `metrics.balance` equals `calculateAccountBalance` over the same ledger. Periods run from the one
  * containing the earlier of the account's creation and its first entry up to the open period, newest first, `BILLING_PAGE_SIZE`
  * per 1-based `page`. A closed period's payment window runs from its closing to the later of the next closing and its own due date, so a payment made after the next closing but before the due date counts toward both statements (closing debts are cumulative, so the next statement already contains the unpaid remainder). `overrides` replaces the closing and/or due date of individual periods; everything else derives from the effective dates. A card without a complete cycle configuration returns metrics and no periods. All amounts are exact decimal strings.
@@ -160,20 +117,14 @@ export function buildCardBilling(input: {
   overrides?: PeriodOverrides;
 }): CreditCardBilling {
   const { account, now, page } = input;
-  const entries = [...input.entries].sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
+  const entries = [...input.entries].sort((a, b) => a.date.getTime() - b.date.getTime());
   const times = entries.map((entry) => entry.date.getTime());
   const prefix = [new Prisma.Decimal(account.initialBalance)];
-  for (const entry of entries)
-    prefix.push(prefix[prefix.length - 1]!.plus(entry.delta));
+  for (const entry of entries) prefix.push(prefix[prefix.length - 1]!.plus(entry.delta));
 
   const balance = prefix[prefix.length - 1]!;
   const debt = positive(balance.negated());
-  const limit =
-    account.creditLimit == null
-      ? null
-      : new Prisma.Decimal(account.creditLimit);
+  const limit = account.creditLimit == null ? null : new Prisma.Decimal(account.creditLimit);
   const available = limit ? limit.plus(balance) : null;
   const metrics = {
     currency: account.currency,
@@ -182,10 +133,7 @@ export function buildCardBilling(input: {
     creditBalance: positive(balance).toFixed(),
     creditLimit: limit ? limit.toFixed() : null,
     availableCredit: available ? available.toFixed() : null,
-    utilizationPercent:
-      limit && !limit.isZero()
-        ? debt.div(limit).times(100).toFixed(2, Prisma.Decimal.ROUND_HALF_UP)
-        : null,
+    utilizationPercent: limit && !limit.isZero() ? debt.div(limit).times(100).toFixed(2, Prisma.Decimal.ROUND_HALF_UP) : null,
     overLimit: available ? available.isNegative() : false
   };
 
@@ -206,10 +154,7 @@ export function buildCardBilling(input: {
   }
 
   const zone = config.billingTimeZone;
-  const rate =
-    account.annualInterestRate == null
-      ? null
-      : new Prisma.Decimal(account.annualInterestRate);
+  const rate = account.annualInterestRate == null ? null : new Prisma.Decimal(account.annualInterestRate);
   const fractionDigits = currencyFractionDigits(account.currency);
 
   const lowerBound = (instant: Date) => {
@@ -225,43 +170,25 @@ export function buildCardBilling(input: {
   };
 
   const firstInstant =
-    entries.length > 0 && entries[0]!.date < account.createdAt
-      ? entries[0]!.date
-      : account.createdAt;
+    entries.length > 0 && entries[0]!.date < account.createdAt ? entries[0]!.date : account.createdAt;
   const indexes = enumeratePeriodIndexes(config, firstInstant, now);
   const openIndex = indexes[indexes.length - 1]!;
 
   // Interest accrues only until the next closing, even when the due date falls later: it posts on the next statement.
-  const estimateFor = (
-    bounds: PeriodBounds,
-    nextClose: Date,
-    remaining: Prisma.Decimal,
-    onTimeRemaining: Prisma.Decimal
-  ) => {
+  const estimateFor = (bounds: PeriodBounds, nextClose: Date, remaining: Prisma.Decimal, onTimeRemaining: Prisma.Decimal) => {
     if (!onTimeRemaining.gt(0)) return NO_ESTIMATE;
     if (!rate) return { ...NO_ESTIMATE, status: "unavailable" as const };
 
     const lastDay = closingDateOf(config, bounds.monthIndex + 1);
     let sum = ZERO;
-    for (
-      let day = addDays(bounds.closingDate, 1);
-      daysBetween(day, lastDay) >= 0;
-      day = addDays(day, 1)
-    ) {
+    for (let day = addDays(bounds.closingDate, 1); daysBetween(day, lastDay) >= 0; day = addDays(day, 1)) {
       const dayEnd = startOfLocalDay(addDays(day, 1), zone);
-      sum = sum.plus(
-        dayEnd.getTime() <= now.getTime()
-          ? positive(prefix[lowerBound(dayEnd)]!.negated())
-          : debt
-      );
+      sum = sum.plus(dayEnd.getTime() <= now.getTime() ? positive(prefix[lowerBound(dayEnd)]!.negated()) : debt);
     }
     const projected = now.getTime() < bounds.dueInstant.getTime();
     return {
       status: "estimated" as const,
-      amount: rate
-        .times(sum)
-        .div(36500)
-        .toFixed(fractionDigits, Prisma.Decimal.ROUND_HALF_UP),
+      amount: rate.times(sum).div(36500).toFixed(fractionDigits, Prisma.Decimal.ROUND_HALF_UP),
       projected,
       avoidAmount: (projected ? remaining : onTimeRemaining).toFixed(),
       assumptions: ESTIMATE_ASSUMPTIONS
@@ -287,8 +214,7 @@ export function buildCardBilling(input: {
     const endIdx = lowerBound(bounds.closeInstant);
     let interest = ZERO;
     for (let i = startIdx; i < endIdx; i++) {
-      if (entries[i]!.role === "interest")
-        interest = interest.minus(entries[i]!.delta);
+      if (entries[i]!.role === "interest") interest = interest.minus(entries[i]!.delta);
     }
 
     if (monthIndex === openIndex) {
@@ -297,13 +223,7 @@ export function buildCardBilling(input: {
         status: "open",
         closingDebt: null,
         credits: "0",
-        creditsBreakdown: {
-          transfers: "0",
-          payments: "0",
-          refunds: "0",
-          cashback: "0",
-          other: "0"
-        },
+        creditsBreakdown: { transfers: "0", payments: "0", refunds: "0", cashback: "0", other: "0" },
         remaining: null,
         onTimeRemaining: null,
         confirmedInterest: interest.toFixed(),
@@ -382,17 +302,11 @@ export function buildCardBilling(input: {
           dueDate: latestClosed.dueDate,
           remaining: latestClosed.remaining!,
           status: latestClosed.status,
-          daysUntilDue: daysBetween(
-            today,
-            parseLocalDate(latestClosed.dueDate)
-          ),
+          daysUntilDue: daysBetween(today, parseLocalDate(latestClosed.dueDate)),
           estimate: latestClosed.estimate
         }
       : null,
-    periods: newestFirst.slice(
-      (page - 1) * BILLING_PAGE_SIZE,
-      page * BILLING_PAGE_SIZE
-    ),
+    periods: newestFirst.slice((page - 1) * BILLING_PAGE_SIZE, page * BILLING_PAGE_SIZE),
     page,
     pageSize: BILLING_PAGE_SIZE,
     totalPeriods: newestFirst.length

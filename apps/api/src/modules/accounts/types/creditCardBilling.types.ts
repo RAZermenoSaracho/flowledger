@@ -35,12 +35,7 @@ export type PeriodBounds = {
 };
 
 /** How a credit entry is labelled in the informational breakdown. */
-export type CreditKind =
-  | "transfer"
-  | "payment"
-  | "refund"
-  | "cashback"
-  | "other";
+export type CreditKind = "transfer" | "payment" | "refund" | "cashback" | "other";
 
 /** One ledger row reduced to its effect on a card: `delta` is the signed balance change in the card's currency. */
 export type CardEntry = {

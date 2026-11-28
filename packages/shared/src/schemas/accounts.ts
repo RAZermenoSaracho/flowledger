@@ -149,11 +149,7 @@ const calendarDateSchema = z
   .refine((value) => {
     const [y, m, d] = value.split("-").map(Number) as [number, number, number];
     const date = new Date(Date.UTC(y, m - 1, d));
-    return (
-      date.getUTCFullYear() === y &&
-      date.getUTCMonth() === m - 1 &&
-      date.getUTCDate() === d
-    );
+    return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
   }, "Not a valid calendar date");
 
 /** Route params of `PATCH /accounts/:id/credit-card/periods/:key`; `key` is the `YYYY-MM` of the period's default closing month. */
@@ -168,16 +164,11 @@ export const updateBillingPeriodSchema = z
     closingDate: calendarDateSchema.nullable().optional(),
     dueDate: calendarDateSchema.nullable().optional()
   })
-  .refine(
-    (body) => body.closingDate !== undefined || body.dueDate !== undefined,
-    {
-      message: "Provide closingDate, dueDate or both"
-    }
-  );
+  .refine((body) => body.closingDate !== undefined || body.dueDate !== undefined, {
+    message: "Provide closingDate, dueDate or both"
+  });
 
-export type UpdateBillingPeriodInput = z.infer<
-  typeof updateBillingPeriodSchema
->;
+export type UpdateBillingPeriodInput = z.infer<typeof updateBillingPeriodSchema>;
 export type CreditCardBillingQuery = z.infer<
   typeof creditCardBillingQuerySchema
 >;
@@ -225,12 +216,7 @@ export const holdingUpsertSchema = z
     manualUnitPrice: positiveDecimalAmountSchema.nullable().optional(),
     manualPriceCurrency: currencyCodeSchema.optional(),
     manualPricedAt: z.coerce.date().optional(),
-    exchange: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(micPattern, "An exchange is a 4-character MIC")
-      .optional(),
+    exchange: z.string().trim().toUpperCase().regex(micPattern, "An exchange is a 4-character MIC").optional(),
     quoteCurrency: currencyCodeSchema.optional()
   })
   .superRefine((item, ctx) => {
@@ -238,98 +224,52 @@ export const holdingUpsertSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
 
     if (item.id) {
-      if (item.kind !== undefined)
-        issue("kind", "The kind of an existing holding cannot change");
-      if (item.code !== undefined)
-        issue("code", "The code of an existing holding cannot change");
-      if (item.exchange !== undefined)
-        issue("exchange", "The exchange of an existing holding cannot change");
-      if (item.quoteCurrency !== undefined)
-        issue(
-          "quoteCurrency",
-          "The quote currency of an existing holding cannot change"
-        );
+      if (item.kind !== undefined) issue("kind", "The kind of an existing holding cannot change");
+      if (item.code !== undefined) issue("code", "The code of an existing holding cannot change");
+      if (item.exchange !== undefined) issue("exchange", "The exchange of an existing holding cannot change");
+      if (item.quoteCurrency !== undefined) issue("quoteCurrency", "The quote currency of an existing holding cannot change");
     } else {
       if (!item.kind) issue("kind", "Kind is required for a new holding");
-      if (!item.quantity)
-        issue("quantity", "Quantity is required for a new holding");
+      if (!item.quantity) issue("quantity", "Quantity is required for a new holding");
       if (item.kind === "other") {
-        if (item.code !== undefined)
-          issue("code", "Other assets have no code; use a name");
+        if (item.code !== undefined) issue("code", "Other assets have no code; use a name");
         if (!item.name) issue("name", "Name is required for an other asset");
       } else if (item.kind && !item.code) {
         issue("code", "Code is required for a new holding");
       }
-      const linked =
-        (item.kind === "stock" || item.kind === "etf") &&
-        item.exchange !== undefined;
+      const linked = (item.kind === "stock" || item.kind === "etf") && item.exchange !== undefined;
       if (
         item.kind &&
-        (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(
-          item.kind
-        ) &&
+        (MANUALLY_PRICED_HOLDING_KINDS as readonly string[]).includes(item.kind) &&
         !linked &&
         !item.manualUnitPrice
       ) {
-        issue(
-          "manualUnitPrice",
-          "This asset type has no automatic price; set a manual unit price"
-        );
+        issue("manualUnitPrice", "This asset type has no automatic price; set a manual unit price");
       }
     }
 
     if (item.kind === "crypto" && item.code) {
-      if (!cryptoCodePattern.test(item.code))
-        issue("code", "A crypto code has 2–10 letters or digits");
-      else if (isoCurrencyCodes.has(item.code))
-        issue("code", `${item.code} is a fiat currency; add it as Cash`);
+      if (!cryptoCodePattern.test(item.code)) issue("code", "A crypto code has 2–10 letters or digits");
+      else if (isoCurrencyCodes.has(item.code)) issue("code", `${item.code} is a fiat currency; add it as Cash`);
     }
-    if (
-      (item.kind === "stock" || item.kind === "etf") &&
-      item.code &&
-      !tickerPattern.test(item.code)
-    ) {
+    if ((item.kind === "stock" || item.kind === "etf") && item.code && !tickerPattern.test(item.code)) {
       issue("code", "A ticker has up to 15 letters, digits, dots or dashes");
     }
     if (item.kind === "fiat") {
-      if (item.code && !isoCurrencyCodes.has(item.code))
-        issue("code", "Cash must use an ISO 4217 currency code");
-      if (item.manualUnitPrice != null)
-        issue(
-          "manualUnitPrice",
-          "Cash holdings are valued at par and take no manual price"
-        );
+      if (item.code && !isoCurrencyCodes.has(item.code)) issue("code", "Cash must use an ISO 4217 currency code");
+      if (item.manualUnitPrice != null) issue("manualUnitPrice", "Cash holdings are valued at par and take no manual price");
     }
-    if (
-      (item.exchange !== undefined || item.quoteCurrency !== undefined) &&
-      !item.id
-    ) {
-      if (item.kind !== "stock" && item.kind !== "etf")
-        issue("exchange", "Only stocks and ETFs take an exchange");
-      else if (
-        item.exchange === undefined ||
-        item.quoteCurrency === undefined
-      ) {
-        issue(
-          item.exchange === undefined ? "exchange" : "quoteCurrency",
-          "Exchange and quote currency go together"
-        );
-      } else if (!isoCurrencyCodes.has(item.quoteCurrency))
-        issue("quoteCurrency", "Quote currency must be an ISO 4217 code");
+    if ((item.exchange !== undefined || item.quoteCurrency !== undefined) && !item.id) {
+      if (item.kind !== "stock" && item.kind !== "etf") issue("exchange", "Only stocks and ETFs take an exchange");
+      else if (item.exchange === undefined || item.quoteCurrency === undefined) {
+        issue(item.exchange === undefined ? "exchange" : "quoteCurrency", "Exchange and quote currency go together");
+      } else if (!isoCurrencyCodes.has(item.quoteCurrency)) issue("quoteCurrency", "Quote currency must be an ISO 4217 code");
     }
     if (item.unit != null && item.kind !== undefined && item.kind !== "other") {
       issue("unit", "Only other assets take a unit");
     }
-    if (
-      item.quantity &&
-      item.code &&
-      item.kind === "fiat" &&
-      exceedsCurrencyPrecision(item.quantity, item.code)
-    ) {
-      issue(
-        "quantity",
-        `${item.code} allows at most ${currencyFractionDigits(item.code)} decimals`
-      );
+    if (item.quantity && item.code && item.kind === "fiat" && exceedsCurrencyPrecision(item.quantity, item.code)) {
+      issue("quantity", `${item.code} allows at most ${currencyFractionDigits(item.code)} decimals`);
     }
     if (item.manualUnitPrice != null && !item.manualPriceCurrency) {
       issue("manualPriceCurrency", "Set the currency of the manual price");
@@ -345,10 +285,7 @@ export const holdingsChangeSetSchema = z
     upsert: z.array(holdingUpsertSchema).max(200).default([]),
     remove: z.array(z.string().min(1)).max(200).default([])
   })
-  .refine(
-    (body) => body.upsert.length + body.remove.length > 0,
-    "The change set is empty"
-  );
+  .refine((body) => body.upsert.length + body.remove.length > 0, "The change set is empty");
 
 export type HoldingUpsertInput = z.infer<typeof holdingUpsertSchema>;
 export type HoldingsChangeSetInput = z.infer<typeof holdingsChangeSetSchema>;

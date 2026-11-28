@@ -1,24 +1,10 @@
 import type { BillingPeriod, CreditCardBilling } from "@flowledger/shared";
 
-const noEstimate = {
-  status: "none" as const,
-  amount: null,
-  projected: false,
-  avoidAmount: null,
-  assumptions: []
-};
-const zeroBreakdown = {
-  transfers: "0",
-  payments: "0",
-  refunds: "0",
-  cashback: "0",
-  other: "0"
-};
+const noEstimate = { status: "none" as const, amount: null, projected: false, avoidAmount: null, assumptions: [] };
+const zeroBreakdown = { transfers: "0", payments: "0", refunds: "0", cashback: "0", other: "0" };
 
 /** A closed billing period with sensible defaults; override any field. */
-export function makePeriod(
-  overrides: Partial<BillingPeriod> = {}
-): BillingPeriod {
+export function makePeriod(overrides: Partial<BillingPeriod> = {}): BillingPeriod {
   const start = overrides.start ?? "2027-01-21";
   const end = overrides.end ?? "2027-02-20";
   const dayAfterEnd = new Date(`${end}T00:00:00.000Z`);
@@ -47,9 +33,7 @@ export function makePeriod(
 }
 
 /** A configured card billing response with sensible defaults; override any field. */
-export function makeBilling(
-  overrides: Partial<CreditCardBilling> = {}
-): CreditCardBilling {
+export function makeBilling(overrides: Partial<CreditCardBilling> = {}): CreditCardBilling {
   return {
     accountId: "card-1",
     configured: true,
@@ -71,11 +55,7 @@ export function makeBilling(
       utilizationPercent: "30",
       overLimit: false
     },
-    openPeriod: {
-      start: "2027-02-21",
-      nextClosingDate: "2027-03-20",
-      nextDueDate: "2027-04-20"
-    },
+    openPeriod: { start: "2027-02-21", nextClosingDate: "2027-03-20", nextDueDate: "2027-04-20" },
     current: {
       closingDate: "2027-02-20",
       dueDate: "2027-03-20",
@@ -91,28 +71,9 @@ export function makeBilling(
       }
     },
     periods: [
-      makePeriod({
-        start: "2027-02-21",
-        end: "2027-03-20",
-        dueDate: "2027-04-20",
-        status: "open",
-        closingDebt: null,
-        remaining: null,
-        onTimeRemaining: null,
-        credits: "0",
-        creditsBreakdown: zeroBreakdown
-      }),
+      makePeriod({ start: "2027-02-21", end: "2027-03-20", dueDate: "2027-04-20", status: "open", closingDebt: null, remaining: null, onTimeRemaining: null, credits: "0", creditsBreakdown: zeroBreakdown }),
       makePeriod(),
-      makePeriod({
-        start: "2026-12-21",
-        end: "2027-01-20",
-        dueDate: "2027-02-20",
-        status: "overdue",
-        closingDebt: "6000",
-        credits: "0",
-        creditsBreakdown: zeroBreakdown,
-        remaining: "6000"
-      })
+      makePeriod({ start: "2026-12-21", end: "2027-01-20", dueDate: "2027-02-20", status: "overdue", closingDebt: "6000", credits: "0", creditsBreakdown: zeroBreakdown, remaining: "6000" })
     ],
     page: 1,
     pageSize: 12,

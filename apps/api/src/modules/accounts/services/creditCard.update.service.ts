@@ -4,7 +4,7 @@ import type {
 } from "@flowledger/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import { badRequest, conflict, notFound } from "../../../utils/httpError.js";
+import { badRequest, notFound } from "../../../utils/httpError.js";
 import type {
   LocalDate,
   PeriodOverride
@@ -16,6 +16,7 @@ import {
   periodIndexContaining,
   validateCycleSequence
 } from "../utils/creditCardCycle.js";
+import { mapSerializationConflict } from "../utils/serializationConflict.js";
 import {
   getBillingPeriod,
   loadCardOverrides
@@ -23,17 +24,6 @@ import {
 
 function toDbDate(date: LocalDate | undefined) {
   return date ? new Date(Date.UTC(date.y, date.m - 1, date.d)) : null;
-}
-
-/** Maps a Serializable-transaction failure (P2034) to a 409 and returns any other error unchanged, for `throw mapSerializationConflict(error)`. */
-export function mapSerializationConflict(error: unknown) {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2034"
-  ) {
-    return conflict("Billing dates changed at the same time. Please retry");
-  }
-  return error;
 }
 
 /** Applies a patch field: absent keeps `current`, `null` resets to the default (`undefined`), a string sets it. */

@@ -55,10 +55,7 @@ export function BillingPeriodDateCell({
       return;
     }
     finished.current = true;
-    update.mutate(
-      { [bodyKey]: draft },
-      { onSuccess: close, onError: () => (finished.current = false) }
-    );
+    update.mutate({ [bodyKey]: draft }, { onSuccess: close, onError: () => (finished.current = false) });
   };
 
   return (
@@ -97,10 +94,7 @@ export function BillingPeriodDateCell({
         </button>
       )}
       {update.isPending ? (
-        <span
-          role="status"
-          className="ml-1 text-xs text-slate-500 dark:text-slate-400"
-        >
+        <span role="status" className="ml-1 text-xs text-slate-500 dark:text-slate-400">
           Saving…
         </span>
       ) : null}
@@ -117,10 +111,7 @@ export function BillingPeriodDateCell({
             disabled={update.isPending}
             onClick={() => {
               refocus.current = true;
-              update.mutate(
-                { [bodyKey]: null },
-                { onSuccess: () => buttonRef.current?.focus() }
-              );
+              update.mutate({ [bodyKey]: null }, { onSuccess: () => buttonRef.current?.focus() });
             }}
           >
             <span aria-hidden="true">↺</span>
@@ -129,10 +120,7 @@ export function BillingPeriodDateCell({
       ) : null}
       <div aria-live="polite">
         {update.error ? (
-          <p
-            role="alert"
-            className="mt-1 text-xs text-red-600 dark:text-red-400"
-          >
+          <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
             {update.error.message}
           </p>
         ) : null}

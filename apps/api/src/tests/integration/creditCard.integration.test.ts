@@ -4,19 +4,10 @@ import type { Express } from "express";
 import type { Server } from "node:http";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  addDays,
-  closingDateOf,
-  monthIndexOfKey,
-  periodIndexContaining,
-  startOfLocalDay
-} from "../../modules/accounts/utils/creditCardCycle.js";
+import { addDays, closingDateOf, monthIndexOfKey, periodIndexContaining, startOfLocalDay } from "../../modules/accounts/utils/creditCardCycle.js";
 import { createAuthedUser } from "../helpers/authTestUser.js";
 import { loopbackOrigin } from "../helpers/loopback.js";
-import {
-  startTestDatabase,
-  stopTestDatabase
-} from "../helpers/testDatabase.js";
+import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js";
 
 // Cross-module integration test: needs Docker (see docs/TESTING.md). A real Pyodide sandbox run backs the notification-model path.
 let app: Express;
@@ -28,12 +19,7 @@ let NotificationRunWorker: typeof import("../../modules/notificationModels/notif
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const ZONE = "America/Mexico_City";
-const CYCLE = {
-  statementClosingDay: 20,
-  paymentDueRule: "day_of_next_month",
-  paymentDueValue: 20,
-  billingTimeZone: ZONE
-} as const;
+const CYCLE = { statementClosingDay: 20, paymentDueRule: "day_of_next_month", paymentDueValue: 20, billingTimeZone: ZONE } as const;
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,44 +36,22 @@ async function ok<T extends { status: number; body: Json }>(res: T) {
   return res.body;
 }
 
-async function createCard(
-  name: string,
-  cycle: { paymentDueValue?: number } = {}
-) {
+async function createCard(name: string, cycle: { paymentDueValue?: number } = {}) {
   const body = await ok(
-    await request(app)
-      .post("/accounts")
-      .set(bearer(jwt))
-      .send({
-        name,
-        type: "credit_card",
-        currency: "MXN",
-        creditLimit: "50000",
-        ...CYCLE,
-        ...cycle
-      })
+    await request(app).post("/accounts").set(bearer(jwt)).send({ name, type: "credit_card", currency: "MXN", creditLimit: "50000", ...CYCLE, ...cycle })
   );
   const id = body.account.id as string;
   await ok(
     await request(app)
       .post("/transactions")
       .set(bearer(jwt))
-      .send({
-        name: "Purchase",
-        amount: "10000",
-        type: "expense",
-        date: purchaseAt,
-        accountId: id,
-        categoryId
-      })
+      .send({ name: "Purchase", amount: "10000", type: "expense", date: purchaseAt, accountId: id, categoryId })
   );
   return id;
 }
 
 async function billing(cardId: string) {
-  const res = await request(app)
-    .get(`/accounts/${cardId}/credit-card`)
-    .set(bearer(jwt));
+  const res = await request(app).get(`/accounts/${cardId}/credit-card`).set(bearer(jwt));
   expect(res.status).toBe(200);
   const { accountId: _accountId, ...rest } = res.body as Json;
   return rest;
@@ -96,12 +60,7 @@ async function billing(cardId: string) {
 /** Closed period that holds the payment: figures that must be identical across every creation path. */
 function summarize(body: Json) {
   const period = body.periods.find((p: Json) => p.status !== "open");
-  return {
-    debt: body.metrics.debt,
-    closingDebt: period.closingDebt,
-    credits: period.credits,
-    remaining: period.remaining
-  };
+  return { debt: body.metrics.debt, closingDebt: period.closingDebt, credits: period.credits, remaining: period.remaining };
 }
 
 describe("credit card billing across write paths (real Postgres)", () => {
@@ -109,55 +68,24 @@ describe("credit card billing across write paths (real Postgres)", () => {
     await startTestDatabase();
     ({ app } = await import("../../app.js"));
     ({ prisma } = await import("../../db/prisma.js"));
-    ({ NotificationRunWorker } =
-      await import("../../modules/notificationModels/notificationRunWorker.js"));
+    ({ NotificationRunWorker } = await import("../../modules/notificationModels/notificationRunWorker.js"));
     server = app.listen(0);
     baseUrl = loopbackOrigin(server);
 
     const auth = await createAuthedUser(app);
     jwt = auth.token;
     userId = auth.user.id;
-    debitId = (
-      await ok(
-        await request(app)
-          .post("/accounts")
-          .set(bearer(jwt))
-          .send({ name: "Debit", type: "checking", currency: "MXN" })
-      )
-    ).account.id;
-    categoryId = (
-      await ok(
-        await request(app)
-          .post("/categories")
-          .set(bearer(jwt))
-          .send({ name: "Food", type: "expense" })
-      )
-    ).category.id;
-    writeKey = (
-      await ok(
-        await request(app)
-          .post("/users/me/api-keys")
-          .set(bearer(jwt))
-          .send({ name: "w", allowWrite: true, lifetime: "1m" })
-      )
-    ).key;
+    debitId = (await ok(await request(app).post("/accounts").set(bearer(jwt)).send({ name: "Debit", type: "checking", currency: "MXN" }))).account.id;
+    categoryId = (await ok(await request(app).post("/categories").set(bearer(jwt)).send({ name: "Food", type: "expense" }))).category.id;
+    writeKey = (await ok(await request(app).post("/users/me/api-keys").set(bearer(jwt)).send({ name: "w", allowWrite: true, lifetime: "1m" }))).key;
     mcp = new Client({ name: "test", version: "1.0.0" });
-    await mcp.connect(
-      new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
-        requestInit: { headers: bearer(writeKey) }
-      })
-    );
+    await mcp.connect(new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), { requestInit: { headers: bearer(writeKey) } }));
 
     // Purchase 5 days before the latest closing so the payment made now falls in that period's payment window.
     const now = new Date();
     const config = { ...CYCLE };
-    const closing = closingDateOf(
-      config,
-      periodIndexContaining(config, now) - 1
-    );
-    purchaseAt = new Date(
-      startOfLocalDay(addDays(closing, -5), ZONE).getTime() + 12 * 3_600_000
-    ).toISOString();
+    const closing = closingDateOf(config, periodIndexContaining(config, now) - 1);
+    purchaseAt = new Date(startOfLocalDay(addDays(closing, -5), ZONE).getTime() + 12 * 3_600_000).toISOString();
   }, 180_000);
 
   afterAll(async () => {
@@ -168,43 +96,16 @@ describe("credit card billing across write paths (real Postgres)", () => {
   });
 
   it("a 6000 debit-to-card payment from web, /v1, MCP and a notification model yields identical billing; edit and delete recalculate", async () => {
-    const cards = {
-      web: await createCard("Web"),
-      v1: await createCard("V1"),
-      mcp: await createCard("MCP"),
-      nm: await createCard("NM")
-    };
+    const cards = { web: await createCard("Web"), v1: await createCard("V1"), mcp: await createCard("MCP"), nm: await createCard("NM") };
     const paidAt = new Date().toISOString();
     const payment = (amount: string, cardId: string) => ({
-      name: "Card payment",
-      amount,
-      type: "transfer",
-      date: paidAt,
-      accountId: debitId,
-      transferToAccountId: cardId
+      name: "Card payment", amount, type: "transfer", date: paidAt, accountId: debitId, transferToAccountId: cardId
     });
     const ids: Record<string, string> = {};
 
-    ids.web = (
-      await ok(
-        await request(app)
-          .post("/transactions")
-          .set(bearer(jwt))
-          .send(payment("6000", cards.web))
-      )
-    ).transaction.id;
-    ids.v1 = (
-      await ok(
-        await request(app)
-          .post("/v1/transactions")
-          .set(bearer(writeKey))
-          .send(payment("6000", cards.v1))
-      )
-    ).transaction.id;
-    const viaMcp = await mcp.callTool({
-      name: "create_transaction",
-      arguments: payment("6000", cards.mcp)
-    });
+    ids.web = (await ok(await request(app).post("/transactions").set(bearer(jwt)).send(payment("6000", cards.web)))).transaction.id;
+    ids.v1 = (await ok(await request(app).post("/v1/transactions").set(bearer(writeKey)).send(payment("6000", cards.v1)))).transaction.id;
+    const viaMcp = await mcp.callTool({ name: "create_transaction", arguments: payment("6000", cards.mcp) });
     expect(viaMcp.isError).toBeFalsy();
     ids.mcp = (viaMcp.structuredContent as Json).transaction.id;
 
@@ -225,149 +126,68 @@ describe("credit card billing across write paths (real Postgres)", () => {
           })
       )
     ).model.id as string;
-    const ingestKey = (
-      await ok(
-        await request(app)
-          .post("/users/me/api-keys")
-          .set(bearer(jwt))
-          .send({ name: "ingest", ingestOnly: true })
-      )
-    ).key;
-    const ingested = await request(app)
-      .post(`/v1/notification-models/${modelId}/notifications`)
-      .set(bearer(ingestKey))
-      .send({ text: "pay card" });
+    const ingestKey = (await ok(await request(app).post("/users/me/api-keys").set(bearer(jwt)).send({ name: "ingest", ingestOnly: true }))).key;
+    const ingested = await request(app).post(`/v1/notification-models/${modelId}/notifications`).set(bearer(ingestKey)).send({ text: "pay card" });
     expect(ingested.status, JSON.stringify(ingested.body)).toBe(202);
     const worker = new NotificationRunWorker();
     await worker.start();
     try {
       const deadline = Date.now() + 120_000;
       for (;;) {
-        const run = await prisma.notificationRun.findUniqueOrThrow({
-          where: { id: ingested.body.runId }
-        });
+        const run = await prisma.notificationRun.findUniqueOrThrow({ where: { id: ingested.body.runId } });
         if (["completed", "skipped", "failed"].includes(run.status)) {
-          expect(run, JSON.stringify(run)).toMatchObject({
-            status: "completed"
-          });
+          expect(run, JSON.stringify(run)).toMatchObject({ status: "completed" });
           ids.nm = run.transactionId!;
           break;
         }
-        if (Date.now() > deadline)
-          throw new Error("notification run timed out");
+        if (Date.now() > deadline) throw new Error("notification run timed out");
         await sleep(200);
       }
     } finally {
       await worker.stop();
     }
 
-    const expectAll = async (
-      expected: ReturnType<typeof summarize>,
-      only = Object.keys(cards)
-    ) => {
-      const bodies = await Promise.all(
-        only.map((key) => billing(cards[key as keyof typeof cards]))
-      );
+    const expectAll = async (expected: ReturnType<typeof summarize>, only = Object.keys(cards)) => {
+      const bodies = await Promise.all(only.map((key) => billing(cards[key as keyof typeof cards])));
       for (const body of bodies) expect(summarize(body)).toEqual(expected);
       for (const body of bodies) expect(body).toEqual(bodies[0]);
     };
 
-    await expectAll({
-      debt: "4000",
-      closingDebt: "10000",
-      credits: "6000",
-      remaining: "4000"
-    });
+    await expectAll({ debt: "4000", closingDebt: "10000", credits: "6000", remaining: "4000" });
 
     for (const key of Object.keys(cards)) {
-      await ok(
-        await request(app)
-          .put(`/transactions/${ids[key]}`)
-          .set(bearer(jwt))
-          .send(payment("4000", cards[key as keyof typeof cards]))
-      );
+      await ok(await request(app).put(`/transactions/${ids[key]}`).set(bearer(jwt)).send(payment("4000", cards[key as keyof typeof cards])));
     }
-    await expectAll({
-      debt: "6000",
-      closingDebt: "10000",
-      credits: "4000",
-      remaining: "6000"
-    });
+    await expectAll({ debt: "6000", closingDebt: "10000", credits: "4000", remaining: "6000" });
 
     for (const key of Object.keys(cards)) {
-      expect(
-        (
-          await request(app)
-            .delete(`/transactions/${ids[key]}`)
-            .set(bearer(jwt))
-        ).status
-      ).toBeLessThan(300);
+      expect((await request(app).delete(`/transactions/${ids[key]}`).set(bearer(jwt))).status).toBeLessThan(300);
     }
-    await expectAll({
-      debt: "10000",
-      closingDebt: "10000",
-      credits: "0",
-      remaining: "10000"
-    });
+    await expectAll({ debt: "10000", closingDebt: "10000", credits: "0", remaining: "10000" });
   }, 240_000);
 
   it("a pending Syncfy-style import does not change billing; booking it reduces debt without a category", async () => {
     const cardId = await createCard("Imported");
     const providerAccount = await prisma.providerAccount.create({
-      data: {
-        userId,
-        accountId: cardId,
-        provider: "test",
-        providerCredentialId: "cred",
-        providerAccountId: "card-1"
-      }
+      data: { userId, accountId: cardId, provider: "test", providerCredentialId: "cred", providerAccountId: "card-1" }
     });
     const imported = await prisma.providerImportedTransaction.create({
       data: {
-        userId,
-        provider: "test",
-        providerCredentialId: "cred",
-        providerAccountId: "card-1",
-        providerAccountRefId: providerAccount.id,
-        providerTransactionId: "card-payment-1",
-        description: "Pago tarjeta",
-        amount: 2500,
-        currency: "MXN",
-        transactionDate: new Date(),
-        rawData: {}
+        userId, provider: "test", providerCredentialId: "cred", providerAccountId: "card-1", providerAccountRefId: providerAccount.id,
+        providerTransactionId: "card-payment-1", description: "Pago tarjeta", amount: 2500, currency: "MXN",
+        transactionDate: new Date(), rawData: {}
       }
     });
 
-    expect(summarize(await billing(cardId))).toMatchObject({
-      debt: "10000",
-      credits: "0"
-    });
+    expect(summarize(await billing(cardId))).toMatchObject({ debt: "10000", credits: "0" });
 
-    await ok(
-      await request(app)
-        .post(`/transactions/imported/${imported.id}/import`)
-        .set(bearer(jwt))
-        .send({})
-    );
-    expect(summarize(await billing(cardId))).toEqual({
-      debt: "7500",
-      closingDebt: "10000",
-      credits: "2500",
-      remaining: "7500"
-    });
+    await ok(await request(app).post(`/transactions/imported/${imported.id}/import`).set(bearer(jwt)).send({}));
+    expect(summarize(await billing(cardId))).toEqual({ debt: "7500", closingDebt: "10000", credits: "2500", remaining: "7500" });
   }, 60_000);
 
   describe("credit card period overrides (real Postgres)", () => {
-    const patchPeriod = (
-      cardId: string,
-      key: string,
-      body: Json,
-      token = jwt
-    ) =>
-      request(app)
-        .patch(`/accounts/${cardId}/credit-card/periods/${key}`)
-        .set(bearer(token))
-        .send(body);
+    const patchPeriod = (cardId: string, key: string, body: Json, token = jwt) =>
+      request(app).patch(`/accounts/${cardId}/credit-card/periods/${key}`).set(bearer(token)).send(body);
     const ymd = (date: { y: number; m: number; d: number }) =>
       `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
 
@@ -375,189 +195,75 @@ describe("credit card billing across write paths (real Postgres)", () => {
       const cardId = await createCard("Override");
       const base = await billing(cardId);
       const closed = base.periods[1] as Json;
-      const ledgerBefore = JSON.stringify(
-        await prisma.transaction.findMany({ orderBy: { id: "asc" } })
-      );
-      const accountBefore = JSON.stringify(
-        await prisma.account.findUniqueOrThrow({ where: { id: cardId } })
-      );
+      const ledgerBefore = JSON.stringify(await prisma.transaction.findMany({ orderBy: { id: "asc" } }));
+      const accountBefore = JSON.stringify(await prisma.account.findUniqueOrThrow({ where: { id: cardId } }));
 
-      const newEnd = ymd(
-        addDays(
-          {
-            y: +closed.end.slice(0, 4),
-            m: +closed.end.slice(5, 7),
-            d: +closed.end.slice(8)
-          },
-          2
-        )
-      );
-      const patched = await ok(
-        await patchPeriod(cardId, closed.key, { closingDate: newEnd })
-      );
-      expect(patched).toMatchObject({
-        key: closed.key,
-        end: newEnd,
-        endAdjusted: true,
-        dueAdjusted: false,
-        defaultEnd: closed.end
-      });
+      const newEnd = ymd(addDays({ y: +closed.end.slice(0, 4), m: +closed.end.slice(5, 7), d: +closed.end.slice(8) }, 2));
+      const patched = await ok(await patchPeriod(cardId, closed.key, { closingDate: newEnd }));
+      expect(patched).toMatchObject({ key: closed.key, end: newEnd, endAdjusted: true, dueAdjusted: false, defaultEnd: closed.end });
 
       const moved = await billing(cardId);
-      expect(moved.periods[1]).toMatchObject({
-        end: newEnd,
-        endAdjusted: true
-      });
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(1);
-      expect(
-        JSON.stringify(
-          await prisma.transaction.findMany({ orderBy: { id: "asc" } })
-        )
-      ).toBe(ledgerBefore);
-      expect(
-        JSON.stringify(
-          await prisma.account.findUniqueOrThrow({ where: { id: cardId } })
-        )
-      ).toBe(accountBefore);
+      expect(moved.periods[1]).toMatchObject({ end: newEnd, endAdjusted: true });
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      expect(JSON.stringify(await prisma.transaction.findMany({ orderBy: { id: "asc" } }))).toBe(ledgerBefore);
+      expect(JSON.stringify(await prisma.account.findUniqueOrThrow({ where: { id: cardId } }))).toBe(accountBefore);
 
-      const viaV1 = await request(app)
-        .get(`/v1/accounts/${cardId}/credit-card`)
-        .set(bearer(writeKey));
+      const viaV1 = await request(app).get(`/v1/accounts/${cardId}/credit-card`).set(bearer(writeKey));
       expect(viaV1.status).toBe(200);
-      const viaMcp = await mcp.callTool({
-        name: "get_credit_card",
-        arguments: { id: cardId }
-      });
+      const viaMcp = await mcp.callTool({ name: "get_credit_card", arguments: { id: cardId } });
       expect(viaMcp.isError).toBeFalsy();
-      const web = (
-        await request(app)
-          .get(`/accounts/${cardId}/credit-card`)
-          .set(bearer(jwt))
-      ).body;
+      const web = (await request(app).get(`/accounts/${cardId}/credit-card`).set(bearer(jwt))).body;
       expect(viaV1.body).toEqual(web);
       expect(viaMcp.structuredContent).toEqual(web);
 
       await ok(await patchPeriod(cardId, closed.key, { closingDate: null }));
       expect(await billing(cardId)).toEqual(base);
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(0);
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
     }, 60_000);
 
     it("rejects a conflicting value and a default-cycle change that would invalidate an override", async () => {
       const cardId = await createCard("Guarded");
       const closed = (await billing(cardId)).periods[1] as Json;
-      const bad = await patchPeriod(cardId, closed.key, {
-        closingDate: "1999-01-01"
-      });
+      const bad = await patchPeriod(cardId, closed.key, { closingDate: "1999-01-01" });
       expect(bad.status).toBe(400);
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(0);
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
 
       const closing = closingDateOf(CYCLE, monthIndexOfKey(closed.key));
-      await ok(
-        await patchPeriod(cardId, closed.key, {
-          closingDate: ymd(addDays(closing, 15))
-        })
-      );
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: ymd(addDays(closing, 15)) }));
       const blocked = await request(app)
         .put(`/accounts/${cardId}`)
         .set(bearer(jwt))
         .send({ statementClosingDay: 3, paymentDueValue: 3 });
       expect(blocked.status, JSON.stringify(blocked.body)).toBe(400);
-      expect(
-        await prisma.account.findUniqueOrThrow({ where: { id: cardId } })
-      ).toMatchObject({ statementClosingDay: 20 });
+      expect(await prisma.account.findUniqueOrThrow({ where: { id: cardId } })).toMatchObject({ statementClosingDay: 20 });
 
       await ok(await patchPeriod(cardId, closed.key, { closingDate: null }));
-      await ok(
-        await request(app)
-          .put(`/accounts/${cardId}`)
-          .set(bearer(jwt))
-          .send({ statementClosingDay: 3, paymentDueValue: 3 })
-      );
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ statementClosingDay: 3, paymentDueValue: 3 }));
     }, 60_000);
 
     it("keeps overrides across a default change that stays consistent and deletes them with the account", async () => {
       const body = await ok(
-        await request(app)
-          .post("/accounts")
-          .set(bearer(jwt))
-          .send({
-            name: "Bare",
-            type: "credit_card",
-            currency: "MXN",
-            ...CYCLE
-          })
+        await request(app).post("/accounts").set(bearer(jwt)).send({ name: "Bare", type: "credit_card", currency: "MXN", ...CYCLE })
       );
       const cardId = body.account.id as string;
       const open = (await billing(cardId)).periods[0] as Json;
-      await ok(
-        await patchPeriod(cardId, open.key, { dueDate: open.defaultDue })
-      );
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(1);
-      await ok(
-        await request(app)
-          .put(`/accounts/${cardId}`)
-          .set(bearer(jwt))
-          .send({ name: "Renamed" })
-      );
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(1);
-      await ok(
-        await request(app).delete(`/accounts/${cardId}`).set(bearer(jwt))
-      );
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(0);
+      await ok(await patchPeriod(cardId, open.key, { dueDate: open.defaultDue }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ name: "Renamed" }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      await ok(await request(app).delete(`/accounts/${cardId}`).set(bearer(jwt)));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
     }, 60_000);
 
     it("deletes overrides when the account stops being a credit card", async () => {
       const body = await ok(
-        await request(app)
-          .post("/accounts")
-          .set(bearer(jwt))
-          .send({
-            name: "Leaving",
-            type: "credit_card",
-            currency: "MXN",
-            ...CYCLE
-          })
+        await request(app).post("/accounts").set(bearer(jwt)).send({ name: "Leaving", type: "credit_card", currency: "MXN", ...CYCLE })
       );
       const cardId = body.account.id as string;
       const open = (await billing(cardId)).periods[0] as Json;
-      await ok(
-        await patchPeriod(cardId, open.key, { dueDate: open.defaultDue })
-      );
-      await ok(
-        await request(app)
-          .put(`/accounts/${cardId}`)
-          .set(bearer(jwt))
-          .send({ type: "checking" })
-      );
-      expect(
-        await prisma.creditCardPeriodOverride.count({
-          where: { accountId: cardId }
-        })
-      ).toBe(0);
+      await ok(await patchPeriod(cardId, open.key, { dueDate: open.defaultDue }));
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ type: "checking" }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
     }, 60_000);
 
     it("never leaves an invalid sequence when two edits that conflict jointly run concurrently", async () => {
@@ -565,33 +271,20 @@ describe("credit card billing across write paths (real Postgres)", () => {
       const config = { ...CYCLE, ...cycle };
       const cardId = await createCard("Racing", cycle);
       const [open, closed] = (await billing(cardId)).periods as [Json, Json];
-      const nextClosing = closingDateOf(
-        config,
-        monthIndexOfKey(closed.key) + 1
-      );
+      const nextClosing = closingDateOf(config, monthIndexOfKey(closed.key) + 1);
       const results = await Promise.all([
         patchPeriod(cardId, closed.key, { dueDate: ymd(nextClosing) }),
-        patchPeriod(cardId, open.key, {
-          closingDate: ymd(addDays(nextClosing, -3))
-        })
+        patchPeriod(cardId, open.key, { closingDate: ymd(addDays(nextClosing, -3)) })
       ]);
-      expect(
-        results
-          .map((res) => res.status)
-          .every((status) => [200, 400, 409].includes(status))
-      ).toBe(true);
-      expect(results.filter((res) => res.status === 200).length).toBeLessThan(
-        2
-      );
+      expect(results.map((res) => res.status).every((status) => [200, 400, 409].includes(status))).toBe(true);
+      expect(results.filter((res) => res.status === 200).length).toBeLessThan(2);
       const after = (await billing(cardId)).periods as [Json, Json];
       expect(after[1].dueDate <= after[0].end).toBe(true);
     }, 60_000);
 
     it("rejects a period key after the open period", async () => {
       const cardId = await createCard("Future");
-      const res = await patchPeriod(cardId, "2999-01", {
-        closingDate: "2999-01-20"
-      });
+      const res = await patchPeriod(cardId, "2999-01", { closingDate: "2999-01-20" });
       expect(res.status).toBe(400);
     }, 60_000);
   });
