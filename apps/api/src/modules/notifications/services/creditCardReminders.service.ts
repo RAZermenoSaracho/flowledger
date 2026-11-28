@@ -1,7 +1,7 @@
 import type { BillingPeriod, CreditCardBilling } from "@flowledger/shared";
 import type { NotificationType } from "@prisma/client";
 import { prisma } from "../../../db/prisma.js";
-import { loadCardEntries } from "../../accounts/services/creditCard.read.service.js";
+import { loadCardEntries, loadCardOverrides } from "../../accounts/services/creditCard.read.service.js";
 import { daysBetween, formatLocalDate, localDateOf } from "../../accounts/utils/creditCardCycle.js";
 import { buildCardBilling } from "../../accounts/utils/creditCardBilling.js";
 import type { NotificationInput } from "../types/notifications.types.js";
@@ -105,9 +105,14 @@ export async function runCreditCardReminders(now: Date = new Date()): Promise<vo
 
   const inputs: NotificationInput[] = [];
   for (const [userId, userCards] of byUser) {
-    const entries = await loadCardEntries(userId, userCards.map((card) => card.id));
+    const ids = userCards.map((card) => card.id);
+    const [entries, overrides] = await Promise.all([loadCardEntries(userId, ids), loadCardOverrides(userId, ids)]);
     for (const card of userCards) {
-      const billing = buildCardBilling({ account: card, entries: entries.get(card.id) ?? [], now, page: 1 });
+      const billing = buildCardBilling({ account: card, entries: entries.get(card.id) ?? [],
+        overrides: overrides.get(card.id),
+        now,
+        page: 1
+      });
       inputs.push(...evaluateCardReminders(userId, card.name, billing, now));
     }
   }

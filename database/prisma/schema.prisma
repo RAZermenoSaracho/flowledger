@@ -113,6 +113,7 @@ model User {
   authAccounts                 UserAuthAccount[]
   accounts                     Account[]
   holdings                     Holding[]
+  creditCardPeriodOverrides    CreditCardPeriodOverride[]
   categoryMemberships          CategoryUser[]
   transactions                 Transaction[]
   providerConnections          ProviderConnection[]
@@ -221,31 +222,50 @@ model UserAuthAccount {
 }
 
 model Account {
-  id                              String            @id @default(cuid())
+  id                              String                     @id @default(cuid())
   userId                          String
   name                            String
   type                            AccountType
   identifier                      String?
-  currency                        String            @default("USD")
-  initialBalance                  Decimal           @default(0) @db.Decimal(38, 18)
-  isArchived                      Boolean           @default(false)
+  currency                        String                     @default("USD")
+  initialBalance                  Decimal                    @default(0) @db.Decimal(38, 18)
+  isArchived                      Boolean                    @default(false)
   archivedAt                      DateTime?
-  creditLimit                     Decimal?          @db.Decimal(38, 18)
+  creditLimit                     Decimal?                   @db.Decimal(38, 18)
   statementClosingDay             Int?
   paymentDueRule                  PaymentDueRule?
   paymentDueValue                 Int?
   billingTimeZone                 String?
-  annualInterestRate              Decimal?          @db.Decimal(38, 18)
-  createdAt                       DateTime          @default(now())
-  updatedAt                       DateTime          @updatedAt
-  user                            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions                    Transaction[]     @relation("TransactionAccount")
-  transferDestinationTransactions Transaction[]     @relation("TransactionTransferToAccount")
+  annualInterestRate              Decimal?                   @db.Decimal(38, 18)
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions                    Transaction[]              @relation("TransactionAccount")
+  transferDestinationTransactions Transaction[]              @relation("TransactionTransferToAccount")
   providerAccounts                ProviderAccount[]
   holdings                        Holding[]
+  periodOverrides                 CreditCardPeriodOverride[]
 
   @@index([userId])
   @@index([userId, isArchived])
+}
+
+/// Per-billing-period override of a credit card's closing and/or due date. `monthIndex` (`year * 12 + month - 1` of the
+/// default closing month) identifies the period. A row exists only while at least one date is set.
+model CreditCardPeriodOverride {
+  id          String    @id @default(cuid())
+  userId      String
+  accountId   String
+  monthIndex  Int
+  closingDate DateTime? @db.Date
+  dueDate     DateTime? @db.Date
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, monthIndex])
+  @@index([userId])
 }
 
 enum HoldingKind {

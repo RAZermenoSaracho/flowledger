@@ -153,6 +153,10 @@ Only `investment` and `crypto` accounts may have holdings. Their value always eq
 
 ---
 
+### CreditCardPeriodOverride
+
+Optional per-period manual closing and/or due date of a credit card. Billing periods themselves are never stored; a period is identified by `monthIndex` (`year * 12 + month - 1` of its default closing month, shown to clients as the `YYYY-MM` `key`). Unique `(accountId, monthIndex)`; `userId` indexed; cascades from User and Account. `closingDate` and `dueDate` are `Date` columns, null meaning "use the card's default"; a row exists only while at least one is set. Overrides are pure billing inputs: no ledger row or balance depends on them.
+
 ### Holding
 
 One position in an `investment` or `crypto` account. Quantities are manual; valuations come from a manual override or a market quotation at read time and are never stored, apart from the manual override itself.
@@ -587,6 +591,7 @@ Index: `lastSeenAt`. Removed on graceful shutdown; stale rows are deleted after 
 ```
 User
  ├── Account (manual or linked to ProviderAccount) → Holding (investment/crypto only)
+ │                                                └── CreditCardPeriodOverride (credit cards only)
  ├── Transaction → SharedExpense → SharedExpenseParticipant → SettlementRequest
  ├── Category (personal)
  ├── GroupMember → Group → Category (group)

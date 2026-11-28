@@ -57,4 +57,17 @@ describe("credit card reminders (real Postgres)", () => {
     }
     expect(await prisma.notification.count({ where: { userId: archived.userId } })).toBe(0);
   }, 120_000);
+
+  it("uses a persisted due-date override for the due-soon reminder", async () => {
+    const who = await owner("Card C");
+    await prisma.creditCardPeriodOverride.create({
+      data: { userId: who.userId, accountId: who.card, monthIndex: 2027 * 12, dueDate: new Date("2027-02-05T00:00:00Z") }
+    });
+
+    await runCreditCardReminders(new Date("2027-02-02T18:00:00Z"));
+
+    const rows = await prisma.notification.findMany({ where: { userId: who.userId, type: "credit_card_payment_due_soon" } });
+    expect(rows.map((r) => r.dedupeKey)).toEqual([`cc:credit_card_payment_due_soon:${who.card}:2027-01-20`]);
+    expect(rows[0]!.message).toContain("3 days remaining");
+  }, 120_000);
 });

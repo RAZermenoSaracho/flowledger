@@ -136,6 +136,7 @@ describe("financial data isolation", () => {
       ["/v1", "get", "/v1/accounts"],
       ["/accounts", "get", "/accounts/some-card/credit-card"],
       ["/v1", "get", "/v1/accounts/some-card/credit-card"],
+      ["/accounts", "patch", "/accounts/some-card/credit-card/periods/2026-11"],
       ["/mcp", "post", "/mcp"]
     ];
     const credentials: [string, () => string | undefined][] = [
@@ -162,6 +163,7 @@ describe("financial data isolation", () => {
       ["update account", (c) => ({ method: "put", path: `/accounts/${c.accountId}`, body: { name: "hijacked" } })],
       ["archive account", (c) => ({ method: "post", path: `/accounts/${c.accountId}/archive` })],
       ["read credit card billing", (c) => ({ method: "get", path: `/accounts/${c.cardId}/credit-card` })],
+      ["override a credit card period", (c) => ({ method: "patch", path: `/accounts/${c.cardId}/credit-card/periods/2026-11`, body: { closingDate: "2026-11-23" } })],
       ["delete account", (c) => ({ method: "delete", path: `/accounts/${c.accountId}` })],
       ["update category", (c) => ({ method: "put", path: `/categories/${c.categoryId}`, body: { name: "hijacked" } })],
       ["archive category", (c) => ({ method: "post", path: `/categories/${c.categoryId}/archive` })],
@@ -202,6 +204,7 @@ describe("financial data isolation", () => {
     });
 
     async function expectOwnerDataUntouched() {
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: ctx.cardId } })).toBe(0);
       expect(await prisma.transaction.findUniqueOrThrow({ where: { id: ctx.transactionId } })).toMatchObject({ name: "Dinner", userId: ctx.a.userId });
       expect(await prisma.account.findUniqueOrThrow({ where: { id: ctx.accountId } })).toMatchObject({ name: "Checking", archivedAt: null });
       expect(await prisma.category.findUniqueOrThrow({ where: { id: ctx.categoryId } })).toMatchObject({ name: "Food", archivedAt: null });

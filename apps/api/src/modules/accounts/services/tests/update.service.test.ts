@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { prismaMock } from "../../../../tests/helpers/prismaMock.js";
 import { archiveAccount, restoreAccount, updateAccount } from "../update.service.js";
@@ -205,5 +206,85 @@ describe("updateAccount type-change guard", () => {
     prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", type: "crypto" } as never);
     await updateAccount("user-1", "acc-1", { type: "investment" });
     expect(prismaMock.account.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("updateAccount with billing period overrides", () => {
+  const card = {
+    id: "acc-1",
+    type: "credit_card",
+    currency: "MXN",
+    creditLimit: null,
+    statementClosingDay: 20,
+    paymentDueRule: "day_of_next_month",
+    paymentDueValue: 20,
+    billingTimeZone: "America/Mexico_City",
+    annualInterestRate: null
+  };
+  const november = 2026 * 12 + 10;
+  const override = (monthIndex: number, closingDate: string) => ({
+    accountId: "acc-1",
+    monthIndex,
+    closingDate: new Date(`${closingDate}T00:00:00Z`),
+    dueDate: null
+  });
+
+  it("rejects a default change that would invalidate an override, naming the period, and leaves the account unchanged", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.creditCardPeriodOverride.findMany.mockResolvedValue([override(november, "2026-10-25")] as never);
+
+    await expect(updateAccount("user-1", "acc-1", { statementClosingDay: 28 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringMatching(/^Period 2026-1\d: .*Reset the period/)
+    });
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+    expect(prismaMock.creditCardPeriodOverride.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", accountId: { in: ["acc-1"] } }
+    });
+  });
+
+  it("allows a default change that keeps every override consistent", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.creditCardPeriodOverride.findMany.mockResolvedValue([override(november, "2026-11-23")] as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { statementClosingDay: 22 });
+
+    expect(prismaMock.account.update).toHaveBeenCalledWith({ where: { id: "acc-1" }, data: { statementClosingDay: 22 } });
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+    });
+  });
+
+  it("maps a serialization failure on a cycle change to a 409", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.$transaction.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("conflict", { code: "P2034", clientVersion: "x" })
+    );
+
+    await expect(updateAccount("user-1", "acc-1", { statementClosingDay: 22 })).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("does not look up overrides for a change that leaves the billing cycle alone", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.account.update.mockResolvedValue({} as never);
+
+    await updateAccount("user-1", "acc-1", { name: "Renamed", creditLimit: "1000" });
+
+    expect(prismaMock.creditCardPeriodOverride.findMany).not.toHaveBeenCalled();
+  });
+
+  it("deletes the card's overrides together with clearing the card fields when the type changes", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(card as never);
+    prismaMock.account.update.mockResolvedValue({ id: "acc-1" } as never);
+    prismaMock.creditCardPeriodOverride.deleteMany.mockResolvedValue({ count: 1 } as never);
+
+    const updated = await updateAccount("user-1", "acc-1", { type: "savings" });
+
+    expect(prismaMock.creditCardPeriodOverride.deleteMany).toHaveBeenCalledWith({ where: { accountId: "acc-1", userId: "user-1" } });
+    expect(prismaMock.account.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: "savings", statementClosingDay: null }) })
+    );
+    expect(updated).toEqual({ id: "acc-1" });
   });
 });

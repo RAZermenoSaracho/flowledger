@@ -4,7 +4,7 @@ import type { Express } from "express";
 import type { Server } from "node:http";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addDays, closingDateOf, periodIndexContaining, startOfLocalDay } from "../../modules/accounts/utils/creditCardCycle.js";
+import { addDays, closingDateOf, monthIndexOfKey, periodIndexContaining, startOfLocalDay } from "../../modules/accounts/utils/creditCardCycle.js";
 import { createAuthedUser } from "../helpers/authTestUser.js";
 import { loopbackOrigin } from "../helpers/loopback.js";
 import { startTestDatabase, stopTestDatabase } from "../helpers/testDatabase.js";
@@ -36,9 +36,9 @@ async function ok<T extends { status: number; body: Json }>(res: T) {
   return res.body;
 }
 
-async function createCard(name: string) {
+async function createCard(name: string, cycle: { paymentDueValue?: number } = {}) {
   const body = await ok(
-    await request(app).post("/accounts").set(bearer(jwt)).send({ name, type: "credit_card", currency: "MXN", creditLimit: "50000", ...CYCLE })
+    await request(app).post("/accounts").set(bearer(jwt)).send({ name, type: "credit_card", currency: "MXN", creditLimit: "50000", ...CYCLE, ...cycle })
   );
   const id = body.account.id as string;
   await ok(
@@ -184,4 +184,108 @@ describe("credit card billing across write paths (real Postgres)", () => {
     await ok(await request(app).post(`/transactions/imported/${imported.id}/import`).set(bearer(jwt)).send({}));
     expect(summarize(await billing(cardId))).toEqual({ debt: "7500", closingDebt: "10000", credits: "2500", remaining: "7500" });
   }, 60_000);
+
+  describe("credit card period overrides (real Postgres)", () => {
+    const patchPeriod = (cardId: string, key: string, body: Json, token = jwt) =>
+      request(app).patch(`/accounts/${cardId}/credit-card/periods/${key}`).set(bearer(token)).send(body);
+    const ymd = (date: { y: number; m: number; d: number }) =>
+      `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
+
+    it("persists an override, reflects it in web, /v1 and MCP identically, leaves the ledger alone, and resets exactly", async () => {
+      const cardId = await createCard("Override");
+      const base = await billing(cardId);
+      const closed = base.periods[1] as Json;
+      const ledgerBefore = JSON.stringify(await prisma.transaction.findMany({ orderBy: { id: "asc" } }));
+      const accountBefore = JSON.stringify(await prisma.account.findUniqueOrThrow({ where: { id: cardId } }));
+
+      const newEnd = ymd(addDays({ y: +closed.end.slice(0, 4), m: +closed.end.slice(5, 7), d: +closed.end.slice(8) }, 2));
+      const patched = await ok(await patchPeriod(cardId, closed.key, { closingDate: newEnd }));
+      expect(patched).toMatchObject({ key: closed.key, end: newEnd, endAdjusted: true, dueAdjusted: false, defaultEnd: closed.end });
+
+      const moved = await billing(cardId);
+      expect(moved.periods[1]).toMatchObject({ end: newEnd, endAdjusted: true });
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      expect(JSON.stringify(await prisma.transaction.findMany({ orderBy: { id: "asc" } }))).toBe(ledgerBefore);
+      expect(JSON.stringify(await prisma.account.findUniqueOrThrow({ where: { id: cardId } }))).toBe(accountBefore);
+
+      const viaV1 = await request(app).get(`/v1/accounts/${cardId}/credit-card`).set(bearer(writeKey));
+      expect(viaV1.status).toBe(200);
+      const viaMcp = await mcp.callTool({ name: "get_credit_card", arguments: { id: cardId } });
+      expect(viaMcp.isError).toBeFalsy();
+      const web = (await request(app).get(`/accounts/${cardId}/credit-card`).set(bearer(jwt))).body;
+      expect(viaV1.body).toEqual(web);
+      expect(viaMcp.structuredContent).toEqual(web);
+
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: null }));
+      expect(await billing(cardId)).toEqual(base);
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
+    }, 60_000);
+
+    it("rejects a conflicting value and a default-cycle change that would invalidate an override", async () => {
+      const cardId = await createCard("Guarded");
+      const closed = (await billing(cardId)).periods[1] as Json;
+      const bad = await patchPeriod(cardId, closed.key, { closingDate: "1999-01-01" });
+      expect(bad.status).toBe(400);
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
+
+      const closing = closingDateOf(CYCLE, monthIndexOfKey(closed.key));
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: ymd(addDays(closing, 15)) }));
+      const blocked = await request(app)
+        .put(`/accounts/${cardId}`)
+        .set(bearer(jwt))
+        .send({ statementClosingDay: 3, paymentDueValue: 3 });
+      expect(blocked.status, JSON.stringify(blocked.body)).toBe(400);
+      expect(await prisma.account.findUniqueOrThrow({ where: { id: cardId } })).toMatchObject({ statementClosingDay: 20 });
+
+      await ok(await patchPeriod(cardId, closed.key, { closingDate: null }));
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ statementClosingDay: 3, paymentDueValue: 3 }));
+    }, 60_000);
+
+    it("keeps overrides across a default change that stays consistent and deletes them with the account", async () => {
+      const body = await ok(
+        await request(app).post("/accounts").set(bearer(jwt)).send({ name: "Bare", type: "credit_card", currency: "MXN", ...CYCLE })
+      );
+      const cardId = body.account.id as string;
+      const open = (await billing(cardId)).periods[0] as Json;
+      await ok(await patchPeriod(cardId, open.key, { dueDate: open.defaultDue }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ name: "Renamed" }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(1);
+      await ok(await request(app).delete(`/accounts/${cardId}`).set(bearer(jwt)));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
+    }, 60_000);
+
+    it("deletes overrides when the account stops being a credit card", async () => {
+      const body = await ok(
+        await request(app).post("/accounts").set(bearer(jwt)).send({ name: "Leaving", type: "credit_card", currency: "MXN", ...CYCLE })
+      );
+      const cardId = body.account.id as string;
+      const open = (await billing(cardId)).periods[0] as Json;
+      await ok(await patchPeriod(cardId, open.key, { dueDate: open.defaultDue }));
+      await ok(await request(app).put(`/accounts/${cardId}`).set(bearer(jwt)).send({ type: "checking" }));
+      expect(await prisma.creditCardPeriodOverride.count({ where: { accountId: cardId } })).toBe(0);
+    }, 60_000);
+
+    it("never leaves an invalid sequence when two edits that conflict jointly run concurrently", async () => {
+      const cycle = { paymentDueValue: 5 };
+      const config = { ...CYCLE, ...cycle };
+      const cardId = await createCard("Racing", cycle);
+      const [open, closed] = (await billing(cardId)).periods as [Json, Json];
+      const nextClosing = closingDateOf(config, monthIndexOfKey(closed.key) + 1);
+      const results = await Promise.all([
+        patchPeriod(cardId, closed.key, { dueDate: ymd(nextClosing) }),
+        patchPeriod(cardId, open.key, { closingDate: ymd(addDays(nextClosing, -3)) })
+      ]);
+      expect(results.map((res) => res.status).every((status) => [200, 400, 409].includes(status))).toBe(true);
+      expect(results.filter((res) => res.status === 200).length).toBeLessThan(2);
+      const after = (await billing(cardId)).periods as [Json, Json];
+      expect(after[1].dueDate <= after[0].end).toBe(true);
+    }, 60_000);
+
+    it("rejects a period key after the open period", async () => {
+      const cardId = await createCard("Future");
+      const res = await patchPeriod(cardId, "2999-01", { closingDate: "2999-01-20" });
+      expect(res.status).toBe(400);
+    }, 60_000);
+  });
 });
