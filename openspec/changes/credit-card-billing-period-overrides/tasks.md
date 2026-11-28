@@ -51,6 +51,12 @@
 - [x] 6c.3 Tests: the six institution periods in several edit orders, a due override past the next closing, a payment inside the overlap (per-statement figures, no double count within a period), a closing edit writes one row and never changes a due date, no false overdue reminder.
 - [x] 6c.4 Update the delta spec (MODIFIED boundary and payment requirements), design, proposal and `docs/DOMAIN_LOGIC.md`.
 
+## 6d. Implementation-quality review
+
+- [x] 6d.1 One exported `parseLocalDate` in `creditCardCycle.ts` replaces the private copies in `creditCardBilling.ts` and `creditCard.update.service.ts`.
+- [x] 6d.2 A card cycle-field change loads the overrides, validates and writes in one Serializable transaction; `mapSerializationConflict` (accounts `utils/`) maps `P2034` to 409 for both edit paths.
+- [x] 6d.3 Tests: interest estimate unchanged by a due date after the next closing, reset of both dates in one request, Serializable and 409 on a cycle change.
+
 ## 7. Verification
 
 - [x] 7.1 `npm run typecheck`, `npm run lint`, targeted `npm run test` per workspace.
